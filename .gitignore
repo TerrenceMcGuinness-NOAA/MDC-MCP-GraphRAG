@@ -1,0 +1,134 @@
+# Runtime Data - NEVER commit
+# These directories contain runtime-generated data
+chromadb_data/
+vector_store/
+*.chroma/
+*.faiss/
+embeddings/
+indices/
+
+# Logs - NEVER commit
+logs/
+*.log
+*.log.*
+*.log.gz
+
+# Dependencies - NEVER commit
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Runtime State - NEVER commit
+*.pid
+*.lock
+*.sock
+*.swp
+*.swo
+
+# Environment Configs - NEVER commit
+.env
+.env.*
+.envrc
+config/*.env
+secrets/
+*.secret
+credentials/
+
+# Temporary Files - NEVER commit
+tmp/
+temp/
+*.tmp
+*.cache
+*.bak
+*~
+
+# Build Artifacts - NEVER commit
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# IDE - Project settings OK, user-specific NO
+# VS Code
+.vscode/settings.json     # Commit if project-standard
+.vscode/*.code-workspace  # User workspaces - ignore
+.vscode/launch.json       # Commit if project-standard
+
+# PyCharm
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries
+.idea/shelf
+
+# OS Files - NEVER commit
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Python specific
+*.py[cod]
+*$py.class
+__pycache__/
+*.so
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Database dumps
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Large files (should be in Git LFS if needed)
+*.hdf5
+*.h5
+*.pkl
+*.pickle
+*.model
+*.bin
+*.weights

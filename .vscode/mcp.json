@@ -3,8 +3,7 @@
     "eib-mcp-rag-full": {
       "command": "node",
       "args": [
-        "/mcp_rag_eib/eib-mcp-rag-server/mcp_architecture/src/UnifiedMCPServer.js",
-        "full"
+        "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/mcp-server-full.js"
       ],
       "type": "stdio",
       "env": {
@@ -31,8 +30,7 @@
     "eib-sdd-validator": {
       "command": "node",
       "args": [
-        "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework/tools/SDDValidationTools.js",
-        "sdd_validate"
+        "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/mcp-server-sdd.js"
       ],
       "type": "stdio",
       "env": {
@@ -43,8 +41,7 @@
     "global-workflow-core": {
       "command": "node",
       "args": [
-        "/mcp_rag_eib/eib-mcp-rag-server/mcp_architecture/src/UnifiedMCPServer.js",
-        "core"
+        "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/mcp-server-workflow-core.js"
       ],
       "type": "stdio",
       "env": {
