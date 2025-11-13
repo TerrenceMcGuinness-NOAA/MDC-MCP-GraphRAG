@@ -25,3 +25,10 @@ if [ -d ~/.bashrc.d ]; then
 fi
 
 unset rc
+
+source ~/.bash_profile
+
+# Initialize Spack environment for MCP RAG development
+if [ -f /mcp_rag_eib/mcp_server_node/init-spack-env.sh ]; then
+    source /mcp_rag_eib/mcp_server_node/init-spack-env.sh
+fi
