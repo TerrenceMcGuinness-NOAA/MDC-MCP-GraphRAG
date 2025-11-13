@@ -11,8 +11,8 @@
 # Core persistent storage paths
 export PERSISTENT_ROOT="/mcp_rag_eib"
 export SETUP="${PERSISTENT_ROOT}/SETUP"
-export MCP_ROOT="${PERSISTENT_ROOT}/mcp_server_node"
-export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_MCP_node.js-RAG"
+export MCP_ROOT="${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
+export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_forked"
 
 # ChromaDB configuration
 export CHROMADB_ROOT="${PERSISTENT_ROOT}/etc/chromadb"
@@ -22,7 +22,7 @@ export CHROMADB_PORT=8080
 
 # MCP infrastructure paths
 export MCP_WORKFLOW_ROOT="${GIT_REPO}"
-export MCP_SOURCE="${GIT_REPO}/dev/ci/scripts/utils/Copilot/mcp_server_node"
+export MCP_SOURCE="${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
 export MCP_KNOWLEDGE_BASE="${MCP_ROOT}/knowledge-base"
 export MCP_DATABASE="${MCP_ROOT}/database"
 export MCP_LOGS="${MCP_ROOT}/logs"

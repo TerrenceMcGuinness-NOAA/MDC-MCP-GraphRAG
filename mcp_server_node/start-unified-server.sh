@@ -253,7 +253,7 @@ start_server() {
 post_startup_actions() {
     if [[ "${POST_STARTUP_TEST:-}" == "true" ]]; then
         log_info "Running health check..."
-        echo '{"method": "tools/call", "params": {"name": "health_check", "arguments": {"detailed": true}}, "id": 1}' | \
+        echo '{"method": "tools/call", "params": {"name": "mcp_health_check", "arguments": {"detailed": true}}, "id": 1}' | \
             node "$SERVER_SCRIPT" "$SCENARIO" | grep -q "health" && \
             log_success "Health check passed" || \
             log_warning "Health check failed"

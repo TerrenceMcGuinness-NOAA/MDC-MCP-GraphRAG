@@ -595,7 +595,7 @@ export CHROMADB_DATA="${PERSISTENT_ROOT}/data/chromadb"
 export CACHE_ROOT="${PERSISTENT_ROOT}/cache"
 
 # Git repository (now at PERSISTENT_ROOT level, not under MCP_ROOT)
-export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_MCP_node.js-RAG"
+export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_forked"
 export MCP_SOURCE="${GIT_REPO}/dev/ci/scripts/utils/Copilot/mcp_server_node"
 
 # Service endpoints

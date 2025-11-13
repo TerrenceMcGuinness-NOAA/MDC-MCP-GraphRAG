@@ -144,8 +144,8 @@ class UnifiedMCPServer {
     );
 
     this.server.registerTool(
-      'health_check',
-      'Check the health status of all server components',
+      'mcp_health_check',
+      'Check the health status of all MCP server components',
       {
         type: 'object',
         properties: {
@@ -210,7 +210,7 @@ class UnifiedMCPServer {
 
     info += `### Utility Tools (2 tools)\n`;
     info += `- get_server_info - This tool\n`;
-    info += `- health_check - System health status\n\n`;
+    info += `- mcp_health_check - MCP server infrastructure health status\n\n`;
 
     if (include_capabilities) {
       info += `## Configuration\n`;

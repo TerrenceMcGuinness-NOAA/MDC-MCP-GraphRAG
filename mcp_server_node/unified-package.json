@@ -12,7 +12,7 @@
     "dev": "node --watch src/UnifiedMCPServer.js",
     "test": "node src/tests/UnifiedTestSuite.js",
     "test:verbose": "node src/tests/UnifiedTestSuite.js --verbose",
-    "health": "echo '{\"method\": \"tools/call\", \"params\": {\"name\": \"health_check\", \"arguments\": {\"detailed\": true}}, \"id\": 1}' | node src/UnifiedMCPServer.js",
+    "health": "echo '{\"method\": \"tools/call\", \"params\": {\"name\": \"mcp_health_check\", \"arguments\": {\"detailed\": true}}, \"id\": 1}' | node src/UnifiedMCPServer.js",
     "info": "echo '{\"method\": \"tools/call\", \"params\": {\"name\": \"get_server_info\", \"arguments\": {\"include_capabilities\": true}}, \"id\": 1}' | node src/UnifiedMCPServer.js",
     "validate": "node --check src/UnifiedMCPServer.js && node --check src/core/BaseServer.js",
     "lint": "echo 'Linting not configured - consider adding ESLint'",

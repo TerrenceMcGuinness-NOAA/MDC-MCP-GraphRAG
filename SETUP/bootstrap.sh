@@ -9,7 +9,7 @@
 export SETUP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PERSISTENT_ROOT="/mcp_rag_eib"
 export MCP_ROOT="${PERSISTENT_ROOT}/mcp_server_node"
-export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_MCP_node.js-RAG"
+export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_forked"
 
 echo "=========================================="
 echo "MCP RAG Bootstrap Environment"
