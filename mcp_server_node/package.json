@@ -1,48 +1,71 @@
 {
-  "name": "global-workflow-mcp-server",
-  "version": "1.0.0",
-  "description": "MCP Server for NOAA Global Workflow",
-  "main": "mcp-server.js",
+  "name": "global-workflow-unified-mcp-server",
+  "version": "2.0.0",
+  "description": "Unified MCP Server for NOAA Global Workflow with modular architecture",
+  "main": "src/UnifiedMCPServer.js",
   "type": "module",
   "scripts": {
-    "start": "node mcp-server.js",
-    "start:rag": "node mcp-server-rag.js",
-    "start:github": "node mcp-server-github-rag.js",
-    "dev": "node --watch mcp-server.js",
-    "dev:rag": "node --watch mcp-server-rag.js",
-    "dev:github": "node --watch mcp-server-github-rag.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:data": "vitest run src/data/__tests__",
-    "test:unit": "./run-tests.sh unit",
-    "test:integration": "./run-tests.sh integration",
-    "validate": "./run-tests.sh validation",
-    "test:help": "./run-tests.sh help"
+    "start": "node src/UnifiedMCPServer.js full",
+    "start:core": "node src/UnifiedMCPServer.js core",
+    "start:rag": "node src/UnifiedMCPServer.js rag",
+    "start:github": "node src/UnifiedMCPServer.js github",
+    "dev": "node --watch src/UnifiedMCPServer.js",
+    "test": "node src/tests/UnifiedTestSuite.js",
+    "test:verbose": "node src/tests/UnifiedTestSuite.js --verbose",
+    "health": "echo '{\"method\": \"tools/call\", \"params\": {\"name\": \"mcp_health_check\", \"arguments\": {\"detailed\": true}}, \"id\": 1}' | node src/UnifiedMCPServer.js",
+    "info": "echo '{\"method\": \"tools/call\", \"params\": {\"name\": \"get_server_info\", \"arguments\": {\"include_capabilities\": true}}, \"id\": 1}' | node src/UnifiedMCPServer.js",
+    "validate": "node --check src/UnifiedMCPServer.js && node --check src/core/BaseServer.js",
+    "lint": "echo 'Linting not configured - consider adding ESLint'",
+    "docs": "node -e \"console.log('Documentation: See README.md and inline comments')\""
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.5",
+    "@chroma-core/default-embed": "^0.1.9",
+    "@modelcontextprotocol/sdk": "^1.17.2",
     "@octokit/rest": "^22.0.0",
     "@xenova/transformers": "^2.15.0",
+    "chromadb": "^3.1.4",
+    "glob": "^11.0.3"
+  },
+  "optionalDependencies": {
     "cheerio": "^1.0.0-rc.12",
-    "chromadb": "^3.0.17",
-    "github-mcp-server": "^1.8.7",
-    "glob": "^11.0.0",
     "gray-matter": "^4.0.3",
-    "jaegis-github-mcp-server": "^3.1.0",
-    "langchain": "^0.3.30",
-    "neo4j-driver": "^6.0.0",
     "pdf-parse": "^1.1.1",
     "sharp": "^0.34.3"
-  },
-  "devDependencies": {
-    "@vitest/coverage-v8": "^3.2.4",
-    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
-  "author": "NOAA EMC",
-  "license": "MIT"
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "noaa",
+    "global-workflow",
+    "weather-forecasting",
+    "rag",
+    "github-integration"
+  ],
+  "author": "NOAA EMC Global Workflow Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NOAA-EMC/global-workflow.git",
+    "directory": "dev/ci/scripts/utils/Copilot/mcp_server_node"
+  },
+  "bugs": {
+    "url": "https://github.com/NOAA-EMC/global-workflow/issues"
+  },
+  "homepage": "https://github.com/NOAA-EMC/global-workflow",
+  "config": {
+    "mcp": {
+      "server_name": "global-workflow-unified-mcp",
+      "default_scenario": "full",
+      "supported_scenarios": [
+        "full",
+        "core",
+        "rag",
+        "github"
+      ]
+    }
+  }
 }
