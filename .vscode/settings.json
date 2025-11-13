@@ -1,0 +1,9 @@
+{
+    "chat.mcp.serverSampling": {
+        "global-workflow_MCP_node.js-RAG/.vscode/mcp.json: global-workflow-full": {
+            "allowedModels": [
+                "copilot/claude-3.5-sonnet"
+            ]
+        }
+    }
+}

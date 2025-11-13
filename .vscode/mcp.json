@@ -1,0 +1,39 @@
+{
+  "servers": {
+    "global-workflow-full": {
+      "command": "node",
+      "args": [
+        "/mcp_rag_eib/mcp_server_node/src/UnifiedMCPServer.js",
+        "full"
+      ],
+      "type": "stdio",
+      "env": {
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/global-workflow_MCP_node.js-RAG",
+        "CHROMA_SERVER_URL": "http://localhost:8080"
+      }
+    },
+    "global-workflow-rag": {
+      "command": "node",
+      "args": [
+        "/mcp_rag_eib/mcp_server_node/src/UnifiedMCPServer.js",
+        "rag"
+      ],
+      "type": "stdio",
+      "env": {
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/global-workflow_MCP_node.js-RAG",
+        "CHROMA_SERVER_URL": "http://localhost:8080"
+      }
+    },
+    "global-workflow-core": {
+      "command": "node",
+      "args": [
+        "/mcp_rag_eib/mcp_server_node/src/UnifiedMCPServer.js",
+        "core"
+      ],
+      "type": "stdio",
+      "env": {
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/global-workflow_MCP_node.js-RAG"
+      }
+    }
+  }
+}
