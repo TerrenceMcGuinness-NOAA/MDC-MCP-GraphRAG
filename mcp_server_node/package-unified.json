@@ -1,0 +1,64 @@
+{
+  "name": "global-workflow-unified-mcp-server",
+  "version": "2.0.0",
+  "description": "Unified MCP Server for NOAA Global Workflow with modular architecture",
+  "main": "src/UnifiedMCPServer.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/UnifiedMCPServer.js full",
+    "start:core": "node src/UnifiedMCPServer.js core",
+    "start:rag": "node src/UnifiedMCPServer.js rag",
+    "start:github": "node src/UnifiedMCPServer.js github",
+    "dev": "node --watch src/UnifiedMCPServer.js",
+    "test": "node src/tests/UnifiedTestSuite.js",
+    "test:verbose": "node src/tests/UnifiedTestSuite.js --verbose",
+    "health": "echo '{\"method\": \"tools/call\", \"params\": {\"name\": \"health_check\", \"arguments\": {\"detailed\": true}}, \"id\": 1}' | node src/UnifiedMCPServer.js",
+    "info": "echo '{\"method\": \"tools/call\", \"params\": {\"name\": \"get_server_info\", \"arguments\": {\"include_capabilities\": true}}, \"id\": 1}' | node src/UnifiedMCPServer.js",
+    "validate": "node --check src/UnifiedMCPServer.js && node --check src/core/BaseServer.js",
+    "lint": "echo 'Linting not configured - consider adding ESLint'",
+    "docs": "node -e \"console.log('Documentation: See README.md and inline comments')\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@octokit/rest": "^22.0.0",
+    "@xenova/transformers": "^2.15.0",
+    "chromadb": "^1.8.1"
+  },
+  "optionalDependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "gray-matter": "^4.0.3",
+    "pdf-parse": "^1.1.1",
+    "sharp": "^0.34.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol", 
+    "noaa",
+    "global-workflow",
+    "weather-forecasting",
+    "rag",
+    "github-integration"
+  ],
+  "author": "NOAA EMC Global Workflow Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NOAA-EMC/global-workflow.git",
+    "directory": "dev/ci/scripts/utils/Copilot/mcp_server_node"
+  },
+  "bugs": {
+    "url": "https://github.com/NOAA-EMC/global-workflow/issues"
+  },
+  "homepage": "https://github.com/NOAA-EMC/global-workflow",
+  "config": {
+    "mcp": {
+      "server_name": "global-workflow-unified-mcp",
+      "default_scenario": "full",
+      "supported_scenarios": ["full", "core", "rag", "github"]
+    }
+  }
+}

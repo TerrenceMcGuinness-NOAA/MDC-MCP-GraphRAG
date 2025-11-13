@@ -1,0 +1,27 @@
+# ecFlow Server Dockerfile
+# Based on eowyn/debian-ecflow with custom configuration
+FROM eowyn/debian-ecflow:latest
+
+LABEL maintainer="Terry.McGuinness@noaa.gov"
+LABEL description="ecFlow Server for Global Workflow orchestration"
+LABEL version="5.14.1"
+
+# Set environment variables
+ENV ECF_HOME=/home/ecflow/server
+ENV ECF_LOG=/home/ecflow/logs
+ENV ECF_PORT=3141
+
+# Create necessary directories
+USER ecflow
+WORKDIR /home/ecflow
+RUN mkdir -p server logs suites
+
+# Expose the ecFlow server port
+EXPOSE 3141
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD ecflow_client --ping || exit 1
+
+# Start ecFlow server
+CMD ["sh", "-c", "cd /home/ecflow && ecflow_server --port=${ECF_PORT}"]

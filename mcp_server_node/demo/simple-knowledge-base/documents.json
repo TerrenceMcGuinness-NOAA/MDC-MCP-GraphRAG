@@ -1,0 +1,4951 @@
+[
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/.readthedocs.yaml",
+    "relativePath": ".readthedocs.yaml",
+    "extension": ".yaml",
+    "name": ".readthedocs.yaml",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/CMakeLists.txt",
+    "relativePath": "CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/LICENSE.md",
+    "relativePath": "LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/MCP_SERVER_README.md",
+    "relativePath": "MCP_SERVER_README.md",
+    "extension": ".md",
+    "name": "MCP_SERVER_README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/MCP_SERVER_node-js_README.md",
+    "relativePath": "MCP_SERVER_node-js_README.md",
+    "extension": ".md",
+    "name": "MCP_SERVER_node-js_README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/README.md",
+    "relativePath": "README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/README_global-workflow_STRUCTURE.md",
+    "relativePath": "README_global-workflow_STRUCTURE.md",
+    "extension": ".md",
+    "name": "README_global-workflow_STRUCTURE.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/changelog.md",
+    "relativePath": "changelog.md",
+    "extension": ".md",
+    "name": "changelog.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ci/docs/README-CI-Pipeline.md",
+    "relativePath": "dev/ci/docs/README-CI-Pipeline.md",
+    "extension": ".md",
+    "name": "README-CI-Pipeline.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ci/gitlab-ci-cases.yml",
+    "relativePath": "dev/ci/gitlab-ci-cases.yml",
+    "extension": ".yml",
+    "name": "gitlab-ci-cases.yml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ci/gitlab-ci-ctests.yml",
+    "relativePath": "dev/ci/gitlab-ci-ctests.yml",
+    "extension": ".yml",
+    "name": "gitlab-ci-ctests.yml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ci/gitlab-ci-hosts.yml",
+    "relativePath": "dev/ci/gitlab-ci-hosts.yml",
+    "extension": ".yml",
+    "name": "gitlab-ci-hosts.yml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ci/scripts/driver_weekly.sh",
+    "relativePath": "dev/ci/scripts/driver_weekly.sh",
+    "extension": ".sh",
+    "name": "driver_weekly.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ci/scripts/run_check_ci.sh",
+    "relativePath": "dev/ci/scripts/run_check_ci.sh",
+    "extension": ".sh",
+    "name": "run_check_ci.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ci/scripts/run_check_gitlab_ci.sh",
+    "relativePath": "dev/ci/scripts/run_check_gitlab_ci.sh",
+    "extension": ".sh",
+    "name": "run_check_gitlab_ci.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ctests/CMakeLists.txt",
+    "relativePath": "dev/ctests/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ctests/README.md",
+    "relativePath": "dev/ctests/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ctests/cases/C48_ATM_gfs_fcst_seg0.yaml",
+    "relativePath": "dev/ctests/cases/C48_ATM_gfs_fcst_seg0.yaml",
+    "extension": ".yaml",
+    "name": "C48_ATM_gfs_fcst_seg0.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ctests/cases/C48_S2SW_gfs_fcst_seg0.yaml",
+    "relativePath": "dev/ctests/cases/C48_S2SW_gfs_fcst_seg0.yaml",
+    "extension": ".yaml",
+    "name": "C48_S2SW_gfs_fcst_seg0.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ctests/scripts/stage.py",
+    "relativePath": "dev/ctests/scripts/stage.py",
+    "extension": ".py",
+    "name": "stage.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ctests/scripts/validate.py",
+    "relativePath": "dev/ctests/scripts/validate.py",
+    "extension": ".py",
+    "name": "validate.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/aeroanlfinal.sh",
+    "relativePath": "dev/jobs/aeroanlfinal.sh",
+    "extension": ".sh",
+    "name": "aeroanlfinal.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/aeroanlgenb.sh",
+    "relativePath": "dev/jobs/aeroanlgenb.sh",
+    "extension": ".sh",
+    "name": "aeroanlgenb.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/aeroanlinit.sh",
+    "relativePath": "dev/jobs/aeroanlinit.sh",
+    "extension": ".sh",
+    "name": "aeroanlinit.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/aeroanlvar.sh",
+    "relativePath": "dev/jobs/aeroanlvar.sh",
+    "extension": ".sh",
+    "name": "aeroanlvar.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/aerosol_init.sh",
+    "relativePath": "dev/jobs/aerosol_init.sh",
+    "extension": ".sh",
+    "name": "aerosol_init.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/anal.sh",
+    "relativePath": "dev/jobs/anal.sh",
+    "extension": ".sh",
+    "name": "anal.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/analcalc.sh",
+    "relativePath": "dev/jobs/analcalc.sh",
+    "extension": ".sh",
+    "name": "analcalc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/analcalc_fv3jedi.sh",
+    "relativePath": "dev/jobs/analcalc_fv3jedi.sh",
+    "extension": ".sh",
+    "name": "analcalc_fv3jedi.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/analdiag.sh",
+    "relativePath": "dev/jobs/analdiag.sh",
+    "extension": ".sh",
+    "name": "analdiag.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/anlstat.sh",
+    "relativePath": "dev/jobs/anlstat.sh",
+    "extension": ".sh",
+    "name": "anlstat.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/arch_tars.sh",
+    "relativePath": "dev/jobs/arch_tars.sh",
+    "extension": ".sh",
+    "name": "arch_tars.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/arch_vrfy.sh",
+    "relativePath": "dev/jobs/arch_vrfy.sh",
+    "extension": ".sh",
+    "name": "arch_vrfy.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmanlfinal.sh",
+    "relativePath": "dev/jobs/atmanlfinal.sh",
+    "extension": ".sh",
+    "name": "atmanlfinal.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmanlfv3inc.sh",
+    "relativePath": "dev/jobs/atmanlfv3inc.sh",
+    "extension": ".sh",
+    "name": "atmanlfv3inc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmanlinit.sh",
+    "relativePath": "dev/jobs/atmanlinit.sh",
+    "extension": ".sh",
+    "name": "atmanlinit.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmanlvar.sh",
+    "relativePath": "dev/jobs/atmanlvar.sh",
+    "extension": ".sh",
+    "name": "atmanlvar.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmensanlfinal.sh",
+    "relativePath": "dev/jobs/atmensanlfinal.sh",
+    "extension": ".sh",
+    "name": "atmensanlfinal.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmensanlfv3inc.sh",
+    "relativePath": "dev/jobs/atmensanlfv3inc.sh",
+    "extension": ".sh",
+    "name": "atmensanlfv3inc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmensanlinit.sh",
+    "relativePath": "dev/jobs/atmensanlinit.sh",
+    "extension": ".sh",
+    "name": "atmensanlinit.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmensanlletkf.sh",
+    "relativePath": "dev/jobs/atmensanlletkf.sh",
+    "extension": ".sh",
+    "name": "atmensanlletkf.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmensanlobs.sh",
+    "relativePath": "dev/jobs/atmensanlobs.sh",
+    "extension": ".sh",
+    "name": "atmensanlobs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmensanlsol.sh",
+    "relativePath": "dev/jobs/atmensanlsol.sh",
+    "extension": ".sh",
+    "name": "atmensanlsol.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmos_ensstat.sh",
+    "relativePath": "dev/jobs/atmos_ensstat.sh",
+    "extension": ".sh",
+    "name": "atmos_ensstat.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/atmos_products.sh",
+    "relativePath": "dev/jobs/atmos_products.sh",
+    "extension": ".sh",
+    "name": "atmos_products.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/awips.sh",
+    "relativePath": "dev/jobs/awips.sh",
+    "extension": ".sh",
+    "name": "awips.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/awips_20km_1p0deg.sh",
+    "relativePath": "dev/jobs/awips_20km_1p0deg.sh",
+    "extension": ".sh",
+    "name": "awips_20km_1p0deg.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/cleanup.sh",
+    "relativePath": "dev/jobs/cleanup.sh",
+    "extension": ".sh",
+    "name": "cleanup.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/earc_tars.sh",
+    "relativePath": "dev/jobs/earc_tars.sh",
+    "extension": ".sh",
+    "name": "earc_tars.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/earc_vrfy.sh",
+    "relativePath": "dev/jobs/earc_vrfy.sh",
+    "extension": ".sh",
+    "name": "earc_vrfy.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/ecen.sh",
+    "relativePath": "dev/jobs/ecen.sh",
+    "extension": ".sh",
+    "name": "ecen.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/ecen_fv3jedi.sh",
+    "relativePath": "dev/jobs/ecen_fv3jedi.sh",
+    "extension": ".sh",
+    "name": "ecen_fv3jedi.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/echgres.sh",
+    "relativePath": "dev/jobs/echgres.sh",
+    "extension": ".sh",
+    "name": "echgres.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/ediag.sh",
+    "relativePath": "dev/jobs/ediag.sh",
+    "extension": ".sh",
+    "name": "ediag.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/eobs.sh",
+    "relativePath": "dev/jobs/eobs.sh",
+    "extension": ".sh",
+    "name": "eobs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/epos.sh",
+    "relativePath": "dev/jobs/epos.sh",
+    "extension": ".sh",
+    "name": "epos.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/esfc.sh",
+    "relativePath": "dev/jobs/esfc.sh",
+    "extension": ".sh",
+    "name": "esfc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/esnowanl.sh",
+    "relativePath": "dev/jobs/esnowanl.sh",
+    "extension": ".sh",
+    "name": "esnowanl.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/eupd.sh",
+    "relativePath": "dev/jobs/eupd.sh",
+    "extension": ".sh",
+    "name": "eupd.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/extractvars.sh",
+    "relativePath": "dev/jobs/extractvars.sh",
+    "extension": ".sh",
+    "name": "extractvars.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/fbwind.sh",
+    "relativePath": "dev/jobs/fbwind.sh",
+    "extension": ".sh",
+    "name": "fbwind.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/fcst.sh",
+    "relativePath": "dev/jobs/fcst.sh",
+    "extension": ".sh",
+    "name": "fcst.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/fetch.sh",
+    "relativePath": "dev/jobs/fetch.sh",
+    "extension": ".sh",
+    "name": "fetch.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/fit2obs.sh",
+    "relativePath": "dev/jobs/fit2obs.sh",
+    "extension": ".sh",
+    "name": "fit2obs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/gempak.sh",
+    "relativePath": "dev/jobs/gempak.sh",
+    "extension": ".sh",
+    "name": "gempak.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/gempakgrb2spec.sh",
+    "relativePath": "dev/jobs/gempakgrb2spec.sh",
+    "extension": ".sh",
+    "name": "gempakgrb2spec.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/gempakmeta.sh",
+    "relativePath": "dev/jobs/gempakmeta.sh",
+    "extension": ".sh",
+    "name": "gempakmeta.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/gempakmetancdc.sh",
+    "relativePath": "dev/jobs/gempakmetancdc.sh",
+    "extension": ".sh",
+    "name": "gempakmetancdc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/gempakncdcupapgif.sh",
+    "relativePath": "dev/jobs/gempakncdcupapgif.sh",
+    "extension": ".sh",
+    "name": "gempakncdcupapgif.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/gen_control_ic.sh",
+    "relativePath": "dev/jobs/gen_control_ic.sh",
+    "extension": ".sh",
+    "name": "gen_control_ic.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/genesis.sh",
+    "relativePath": "dev/jobs/genesis.sh",
+    "extension": ".sh",
+    "name": "genesis.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/genesis_fsu.sh",
+    "relativePath": "dev/jobs/genesis_fsu.sh",
+    "extension": ".sh",
+    "name": "genesis_fsu.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/globus_arch.sh",
+    "relativePath": "dev/jobs/globus_arch.sh",
+    "extension": ".sh",
+    "name": "globus_arch.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/globus_earc.sh",
+    "relativePath": "dev/jobs/globus_earc.sh",
+    "extension": ".sh",
+    "name": "globus_earc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marineanlchkpt.sh",
+    "relativePath": "dev/jobs/marineanlchkpt.sh",
+    "extension": ".sh",
+    "name": "marineanlchkpt.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marineanlecen.sh",
+    "relativePath": "dev/jobs/marineanlecen.sh",
+    "extension": ".sh",
+    "name": "marineanlecen.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marineanlfinal.sh",
+    "relativePath": "dev/jobs/marineanlfinal.sh",
+    "extension": ".sh",
+    "name": "marineanlfinal.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marineanlinit.sh",
+    "relativePath": "dev/jobs/marineanlinit.sh",
+    "extension": ".sh",
+    "name": "marineanlinit.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marineanlletkf.sh",
+    "relativePath": "dev/jobs/marineanlletkf.sh",
+    "extension": ".sh",
+    "name": "marineanlletkf.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marineanlvar.sh",
+    "relativePath": "dev/jobs/marineanlvar.sh",
+    "extension": ".sh",
+    "name": "marineanlvar.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marinebmat.sh",
+    "relativePath": "dev/jobs/marinebmat.sh",
+    "extension": ".sh",
+    "name": "marinebmat.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/marinebmatinit.sh",
+    "relativePath": "dev/jobs/marinebmatinit.sh",
+    "extension": ".sh",
+    "name": "marinebmatinit.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/metp.sh",
+    "relativePath": "dev/jobs/metp.sh",
+    "extension": ".sh",
+    "name": "metp.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/npoess.sh",
+    "relativePath": "dev/jobs/npoess.sh",
+    "extension": ".sh",
+    "name": "npoess.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/oceanice_products.sh",
+    "relativePath": "dev/jobs/oceanice_products.sh",
+    "extension": ".sh",
+    "name": "oceanice_products.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/offlineanl.sh",
+    "relativePath": "dev/jobs/offlineanl.sh",
+    "extension": ".sh",
+    "name": "offlineanl.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/postsnd.sh",
+    "relativePath": "dev/jobs/postsnd.sh",
+    "extension": ".sh",
+    "name": "postsnd.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/prep.sh",
+    "relativePath": "dev/jobs/prep.sh",
+    "extension": ".sh",
+    "name": "prep.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/prep_emissions.sh",
+    "relativePath": "dev/jobs/prep_emissions.sh",
+    "extension": ".sh",
+    "name": "prep_emissions.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/prep_sfc.sh",
+    "relativePath": "dev/jobs/prep_sfc.sh",
+    "extension": ".sh",
+    "name": "prep_sfc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/prepatmiodaobs.sh",
+    "relativePath": "dev/jobs/prepatmiodaobs.sh",
+    "extension": ".sh",
+    "name": "prepatmiodaobs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/prepobsaero.sh",
+    "relativePath": "dev/jobs/prepobsaero.sh",
+    "extension": ".sh",
+    "name": "prepobsaero.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/prepoceanobs.sh",
+    "relativePath": "dev/jobs/prepoceanobs.sh",
+    "extension": ".sh",
+    "name": "prepoceanobs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/sfcanl.sh",
+    "relativePath": "dev/jobs/sfcanl.sh",
+    "extension": ".sh",
+    "name": "sfcanl.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/snowanl.sh",
+    "relativePath": "dev/jobs/snowanl.sh",
+    "extension": ".sh",
+    "name": "snowanl.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/stage_ic.sh",
+    "relativePath": "dev/jobs/stage_ic.sh",
+    "extension": ".sh",
+    "name": "stage_ic.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/tracker.sh",
+    "relativePath": "dev/jobs/tracker.sh",
+    "extension": ".sh",
+    "name": "tracker.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/upp.sh",
+    "relativePath": "dev/jobs/upp.sh",
+    "extension": ".sh",
+    "name": "upp.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/verfozn.sh",
+    "relativePath": "dev/jobs/verfozn.sh",
+    "extension": ".sh",
+    "name": "verfozn.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/verfrad.sh",
+    "relativePath": "dev/jobs/verfrad.sh",
+    "extension": ".sh",
+    "name": "verfrad.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/vminmon.sh",
+    "relativePath": "dev/jobs/vminmon.sh",
+    "extension": ".sh",
+    "name": "vminmon.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/waveawipsbulls.sh",
+    "relativePath": "dev/jobs/waveawipsbulls.sh",
+    "extension": ".sh",
+    "name": "waveawipsbulls.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/waveawipsgridded.sh",
+    "relativePath": "dev/jobs/waveawipsgridded.sh",
+    "extension": ".sh",
+    "name": "waveawipsgridded.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/wavegempak.sh",
+    "relativePath": "dev/jobs/wavegempak.sh",
+    "extension": ".sh",
+    "name": "wavegempak.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/waveinit.sh",
+    "relativePath": "dev/jobs/waveinit.sh",
+    "extension": ".sh",
+    "name": "waveinit.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/wavepostbndpnt.sh",
+    "relativePath": "dev/jobs/wavepostbndpnt.sh",
+    "extension": ".sh",
+    "name": "wavepostbndpnt.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/wavepostbndpntbll.sh",
+    "relativePath": "dev/jobs/wavepostbndpntbll.sh",
+    "extension": ".sh",
+    "name": "wavepostbndpntbll.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/wavepostpnt.sh",
+    "relativePath": "dev/jobs/wavepostpnt.sh",
+    "extension": ".sh",
+    "name": "wavepostpnt.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/wavepostsbs.sh",
+    "relativePath": "dev/jobs/wavepostsbs.sh",
+    "extension": ".sh",
+    "name": "wavepostsbs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/jobs/waveprep.sh",
+    "relativePath": "dev/jobs/waveprep.sh",
+    "extension": ".sh",
+    "name": "waveprep.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/README.md",
+    "relativePath": "dev/test/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/diff_ROTDIR.sh",
+    "relativePath": "dev/test/diff_ROTDIR.sh",
+    "extension": ".sh",
+    "name": "diff_ROTDIR.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/diff_UFS_rundir.sh",
+    "relativePath": "dev/test/diff_UFS_rundir.sh",
+    "extension": ".sh",
+    "name": "diff_UFS_rundir.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/diff_grib_files.py",
+    "relativePath": "dev/test/diff_grib_files.py",
+    "extension": ".py",
+    "name": "diff_grib_files.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/f90nmlcmp.sh",
+    "relativePath": "dev/test/f90nmlcmp.sh",
+    "extension": ".sh",
+    "name": "f90nmlcmp.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/g2cmp.sh",
+    "relativePath": "dev/test/g2cmp.sh",
+    "extension": ".sh",
+    "name": "g2cmp.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/nccmp.sh",
+    "relativePath": "dev/test/nccmp.sh",
+    "extension": ".sh",
+    "name": "nccmp.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/netcdf_op_functions.sh",
+    "relativePath": "dev/test/netcdf_op_functions.sh",
+    "extension": ".sh",
+    "name": "netcdf_op_functions.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/test/test_utils.sh",
+    "relativePath": "dev/test/test_utils.sh",
+    "extension": ".sh",
+    "name": "test_utils.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ush/compare_f90nml.py",
+    "relativePath": "dev/ush/compare_f90nml.py",
+    "extension": ".py",
+    "name": "compare_f90nml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ush/gw_setup.sh",
+    "relativePath": "dev/ush/gw_setup.sh",
+    "extension": ".sh",
+    "name": "gw_setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ush/load_fv3gfs_modules.sh",
+    "relativePath": "dev/ush/load_fv3gfs_modules.sh",
+    "extension": ".sh",
+    "name": "load_fv3gfs_modules.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ush/load_ufsda_modules.sh",
+    "relativePath": "dev/ush/load_ufsda_modules.sh",
+    "extension": ".sh",
+    "name": "load_ufsda_modules.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/ush/load_ufswm_modules.sh",
+    "relativePath": "dev/ush/load_ufswm_modules.sh",
+    "extension": ".sh",
+    "name": "load_ufswm_modules.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/README_ecflow.md",
+    "relativePath": "dev/workflow/README_ecflow.md",
+    "extension": ".md",
+    "name": "README_ecflow.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/__init__.py",
+    "relativePath": "dev/workflow/applications/__init__.py",
+    "extension": ".py",
+    "name": "__init__.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/application_factory.py",
+    "relativePath": "dev/workflow/applications/application_factory.py",
+    "extension": ".py",
+    "name": "application_factory.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/applications.py",
+    "relativePath": "dev/workflow/applications/applications.py",
+    "extension": ".py",
+    "name": "applications.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/gcafs_cycled.py",
+    "relativePath": "dev/workflow/applications/gcafs_cycled.py",
+    "extension": ".py",
+    "name": "gcafs_cycled.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/gcafs_forecast_only.py",
+    "relativePath": "dev/workflow/applications/gcafs_forecast_only.py",
+    "extension": ".py",
+    "name": "gcafs_forecast_only.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/gefs.py",
+    "relativePath": "dev/workflow/applications/gefs.py",
+    "extension": ".py",
+    "name": "gefs.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/gfs_cycled.py",
+    "relativePath": "dev/workflow/applications/gfs_cycled.py",
+    "extension": ".py",
+    "name": "gfs_cycled.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/gfs_forecast_only.py",
+    "relativePath": "dev/workflow/applications/gfs_forecast_only.py",
+    "extension": ".py",
+    "name": "gfs_forecast_only.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/applications/sfs.py",
+    "relativePath": "dev/workflow/applications/sfs.py",
+    "extension": ".py",
+    "name": "sfs.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/create_experiment.py",
+    "relativePath": "dev/workflow/create_experiment.py",
+    "extension": ".py",
+    "name": "create_experiment.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/ecFlow/ecflow_definitions.py",
+    "relativePath": "dev/workflow/ecFlow/ecflow_definitions.py",
+    "extension": ".py",
+    "name": "ecflow_definitions.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/ecFlow/ecflow_setup.py",
+    "relativePath": "dev/workflow/ecFlow/ecflow_setup.py",
+    "extension": ".py",
+    "name": "ecflow_setup.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/generate_workflows.sh",
+    "relativePath": "dev/workflow/generate_workflows.sh",
+    "extension": ".sh",
+    "name": "generate_workflows.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/awspw.yaml",
+    "relativePath": "dev/workflow/hosts/awspw.yaml",
+    "extension": ".yaml",
+    "name": "awspw.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/azurepw.yaml",
+    "relativePath": "dev/workflow/hosts/azurepw.yaml",
+    "extension": ".yaml",
+    "name": "azurepw.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/container.yaml",
+    "relativePath": "dev/workflow/hosts/container.yaml",
+    "extension": ".yaml",
+    "name": "container.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/gaeac5.yaml",
+    "relativePath": "dev/workflow/hosts/gaeac5.yaml",
+    "extension": ".yaml",
+    "name": "gaeac5.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/gaeac6.yaml",
+    "relativePath": "dev/workflow/hosts/gaeac6.yaml",
+    "extension": ".yaml",
+    "name": "gaeac6.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/googlepw.yaml",
+    "relativePath": "dev/workflow/hosts/googlepw.yaml",
+    "extension": ".yaml",
+    "name": "googlepw.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/hera.yaml",
+    "relativePath": "dev/workflow/hosts/hera.yaml",
+    "extension": ".yaml",
+    "name": "hera.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/hercules.yaml",
+    "relativePath": "dev/workflow/hosts/hercules.yaml",
+    "extension": ".yaml",
+    "name": "hercules.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/orion.yaml",
+    "relativePath": "dev/workflow/hosts/orion.yaml",
+    "extension": ".yaml",
+    "name": "orion.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts/wcoss2.yaml",
+    "relativePath": "dev/workflow/hosts/wcoss2.yaml",
+    "extension": ".yaml",
+    "name": "wcoss2.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/hosts.py",
+    "relativePath": "dev/workflow/hosts.py",
+    "extension": ".py",
+    "name": "hosts.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/prod.yml",
+    "relativePath": "dev/workflow/prod.yml",
+    "extension": ".yml",
+    "name": "prod.yml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/requirements.txt",
+    "relativePath": "dev/workflow/requirements.txt",
+    "extension": ".txt",
+    "name": "requirements.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/__init__.py",
+    "relativePath": "dev/workflow/rocoto/__init__.py",
+    "extension": ".py",
+    "name": "__init__.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gcafs_cycled_xml.py",
+    "relativePath": "dev/workflow/rocoto/gcafs_cycled_xml.py",
+    "extension": ".py",
+    "name": "gcafs_cycled_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gcafs_forecast_only_xml.py",
+    "relativePath": "dev/workflow/rocoto/gcafs_forecast_only_xml.py",
+    "extension": ".py",
+    "name": "gcafs_forecast_only_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gcafs_tasks.py",
+    "relativePath": "dev/workflow/rocoto/gcafs_tasks.py",
+    "extension": ".py",
+    "name": "gcafs_tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gcafs_xml.py",
+    "relativePath": "dev/workflow/rocoto/gcafs_xml.py",
+    "extension": ".py",
+    "name": "gcafs_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gefs_tasks.py",
+    "relativePath": "dev/workflow/rocoto/gefs_tasks.py",
+    "extension": ".py",
+    "name": "gefs_tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gefs_xml.py",
+    "relativePath": "dev/workflow/rocoto/gefs_xml.py",
+    "extension": ".py",
+    "name": "gefs_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gfs_cycled_xml.py",
+    "relativePath": "dev/workflow/rocoto/gfs_cycled_xml.py",
+    "extension": ".py",
+    "name": "gfs_cycled_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gfs_forecast_only_xml.py",
+    "relativePath": "dev/workflow/rocoto/gfs_forecast_only_xml.py",
+    "extension": ".py",
+    "name": "gfs_forecast_only_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/gfs_tasks.py",
+    "relativePath": "dev/workflow/rocoto/gfs_tasks.py",
+    "extension": ".py",
+    "name": "gfs_tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/rocoto.py",
+    "relativePath": "dev/workflow/rocoto/rocoto.py",
+    "extension": ".py",
+    "name": "rocoto.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/rocoto_xml_factory.py",
+    "relativePath": "dev/workflow/rocoto/rocoto_xml_factory.py",
+    "extension": ".py",
+    "name": "rocoto_xml_factory.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/sfs_tasks.py",
+    "relativePath": "dev/workflow/rocoto/sfs_tasks.py",
+    "extension": ".py",
+    "name": "sfs_tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/sfs_xml.py",
+    "relativePath": "dev/workflow/rocoto/sfs_xml.py",
+    "extension": ".py",
+    "name": "sfs_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/tasks.py",
+    "relativePath": "dev/workflow/rocoto/tasks.py",
+    "extension": ".py",
+    "name": "tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/tasks_factory.py",
+    "relativePath": "dev/workflow/rocoto/tasks_factory.py",
+    "extension": ".py",
+    "name": "tasks_factory.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/workflow_tasks.py",
+    "relativePath": "dev/workflow/rocoto/workflow_tasks.py",
+    "extension": ".py",
+    "name": "workflow_tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto/workflow_xml.py",
+    "relativePath": "dev/workflow/rocoto/workflow_xml.py",
+    "extension": ".py",
+    "name": "workflow_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/rocoto_viewer.py",
+    "relativePath": "dev/workflow/rocoto_viewer.py",
+    "extension": ".py",
+    "name": "rocoto_viewer.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/setup_ecf.py",
+    "relativePath": "dev/workflow/setup_ecf.py",
+    "extension": ".py",
+    "name": "setup_ecf.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/setup_expt.py",
+    "relativePath": "dev/workflow/setup_expt.py",
+    "extension": ".py",
+    "name": "setup_expt.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/setup_xml.py",
+    "relativePath": "dev/workflow/setup_xml.py",
+    "extension": ".py",
+    "name": "setup_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/tests/__init__.py",
+    "relativePath": "dev/workflow/tests/__init__.py",
+    "extension": ".py",
+    "name": "__init__.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/tests/test_configuration.py",
+    "relativePath": "dev/workflow/tests/test_configuration.py",
+    "extension": ".py",
+    "name": "test_configuration.py",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/tests/test_hosts.py",
+    "relativePath": "dev/workflow/tests/test_hosts.py",
+    "extension": ".py",
+    "name": "test_hosts.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/dev/workflow/tests/test_tasks.py",
+    "relativePath": "dev/workflow/tests/test_tasks.py",
+    "extension": ".py",
+    "name": "test_tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/archive/Release_Notes.gdas_emcsfc.v13.0.0.txt",
+    "relativePath": "docs/archive/Release_Notes.gdas_emcsfc.v13.0.0.txt",
+    "extension": ".txt",
+    "name": "Release_Notes.gdas_emcsfc.v13.0.0.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/archive/Release_Notes.gfs_emcsfc.v13.0.0.txt",
+    "relativePath": "docs/archive/Release_Notes.gfs_emcsfc.v13.0.0.txt",
+    "extension": ".txt",
+    "name": "Release_Notes.gfs_emcsfc.v13.0.0.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/requirements.txt",
+    "relativePath": "docs/requirements.txt",
+    "extension": ".txt",
+    "name": "requirements.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/clone.rst",
+    "relativePath": "docs/source/clone.rst",
+    "extension": ".rst",
+    "name": "clone.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/components.rst",
+    "relativePath": "docs/source/components.rst",
+    "extension": ".rst",
+    "name": "components.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/conf.py",
+    "relativePath": "docs/source/conf.py",
+    "extension": ".py",
+    "name": "conf.py",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/configure.rst",
+    "relativePath": "docs/source/configure.rst",
+    "extension": ".rst",
+    "name": "configure.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/development.rst",
+    "relativePath": "docs/source/development.rst",
+    "extension": ".rst",
+    "name": "development.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/errors_faq.rst",
+    "relativePath": "docs/source/errors_faq.rst",
+    "extension": ".rst",
+    "name": "errors_faq.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/gcafs.rst",
+    "relativePath": "docs/source/gcafs.rst",
+    "extension": ".rst",
+    "name": "gcafs.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/globus_arch.rst",
+    "relativePath": "docs/source/globus_arch.rst",
+    "extension": ".rst",
+    "name": "globus_arch.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/hpc.rst",
+    "relativePath": "docs/source/hpc.rst",
+    "extension": ".rst",
+    "name": "hpc.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/index.rst",
+    "relativePath": "docs/source/index.rst",
+    "extension": ".rst",
+    "name": "index.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/init.rst",
+    "relativePath": "docs/source/init.rst",
+    "extension": ".rst",
+    "name": "init.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/jobs.rst",
+    "relativePath": "docs/source/jobs.rst",
+    "extension": ".rst",
+    "name": "jobs.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/monitor_rocoto.rst",
+    "relativePath": "docs/source/monitor_rocoto.rst",
+    "extension": ".rst",
+    "name": "monitor_rocoto.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/noaa_csp.rst",
+    "relativePath": "docs/source/noaa_csp.rst",
+    "extension": ".rst",
+    "name": "noaa_csp.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/output.rst",
+    "relativePath": "docs/source/output.rst",
+    "extension": ".rst",
+    "name": "output.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/run.rst",
+    "relativePath": "docs/source/run.rst",
+    "extension": ".rst",
+    "name": "run.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/setup.rst",
+    "relativePath": "docs/source/setup.rst",
+    "extension": ".rst",
+    "name": "setup.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/start.rst",
+    "relativePath": "docs/source/start.rst",
+    "extension": ".rst",
+    "name": "start.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/view.rst",
+    "relativePath": "docs/source/view.rst",
+    "extension": ".rst",
+    "name": "view.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/docs/source/wave.rst",
+    "relativePath": "docs/source/wave.rst",
+    "extension": ".rst",
+    "name": "wave.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ecf/setup_ecf_links.sh",
+    "relativePath": "ecf/setup_ecf_links.sh",
+    "extension": ".sh",
+    "name": "setup_ecf_links.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gdas_ecmwf_meta_ver.sh",
+    "relativePath": "gempak/ush/gdas_ecmwf_meta_ver.sh",
+    "extension": ".sh",
+    "name": "gdas_ecmwf_meta_ver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gdas_meta_loop.sh",
+    "relativePath": "gempak/ush/gdas_meta_loop.sh",
+    "extension": ".sh",
+    "name": "gdas_meta_loop.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gdas_meta_na.sh",
+    "relativePath": "gempak/ush/gdas_meta_na.sh",
+    "extension": ".sh",
+    "name": "gdas_meta_na.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gdas_ukmet_meta_ver.sh",
+    "relativePath": "gempak/ush/gdas_ukmet_meta_ver.sh",
+    "extension": ".sh",
+    "name": "gdas_ukmet_meta_ver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gempak_gdas_f000_gif.sh",
+    "relativePath": "gempak/ush/gempak_gdas_f000_gif.sh",
+    "extension": ".sh",
+    "name": "gempak_gdas_f000_gif.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gempak_gfs_f000_gif.sh",
+    "relativePath": "gempak/ush/gempak_gfs_f000_gif.sh",
+    "extension": ".sh",
+    "name": "gempak_gfs_f000_gif.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gempak_gfs_fhhh_gif.sh",
+    "relativePath": "gempak/ush/gempak_gfs_fhhh_gif.sh",
+    "extension": ".sh",
+    "name": "gempak_gfs_fhhh_gif.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_ak.sh",
+    "relativePath": "gempak/ush/gfs_meta_ak.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_ak.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_bwx.sh",
+    "relativePath": "gempak/ush/gfs_meta_bwx.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_bwx.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_comp.sh",
+    "relativePath": "gempak/ush/gfs_meta_comp.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_comp.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_crb.sh",
+    "relativePath": "gempak/ush/gfs_meta_crb.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_crb.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_hi.sh",
+    "relativePath": "gempak/ush/gfs_meta_hi.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_hi.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_hur.sh",
+    "relativePath": "gempak/ush/gfs_meta_hur.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_hur.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_mar_atl.sh",
+    "relativePath": "gempak/ush/gfs_meta_mar_atl.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_mar_atl.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_mar_comp.sh",
+    "relativePath": "gempak/ush/gfs_meta_mar_comp.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_mar_comp.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_mar_pac.sh",
+    "relativePath": "gempak/ush/gfs_meta_mar_pac.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_mar_pac.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_mar_ql.sh",
+    "relativePath": "gempak/ush/gfs_meta_mar_ql.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_mar_ql.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_mar_skewt.sh",
+    "relativePath": "gempak/ush/gfs_meta_mar_skewt.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_mar_skewt.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_mar_ver.sh",
+    "relativePath": "gempak/ush/gfs_meta_mar_ver.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_mar_ver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_nhsh.sh",
+    "relativePath": "gempak/ush/gfs_meta_nhsh.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_nhsh.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_precip.sh",
+    "relativePath": "gempak/ush/gfs_meta_precip.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_precip.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_qpf.sh",
+    "relativePath": "gempak/ush/gfs_meta_qpf.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_qpf.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_sa.sh",
+    "relativePath": "gempak/ush/gfs_meta_sa.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_sa.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_sa2.sh",
+    "relativePath": "gempak/ush/gfs_meta_sa2.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_sa2.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_trop.sh",
+    "relativePath": "gempak/ush/gfs_meta_trop.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_trop.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_us.sh",
+    "relativePath": "gempak/ush/gfs_meta_us.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_us.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_usext.sh",
+    "relativePath": "gempak/ush/gfs_meta_usext.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_usext.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/gempak/ush/gfs_meta_ver.sh",
+    "relativePath": "gempak/ush/gfs_meta_ver.sh",
+    "extension": ".sh",
+    "name": "gfs_meta_ver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/install_MCP.sh",
+    "relativePath": "install_MCP.sh",
+    "extension": ".sh",
+    "name": "install_MCP.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/mcp-server.py",
+    "relativePath": "mcp-server.py",
+    "extension": ".py",
+    "name": "mcp-server.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/package-lock.json",
+    "relativePath": "package-lock.json",
+    "extension": ".json",
+    "name": "package-lock.json",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/package.json",
+    "relativePath": "package.json",
+    "extension": ".json",
+    "name": "package.json",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/gdas/aeroanl_inc_vars.yaml",
+    "relativePath": "parm/gdas/aeroanl_inc_vars.yaml",
+    "extension": ".yaml",
+    "name": "aeroanl_inc_vars.yaml",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/gdas/atmanl_inc_vars.yaml",
+    "relativePath": "parm/gdas/atmanl_inc_vars.yaml",
+    "extension": ".yaml",
+    "name": "atmanl_inc_vars.yaml",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/post/oceanice_products_gefs.yaml",
+    "relativePath": "parm/post/oceanice_products_gefs.yaml",
+    "extension": ".yaml",
+    "name": "oceanice_products_gefs.yaml",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/post/oceanice_products_gfs.yaml",
+    "relativePath": "parm/post/oceanice_products_gfs.yaml",
+    "extension": ".yaml",
+    "name": "oceanice_products_gfs.yaml",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/post/oceanice_products_sfs.yaml",
+    "relativePath": "parm/post/oceanice_products_sfs.yaml",
+    "extension": ".yaml",
+    "name": "oceanice_products_sfs.yaml",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/post/upp.yaml",
+    "relativePath": "parm/post/upp.yaml",
+    "extension": ".yaml",
+    "name": "upp.yaml",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/bufr_ij_gfs_C1152.txt",
+    "relativePath": "parm/product/bufr_ij_gfs_C1152.txt",
+    "extension": ".txt",
+    "name": "bufr_ij_gfs_C1152.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/bufr_ij_gfs_C768.txt",
+    "relativePath": "parm/product/bufr_ij_gfs_C768.txt",
+    "extension": ".txt",
+    "name": "bufr_ij_gfs_C768.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/bufr_ij_gfs_C96.txt",
+    "relativePath": "parm/product/bufr_ij_gfs_C96.txt",
+    "extension": ".txt",
+    "name": "bufr_ij_gfs_C96.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p25.f000.paramlist.a.txt",
+    "relativePath": "parm/product/gefs.0p25.f000.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gefs.0p25.f000.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p25.f000.paramlist.b.txt",
+    "relativePath": "parm/product/gefs.0p25.f000.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "gefs.0p25.f000.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p25.fFFF.paramlist.a.txt",
+    "relativePath": "parm/product/gefs.0p25.fFFF.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gefs.0p25.fFFF.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p25.fFFF.paramlist.b.txt",
+    "relativePath": "parm/product/gefs.0p25.fFFF.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "gefs.0p25.fFFF.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p50.f000.paramlist.a.txt",
+    "relativePath": "parm/product/gefs.0p50.f000.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gefs.0p50.f000.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p50.f000.paramlist.b.txt",
+    "relativePath": "parm/product/gefs.0p50.f000.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "gefs.0p50.f000.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p50.fFFF.paramlist.a.txt",
+    "relativePath": "parm/product/gefs.0p50.fFFF.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gefs.0p50.fFFF.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.0p50.fFFF.paramlist.b.txt",
+    "relativePath": "parm/product/gefs.0p50.fFFF.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "gefs.0p50.fFFF.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.2p50.f000.paramlist.a.txt",
+    "relativePath": "parm/product/gefs.2p50.f000.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gefs.2p50.f000.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.2p50.f000.paramlist.b.txt",
+    "relativePath": "parm/product/gefs.2p50.f000.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "gefs.2p50.f000.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.2p50.fFFF.paramlist.a.txt",
+    "relativePath": "parm/product/gefs.2p50.fFFF.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gefs.2p50.fFFF.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gefs.2p50.fFFF.paramlist.b.txt",
+    "relativePath": "parm/product/gefs.2p50.fFFF.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "gefs.2p50.fFFF.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gfs.anl.paramlist.a.txt",
+    "relativePath": "parm/product/gfs.anl.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gfs.anl.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gfs.f000.paramlist.a.txt",
+    "relativePath": "parm/product/gfs.f000.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gfs.f000.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gfs.fFFF.paramlist.a.txt",
+    "relativePath": "parm/product/gfs.fFFF.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "gfs.fFFF.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/gfs.fFFF.paramlist.b.txt",
+    "relativePath": "parm/product/gfs.fFFF.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "gfs.fFFF.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/sfs.0p25.f000.paramlist.a.txt",
+    "relativePath": "parm/product/sfs.0p25.f000.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "sfs.0p25.f000.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/sfs.0p25.fFFF.paramlist.a.txt",
+    "relativePath": "parm/product/sfs.0p25.fFFF.paramlist.a.txt",
+    "extension": ".txt",
+    "name": "sfs.0p25.fFFF.paramlist.a.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/product/sfs.0p25.fFFF.paramlist.b.txt",
+    "relativePath": "parm/product/sfs.0p25.fFFF.paramlist.b.txt",
+    "extension": ".txt",
+    "name": "sfs.0p25.fFFF.paramlist.b.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/ufs/fv3/variable_table.txt",
+    "relativePath": "parm/ufs/fv3/variable_table.txt",
+    "extension": ".txt",
+    "name": "variable_table.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/ufs/fv3/variable_table_da.txt",
+    "relativePath": "parm/ufs/fv3/variable_table_da.txt",
+    "extension": ".txt",
+    "name": "variable_table_da.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/parm/ufs/fv3/variable_table_da_nonsst.txt",
+    "relativePath": "parm/ufs/fv3/variable_table_da_nonsst.txt",
+    "extension": ".txt",
+    "name": "variable_table_da_nonsst.txt",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_aero_analysis_generate_bmatrix.py",
+    "relativePath": "scripts/exgdas_aero_analysis_generate_bmatrix.py",
+    "extension": ".py",
+    "name": "exgdas_aero_analysis_generate_bmatrix.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_atmos_chgres_forenkf.sh",
+    "relativePath": "scripts/exgdas_atmos_chgres_forenkf.sh",
+    "extension": ".sh",
+    "name": "exgdas_atmos_chgres_forenkf.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_atmos_gempak_gif_ncdc.sh",
+    "relativePath": "scripts/exgdas_atmos_gempak_gif_ncdc.sh",
+    "extension": ".sh",
+    "name": "exgdas_atmos_gempak_gif_ncdc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_atmos_nawips.sh",
+    "relativePath": "scripts/exgdas_atmos_nawips.sh",
+    "extension": ".sh",
+    "name": "exgdas_atmos_nawips.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_atmos_verfozn.sh",
+    "relativePath": "scripts/exgdas_atmos_verfozn.sh",
+    "extension": ".sh",
+    "name": "exgdas_atmos_verfozn.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_atmos_verfrad.sh",
+    "relativePath": "scripts/exgdas_atmos_verfrad.sh",
+    "extension": ".sh",
+    "name": "exgdas_atmos_verfrad.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_earc_tars.py",
+    "relativePath": "scripts/exgdas_enkf_earc_tars.py",
+    "extension": ".py",
+    "name": "exgdas_enkf_earc_tars.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_earc_vrfy.py",
+    "relativePath": "scripts/exgdas_enkf_earc_vrfy.py",
+    "extension": ".py",
+    "name": "exgdas_enkf_earc_vrfy.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_ecen.sh",
+    "relativePath": "scripts/exgdas_enkf_ecen.sh",
+    "extension": ".sh",
+    "name": "exgdas_enkf_ecen.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_ecen_fv3jedi.py",
+    "relativePath": "scripts/exgdas_enkf_ecen_fv3jedi.py",
+    "extension": ".py",
+    "name": "exgdas_enkf_ecen_fv3jedi.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_post.sh",
+    "relativePath": "scripts/exgdas_enkf_post.sh",
+    "extension": ".sh",
+    "name": "exgdas_enkf_post.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_select_obs.sh",
+    "relativePath": "scripts/exgdas_enkf_select_obs.sh",
+    "extension": ".sh",
+    "name": "exgdas_enkf_select_obs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_sfc.sh",
+    "relativePath": "scripts/exgdas_enkf_sfc.sh",
+    "extension": ".sh",
+    "name": "exgdas_enkf_sfc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgdas_enkf_update.sh",
+    "relativePath": "scripts/exgdas_enkf_update.sh",
+    "extension": ".sh",
+    "name": "exgdas_enkf_update.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_aero_init_aerosol.py",
+    "relativePath": "scripts/exgfs_aero_init_aerosol.py",
+    "extension": ".py",
+    "name": "exgfs_aero_init_aerosol.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_awips_20km_1p0deg.sh",
+    "relativePath": "scripts/exgfs_atmos_awips_20km_1p0deg.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_awips_20km_1p0deg.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_fbwind.sh",
+    "relativePath": "scripts/exgfs_atmos_fbwind.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_fbwind.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_gempak_gif_ncdc_skew_t.sh",
+    "relativePath": "scripts/exgfs_atmos_gempak_gif_ncdc_skew_t.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_gempak_gif_ncdc_skew_t.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_gempak_meta.sh",
+    "relativePath": "scripts/exgfs_atmos_gempak_meta.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_gempak_meta.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_goes_nawips.sh",
+    "relativePath": "scripts/exgfs_atmos_goes_nawips.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_goes_nawips.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_grib2_special_npoess.sh",
+    "relativePath": "scripts/exgfs_atmos_grib2_special_npoess.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_grib2_special_npoess.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_nawips.sh",
+    "relativePath": "scripts/exgfs_atmos_nawips.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_nawips.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_atmos_postsnd.sh",
+    "relativePath": "scripts/exgfs_atmos_postsnd.sh",
+    "extension": ".sh",
+    "name": "exgfs_atmos_postsnd.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_pmgr.sh",
+    "relativePath": "scripts/exgfs_pmgr.sh",
+    "extension": ".sh",
+    "name": "exgfs_pmgr.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_prdgen_manager.sh",
+    "relativePath": "scripts/exgfs_prdgen_manager.sh",
+    "extension": ".sh",
+    "name": "exgfs_prdgen_manager.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_wave_init.sh",
+    "relativePath": "scripts/exgfs_wave_init.sh",
+    "extension": ".sh",
+    "name": "exgfs_wave_init.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_wave_nawips.sh",
+    "relativePath": "scripts/exgfs_wave_nawips.sh",
+    "extension": ".sh",
+    "name": "exgfs_wave_nawips.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_wave_post_gridded_sbs.sh",
+    "relativePath": "scripts/exgfs_wave_post_gridded_sbs.sh",
+    "extension": ".sh",
+    "name": "exgfs_wave_post_gridded_sbs.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_wave_post_pnt.sh",
+    "relativePath": "scripts/exgfs_wave_post_pnt.sh",
+    "extension": ".sh",
+    "name": "exgfs_wave_post_pnt.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_wave_prdgen_bulls.sh",
+    "relativePath": "scripts/exgfs_wave_prdgen_bulls.sh",
+    "extension": ".sh",
+    "name": "exgfs_wave_prdgen_bulls.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_wave_prdgen_gridded.sh",
+    "relativePath": "scripts/exgfs_wave_prdgen_gridded.sh",
+    "extension": ".sh",
+    "name": "exgfs_wave_prdgen_gridded.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exgfs_wave_prep.sh",
+    "relativePath": "scripts/exgfs_wave_prep.sh",
+    "extension": ".sh",
+    "name": "exgfs_wave_prep.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_aero_analysis_finalize.py",
+    "relativePath": "scripts/exglobal_aero_analysis_finalize.py",
+    "extension": ".py",
+    "name": "exglobal_aero_analysis_finalize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_aero_analysis_initialize.py",
+    "relativePath": "scripts/exglobal_aero_analysis_initialize.py",
+    "extension": ".py",
+    "name": "exglobal_aero_analysis_initialize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_aero_analysis_variational.py",
+    "relativePath": "scripts/exglobal_aero_analysis_variational.py",
+    "extension": ".py",
+    "name": "exglobal_aero_analysis_variational.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_analysis_stats.py",
+    "relativePath": "scripts/exglobal_analysis_stats.py",
+    "extension": ".py",
+    "name": "exglobal_analysis_stats.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_archive_tars.py",
+    "relativePath": "scripts/exglobal_archive_tars.py",
+    "extension": ".py",
+    "name": "exglobal_archive_tars.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_archive_vrfy.py",
+    "relativePath": "scripts/exglobal_archive_vrfy.py",
+    "extension": ".py",
+    "name": "exglobal_archive_vrfy.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atm_analysis_finalize.py",
+    "relativePath": "scripts/exglobal_atm_analysis_finalize.py",
+    "extension": ".py",
+    "name": "exglobal_atm_analysis_finalize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atm_analysis_fv3_increment.py",
+    "relativePath": "scripts/exglobal_atm_analysis_fv3_increment.py",
+    "extension": ".py",
+    "name": "exglobal_atm_analysis_fv3_increment.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atm_analysis_initialize.py",
+    "relativePath": "scripts/exglobal_atm_analysis_initialize.py",
+    "extension": ".py",
+    "name": "exglobal_atm_analysis_initialize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atm_analysis_variational.py",
+    "relativePath": "scripts/exglobal_atm_analysis_variational.py",
+    "extension": ".py",
+    "name": "exglobal_atm_analysis_variational.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmens_analysis_finalize.py",
+    "relativePath": "scripts/exglobal_atmens_analysis_finalize.py",
+    "extension": ".py",
+    "name": "exglobal_atmens_analysis_finalize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmens_analysis_fv3_increment.py",
+    "relativePath": "scripts/exglobal_atmens_analysis_fv3_increment.py",
+    "extension": ".py",
+    "name": "exglobal_atmens_analysis_fv3_increment.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmens_analysis_initialize.py",
+    "relativePath": "scripts/exglobal_atmens_analysis_initialize.py",
+    "extension": ".py",
+    "name": "exglobal_atmens_analysis_initialize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmens_analysis_letkf.py",
+    "relativePath": "scripts/exglobal_atmens_analysis_letkf.py",
+    "extension": ".py",
+    "name": "exglobal_atmens_analysis_letkf.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmens_analysis_obs.py",
+    "relativePath": "scripts/exglobal_atmens_analysis_obs.py",
+    "extension": ".py",
+    "name": "exglobal_atmens_analysis_obs.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmens_analysis_sol.py",
+    "relativePath": "scripts/exglobal_atmens_analysis_sol.py",
+    "extension": ".py",
+    "name": "exglobal_atmens_analysis_sol.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_analysis.sh",
+    "relativePath": "scripts/exglobal_atmos_analysis.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_analysis.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_analysis_calc.sh",
+    "relativePath": "scripts/exglobal_atmos_analysis_calc.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_analysis_calc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_analysis_calc_fv3jedi.py",
+    "relativePath": "scripts/exglobal_atmos_analysis_calc_fv3jedi.py",
+    "extension": ".py",
+    "name": "exglobal_atmos_analysis_calc_fv3jedi.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_ensstat.sh",
+    "relativePath": "scripts/exglobal_atmos_ensstat.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_ensstat.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_pmgr.sh",
+    "relativePath": "scripts/exglobal_atmos_pmgr.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_pmgr.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_products.sh",
+    "relativePath": "scripts/exglobal_atmos_products.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_products.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_sfcanl.sh",
+    "relativePath": "scripts/exglobal_atmos_sfcanl.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_sfcanl.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_tropcy_qc_reloc.sh",
+    "relativePath": "scripts/exglobal_atmos_tropcy_qc_reloc.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_tropcy_qc_reloc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_upp.py",
+    "relativePath": "scripts/exglobal_atmos_upp.py",
+    "extension": ".py",
+    "name": "exglobal_atmos_upp.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_atmos_vminmon.sh",
+    "relativePath": "scripts/exglobal_atmos_vminmon.sh",
+    "extension": ".sh",
+    "name": "exglobal_atmos_vminmon.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_cleanup.sh",
+    "relativePath": "scripts/exglobal_cleanup.sh",
+    "extension": ".sh",
+    "name": "exglobal_cleanup.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_diag.sh",
+    "relativePath": "scripts/exglobal_diag.sh",
+    "extension": ".sh",
+    "name": "exglobal_diag.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_extractvars.sh",
+    "relativePath": "scripts/exglobal_extractvars.sh",
+    "extension": ".sh",
+    "name": "exglobal_extractvars.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_fetch.py",
+    "relativePath": "scripts/exglobal_fetch.py",
+    "extension": ".py",
+    "name": "exglobal_fetch.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_forecast.py",
+    "relativePath": "scripts/exglobal_forecast.py",
+    "extension": ".py",
+    "name": "exglobal_forecast.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_forecast.sh",
+    "relativePath": "scripts/exglobal_forecast.sh",
+    "extension": ".sh",
+    "name": "exglobal_forecast.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_globus_arch.py",
+    "relativePath": "scripts/exglobal_globus_arch.py",
+    "extension": ".py",
+    "name": "exglobal_globus_arch.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_globus_earc.py",
+    "relativePath": "scripts/exglobal_globus_earc.py",
+    "extension": ".py",
+    "name": "exglobal_globus_earc.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marine_analysis_checkpoint.py",
+    "relativePath": "scripts/exglobal_marine_analysis_checkpoint.py",
+    "extension": ".py",
+    "name": "exglobal_marine_analysis_checkpoint.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marine_analysis_ecen.py",
+    "relativePath": "scripts/exglobal_marine_analysis_ecen.py",
+    "extension": ".py",
+    "name": "exglobal_marine_analysis_ecen.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marine_analysis_finalize.py",
+    "relativePath": "scripts/exglobal_marine_analysis_finalize.py",
+    "extension": ".py",
+    "name": "exglobal_marine_analysis_finalize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marine_analysis_initialize.py",
+    "relativePath": "scripts/exglobal_marine_analysis_initialize.py",
+    "extension": ".py",
+    "name": "exglobal_marine_analysis_initialize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marine_analysis_letkf.py",
+    "relativePath": "scripts/exglobal_marine_analysis_letkf.py",
+    "extension": ".py",
+    "name": "exglobal_marine_analysis_letkf.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marine_analysis_variational.py",
+    "relativePath": "scripts/exglobal_marine_analysis_variational.py",
+    "extension": ".py",
+    "name": "exglobal_marine_analysis_variational.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marinebmat.py",
+    "relativePath": "scripts/exglobal_marinebmat.py",
+    "extension": ".py",
+    "name": "exglobal_marinebmat.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_marinebmat_initialize.py",
+    "relativePath": "scripts/exglobal_marinebmat_initialize.py",
+    "extension": ".py",
+    "name": "exglobal_marinebmat_initialize.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_oceanice_products.py",
+    "relativePath": "scripts/exglobal_oceanice_products.py",
+    "extension": ".py",
+    "name": "exglobal_oceanice_products.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_offline_atmos_analysis.py",
+    "relativePath": "scripts/exglobal_offline_atmos_analysis.py",
+    "extension": ".py",
+    "name": "exglobal_offline_atmos_analysis.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_prep_emissions.py",
+    "relativePath": "scripts/exglobal_prep_emissions.py",
+    "extension": ".py",
+    "name": "exglobal_prep_emissions.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_prep_obs_aero.py",
+    "relativePath": "scripts/exglobal_prep_obs_aero.py",
+    "extension": ".py",
+    "name": "exglobal_prep_obs_aero.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_prep_sfc.sh",
+    "relativePath": "scripts/exglobal_prep_sfc.sh",
+    "extension": ".sh",
+    "name": "exglobal_prep_sfc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_snow_analysis.py",
+    "relativePath": "scripts/exglobal_snow_analysis.py",
+    "extension": ".py",
+    "name": "exglobal_snow_analysis.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_snowens_analysis.py",
+    "relativePath": "scripts/exglobal_snowens_analysis.py",
+    "extension": ".py",
+    "name": "exglobal_snowens_analysis.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/scripts/exglobal_stage_ic.py",
+    "relativePath": "scripts/exglobal_stage_ic.py",
+    "extension": ".py",
+    "name": "exglobal_stage_ic.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/CMakeLists.txt",
+    "relativePath": "sorc/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/CMakeLists.txt",
+    "relativePath": "sorc/gdas.cd/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/README.md",
+    "relativePath": "sorc/gdas.cd/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/bundle/CMakeLists.txt",
+    "relativePath": "sorc/gdas.cd/bundle/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/ci_tests.sh",
+    "relativePath": "sorc/gdas.cd/ci/ci_tests.sh",
+    "extension": ".sh",
+    "name": "ci_tests.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/driver.sh",
+    "relativePath": "sorc/gdas.cd/ci/driver.sh",
+    "extension": ".sh",
+    "name": "driver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/hera.sh",
+    "relativePath": "sorc/gdas.cd/ci/hera.sh",
+    "extension": ".sh",
+    "name": "hera.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/hercules.sh",
+    "relativePath": "sorc/gdas.cd/ci/hercules.sh",
+    "extension": ".sh",
+    "name": "hercules.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/orion.sh",
+    "relativePath": "sorc/gdas.cd/ci/orion.sh",
+    "extension": ".sh",
+    "name": "orion.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/run_ci.sh",
+    "relativePath": "sorc/gdas.cd/ci/run_ci.sh",
+    "extension": ".sh",
+    "name": "run_ci.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/stable_driver.sh",
+    "relativePath": "sorc/gdas.cd/ci/stable_driver.sh",
+    "extension": ".sh",
+    "name": "stable_driver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/sync_forks.sh",
+    "relativePath": "sorc/gdas.cd/ci/sync_forks.sh",
+    "extension": ".sh",
+    "name": "sync_forks.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ci/ursa.sh",
+    "relativePath": "sorc/gdas.cd/ci/ursa.sh",
+    "extension": ".sh",
+    "name": "ursa.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/mains/CMakeLists.txt",
+    "relativePath": "sorc/gdas.cd/mains/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/prototypes/gen_prototype.sh",
+    "relativePath": "sorc/gdas.cd/prototypes/gen_prototype.sh",
+    "extension": ".sh",
+    "name": "gen_prototype.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/scripts/CMakeLists.txt",
+    "relativePath": "sorc/gdas.cd/scripts/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/scripts/exgdas_global_marine_analysis_ecen.py",
+    "relativePath": "sorc/gdas.cd/scripts/exgdas_global_marine_analysis_ecen.py",
+    "extension": ".py",
+    "name": "exgdas_global_marine_analysis_ecen.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/scripts/exgdas_global_marine_analysis_vrfy.py",
+    "relativePath": "sorc/gdas.cd/scripts/exgdas_global_marine_analysis_vrfy.py",
+    "extension": ".py",
+    "name": "exgdas_global_marine_analysis_vrfy.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/scripts/exglobal_prep_ocean_obs.py",
+    "relativePath": "sorc/gdas.cd/scripts/exglobal_prep_ocean_obs.py",
+    "extension": ".py",
+    "name": "exglobal_prep_ocean_obs.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/test/CMakeLists.txt",
+    "relativePath": "sorc/gdas.cd/test/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/test/check_valid_yaml.py",
+    "relativePath": "sorc/gdas.cd/test/check_valid_yaml.py",
+    "extension": ".py",
+    "name": "check_valid_yaml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/test/setup_workflow_exp.sh",
+    "relativePath": "sorc/gdas.cd/test/setup_workflow_exp.sh",
+    "extension": ".sh",
+    "name": "setup_workflow_exp.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/CMakeLists.txt",
+    "relativePath": "sorc/gdas.cd/ush/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/check_yaml_keys.py",
+    "relativePath": "sorc/gdas.cd/ush/check_yaml_keys.py",
+    "extension": ".py",
+    "name": "check_yaml_keys.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/convert_yaml_ewok2gdas.py",
+    "relativePath": "sorc/gdas.cd/ush/convert_yaml_ewok2gdas.py",
+    "extension": ".py",
+    "name": "convert_yaml_ewok2gdas.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/detect_machine.sh",
+    "relativePath": "sorc/gdas.cd/ush/detect_machine.sh",
+    "extension": ".sh",
+    "name": "detect_machine.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/get_obs_list.py",
+    "relativePath": "sorc/gdas.cd/ush/get_obs_list.py",
+    "extension": ".py",
+    "name": "get_obs_list.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/modify_yaml_syntax.py",
+    "relativePath": "sorc/gdas.cd/ush/modify_yaml_syntax.py",
+    "extension": ".py",
+    "name": "modify_yaml_syntax.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/module-setup.sh",
+    "relativePath": "sorc/gdas.cd/ush/module-setup.sh",
+    "extension": ".sh",
+    "name": "module-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/run_satbias_conv.py",
+    "relativePath": "sorc/gdas.cd/ush/run_satbias_conv.py",
+    "extension": ".py",
+    "name": "run_satbias_conv.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/ush/socaincr2mom6.py",
+    "relativePath": "sorc/gdas.cd/ush/socaincr2mom6.py",
+    "extension": ".py",
+    "name": "socaincr2mom6.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gdas.cd/utils/CMakeLists.txt",
+    "relativePath": "sorc/gdas.cd/utils/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/CMakeLists.txt",
+    "relativePath": "sorc/gfs_utils.fd/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/cmake/FindNetCDF.cmake",
+    "relativePath": "sorc/gfs_utils.fd/cmake/FindNetCDF.cmake",
+    "extension": ".cmake",
+    "name": "FindNetCDF.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/cmake/Findgempak.cmake",
+    "relativePath": "sorc/gfs_utils.fd/cmake/Findgempak.cmake",
+    "extension": ".cmake",
+    "name": "Findgempak.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/cmake/Findgfortran.cmake",
+    "relativePath": "sorc/gfs_utils.fd/cmake/Findgfortran.cmake",
+    "extension": ".cmake",
+    "name": "Findgfortran.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/cmake/Findwgrib2.cmake",
+    "relativePath": "sorc/gfs_utils.fd/cmake/Findwgrib2.cmake",
+    "extension": ".cmake",
+    "name": "Findwgrib2.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/src/CMakeLists.txt",
+    "relativePath": "sorc/gfs_utils.fd/src/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/ush/detect_machine.sh",
+    "relativePath": "sorc/gfs_utils.fd/ush/detect_machine.sh",
+    "extension": ".sh",
+    "name": "detect_machine.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gfs_utils.fd/ush/module-setup.sh",
+    "relativePath": "sorc/gfs_utils.fd/ush/module-setup.sh",
+    "extension": ".sh",
+    "name": "module-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/CMakeLists.txt",
+    "relativePath": "sorc/gsi_enkf.fd/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/INSTALL.md",
+    "relativePath": "sorc/gsi_enkf.fd/INSTALL.md",
+    "extension": ".md",
+    "name": "INSTALL.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/LICENSE.md",
+    "relativePath": "sorc/gsi_enkf.fd/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/ci/spack_gcc.yaml",
+    "relativePath": "sorc/gsi_enkf.fd/ci/spack_gcc.yaml",
+    "extension": ".yaml",
+    "name": "spack_gcc.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/ci/spack_intel.yaml",
+    "relativePath": "sorc/gsi_enkf.fd/ci/spack_intel.yaml",
+    "extension": ".yaml",
+    "name": "spack_intel.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/doc/Release_Notes.fv3gfs_da.v15.0.0.txt",
+    "relativePath": "sorc/gsi_enkf.fd/doc/Release_Notes.fv3gfs_da.v15.0.0.txt",
+    "extension": ".txt",
+    "name": "Release_Notes.fv3gfs_da.v15.0.0.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/doc/Release_Notes.gfsda.v16.0.0.txt",
+    "relativePath": "sorc/gsi_enkf.fd/doc/Release_Notes.gfsda.v16.0.0.txt",
+    "extension": ".txt",
+    "name": "Release_Notes.gfsda.v16.0.0.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/doc/Release_Notes.gfsda.v16.1.0.txt",
+    "relativePath": "sorc/gsi_enkf.fd/doc/Release_Notes.gfsda.v16.1.0.txt",
+    "extension": ".txt",
+    "name": "Release_Notes.gfsda.v16.1.0.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/CMakeLists.txt",
+    "relativePath": "sorc/gsi_enkf.fd/regression/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/global_enkf.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/global_enkf.sh",
+    "extension": ".sh",
+    "name": "global_enkf.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/multi_regression.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/multi_regression.sh",
+    "extension": ".sh",
+    "name": "multi_regression.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_driver.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_driver.sh",
+    "extension": ".sh",
+    "name": "regression_driver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_namelists.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_namelists.sh",
+    "extension": ".sh",
+    "name": "regression_namelists.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_namelists_db.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_namelists_db.sh",
+    "extension": ".sh",
+    "name": "regression_namelists_db.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_nl_update.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_nl_update.sh",
+    "extension": ".sh",
+    "name": "regression_nl_update.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_param.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_param.sh",
+    "extension": ".sh",
+    "name": "regression_param.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_test.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_test.sh",
+    "extension": ".sh",
+    "name": "regression_test.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_test_enkf.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_test_enkf.sh",
+    "extension": ".sh",
+    "name": "regression_test_enkf.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_var.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_var.sh",
+    "extension": ".sh",
+    "name": "regression_var.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/regression_wait.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/regression_wait.sh",
+    "extension": ".sh",
+    "name": "regression_wait.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/rrfs_enkf_conv.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/rrfs_enkf_conv.sh",
+    "extension": ".sh",
+    "name": "rrfs_enkf_conv.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/regression/rtma.sh",
+    "relativePath": "sorc/gsi_enkf.fd/regression/rtma.sh",
+    "extension": ".sh",
+    "name": "rtma.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/src/CMakeLists.txt",
+    "relativePath": "sorc/gsi_enkf.fd/src/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/unit-tests/CMakeLists.txt",
+    "relativePath": "sorc/gsi_enkf.fd/unit-tests/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/ush/detect_machine.sh",
+    "relativePath": "sorc/gsi_enkf.fd/ush/detect_machine.sh",
+    "extension": ".sh",
+    "name": "detect_machine.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/ush/module-setup.sh",
+    "relativePath": "sorc/gsi_enkf.fd/ush/module-setup.sh",
+    "extension": ".sh",
+    "name": "module-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_enkf.fd/ush/prune_4nco_global.sh",
+    "relativePath": "sorc/gsi_enkf.fd/ush/prune_4nco_global.sh",
+    "extension": ".sh",
+    "name": "prune_4nco_global.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/CMakeLists.txt",
+    "relativePath": "sorc/gsi_monitor.fd/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/INSTALL.md",
+    "relativePath": "sorc/gsi_monitor.fd/INSTALL.md",
+    "extension": ".md",
+    "name": "INSTALL.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/README.md",
+    "relativePath": "sorc/gsi_monitor.fd/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/ci/spack.yaml",
+    "relativePath": "sorc/gsi_monitor.fd/ci/spack.yaml",
+    "extension": ".yaml",
+    "name": "spack.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/cmake/FindNetCDF.cmake",
+    "relativePath": "sorc/gsi_monitor.fd/cmake/FindNetCDF.cmake",
+    "extension": ".cmake",
+    "name": "FindNetCDF.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/cmake/gsimon_compiler_flags.cmake",
+    "relativePath": "sorc/gsi_monitor.fd/cmake/gsimon_compiler_flags.cmake",
+    "extension": ".cmake",
+    "name": "gsimon_compiler_flags.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/cmake/gsimon_compiler_flags_GNU_Fortran.cmake",
+    "relativePath": "sorc/gsi_monitor.fd/cmake/gsimon_compiler_flags_GNU_Fortran.cmake",
+    "extension": ".cmake",
+    "name": "gsimon_compiler_flags_GNU_Fortran.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/cmake/gsimon_compiler_flags_Intel_Fortran.cmake",
+    "relativePath": "sorc/gsi_monitor.fd/cmake/gsimon_compiler_flags_Intel_Fortran.cmake",
+    "extension": ".cmake",
+    "name": "gsimon_compiler_flags_Intel_Fortran.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/src/CMakeLists.txt",
+    "relativePath": "sorc/gsi_monitor.fd/src/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/ush/detect_machine.sh",
+    "relativePath": "sorc/gsi_monitor.fd/ush/detect_machine.sh",
+    "extension": ".sh",
+    "name": "detect_machine.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/ush/find_last_cycle.sh",
+    "relativePath": "sorc/gsi_monitor.fd/ush/find_last_cycle.sh",
+    "extension": ".sh",
+    "name": "find_last_cycle.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/ush/get_stats_path.sh",
+    "relativePath": "sorc/gsi_monitor.fd/ush/get_stats_path.sh",
+    "extension": ".sh",
+    "name": "get_stats_path.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_monitor.fd/ush/module-setup.sh",
+    "relativePath": "sorc/gsi_monitor.fd/ush/module-setup.sh",
+    "extension": ".sh",
+    "name": "module-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/CMakeLists.txt",
+    "relativePath": "sorc/gsi_utils.fd/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/INSTALL.md",
+    "relativePath": "sorc/gsi_utils.fd/INSTALL.md",
+    "extension": ".md",
+    "name": "INSTALL.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/README.md",
+    "relativePath": "sorc/gsi_utils.fd/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/ci/spack_gcc.yaml",
+    "relativePath": "sorc/gsi_utils.fd/ci/spack_gcc.yaml",
+    "extension": ".yaml",
+    "name": "spack_gcc.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/ci/spack_intel.yaml",
+    "relativePath": "sorc/gsi_utils.fd/ci/spack_intel.yaml",
+    "extension": ".yaml",
+    "name": "spack_intel.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/cmake/FindMKL.cmake",
+    "relativePath": "sorc/gsi_utils.fd/cmake/FindMKL.cmake",
+    "extension": ".cmake",
+    "name": "FindMKL.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/cmake/FindNetCDF.cmake",
+    "relativePath": "sorc/gsi_utils.fd/cmake/FindNetCDF.cmake",
+    "extension": ".cmake",
+    "name": "FindNetCDF.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags.cmake",
+    "relativePath": "sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags.cmake",
+    "extension": ".cmake",
+    "name": "gsiutils_compiler_flags.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_GNU_C.cmake",
+    "relativePath": "sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_GNU_C.cmake",
+    "extension": ".cmake",
+    "name": "gsiutils_compiler_flags_GNU_C.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_GNU_Fortran.cmake",
+    "relativePath": "sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_GNU_Fortran.cmake",
+    "extension": ".cmake",
+    "name": "gsiutils_compiler_flags_GNU_Fortran.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_Intel_C.cmake",
+    "relativePath": "sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_Intel_C.cmake",
+    "extension": ".cmake",
+    "name": "gsiutils_compiler_flags_Intel_C.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_Intel_Fortran.cmake",
+    "relativePath": "sorc/gsi_utils.fd/cmake/gsiutils_compiler_flags_Intel_Fortran.cmake",
+    "extension": ".cmake",
+    "name": "gsiutils_compiler_flags_Intel_Fortran.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/src/CMakeLists.txt",
+    "relativePath": "sorc/gsi_utils.fd/src/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/ush/detect_machine.sh",
+    "relativePath": "sorc/gsi_utils.fd/ush/detect_machine.sh",
+    "extension": ".sh",
+    "name": "detect_machine.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/gsi_utils.fd/ush/module-setup.sh",
+    "relativePath": "sorc/gsi_utils.fd/ush/module-setup.sh",
+    "extension": ".sh",
+    "name": "module-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/link_workflow.sh",
+    "relativePath": "sorc/link_workflow.sh",
+    "extension": ".sh",
+    "name": "link_workflow.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/.cicd/README.txt",
+    "relativePath": "sorc/ufs_model.fd/.cicd/README.txt",
+    "extension": ".txt",
+    "name": "README.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/.readthedocs.yaml",
+    "relativePath": "sorc/ufs_model.fd/.readthedocs.yaml",
+    "extension": ".yaml",
+    "name": ".readthedocs.yaml",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/AQM/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/AQM/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/AQM/aqm_files.cmake",
+    "relativePath": "sorc/ufs_model.fd/AQM/aqm_files.cmake",
+    "extension": ".cmake",
+    "name": "aqm_files.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/CDEPS-interface/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/CDEPS-interface/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/CDEPS-interface/cdeps_files.cmake",
+    "relativePath": "sorc/ufs_model.fd/CDEPS-interface/cdeps_files.cmake",
+    "extension": ".cmake",
+    "name": "cdeps_files.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/CICE-interface/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/CICE-interface/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/CICE-interface/cice_files.cmake",
+    "relativePath": "sorc/ufs_model.fd/CICE-interface/cice_files.cmake",
+    "extension": ".cmake",
+    "name": "cice_files.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/CMEPS-interface/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/CMEPS-interface/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/CMakeModules/LICENSE.md",
+    "relativePath": "sorc/ufs_model.fd/CMakeModules/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/FV3/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/FV3/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/FV3/LICENSE.md",
+    "relativePath": "sorc/ufs_model.fd/FV3/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/FV3/README.md",
+    "relativePath": "sorc/ufs_model.fd/FV3/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/GOCART/.yamllint.yml",
+    "relativePath": "sorc/ufs_model.fd/GOCART/.yamllint.yml",
+    "extension": ".yml",
+    "name": ".yamllint.yml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/GOCART/CHANGELOG.md",
+    "relativePath": "sorc/ufs_model.fd/GOCART/CHANGELOG.md",
+    "extension": ".md",
+    "name": "CHANGELOG.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/GOCART/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/GOCART/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/GOCART/CODE_OF_CONDUCT.md",
+    "relativePath": "sorc/ufs_model.fd/GOCART/CODE_OF_CONDUCT.md",
+    "extension": ".md",
+    "name": "CODE_OF_CONDUCT.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/GOCART/CONTRIBUTING.md",
+    "relativePath": "sorc/ufs_model.fd/GOCART/CONTRIBUTING.md",
+    "extension": ".md",
+    "name": "CONTRIBUTING.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/GOCART/README.md",
+    "relativePath": "sorc/ufs_model.fd/GOCART/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/GOCART/components.yaml",
+    "relativePath": "sorc/ufs_model.fd/GOCART/components.yaml",
+    "extension": ".yaml",
+    "name": "components.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/HYCOM-interface/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/HYCOM-interface/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/HYCOM-interface/hycom_files.cmake",
+    "relativePath": "sorc/ufs_model.fd/HYCOM-interface/hycom_files.cmake",
+    "extension": ".cmake",
+    "name": "hycom_files.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/LICENSE.md",
+    "relativePath": "sorc/ufs_model.fd/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/LM4-driver/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/LM4-driver/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/LM4-driver/LICENSE.md",
+    "relativePath": "sorc/ufs_model.fd/LM4-driver/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/LM4-driver/README.md",
+    "relativePath": "sorc/ufs_model.fd/LM4-driver/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/LM4-driver/lm4_src_files.cmake",
+    "relativePath": "sorc/ufs_model.fd/LM4-driver/lm4_src_files.cmake",
+    "extension": ".cmake",
+    "name": "lm4_src_files.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/MOM6-interface/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/MOM6-interface/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/MOM6-interface/mom6_files.cmake",
+    "relativePath": "sorc/ufs_model.fd/MOM6-interface/mom6_files.cmake",
+    "extension": ".cmake",
+    "name": "mom6_files.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/NOAHMP-interface/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/NOAHMP-interface/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/README.md",
+    "relativePath": "sorc/ufs_model.fd/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/WW3/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/WW3/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/WW3/CONTRIBUTING.md",
+    "relativePath": "sorc/ufs_model.fd/WW3/CONTRIBUTING.md",
+    "extension": ".md",
+    "name": "CONTRIBUTING.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/WW3/LICENSE.md",
+    "relativePath": "sorc/ufs_model.fd/WW3/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/WW3/README.md",
+    "relativePath": "sorc/ufs_model.fd/WW3/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/GNU.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/GNU.cmake",
+    "extension": ".cmake",
+    "name": "GNU.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/Intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/Intel.cmake",
+    "extension": ".cmake",
+    "name": "Intel.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/IntelLLVM.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/IntelLLVM.cmake",
+    "extension": ".cmake",
+    "name": "IntelLLVM.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/IntelMixed.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/IntelMixed.cmake",
+    "extension": ".cmake",
+    "name": "IntelMixed.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_acorn.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_acorn.cmake",
+    "extension": ".cmake",
+    "name": "configure_acorn.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_apps.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_apps.cmake",
+    "extension": ".cmake",
+    "name": "configure_apps.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_cheyenne.gnu.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_cheyenne.gnu.cmake",
+    "extension": ".cmake",
+    "name": "configure_cheyenne.gnu.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_cheyenne.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_cheyenne.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_cheyenne.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_gaeac5.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_gaeac5.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_gaeac5.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_gaeac5.intelllvm.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_gaeac5.intelllvm.cmake",
+    "extension": ".cmake",
+    "name": "configure_gaeac5.intelllvm.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_gaeac6.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_gaeac6.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_gaeac6.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_gaeac6.intelllvm.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_gaeac6.intelllvm.cmake",
+    "extension": ".cmake",
+    "name": "configure_gaeac6.intelllvm.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_hera.gnu.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_hera.gnu.cmake",
+    "extension": ".cmake",
+    "name": "configure_hera.gnu.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_hera.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_hera.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_hera.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_hercules.gnu.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_hercules.gnu.cmake",
+    "extension": ".cmake",
+    "name": "configure_hercules.gnu.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_hercules.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_hercules.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_hercules.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_jet.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_jet.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_jet.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_linux.gnu.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_linux.gnu.cmake",
+    "extension": ".cmake",
+    "name": "configure_linux.gnu.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_linux.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_linux.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_linux.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_macosx.gnu.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_macosx.gnu.cmake",
+    "extension": ".cmake",
+    "name": "configure_macosx.gnu.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_macosx.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_macosx.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_macosx.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_noaacloud.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_noaacloud.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_noaacloud.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_orion.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_orion.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_orion.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_s4.intel.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_s4.intel.cmake",
+    "extension": ".cmake",
+    "name": "configure_s4.intel.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/configure_wcoss2.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/configure_wcoss2.cmake",
+    "extension": ".cmake",
+    "name": "configure_wcoss2.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/cmake/detect_compiler_suite.cmake",
+    "relativePath": "sorc/ufs_model.fd/cmake/detect_compiler_suite.cmake",
+    "extension": ".cmake",
+    "name": "detect_compiler_suite.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/fire_behavior/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/fire_behavior/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/fire_behavior/README.md",
+    "relativePath": "sorc/ufs_model.fd/fire_behavior/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/fire_behavior/compile.sh",
+    "relativePath": "sorc/ufs_model.fd/fire_behavior/compile.sh",
+    "extension": ".sh",
+    "name": "compile.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/stochastic_physics/.travis.yml",
+    "relativePath": "sorc/ufs_model.fd/stochastic_physics/.travis.yml",
+    "extension": ".yml",
+    "name": ".travis.yml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/stochastic_physics/CMakeLists.txt",
+    "relativePath": "sorc/ufs_model.fd/stochastic_physics/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/stochastic_physics/LICENSE.md",
+    "relativePath": "sorc/ufs_model.fd/stochastic_physics/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/stochastic_physics/README.md",
+    "relativePath": "sorc/ufs_model.fd/stochastic_physics/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/abort_dep_tasks.py",
+    "relativePath": "sorc/ufs_model.fd/tests/abort_dep_tasks.py",
+    "extension": ".py",
+    "name": "abort_dep_tasks.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/compile.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/compile.sh",
+    "extension": ".sh",
+    "name": "compile.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/default_vars.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/default_vars.sh",
+    "extension": ".sh",
+    "name": "default_vars.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/detect_machine.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/detect_machine.sh",
+    "extension": ".sh",
+    "name": "detect_machine.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/module-setup.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/module-setup.sh",
+    "extension": ".sh",
+    "name": "module-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/rt.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/rt.sh",
+    "extension": ".sh",
+    "name": "rt.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/rt_utils.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/rt_utils.sh",
+    "extension": ".sh",
+    "name": "rt_utils.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/run_compile.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/run_compile.sh",
+    "extension": ".sh",
+    "name": "run_compile.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests/run_test.sh",
+    "relativePath": "sorc/ufs_model.fd/tests/run_test.sh",
+    "extension": ".sh",
+    "name": "run_test.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/baseline_setup.yaml",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/baseline_setup.yaml",
+    "extension": ".yaml",
+    "name": "baseline_setup.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/create_log.py",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/create_log.py",
+    "extension": ".py",
+    "name": "create_log.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/create_xml.py",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/create_xml.py",
+    "extension": ".py",
+    "name": "create_xml.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/rt.yaml",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/rt.yaml",
+    "extension": ".yaml",
+    "name": "rt.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/ufs_error-test.yaml",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/ufs_error-test.yaml",
+    "extension": ".yaml",
+    "name": "ufs_error-test.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/ufs_test.sh",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/ufs_test.sh",
+    "extension": ".sh",
+    "name": "ufs_test.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/ufs_test.yaml",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/ufs_test.yaml",
+    "extension": ".yaml",
+    "name": "ufs_test.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/ufs_test_utils.py",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/ufs_test_utils.py",
+    "extension": ".py",
+    "name": "ufs_test_utils.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_model.fd/tests-dev/ufs_test_utils.sh",
+    "relativePath": "sorc/ufs_model.fd/tests-dev/ufs_test_utils.sh",
+    "extension": ".sh",
+    "name": "ufs_test_utils.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/.readthedocs.yaml",
+    "relativePath": "sorc/ufs_utils.fd/.readthedocs.yaml",
+    "extension": ".yaml",
+    "name": ".readthedocs.yaml",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/CMakeLists.txt",
+    "relativePath": "sorc/ufs_utils.fd/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/LICENSE.md",
+    "relativePath": "sorc/ufs_utils.fd/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/README.md",
+    "relativePath": "sorc/ufs_utils.fd/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ccpp-physics/CMakeLists.txt",
+    "relativePath": "sorc/ufs_utils.fd/ccpp-physics/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ccpp-physics/README.md",
+    "relativePath": "sorc/ufs_utils.fd/ccpp-physics/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ci/spack.yaml",
+    "relativePath": "sorc/ufs_utils.fd/ci/spack.yaml",
+    "extension": ".yaml",
+    "name": "spack.yaml",
+    "type": "yaml_config"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/cmake/FindESMF.cmake",
+    "relativePath": "sorc/ufs_utils.fd/cmake/FindESMF.cmake",
+    "extension": ".cmake",
+    "name": "FindESMF.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/cmake/FindNetCDF.cmake",
+    "relativePath": "sorc/ufs_utils.fd/cmake/FindNetCDF.cmake",
+    "extension": ".cmake",
+    "name": "FindNetCDF.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/cmake/LibMPI.cmake",
+    "relativePath": "sorc/ufs_utils.fd/cmake/LibMPI.cmake",
+    "extension": ".cmake",
+    "name": "LibMPI.cmake",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/cmake/gblevents-package-config.cmake",
+    "relativePath": "sorc/ufs_utils.fd/cmake/gblevents-package-config.cmake",
+    "extension": ".cmake",
+    "name": "gblevents-package-config.cmake",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/docs/CMakeLists.txt",
+    "relativePath": "sorc/ufs_utils.fd/docs/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/docs/README.md",
+    "relativePath": "sorc/ufs_utils.fd/docs/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/docs/main.md",
+    "relativePath": "sorc/ufs_utils.fd/docs/main.md",
+    "extension": ".md",
+    "name": "main.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/driver_scripts/driver_grid.hera.sh",
+    "relativePath": "sorc/ufs_utils.fd/driver_scripts/driver_grid.hera.sh",
+    "extension": ".sh",
+    "name": "driver_grid.hera.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/driver_scripts/driver_grid.hercules.sh",
+    "relativePath": "sorc/ufs_utils.fd/driver_scripts/driver_grid.hercules.sh",
+    "extension": ".sh",
+    "name": "driver_grid.hercules.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/driver_scripts/driver_grid.jet.sh",
+    "relativePath": "sorc/ufs_utils.fd/driver_scripts/driver_grid.jet.sh",
+    "extension": ".sh",
+    "name": "driver_grid.jet.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/driver_scripts/driver_grid.orion.sh",
+    "relativePath": "sorc/ufs_utils.fd/driver_scripts/driver_grid.orion.sh",
+    "extension": ".sh",
+    "name": "driver_grid.orion.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/driver_scripts/driver_grid.wcoss2.sh",
+    "relativePath": "sorc/ufs_utils.fd/driver_scripts/driver_grid.wcoss2.sh",
+    "extension": ".sh",
+    "name": "driver_grid.wcoss2.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/reg_tests/get_hash.sh",
+    "relativePath": "sorc/ufs_utils.fd/reg_tests/get_hash.sh",
+    "extension": ".sh",
+    "name": "get_hash.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/reg_tests/rt.sh",
+    "relativePath": "sorc/ufs_utils.fd/reg_tests/rt.sh",
+    "extension": ".sh",
+    "name": "rt.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/reg_tests/update_baseline.sh",
+    "relativePath": "sorc/ufs_utils.fd/reg_tests/update_baseline.sh",
+    "extension": ".sh",
+    "name": "update_baseline.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/scripts/exemcsfc_global_sfc_prep.sh",
+    "relativePath": "sorc/ufs_utils.fd/scripts/exemcsfc_global_sfc_prep.sh",
+    "extension": ".sh",
+    "name": "exemcsfc_global_sfc_prep.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/sorc/CMakeLists.txt",
+    "relativePath": "sorc/ufs_utils.fd/sorc/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/sorc/machine-setup.sh",
+    "relativePath": "sorc/ufs_utils.fd/sorc/machine-setup.sh",
+    "extension": ".sh",
+    "name": "machine-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/tests/CMakeLists.txt",
+    "relativePath": "sorc/ufs_utils.fd/tests/CMakeLists.txt",
+    "extension": ".txt",
+    "name": "CMakeLists.txt",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/tests/README.md",
+    "relativePath": "sorc/ufs_utils.fd/tests/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/chgres_cube.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/chgres_cube.sh",
+    "extension": ".sh",
+    "name": "chgres_cube.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/emcsfc_ice_blend.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/emcsfc_ice_blend.sh",
+    "extension": ".sh",
+    "name": "emcsfc_ice_blend.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/emcsfc_snow.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/emcsfc_snow.sh",
+    "extension": ".sh",
+    "name": "emcsfc_snow.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/fv3gfs_driver_grid.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/fv3gfs_driver_grid.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_driver_grid.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/fv3gfs_filter_topo.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/fv3gfs_filter_topo.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_filter_topo.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/fv3gfs_make_grid.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/fv3gfs_make_grid.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_make_grid.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/fv3gfs_make_lake.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/fv3gfs_make_lake.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_make_lake.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/fv3gfs_make_orog.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/fv3gfs_make_orog.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_make_orog.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/fv3gfs_make_orog_gsl.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/fv3gfs_make_orog_gsl.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_make_orog_gsl.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/fv3gfs_ocean_merge.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/fv3gfs_ocean_merge.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_ocean_merge.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/global_cycle.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/global_cycle.sh",
+    "extension": ".sh",
+    "name": "global_cycle.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/global_cycle_driver.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/global_cycle_driver.sh",
+    "extension": ".sh",
+    "name": "global_cycle_driver.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/ufs_utils.fd/ush/sfc_climo_gen.sh",
+    "relativePath": "sorc/ufs_utils.fd/ush/sfc_climo_gen.sh",
+    "extension": ".sh",
+    "name": "sfc_climo_gen.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/README.md",
+    "relativePath": "sorc/verif-global.fd/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/doc/VLabRepoQuickTips.txt",
+    "relativePath": "sorc/verif-global.fd/doc/VLabRepoQuickTips.txt",
+    "extension": ".txt",
+    "name": "VLabRepoQuickTips.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exfit2obs_plots.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exfit2obs_plots.sh",
+    "extension": ".sh",
+    "name": "exfit2obs_plots.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exgrid2grid_step1.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exgrid2grid_step1.sh",
+    "extension": ".sh",
+    "name": "exgrid2grid_step1.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exgrid2grid_step2.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exgrid2grid_step2.sh",
+    "extension": ".sh",
+    "name": "exgrid2grid_step2.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exgrid2obs_step1.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exgrid2obs_step1.sh",
+    "extension": ".sh",
+    "name": "exgrid2obs_step1.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exgrid2obs_step2.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exgrid2obs_step2.sh",
+    "extension": ".sh",
+    "name": "exgrid2obs_step2.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exmaps2d.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exmaps2d.sh",
+    "extension": ".sh",
+    "name": "exmaps2d.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exmapsda.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exmapsda.sh",
+    "extension": ".sh",
+    "name": "exmapsda.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exprecip_step1.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exprecip_step1.sh",
+    "extension": ".sh",
+    "name": "exprecip_step1.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exprecip_step2.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exprecip_step2.sh",
+    "extension": ".sh",
+    "name": "exprecip_step2.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exsatellite_step1.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exsatellite_step1.sh",
+    "extension": ".sh",
+    "name": "exsatellite_step1.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/exsatellite_step2.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/exsatellite_step2.sh",
+    "extension": ".sh",
+    "name": "exsatellite_step2.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/scripts/extropcyc.sh",
+    "relativePath": "sorc/verif-global.fd/scripts/extropcyc.sh",
+    "extension": ".sh",
+    "name": "extropcyc.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/check_config.py",
+    "relativePath": "sorc/verif-global.fd/ush/check_config.py",
+    "extension": ".py",
+    "name": "check_config.py",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/copy_stat_files.py",
+    "relativePath": "sorc/verif-global.fd/ush/copy_stat_files.py",
+    "extension": ".py",
+    "name": "copy_stat_files.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/create_MET_series_analysis_jobs.py",
+    "relativePath": "sorc/verif-global.fd/ush/create_MET_series_analysis_jobs.py",
+    "extension": ".py",
+    "name": "create_MET_series_analysis_jobs.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/create_METplus_job_scripts.py",
+    "relativePath": "sorc/verif-global.fd/ush/create_METplus_job_scripts.py",
+    "extension": ".py",
+    "name": "create_METplus_job_scripts.py",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/create_METplus_output_dirs.py",
+    "relativePath": "sorc/verif-global.fd/ush/create_METplus_output_dirs.py",
+    "extension": ".py",
+    "name": "create_METplus_output_dirs.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/get_data_files.py",
+    "relativePath": "sorc/verif-global.fd/ush/get_data_files.py",
+    "extension": ".py",
+    "name": "get_data_files.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/get_machine.py",
+    "relativePath": "sorc/verif-global.fd/ush/get_machine.py",
+    "extension": ".py",
+    "name": "get_machine.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/get_tc_info.py",
+    "relativePath": "sorc/verif-global.fd/ush/get_tc_info.py",
+    "extension": ".py",
+    "name": "get_tc_info.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/load_modules.sh",
+    "relativePath": "sorc/verif-global.fd/ush/load_modules.sh",
+    "extension": ".sh",
+    "name": "load_modules.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/load_to_METviewer_AWS.py",
+    "relativePath": "sorc/verif-global.fd/ush/load_to_METviewer_AWS.py",
+    "extension": ".py",
+    "name": "load_to_METviewer_AWS.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/prune_stat_files.py",
+    "relativePath": "sorc/verif-global.fd/ush/prune_stat_files.py",
+    "extension": ".py",
+    "name": "prune_stat_files.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/run_batch.py",
+    "relativePath": "sorc/verif-global.fd/ush/run_batch.py",
+    "extension": ".py",
+    "name": "run_batch.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/run_verif_global.sh",
+    "relativePath": "sorc/verif-global.fd/ush/run_verif_global.sh",
+    "extension": ".sh",
+    "name": "run_verif_global.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/run_verif_global_in_global_workflow.sh",
+    "relativePath": "sorc/verif-global.fd/ush/run_verif_global_in_global_workflow.sh",
+    "extension": ".sh",
+    "name": "run_verif_global_in_global_workflow.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/set_init_valid_fhr_info.py",
+    "relativePath": "sorc/verif-global.fd/ush/set_init_valid_fhr_info.py",
+    "extension": ".py",
+    "name": "set_init_valid_fhr_info.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/verif-global.fd/ush/set_up_verif_global.sh",
+    "relativePath": "sorc/verif-global.fd/ush/set_up_verif_global.sh",
+    "extension": ".sh",
+    "name": "set_up_verif_global.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/.pre-commit-config.yaml",
+    "relativePath": "sorc/wxflow/.pre-commit-config.yaml",
+    "extension": ".yaml",
+    "name": ".pre-commit-config.yaml",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/.readthedocs.yaml",
+    "relativePath": "sorc/wxflow/.readthedocs.yaml",
+    "extension": ".yaml",
+    "name": ".readthedocs.yaml",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/LICENSE.md",
+    "relativePath": "sorc/wxflow/LICENSE.md",
+    "extension": ".md",
+    "name": "LICENSE.md",
+    "type": "general"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/README.md",
+    "relativePath": "sorc/wxflow/README.md",
+    "extension": ".md",
+    "name": "README.md",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/api.rst",
+    "relativePath": "sorc/wxflow/docs/api.rst",
+    "extension": ".rst",
+    "name": "api.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/conf.py",
+    "relativePath": "sorc/wxflow/docs/conf.py",
+    "extension": ".py",
+    "name": "conf.py",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/contributing.rst",
+    "relativePath": "sorc/wxflow/docs/contributing.rst",
+    "extension": ".rst",
+    "name": "contributing.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/hsi.rst",
+    "relativePath": "sorc/wxflow/docs/hsi.rst",
+    "extension": ".rst",
+    "name": "hsi.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/htar.rst",
+    "relativePath": "sorc/wxflow/docs/htar.rst",
+    "extension": ".rst",
+    "name": "htar.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/index.rst",
+    "relativePath": "sorc/wxflow/docs/index.rst",
+    "extension": ".rst",
+    "name": "index.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/jinja.rst",
+    "relativePath": "sorc/wxflow/docs/jinja.rst",
+    "extension": ".rst",
+    "name": "jinja.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/logger.rst",
+    "relativePath": "sorc/wxflow/docs/logger.rst",
+    "extension": ".rst",
+    "name": "logger.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/maintaining.rst",
+    "relativePath": "sorc/wxflow/docs/maintaining.rst",
+    "extension": ".rst",
+    "name": "maintaining.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/requirements.txt",
+    "relativePath": "sorc/wxflow/docs/requirements.txt",
+    "extension": ".txt",
+    "name": "requirements.txt",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/scheduler.rst",
+    "relativePath": "sorc/wxflow/docs/scheduler.rst",
+    "extension": ".rst",
+    "name": "scheduler.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/timetools.rst",
+    "relativePath": "sorc/wxflow/docs/timetools.rst",
+    "extension": ".rst",
+    "name": "timetools.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/docs/yaml_file.rst",
+    "relativePath": "sorc/wxflow/docs/yaml_file.rst",
+    "extension": ".rst",
+    "name": "yaml_file.rst",
+    "type": "documentation"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/setup.py",
+    "relativePath": "sorc/wxflow/setup.py",
+    "extension": ".py",
+    "name": "setup.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/__init__.py",
+    "relativePath": "sorc/wxflow/tests/__init__.py",
+    "extension": ".py",
+    "name": "__init__.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/conftest.py",
+    "relativePath": "sorc/wxflow/tests/conftest.py",
+    "extension": ".py",
+    "name": "conftest.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_attrdict.py",
+    "relativePath": "sorc/wxflow/tests/test_attrdict.py",
+    "extension": ".py",
+    "name": "test_attrdict.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_configuration.py",
+    "relativePath": "sorc/wxflow/tests/test_configuration.py",
+    "extension": ".py",
+    "name": "test_configuration.py",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_exceptions.py",
+    "relativePath": "sorc/wxflow/tests/test_exceptions.py",
+    "extension": ".py",
+    "name": "test_exceptions.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_factory.py",
+    "relativePath": "sorc/wxflow/tests/test_factory.py",
+    "extension": ".py",
+    "name": "test_factory.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_file_utils.py",
+    "relativePath": "sorc/wxflow/tests/test_file_utils.py",
+    "extension": ".py",
+    "name": "test_file_utils.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_fsutils.py",
+    "relativePath": "sorc/wxflow/tests/test_fsutils.py",
+    "extension": ".py",
+    "name": "test_fsutils.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_hsi.py",
+    "relativePath": "sorc/wxflow/tests/test_hsi.py",
+    "extension": ".py",
+    "name": "test_hsi.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_htar.py",
+    "relativePath": "sorc/wxflow/tests/test_htar.py",
+    "extension": ".py",
+    "name": "test_htar.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_jinja.py",
+    "relativePath": "sorc/wxflow/tests/test_jinja.py",
+    "extension": ".py",
+    "name": "test_jinja.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_logger.py",
+    "relativePath": "sorc/wxflow/tests/test_logger.py",
+    "extension": ".py",
+    "name": "test_logger.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_scheduler.py",
+    "relativePath": "sorc/wxflow/tests/test_scheduler.py",
+    "extension": ".py",
+    "name": "test_scheduler.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_schema.py",
+    "relativePath": "sorc/wxflow/tests/test_schema.py",
+    "extension": ".py",
+    "name": "test_schema.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_sqlitedb.py",
+    "relativePath": "sorc/wxflow/tests/test_sqlitedb.py",
+    "extension": ".py",
+    "name": "test_sqlitedb.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_template.py",
+    "relativePath": "sorc/wxflow/tests/test_template.py",
+    "extension": ".py",
+    "name": "test_template.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_timetools.py",
+    "relativePath": "sorc/wxflow/tests/test_timetools.py",
+    "extension": ".py",
+    "name": "test_timetools.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_utils.py",
+    "relativePath": "sorc/wxflow/tests/test_utils.py",
+    "extension": ".py",
+    "name": "test_utils.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/sorc/wxflow/tests/test_yaml_file.py",
+    "relativePath": "sorc/wxflow/tests/test_yaml_file.py",
+    "extension": ".py",
+    "name": "test_yaml_file.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/start-mcp-server-node.sh",
+    "relativePath": "start-mcp-server-node.sh",
+    "extension": ".sh",
+    "name": "start-mcp-server-node.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/start-mcp-server.sh",
+    "relativePath": "start-mcp-server.sh",
+    "extension": ".sh",
+    "name": "start-mcp-server.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/test-copilot-integration.py",
+    "relativePath": "test-copilot-integration.py",
+    "extension": ".py",
+    "name": "test-copilot-integration.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/atmos_ensstat.sh",
+    "relativePath": "ush/atmos_ensstat.sh",
+    "extension": ".sh",
+    "name": "atmos_ensstat.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/atmos_extractvars.sh",
+    "relativePath": "ush/atmos_extractvars.sh",
+    "extension": ".sh",
+    "name": "atmos_extractvars.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/bash_utils.sh",
+    "relativePath": "ush/bash_utils.sh",
+    "extension": ".sh",
+    "name": "bash_utils.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/calcanl_gfs.py",
+    "relativePath": "ush/calcanl_gfs.py",
+    "extension": ".py",
+    "name": "calcanl_gfs.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/calcinc_gfs.py",
+    "relativePath": "ush/calcinc_gfs.py",
+    "extension": ".py",
+    "name": "calcinc_gfs.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/check_land_input_orography.py",
+    "relativePath": "ush/check_land_input_orography.py",
+    "extension": ".py",
+    "name": "check_land_input_orography.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/detect_machine.sh",
+    "relativePath": "ush/detect_machine.sh",
+    "extension": ".sh",
+    "name": "detect_machine.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/extractvars_tools.sh",
+    "relativePath": "ush/extractvars_tools.sh",
+    "extension": ".sh",
+    "name": "extractvars_tools.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/forecast_det.sh",
+    "relativePath": "ush/forecast_det.sh",
+    "extension": ".sh",
+    "name": "forecast_det.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/forecast_postdet.sh",
+    "relativePath": "ush/forecast_postdet.sh",
+    "extension": ".sh",
+    "name": "forecast_postdet.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/forecast_predet.sh",
+    "relativePath": "ush/forecast_predet.sh",
+    "extension": ".sh",
+    "name": "forecast_predet.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/fv3gfs_remap_weights.sh",
+    "relativePath": "ush/fv3gfs_remap_weights.sh",
+    "extension": ".sh",
+    "name": "fv3gfs_remap_weights.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/gaussian_sfcanl.sh",
+    "relativePath": "ush/gaussian_sfcanl.sh",
+    "extension": ".sh",
+    "name": "gaussian_sfcanl.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/getdump.sh",
+    "relativePath": "ush/getdump.sh",
+    "extension": ".sh",
+    "name": "getdump.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/getges.sh",
+    "relativePath": "ush/getges.sh",
+    "extension": ".sh",
+    "name": "getges.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/gfs_bfr2gpk.sh",
+    "relativePath": "ush/gfs_bfr2gpk.sh",
+    "extension": ".sh",
+    "name": "gfs_bfr2gpk.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/gfs_bufr.sh",
+    "relativePath": "ush/gfs_bufr.sh",
+    "extension": ".sh",
+    "name": "gfs_bufr.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/gfs_bufr_netcdf.sh",
+    "relativePath": "ush/gfs_bufr_netcdf.sh",
+    "extension": ".sh",
+    "name": "gfs_bufr_netcdf.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/gfs_sndp.sh",
+    "relativePath": "ush/gfs_sndp.sh",
+    "extension": ".sh",
+    "name": "gfs_sndp.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/gfs_truncate_enkf.sh",
+    "relativePath": "ush/gfs_truncate_enkf.sh",
+    "extension": ".sh",
+    "name": "gfs_truncate_enkf.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/global_cycle.sh",
+    "relativePath": "ush/global_cycle.sh",
+    "extension": ".sh",
+    "name": "global_cycle.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/global_savefits.sh",
+    "relativePath": "ush/global_savefits.sh",
+    "extension": ".sh",
+    "name": "global_savefits.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/gsi_utils.py",
+    "relativePath": "ush/gsi_utils.py",
+    "extension": ".py",
+    "name": "gsi_utils.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/interp_atmos_master.sh",
+    "relativePath": "ush/interp_atmos_master.sh",
+    "extension": ".sh",
+    "name": "interp_atmos_master.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/interp_atmos_sflux.sh",
+    "relativePath": "ush/interp_atmos_sflux.sh",
+    "extension": ".sh",
+    "name": "interp_atmos_sflux.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/jjob_header.sh",
+    "relativePath": "ush/jjob_header.sh",
+    "extension": ".sh",
+    "name": "jjob_header.sh",
+    "type": "workflow"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/make_tif.sh",
+    "relativePath": "ush/make_tif.sh",
+    "extension": ".sh",
+    "name": "make_tif.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/merge_fv3_aerosol_tile.py",
+    "relativePath": "ush/merge_fv3_aerosol_tile.py",
+    "extension": ".py",
+    "name": "merge_fv3_aerosol_tile.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/module-setup.sh",
+    "relativePath": "ush/module-setup.sh",
+    "extension": ".sh",
+    "name": "module-setup.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/month_name.sh",
+    "relativePath": "ush/month_name.sh",
+    "extension": ".sh",
+    "name": "month_name.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/ocnice_extractvars.sh",
+    "relativePath": "ush/ocnice_extractvars.sh",
+    "extension": ".sh",
+    "name": "ocnice_extractvars.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/ozn_xtrct.sh",
+    "relativePath": "ush/ozn_xtrct.sh",
+    "extension": ".sh",
+    "name": "ozn_xtrct.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_model_configure_FV3.sh",
+    "relativePath": "ush/parsing_model_configure_FV3.sh",
+    "extension": ".sh",
+    "name": "parsing_model_configure_FV3.sh",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_namelists_CICE.sh",
+    "relativePath": "ush/parsing_namelists_CICE.sh",
+    "extension": ".sh",
+    "name": "parsing_namelists_CICE.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_namelists_FV3.sh",
+    "relativePath": "ush/parsing_namelists_FV3.sh",
+    "extension": ".sh",
+    "name": "parsing_namelists_FV3.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_namelists_FV3_nest.sh",
+    "relativePath": "ush/parsing_namelists_FV3_nest.sh",
+    "extension": ".sh",
+    "name": "parsing_namelists_FV3_nest.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_namelists_GOCART.sh",
+    "relativePath": "ush/parsing_namelists_GOCART.sh",
+    "extension": ".sh",
+    "name": "parsing_namelists_GOCART.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_namelists_MOM6.sh",
+    "relativePath": "ush/parsing_namelists_MOM6.sh",
+    "extension": ".sh",
+    "name": "parsing_namelists_MOM6.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_namelists_WW3.sh",
+    "relativePath": "ush/parsing_namelists_WW3.sh",
+    "extension": ".sh",
+    "name": "parsing_namelists_WW3.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/parsing_ufs_configure.sh",
+    "relativePath": "ush/parsing_ufs_configure.sh",
+    "extension": ".sh",
+    "name": "parsing_ufs_configure.sh",
+    "type": "configuration"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/preamble.sh",
+    "relativePath": "ush/preamble.sh",
+    "extension": ".sh",
+    "name": "preamble.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/prep_sfc_ice_blend.sh",
+    "relativePath": "ush/prep_sfc_ice_blend.sh",
+    "extension": ".sh",
+    "name": "prep_sfc_ice_blend.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/prep_sfc_snow.sh",
+    "relativePath": "ush/prep_sfc_snow.sh",
+    "extension": ".sh",
+    "name": "prep_sfc_snow.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/product_functions.sh",
+    "relativePath": "ush/product_functions.sh",
+    "extension": ".sh",
+    "name": "product_functions.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/python/pygfs/__init__.py",
+    "relativePath": "ush/python/pygfs/__init__.py",
+    "extension": ".py",
+    "name": "__init__.py",
+    "type": "python_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/radmon_diag_ck.sh",
+    "relativePath": "ush/radmon_diag_ck.sh",
+    "extension": ".sh",
+    "name": "radmon_diag_ck.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/radmon_err_rpt.sh",
+    "relativePath": "ush/radmon_err_rpt.sh",
+    "extension": ".sh",
+    "name": "radmon_err_rpt.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/radmon_verf_angle.sh",
+    "relativePath": "ush/radmon_verf_angle.sh",
+    "extension": ".sh",
+    "name": "radmon_verf_angle.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/radmon_verf_bcoef.sh",
+    "relativePath": "ush/radmon_verf_bcoef.sh",
+    "extension": ".sh",
+    "name": "radmon_verf_bcoef.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/radmon_verf_bcor.sh",
+    "relativePath": "ush/radmon_verf_bcor.sh",
+    "extension": ".sh",
+    "name": "radmon_verf_bcor.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/radmon_verf_time.sh",
+    "relativePath": "ush/radmon_verf_time.sh",
+    "extension": ".sh",
+    "name": "radmon_verf_time.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/regrid_gsiSfcIncr_to_tile.sh",
+    "relativePath": "ush/regrid_gsiSfcIncr_to_tile.sh",
+    "extension": ".sh",
+    "name": "regrid_gsiSfcIncr_to_tile.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/rstprod.sh",
+    "relativePath": "ush/rstprod.sh",
+    "extension": ".sh",
+    "name": "rstprod.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/run_mpmd.sh",
+    "relativePath": "ush/run_mpmd.sh",
+    "extension": ".sh",
+    "name": "run_mpmd.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/syndat_getjtbul.sh",
+    "relativePath": "ush/syndat_getjtbul.sh",
+    "extension": ".sh",
+    "name": "syndat_getjtbul.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/syndat_qctropcy.sh",
+    "relativePath": "ush/syndat_qctropcy.sh",
+    "extension": ".sh",
+    "name": "syndat_qctropcy.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/tropcy_relocate.sh",
+    "relativePath": "ush/tropcy_relocate.sh",
+    "extension": ".sh",
+    "name": "tropcy_relocate.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/tropcy_relocate_extrkr.sh",
+    "relativePath": "ush/tropcy_relocate_extrkr.sh",
+    "extension": ".sh",
+    "name": "tropcy_relocate_extrkr.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_domain_grid.sh",
+    "relativePath": "ush/wave_domain_grid.sh",
+    "extension": ".sh",
+    "name": "wave_domain_grid.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_extractvars.sh",
+    "relativePath": "ush/wave_extractvars.sh",
+    "extension": ".sh",
+    "name": "wave_extractvars.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_grib2_sbs.sh",
+    "relativePath": "ush/wave_grib2_sbs.sh",
+    "extension": ".sh",
+    "name": "wave_grib2_sbs.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_grid_interp_sbs.sh",
+    "relativePath": "ush/wave_grid_interp_sbs.sh",
+    "extension": ".sh",
+    "name": "wave_grid_interp_sbs.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_grid_moddef.sh",
+    "relativePath": "ush/wave_grid_moddef.sh",
+    "extension": ".sh",
+    "name": "wave_grid_moddef.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_outp_cat.sh",
+    "relativePath": "ush/wave_outp_cat.sh",
+    "extension": ".sh",
+    "name": "wave_outp_cat.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_outp_spec.sh",
+    "relativePath": "ush/wave_outp_spec.sh",
+    "extension": ".sh",
+    "name": "wave_outp_spec.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_prnc_cur.sh",
+    "relativePath": "ush/wave_prnc_cur.sh",
+    "extension": ".sh",
+    "name": "wave_prnc_cur.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_prnc_ice.sh",
+    "relativePath": "ush/wave_prnc_ice.sh",
+    "extension": ".sh",
+    "name": "wave_prnc_ice.sh",
+    "type": "shell_script"
+  },
+  {
+    "path": "/home/tmcguinness/GITHUB/COPILOT/global-workflow_forked/ush/wave_tar.sh",
+    "relativePath": "ush/wave_tar.sh",
+    "extension": ".sh",
+    "name": "wave_tar.sh",
+    "type": "shell_script"
+  }
+]

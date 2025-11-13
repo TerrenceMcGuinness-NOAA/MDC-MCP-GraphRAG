@@ -1,0 +1,166 @@
+{
+  "total_urls": 47,
+  "duplicates": {},
+  "similar_repos": {
+    "NOAA-EMC/GSI vs NOAA-EMC/GSI-Utils": {
+      "repo1": [
+        {
+          "url": "https://github.com/NOAA-EMC/GSI",
+          "path": "external.gsi.github",
+          "key": "github"
+        },
+        {
+          "url": "https://github.com/NOAA-EMC/GSI.git",
+          "path": "external.submodules.data_assimilation.gsi.github",
+          "key": "github"
+        }
+      ],
+      "repo2": [
+        {
+          "url": "https://github.com/NOAA-EMC/GSI-Utils.git",
+          "path": "external.submodules.data_assimilation.gsi_utils.github",
+          "key": "github"
+        }
+      ]
+    },
+    "NOAA-EMC/GSI vs NOAA-EMC/GSI-Monitor": {
+      "repo1": [
+        {
+          "url": "https://github.com/NOAA-EMC/GSI",
+          "path": "external.gsi.github",
+          "key": "github"
+        },
+        {
+          "url": "https://github.com/NOAA-EMC/GSI.git",
+          "path": "external.submodules.data_assimilation.gsi.github",
+          "key": "github"
+        }
+      ],
+      "repo2": [
+        {
+          "url": "https://github.com/NOAA-EMC/GSI-Monitor.git",
+          "path": "external.submodules.data_assimilation.gsi_monitor.github",
+          "key": "github"
+        }
+      ]
+    }
+  },
+  "overlapping_domains": {
+    "github.com": [
+      {
+        "url": "https://github.com/NOAA-EMC/global-workflow",
+        "path": "internal.global_workflow.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/global-workflow.git",
+        "path": "internal.global_workflow.base_url",
+        "key": "base_url"
+      },
+      {
+        "url": "https://github.com/ufs-community/ufs-weather-model",
+        "path": "external.ufs.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/christopherwharrop-NOAA/rocoto",
+        "path": "external.rocoto.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI",
+        "path": "external.gsi.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/JCSDA/spack-stack",
+        "path": "external.spack_stack.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/JCSDA/spack-stack/wiki",
+        "path": "external.spack_stack.wiki",
+        "key": "wiki"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/NCEPLIBS",
+        "path": "external.noaa_tools.nceplibs.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/NCEPLIBS/wiki/Codes-that-use-NCEPLIBS",
+        "path": "external.noaa_tools.nceplibs.wiki",
+        "key": "wiki"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/UPP",
+        "path": "external.noaa_tools.upp.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/ufs-community/UFS_UTILS",
+        "path": "external.noaa_tools.ufs_utils.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/JCSDA/jedi-bundle",
+        "path": "external.jcsda_jedi.jedi_bundle.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/ufs-community/ufs-weather-model/wiki",
+        "path": "external.submodules.atmospheric_modeling.ufs_weather_model.wiki",
+        "key": "wiki"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI.git",
+        "path": "external.submodules.data_assimilation.gsi.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GDASApp.git",
+        "path": "external.submodules.data_assimilation.gdas_app.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI-Utils.git",
+        "path": "external.submodules.data_assimilation.gsi_utils.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI-Monitor.git",
+        "path": "external.submodules.data_assimilation.gsi_monitor.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/wxflow",
+        "path": "external.submodules.utilities.wxflow.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/ufs-community/UFS_UTILS.git",
+        "path": "external.submodules.utilities.ufs_utils.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/gfs-utils",
+        "path": "external.submodules.utilities.gfs_utils.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/EMC_verif-global.git",
+        "path": "external.submodules.verification.verif_global.github",
+        "key": "github"
+      },
+      {
+        "url": "https://github.com/fortran-lang/stdlib/blob/master/STYLE_GUIDE.md",
+        "path": "standards_and_policies.fortran.coding_standards",
+        "key": "coding_standards"
+      }
+    ]
+  },
+  "recommendations": {
+    "exact_duplicates_to_remove": 0,
+    "potential_url_count_after_cleanup": 47
+  }
+}

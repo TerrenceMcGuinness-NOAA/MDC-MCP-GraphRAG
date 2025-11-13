@@ -1,0 +1,27 @@
+# Alternative: Use Alpine ecFlow Server (more modern)
+# Combined with basic Debian UI for X11 forwarding
+FROM eowyn/alpine-ecflow:latest as server-base
+
+# Multi-stage build: UI stage with basic X11 support
+FROM eowyn/debian-ecflowui:latest as ui-stage
+
+LABEL maintainer="Terry.McGuinness@noaa.gov"
+LABEL description="ecFlow UI for Global Workflow (X11 forwarding, simple approach)"
+LABEL version="5.13.8"
+
+# Set environment variables for ecFlow connection
+ENV ECF_HOST=ecflow-server
+ENV ECF_PORT=3141
+
+# Don't try to update packages - just work with what's there
+USER root
+
+# Create X11 directory for socket mounting
+RUN mkdir -p /tmp/.X11-unix && \
+    chmod 1777 /tmp/.X11-unix
+
+USER ecflow
+WORKDIR /home/ecflow
+
+# Just keep container running, launch UI via exec
+CMD ["tail", "-f", "/dev/null"]

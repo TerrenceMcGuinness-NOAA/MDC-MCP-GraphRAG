@@ -1,0 +1,43 @@
+[Unit]
+Description=ChromaDB Vector Database Server (Spack-managed)
+After=network.target
+Documentation=https://docs.trychroma.com/
+
+[Service]
+Type=simple
+User=Terry.McGuinness
+Group=Terry.McGuinness
+WorkingDirectory=/mcp_rag_eib/mcp_server_node
+
+# Environment variables
+Environment="PERSIST_DIRECTORY=/mcp_rag_eib/data/chromadb"
+Environment="CHROMA_SERVER_HOST=0.0.0.0"
+Environment="CHROMA_SERVER_HTTP_PORT=8080"
+Environment="ALLOW_RESET=true"
+
+# Source Spack environment and start ChromaDB
+ExecStart=/bin/bash -c '\
+  source /usr/share/lmod/lmod/init/bash && \
+  source /mcp_rag_eib/spack/share/spack/setup-env.sh && \
+  module use /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core && \
+  module load gcc/11.5.0-fuceq3c && \
+  module load python/3.11.14-em7rqij && \
+  module load py-fastapi/0.115.12-r6tgxqg && \
+  module load py-uvicorn/0.34.2-nuc4pxd && \
+  module load py-pydantic/2.10.1-5dvmyys && \
+  spack load py-pip && \
+  chroma run --host ${CHROMA_SERVER_HOST} --port ${CHROMA_SERVER_HTTP_PORT} --path ${PERSIST_DIRECTORY}'
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chromadb-spack
+
+[Install]
+WantedBy=multi-user.target

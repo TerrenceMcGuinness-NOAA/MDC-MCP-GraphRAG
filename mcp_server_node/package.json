@@ -1,0 +1,48 @@
+{
+  "name": "global-workflow-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for NOAA Global Workflow",
+  "main": "mcp-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node mcp-server.js",
+    "start:rag": "node mcp-server-rag.js",
+    "start:github": "node mcp-server-github-rag.js",
+    "dev": "node --watch mcp-server.js",
+    "dev:rag": "node --watch mcp-server-rag.js",
+    "dev:github": "node --watch mcp-server-github-rag.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:data": "vitest run src/data/__tests__",
+    "test:unit": "./run-tests.sh unit",
+    "test:integration": "./run-tests.sh integration",
+    "validate": "./run-tests.sh validation",
+    "test:help": "./run-tests.sh help"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.5",
+    "@octokit/rest": "^22.0.0",
+    "@xenova/transformers": "^2.15.0",
+    "cheerio": "^1.0.0-rc.12",
+    "chromadb": "^3.0.17",
+    "github-mcp-server": "^1.8.7",
+    "glob": "^11.0.0",
+    "gray-matter": "^4.0.3",
+    "jaegis-github-mcp-server": "^3.1.0",
+    "langchain": "^0.3.30",
+    "neo4j-driver": "^6.0.0",
+    "pdf-parse": "^1.1.1",
+    "sharp": "^0.34.3"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.4",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "author": "NOAA EMC",
+  "license": "MIT"
+}

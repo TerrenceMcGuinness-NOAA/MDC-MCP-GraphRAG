@@ -1,0 +1,50 @@
+# Neo4j Graph Database with APOC and Graph Data Science plugins
+# For Global Workflow MCP RAG Graph Intelligence
+# Version: 1.0.0
+
+FROM neo4j:5.15.0
+
+# Maintainer information
+LABEL maintainer="Terry.McGuinness@noaa.gov"
+LABEL description="Neo4j graph database with APOC and GDS plugins for GFS structural analysis"
+LABEL version="1.0.0"
+
+# Install curl for healthchecks
+USER root
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for plugin installation
+ENV NEO4J_PLUGINS='["apoc", "graph-data-science"]'
+ENV NEO4J_apoc_export_file_enabled=true
+ENV NEO4J_apoc_import_file_enabled=true
+ENV NEO4J_apoc_import_file_use__neo4j__config=true
+ENV NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
+
+# Memory configuration optimized for GFS graph analysis
+ENV NEO4J_dbms_memory_heap_initial__size=1G
+ENV NEO4J_dbms_memory_heap_max__size=4G
+ENV NEO4J_dbms_memory_pagecache_size=2G
+
+# Configure logging
+ENV NEO4J_server_logs_debug_enabled=false
+ENV NEO4J_server_logs_user_enabled=true
+
+# Create necessary directories
+RUN mkdir -p /var/lib/neo4j/import /var/lib/neo4j/logs
+
+# Switch back to neo4j user
+USER neo4j
+
+# Expose standard Neo4j ports
+# 7474: HTTP (Browser UI)
+# 7687: Bolt protocol (driver connections)
+EXPOSE 7474 7687
+
+# Health check using cypher-shell
+HEALTHCHECK --interval=30s --timeout=10s --retries=5 --start-period=60s \
+  CMD cypher-shell -u neo4j -p "${NEO4J_AUTH#*/}" "RETURN 1" || exit 1
+
+# Default command (from base image)
+CMD ["neo4j"]

@@ -1,0 +1,85 @@
+# ecFlow UI Dockerfile with Complete Qt X11 Support
+# Using a modern base with proper Qt X11 integration
+FROM ubuntu:20.04
+
+LABEL maintainer="Terry.McGuinness@noaa.gov"
+LABEL description="ecFlow UI for Global Workflow visualization (X11 forwarding - complete Qt support)"
+LABEL version="5.14.1"
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install complete Qt X11 stack and ecFlow
+RUN apt-get update && \
+    apt-get install -y \
+        # Core ecFlow dependencies
+        wget curl ca-certificates \
+        # Complete Qt X11 stack
+        qt5-default \
+        qtbase5-dev-tools \
+        libqt5gui5 \
+        libqt5widgets5 \
+        libqt5core5a \
+        libqt5network5 \
+        libqt5xml5 \
+        # X11 and XCB support
+        libx11-6 \
+        libx11-xcb1 \
+        libxcb1 \
+        libxcb-xkb1 \
+        libxcb-icccm4 \
+        libxcb-image0 \
+        libxcb-keysyms1 \
+        libxcb-randr0 \
+        libxcb-render-util0 \
+        libxcb-render0 \
+        libxcb-shm0 \
+        libxcb-sync1 \
+        libxcb-shape0 \
+        libxcb-xfixes0 \
+        libxcb-xinerama0 \
+        # Additional Qt platform support
+        libqt5x11extras5 \
+        qt5-gtk-platformtheme \
+        # Font and rendering support
+        libfontconfig1 \
+        libfreetype6 \
+        # X11 utilities
+        x11-apps \
+        xauth \
+        # Network tools
+        netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ecFlow from ECMWF repository
+RUN wget -q -O ecflow.deb https://confluence.ecmwf.int/download/attachments/8650755/ecFlow-5.14.1-Linux.deb && \
+    dpkg -i ecflow.deb || true && \
+    apt-get update && \
+    apt-get install -f -y && \
+    rm -f ecflow.deb && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create ecflow user
+RUN useradd -m -s /bin/bash ecflow && \
+    mkdir -p /home/ecflow/workspace /home/ecflow/logs
+
+# Set environment variables for ecFlow and Qt
+ENV ECF_HOST=localhost
+ENV ECF_PORT=3141
+ENV QT_X11_NO_MITSHM=1
+ENV QT_XKB_CONFIG_ROOT=/usr/share/X11/xkb
+
+# Create X11 directory for socket mounting
+RUN mkdir -p /tmp/.X11-unix && \
+    chmod 1777 /tmp/.X11-unix
+
+USER ecflow
+WORKDIR /home/ecflow
+
+# Health check - ping ecFlow server
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+  CMD nc -z ${ECF_HOST} ${ECF_PORT} || exit 1
+
+# Start command - just keep container running
+CMD ["tail", "-f", "/dev/null"]

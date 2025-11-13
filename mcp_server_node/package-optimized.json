@@ -1,0 +1,96 @@
+{
+  "name": "global-workflow-optimized-mcp-server",
+  "version": "2.0.0",
+  "description": "Optimized MCP Server for NOAA Global Workflow with Enhanced RAG Performance",
+  "main": "optimized-rag-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node optimized-rag-server.js",
+    "start:legacy": "node mcp-server-rag.js",
+    "dev": "node --watch optimized-rag-server.js",
+    "dev:inspect": "node --inspect --watch optimized-rag-server.js",
+    "optimize": "node embedding-optimizer.js",
+    "optimize:high": "node embedding-optimizer.js --compression high --chunk-size 50",
+    "optimize:custom": "node embedding-optimizer.js --compression medium --chunk-size 100 --output ./custom-kb",
+    "test": "./run-tests.sh all",
+    "test:performance": "node test-performance.js",
+    "benchmark": "node benchmark-optimizer.js",
+    "validate:optimized": "./run-tests.sh validation-optimized",
+    "clean": "rm -rf optimized-knowledge-base/",
+    "stats": "node -e \"import('./optimized-rag-server.js').then(s => s.getPerformanceStats())\"",
+    "memory:check": "node --expose-gc memory-monitor.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "@xenova/transformers": "^2.15.0",
+    "cheerio": "^1.0.0-rc.12",
+    "chromadb": "^1.8.1",
+    "gray-matter": "^4.0.3",
+    "langchain": "^0.3.30",
+    "pdf-parse": "^1.1.1",
+    "sharp": "^0.34.3"
+  },
+  "devDependencies": {
+    "benchmark": "^2.1.4",
+    "memory-usage": "^0.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "optimization": {
+    "features": [
+      "Chunked embedding loading",
+      "In-memory LRU caching", 
+      "Partitioned vector search",
+      "Asynchronous operations",
+      "Performance monitoring",
+      "Memory usage optimization",
+      "Search result caching",
+      "Intelligent pre-loading"
+    ],
+    "performance": {
+      "maxMemoryMB": 512,
+      "targetResponseTimeMs": 200,
+      "cacheHitRateTarget": 0.8,
+      "partitionSizeOptimal": 100
+    }
+  },
+  "config": {
+    "embedding": {
+      "model": "Xenova/all-MiniLM-L6-v2",
+      "dimensions": 384,
+      "timeout": 15000
+    },
+    "vectorStore": {
+      "chunkSize": 50,
+      "cacheSize": 200,
+      "similarityThreshold": 0.15,
+      "maxResults": 10
+    },
+    "server": {
+      "memoryAlertThresholdMB": 500,
+      "performanceMonitoringInterval": 30000,
+      "gracefulShutdownTimeout": 5000
+    }
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol", 
+    "rag",
+    "retrieval-augmented-generation",
+    "noaa",
+    "global-workflow",
+    "vector-search",
+    "embeddings",
+    "performance-optimized",
+    "scalable"
+  ],
+  "author": "NOAA EMC",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NOAA-EMC/global-workflow.git",
+    "directory": "dev/ci/scripts/utils/Copilot/mcp_server_node"
+  }
+}

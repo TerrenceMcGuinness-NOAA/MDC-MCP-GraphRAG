@@ -1,0 +1,51 @@
+{
+  "huggingface": {
+    "api": {
+      "base_url": "https://api-inference.huggingface.co",
+      "timeout": 30000,
+      "max_retries": 3
+    },
+    "models": {
+      "embeddings": {
+        "primary": "sentence-transformers/all-MiniLM-L6-v2",
+        "fallback": "sentence-transformers/all-mpnet-base-v2"
+      },
+      "text_generation": {
+        "primary": "microsoft/DialoGPT-large",
+        "fallback": "gpt2"
+      },
+      "code_generation": {
+        "primary": "microsoft/CodeBERT-base",
+        "fallback": "codeparrot/codeparrot-small"
+      },
+      "image_generation": {
+        "primary": "runwayml/stable-diffusion-v1-5",
+        "flux": "black-forest-labs/FLUX.1-schnell"
+      }
+    },
+    "rag_integration": {
+      "use_hf_embeddings": true,
+      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "chunk_size": 1000,
+      "similarity_threshold": 0.7,
+      "max_results": 10
+    },
+    "datasets": {
+      "weather_related": [
+        "Salesforce/wikitext",
+        "scientific_papers",
+        "arxiv_abstracts"
+      ],
+      "documentation": [
+        "code_documentation",
+        "technical_manuals"
+      ]
+    },
+    "search": {
+      "default_limit": 20,
+      "max_limit": 100,
+      "include_deprecated": false,
+      "sort_by": "downloads"
+    }
+  }
+}

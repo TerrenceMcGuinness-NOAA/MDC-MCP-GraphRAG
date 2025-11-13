@@ -1,0 +1,26 @@
+# ecFlow UI Dockerfile with X11 Forwarding Support
+# Based on eowyn/debian-ecflowui with X11 forwarding instead of VNC
+FROM eowyn/debian-ecflowui:latest
+
+LABEL maintainer="Terry.McGuinness@noaa.gov"
+LABEL description="ecFlow UI for Global Workflow visualization (X11 forwarding)"
+LABEL version="5.14.1"
+
+# Set environment variables for ecFlow connection
+ENV ECF_HOST=ecflow-server
+ENV ECF_PORT=3141
+
+# Create X11 directory for socket mounting (avoid package updates due to Debian Buster EOL)
+USER root
+RUN mkdir -p /tmp/.X11-unix && \
+    chmod 1777 /tmp/.X11-unix
+
+USER ecflow
+WORKDIR /home/ecflow
+
+# Health check - ping ecFlow server (using telnet instead of nc)
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+  CMD timeout 5 bash -c "</dev/tcp/${ECF_HOST}/${ECF_PORT}" || exit 1
+
+# Start command - just keep container running, ecFlow UI launched via exec
+CMD ["tail", "-f", "/dev/null"]

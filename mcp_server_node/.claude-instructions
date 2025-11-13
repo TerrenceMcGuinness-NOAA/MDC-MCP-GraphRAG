@@ -1,0 +1,43 @@
+# Claude Instructions - MCP Server Development
+
+This directory contains the Node.js MCP (Model Context Protocol) server implementations for the Global Workflow RAG system.
+
+## Current Location Context
+- **Path**: `/contrib/Terry.McGuinness/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot/mcp_server_node/`
+- **Purpose**: MCP server source code, configurations, and utilities
+- **Deployment**: Files copied to `/contrib/Terry.McGuinness/opt/mcp-server/` for persistence
+
+## Key Files
+- `mcp-server-rag.js` - Main RAG server (9 workflow tools)
+- `mcp-server-github-rag.js` - GitHub integration server (14 tools)
+- `mcp-config.env` - Environment configuration
+- `package*.json` - Various dependency configurations
+- `start-*.sh` - Server startup scripts
+
+## Infrastructure Context
+- **ChromaDB**: Running as systemd service on port 8000
+- **LangFlow**: Docker container on port 7860 for RAG visualization
+- **Claude CLI**: Configured with persistent settings
+
+## Development Patterns
+- Use existing error handling patterns
+- Follow the wxflow integration standards
+- Maintain compatibility with VS Code MCP client
+- Test with both stdio and SSE protocols
+
+## Testing Files
+- `test-*.js` - Various component and integration tests
+- `validate-*.js` - Validation and verification scripts
+- `demo/` - Demonstration and example scripts
+
+## Important Notes
+- This code supports NOAA operational weather forecasting
+- Changes must maintain backward compatibility
+- All modifications should be tested thoroughly
+- Follow the existing code style and documentation patterns
+
+When modifying MCP servers:
+1. Test with the existing Chrome DB collections
+2. Verify tool registration and responses
+3. Check integration with VS Code MCP client
+4. Ensure proper error handling and logging

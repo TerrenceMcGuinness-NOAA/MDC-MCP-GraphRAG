@@ -1,0 +1,34 @@
+https://ufs-weather-model.readthedocs.io/en/ufs-v2.0.0/
+# priority: 1
+# lastmod: 2021-02-23T16:24:20.543554+00:00
+# changefreq: weekly
+
+https://ufs-weather-model.readthedocs.io/en/ufs-v1.1.0/
+# priority: 0.9
+# lastmod: 2021-07-20T19:06:57.207815+00:00
+# changefreq: daily
+
+https://ufs-weather-model.readthedocs.io/en/ufs-v1.0.0/
+# priority: 0.8
+# lastmod: 2020-03-10T18:10:13.713575+00:00
+# changefreq: monthly
+
+https://ufs-weather-model.readthedocs.io/en/ufs-srw-v2.2.0-doc/
+# priority: 0.7
+# lastmod: 2024-10-11T15:58:45.223004+00:00
+# changefreq: monthly
+
+https://ufs-weather-model.readthedocs.io/en/ufs-srw-v2.1.0/
+# priority: 0.6
+# lastmod: 2022-11-09T15:15:06.095902+00:00
+# changefreq: monthly
+
+https://ufs-weather-model.readthedocs.io/en/release-public-v3.0.0/
+# priority: 0.5
+# lastmod: 2025-05-06T16:02:19.846614+00:00
+# changefreq: monthly
+
+https://ufs-weather-model.readthedocs.io/en/develop/
+# priority: 0.4
+# lastmod: 2025-10-14T16:10:59.318700+00:00
+# changefreq: monthly

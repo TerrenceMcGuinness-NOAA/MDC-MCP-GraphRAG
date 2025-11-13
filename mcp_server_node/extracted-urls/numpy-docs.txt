@@ -1,0 +1,310 @@
+https://numpy.org/news/
+# priority: 0.5
+# lastmod: 2025-06-07T00:00:00+00:00
+
+https://numpy.org/
+# priority: 0.5
+# lastmod: 2025-06-07T00:00:00+00:00
+
+https://numpy.org/user-survey-2020/
+# priority: 0.5
+
+https://numpy.org/404/
+# priority: 0.5
+
+https://numpy.org/about/
+# priority: 0.5
+
+https://numpy.org/arraycomputing/
+# priority: 0.5
+
+https://numpy.org/case-studies/cricket-analytics/
+# priority: 0.5
+
+https://numpy.org/case-studies/deeplabcut-dnn/
+# priority: 0.5
+
+https://numpy.org/case-studies/gw-discov/
+# priority: 0.5
+
+https://numpy.org/case-studies/blackhole-image/
+# priority: 0.5
+
+https://numpy.org/case-studies/
+# priority: 0.5
+
+https://numpy.org/citing-numpy/
+# priority: 0.5
+
+https://numpy.org/community/
+# priority: 0.5
+
+https://numpy.org/contribute/
+# priority: 0.5
+
+https://numpy.org/gethelp/
+# priority: 0.5
+
+https://numpy.org/history/
+# priority: 0.5
+
+https://numpy.org/install/
+# priority: 0.5
+
+https://numpy.org/learn/
+# priority: 0.5
+
+https://numpy.org/code-of-conduct/
+# priority: 0.5
+
+https://numpy.org/report-handling-manual/
+# priority: 0.5
+
+https://numpy.org/diversity_sep2020/
+# priority: 0.5
+
+https://numpy.org/teams/
+# priority: 0.5
+
+https://numpy.org/user-surveys/
+# priority: 0.5
+
+https://numpy.org/press-kit/
+# priority: 0.5
+
+https://numpy.org/privacy/
+# priority: 0.5
+
+https://numpy.org/terms/
+# priority: 0.5
+
+https://numpy.org/pt/news/
+# priority: 0.5
+# lastmod: 2023-09-16T00:00:00+00:00
+
+https://numpy.org/pt/
+# priority: 0.5
+# lastmod: 2023-09-16T00:00:00+00:00
+
+https://numpy.org/pt/404/
+# priority: 0.5
+
+https://numpy.org/pt/learn/
+# priority: 0.5
+
+https://numpy.org/pt/case-studies/
+# priority: 0.5
+
+https://numpy.org/pt/citing-numpy/
+# priority: 0.5
+
+https://numpy.org/pt/code-of-conduct/
+# priority: 0.5
+
+https://numpy.org/pt/report-handling-manual/
+# priority: 0.5
+
+https://numpy.org/pt/arraycomputing/
+# priority: 0.5
+
+https://numpy.org/pt/community/
+# priority: 0.5
+
+https://numpy.org/pt/contribute/
+# priority: 0.5
+
+https://numpy.org/pt/case-studies/blackhole-image/
+# priority: 0.5
+
+https://numpy.org/pt/case-studies/cricket-analytics/
+# priority: 0.5
+
+https://numpy.org/pt/case-studies/gw-discov/
+# priority: 0.5
+
+https://numpy.org/pt/case-studies/deeplabcut-dnn/
+# priority: 0.5
+
+https://numpy.org/pt/history/
+# priority: 0.5
+
+https://numpy.org/pt/install/
+# priority: 0.5
+
+https://numpy.org/pt/press-kit/
+# priority: 0.5
+
+https://numpy.org/pt/gethelp/
+# priority: 0.5
+
+https://numpy.org/pt/user-surveys/
+# priority: 0.5
+
+https://numpy.org/pt/user-survey-2020/
+# priority: 0.5
+
+https://numpy.org/pt/privacy/
+# priority: 0.5
+
+https://numpy.org/pt/about/
+# priority: 0.5
+
+https://numpy.org/pt/terms/
+# priority: 0.5
+
+https://numpy.org/pt/teams/
+# priority: 0.5
+
+https://numpy.org/ja/
+# priority: 0.5
+# lastmod: 2024-08-18T00:00:00+00:00
+
+https://numpy.org/ja/news/
+# priority: 0.5
+# lastmod: 2024-08-18T00:00:00+00:00
+
+https://numpy.org/ja/user-survey-2020/
+# priority: 0.5
+
+https://numpy.org/ja/404/
+# priority: 0.5
+
+https://numpy.org/ja/case-studies/
+# priority: 0.5
+
+https://numpy.org/ja/contribute/
+# priority: 0.5
+
+https://numpy.org/ja/user-surveys/
+# priority: 0.5
+
+https://numpy.org/ja/install/
+# priority: 0.5
+
+https://numpy.org/ja/learn/
+# priority: 0.5
+
+https://numpy.org/ja/history/
+# priority: 0.5
+
+https://numpy.org/ja/citing-numpy/
+# priority: 0.5
+
+https://numpy.org/ja/teams/
+# priority: 0.5
+
+https://numpy.org/ja/code-of-conduct/
+# priority: 0.5
+
+https://numpy.org/ja/report-handling-manual/
+# priority: 0.5
+
+https://numpy.org/ja/terms/
+# priority: 0.5
+
+https://numpy.org/ja/case-studies/deeplabcut-dnn/
+# priority: 0.5
+
+https://numpy.org/ja/case-studies/cricket-analytics/
+# priority: 0.5
+
+https://numpy.org/ja/case-studies/gw-discov/
+# priority: 0.5
+
+https://numpy.org/ja/case-studies/blackhole-image/
+# priority: 0.5
+
+https://numpy.org/ja/community/
+# priority: 0.5
+
+https://numpy.org/ja/gethelp/
+# priority: 0.5
+
+https://numpy.org/ja/privacy/
+# priority: 0.5
+
+https://numpy.org/ja/press-kit/
+# priority: 0.5
+
+https://numpy.org/ja/about/
+# priority: 0.5
+
+https://numpy.org/ja/arraycomputing/
+# priority: 0.5
+
+https://numpy.org/es/news/
+# priority: 0.5
+# lastmod: 2024-06-17T00:00:00+00:00
+
+https://numpy.org/es/
+# priority: 0.5
+# lastmod: 2024-06-17T00:00:00+00:00
+
+https://numpy.org/es/404/
+# priority: 0.5
+
+https://numpy.org/es/learn/
+# priority: 0.5
+
+https://numpy.org/es/gethelp/
+# priority: 0.5
+
+https://numpy.org/es/case-studies/
+# priority: 0.5
+
+https://numpy.org/es/case-studies/deeplabcut-dnn/
+# priority: 0.5
+
+https://numpy.org/es/case-studies/blackhole-image/
+# priority: 0.5
+
+https://numpy.org/es/citing-numpy/
+# priority: 0.5
+
+https://numpy.org/es/code-of-conduct/
+# priority: 0.5
+
+https://numpy.org/es/report-handling-manual/
+# priority: 0.5
+
+https://numpy.org/es/arraycomputing/
+# priority: 0.5
+
+https://numpy.org/es/community/
+# priority: 0.5
+
+https://numpy.org/es/contribute/
+# priority: 0.5
+
+https://numpy.org/es/user-survey-2020/
+# priority: 0.5
+
+https://numpy.org/es/user-surveys/
+# priority: 0.5
+
+https://numpy.org/es/teams/
+# priority: 0.5
+
+https://numpy.org/es/case-studies/cricket-analytics/
+# priority: 0.5
+
+https://numpy.org/es/case-studies/gw-discov/
+# priority: 0.5
+
+https://numpy.org/es/history/
+# priority: 0.5
+
+https://numpy.org/es/install/
+# priority: 0.5
+
+https://numpy.org/es/press-kit/
+# priority: 0.5
+
+https://numpy.org/es/privacy/
+# priority: 0.5
+
+https://numpy.org/es/about/
+# priority: 0.5
+
+https://numpy.org/es/terms/
+# priority: 0.5

@@ -1,0 +1,10 @@
+{
+  "name": "global-workflow-mcp-test",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Test environment for Global Workflow MCP Server",
+  "main": "mcp-server.js",
+  "scripts": {
+    "test": "node run-tests.js"
+  }
+}

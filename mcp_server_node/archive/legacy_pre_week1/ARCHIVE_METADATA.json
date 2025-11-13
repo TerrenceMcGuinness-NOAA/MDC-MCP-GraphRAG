@@ -1,0 +1,15 @@
+{
+  "archiveDate": "2025-11-10T20:33:11+00:00",
+  "sourceManifest": "/mcp_rag_eib/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot/mcp_server_node/deployment-manifest.json",
+  "version": "2.0.0-week1",
+  "archivedFrom": "/mcp_rag_eib/mcp_server_node",
+  "reason": "Pre-AWS prototype artifacts, superseded by Week 1 refactor",
+  "files": [
+    "embedding-optimizer.js",
+    "optimized-rag-server.js",
+    "optimized-vector-store.js",
+    "package-optimized.json",
+    "package-rag.json",
+    "package-unified.json"
+  ]
+}

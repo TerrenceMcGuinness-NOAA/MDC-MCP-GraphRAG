@@ -1,0 +1,9 @@
+{
+  "total_chunks": 165,
+  "local_chunks": 0,
+  "external_chunks": 165,
+  "embedding_model": "all-MiniLM-L6-v2",
+  "embedding_dimension": 384,
+  "generated_at": 1760035976.2029135,
+  "chromadb_enabled": true
+}

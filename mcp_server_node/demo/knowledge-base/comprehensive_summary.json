@@ -1,0 +1,14 @@
+{
+  "total_documents": 166,
+  "total_chunks": 326,
+  "total_words": 184847,
+  "statistics": {
+    "readthedocs_pages": 103,
+    "github_wiki_pages": 42,
+    "github_files": 10,
+    "github_docs": 11
+  },
+  "generation_time": 1760037373.4348323,
+  "embedding_model": "all-MiniLM-L6-v2",
+  "embedding_dimensions": 384
+}

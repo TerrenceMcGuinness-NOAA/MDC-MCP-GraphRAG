@@ -1,0 +1,1116 @@
+#!/usr/bin/env node
+
+/**
+ * Semantic Search Tools Module
+ * 
+ * Consolidated RAG tools leveraging Week 1 UnifiedDataAccess Layer.
+ * Combines the best of RAGTools + EnhancedRAGTools with graph enrichment.
+ * 
+ * Features:
+ * - Hybrid semantic + graph search via UnifiedDataAccess
+ * - EE2 compliance analysis and standards search
+ * - Multi-source knowledge retrieval
+ * - Code similarity detection with graph context
+ * - Contextual explanations
+ * 
+ * @version 2.0.0
+ * @author Claude Sonnet 4.5
+ * @supervisor Terry McGuinness
+ * @date 2025-10-16
+ */
+
+import { UnifiedDataAccess } from '../data/UnifiedDataAccess.js';
+
+export class SemanticSearchTools {
+  constructor(dataAccess = null) {
+    this.dataAccess = dataAccess;  // Accept injected dependency for testing
+    this.isInitialized = !!dataAccess;  // Already initialized if dataAccess provided
+  }
+
+  async initialize() {
+    if (this.isInitialized) return;
+
+    console.error('[INIT] Initializing Semantic Search Tools...');
+    
+    try {
+      this.dataAccess = new UnifiedDataAccess();
+      await this.dataAccess.connect();
+      
+      this.isInitialized = true;
+      console.error('[OK] Semantic Search Tools initialized');
+    } catch (error) {
+      console.error('[ERROR] Semantic Search Tools initialization failed:', error.message);
+      console.error('   Tools will return error messages when called.');
+      // Mark as initialized anyway to prevent repeated init attempts
+      this.isInitialized = true;
+      this.initializationError = error;
+    }
+  }
+
+  registerWith(server) {
+    // Tool 1: Search Documentation (Hybrid)
+    server.registerTool(
+      'search_documentation',
+      'Hybrid semantic + graph search across workflow documentation and code',
+      {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query' },
+          max_results: { type: 'number', default: 8, minimum: 1, maximum: 20 },
+          include_graph: { type: 'boolean', default: true, description: 'Include graph enrichment' },
+          similarity_threshold: { type: 'number', default: 0.1, minimum: 0, maximum: 1 }
+        },
+        required: ['query']
+      },
+      this.searchDocumentation.bind(this)
+    );
+
+    // Tool 2: Search EE2 Standards
+    server.registerTool(
+      'search_ee2_standards',
+      'Search EE2 compliance standards and documentation',
+      {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'EE2 compliance query' },
+          category: {
+            type: 'string',
+            enum: ['environment_variables', 'workflow_structure', 'error_handling', 
+                   'file_naming', 'production_utilities', 'code_standards', 'directory_structure'],
+            description: 'Specific compliance category'
+          },
+          max_results: { type: 'number', default: 8, minimum: 1, maximum: 20 },
+          include_examples: { type: 'boolean', default: true }
+        },
+        required: ['query']
+      },
+      this.searchEE2Standards.bind(this)
+    );
+
+    // Tool 3: Find Related Files by Dependencies
+    server.registerTool(
+      'find_related_files',
+      'Find files with similar dependencies and import relationships',
+      {
+        type: 'object',
+        properties: {
+          file_path: { type: 'string', description: 'File path to analyze for related files (e.g., "scripts/exglobal_forecast.py")' },
+          max_results: { type: 'number', default: 10, minimum: 1, maximum: 20 },
+          include_documentation: { type: 'boolean', default: true, description: 'Include related documentation' }
+        },
+        required: ['file_path']
+      },
+      this.findRelatedFiles.bind(this)
+    );
+
+    // Tool 4: Explain with Context
+    server.registerTool(
+      'explain_with_context',
+      'Provide comprehensive explanations using hybrid search',
+      {
+        type: 'object',
+        properties: {
+          topic: { type: 'string', description: 'Topic or component to explain' },
+          context_type: {
+            type: 'string',
+            enum: ['technical', 'operational', 'configuration', 'all'],
+            default: 'all'
+          },
+          detail_level: { type: 'string', enum: ['basic', 'intermediate', 'advanced'], default: 'intermediate' }
+        },
+        required: ['topic']
+      },
+      this.explainWithContext.bind(this)
+    );
+
+    // Tool 5: Analyze EE2 Compliance
+    server.registerTool(
+      'analyze_ee2_compliance',
+      'Analyze code or documentation for EE2 compliance',
+      {
+        type: 'object',
+        properties: {
+          content: { type: 'string', description: 'Code or documentation content to analyze' },
+          analysis_type: {
+            type: 'string',
+            enum: ['comprehensive', 'environment_variables', 'workflow_structure', 'error_handling',
+                   'file_naming', 'production_utilities', 'code_standards', 'directory_structure'],
+            default: 'comprehensive'
+          },
+          include_recommendations: { type: 'boolean', default: true }
+        },
+        required: ['content']
+      },
+      this.analyzeEE2Compliance.bind(this)
+    );
+
+    // Tool 6: Generate Compliance Report
+    server.registerTool(
+      'generate_compliance_report',
+      'Generate comprehensive EE2 compliance report',
+      {
+        type: 'object',
+        properties: {
+          scope: { type: 'string', enum: ['summary', 'detailed', 'checklist'], default: 'summary' },
+          categories: { type: 'array', items: { type: 'string' }, default: [] },
+          format: { type: 'string', enum: ['markdown', 'checklist', 'summary'], default: 'markdown' }
+        }
+      },
+      this.generateComplianceReport.bind(this)
+    );
+
+    // Tool 7: Repository-Wide Compliance Scan
+    server.registerTool(
+      'scan_repository_compliance',
+      'Scan entire repository for EE2 compliance and return structured analysis data',
+      {
+        type: 'object',
+        properties: {
+          repository_path: { type: 'string', description: 'Absolute path to repository root' },
+          file_patterns: { 
+            type: 'array', 
+            items: { type: 'string' },
+            default: ['**/*.sh', '**/*.py', '**/JEVS_*', '**/exglobal_*', '**/*.config'],
+            description: 'Glob patterns for files to analyze'
+          },
+          sample_size: { 
+            type: 'number', 
+            default: 10000, 
+            minimum: 10, 
+            maximum: 10000,
+            description: 'Maximum files to analyze (set >= total files for full scan, default analyzes all)'
+          },
+          categories: {
+            type: 'array',
+            items: { type: 'string' },
+            default: ['error_handling', 'environment_variables', 'file_naming'],
+            description: 'Compliance categories to analyze'
+          }
+        },
+        required: ['repository_path']
+      },
+      this.scanRepositoryCompliance.bind(this)
+    );
+
+    // Tool 8: Get Knowledge Base Status
+    server.registerTool(
+      'get_knowledge_base_status',
+      'Get comprehensive knowledge base statistics',
+      {
+        type: 'object',
+        properties: {
+          include_graph: { type: 'boolean', default: true },
+          include_vector: { type: 'boolean', default: true }
+        }
+      },
+      this.getKnowledgeBaseStatus.bind(this)
+    );
+
+    console.error('[OK] Registered 7 Semantic Search tools');
+  }
+
+  async searchDocumentation(args) {
+    await this.ensureInitialized();
+    
+    // Check if initialization failed
+    if (this.initializationError) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Semantic Search Tools not available: ${this.initializationError.message}\n\nPlease check that ChromaDB and Neo4j are running.`
+        }]
+      };
+    }
+    
+    const { query, max_results = 8, include_graph = true, similarity_threshold = 0.1 } = args;
+
+    try {
+      console.error(`[SEARCH] Starting search_documentation: "${query}" (max_results=${max_results})`);
+      const startTime = Date.now();
+      
+      const results = await this.dataAccess.hybridQuery(query, {
+        maxResults: max_results,
+        includeGraph: include_graph,
+        graphDepth: 2,
+        similarityThreshold: similarity_threshold
+      });
+      
+      const elapsed = Date.now() - startTime;
+      console.error(`[OK] Search completed in ${elapsed}ms, found ${results?.length || 0} results`);
+
+      if (!results || results.length === 0) {
+        return {
+          content: [{ type: 'text', text: `No results found for: "${query}"` }]
+        };
+      }
+
+      let output = `# Search Results: ${query}\n\n`;
+      output += `Found ${results.length} results (hybrid semantic + graph search)\n\n`;
+
+      for (const result of results) {
+        output += `## ${result.metadata?.title || result.document || 'Result'}\n`;
+        output += `**Similarity:** ${(result.distance * 100).toFixed(1)}%\n`;
+        output += `**Source:** ${result.metadata?.source || 'Unknown'}\n`;
+        if (result.graphContext) {
+          output += `**Graph Context:** ${result.graphContext.length} related entities\n`;
+        }
+        output += `\n${result.document || result.text}\n\n`;
+        output += `---\n\n`;
+      }
+
+      return { content: [{ type: 'text', text: output }] };
+    } catch (error) {
+      return {
+        content: [{ type: 'text', text: `Error searching documentation: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  async searchEE2Standards(args) {
+    await this.ensureInitialized();
+    
+    // Check if initialization failed
+    if (this.initializationError) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] EE2 Standards Search not available: ${this.initializationError.message}\n\nPlease check that ChromaDB is running.`
+        }]
+      };
+    }
+    
+    const { query, category, max_results = 8, include_examples = true } = args;
+
+    try {
+      console.error(`[SEARCH] Starting search_ee2_standards: "${query}" (category=${category || 'all'})`);
+      
+      // Build enhanced query with category filter
+      const enhancedQuery = category ? `${query} ${category} EE2 compliance` : `${query} EE2 compliance`;
+      
+      // Use hybridQuery like searchDocumentation does
+      const results = await this.dataAccess.hybridQuery(enhancedQuery, {
+        maxResults: max_results,
+        includeGraph: false,  // EE2 standards don't need graph enrichment
+        similarityThreshold: 0.1
+      });
+
+      console.error(`[OK] EE2 search completed, found ${results?.length || 0} results`);
+
+      let output = `# EE2 Standards Search: ${query}\n\n`;
+      if (category) output += `**Category:** ${category}\n\n`;
+      output += `Found ${results?.length || 0} standards\n\n`;
+
+      if (!results || results.length === 0) {
+        output += `No EE2 standards found matching: "${query}"\n`;
+        return { content: [{ type: 'text', text: output }] };
+      }
+
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        output += `## Standard ${i + 1}\n`;
+        output += `**Similarity:** ${(result.distance * 100).toFixed(1)}%\n`;
+        
+        if (result.metadata?.category) {
+          output += `**Category:** ${result.metadata.category}\n`;
+        }
+        
+        output += `\n${result.document || result.text}\n\n`;
+        
+        if (include_examples && result.metadata?.example) {
+          output += `**Example:**\n\`\`\`\n${result.metadata.example}\n\`\`\`\n\n`;
+        }
+        output += `---\n\n`;
+      }
+
+      return { content: [{ type: 'text', text: output }] };
+    } catch (error) {
+      console.error(`[ERROR] Error in search_ee2_standards: ${error.message}`);
+      return {
+        content: [{ type: 'text', text: `Error searching EE2 standards: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  async findRelatedFiles(args) {
+    await this.ensureInitialized();
+    const { file_path, max_results = 10, include_documentation = true } = args;
+
+    try {
+      const relatedData = await this.dataAccess.findRelatedCode(file_path, {
+        maxResults: max_results,
+        includeDocumentation: include_documentation
+      });
+
+      // Handle null/undefined results defensively
+      if (!relatedData || (!relatedData.relatedFiles && !relatedData.imports)) {
+        return {
+          content: [{ type: 'text', text: `No related files found for: "${file_path}"\n\nThis tool finds files with similar import dependencies. The file must exist in the Neo4j graph database.` }]
+        };
+      }
+
+      let output = `# Related Files by Dependencies\n\n`;
+      output += `Query: "${file_path}"\n\n`;
+
+      // Display related files
+      const relatedFiles = relatedData.relatedFiles || [];
+      output += `Found ${relatedFiles.length} related files\n\n`;
+
+      if (relatedFiles.length > 0) {
+        output += `## Files with Similar Dependencies\n\n`;
+        for (const file of relatedFiles.slice(0, max_results)) {
+          const fileName = typeof file === 'string' ? file : (file.filePath || file.target || 'Unknown');
+          output += `- \`${fileName}\`\n`;
+        }
+        output += `\n`;
+      }
+
+      // Display imports/dependencies
+      const imports = relatedData.imports || [];
+      if (imports.length > 0) {
+        output += `## Shared Dependencies (${imports.length})\n\n`;
+        for (const imp of imports.slice(0, 10)) {
+          const importName = typeof imp === 'string' ? imp : (imp.moduleName || imp.target || 'Unknown');
+          output += `- \`${importName}\`\n`;
+        }
+        if (imports.length > 10) {
+          output += `- *... and ${imports.length - 10} more*\n`;
+        }
+        output += `\n`;
+      }
+
+      // Display documentation if available
+      if (include_documentation && relatedData.documentation?.length > 0) {
+        output += `## Related Documentation (${relatedData.documentation.length})\n\n`;
+        for (const doc of relatedData.documentation.slice(0, 3)) {
+          const docText = typeof doc === 'string' ? doc : (doc.document || doc.text || '');
+          output += `${docText.substring(0, 200)}...\n\n`;
+        }
+      }
+
+      return { content: [{ type: 'text', text: output }] };
+    } catch (error) {
+      console.error('findRelatedFiles error:', error);
+      return {
+        content: [{ type: 'text', text: `Error finding related files: ${error.message}\n\nThis tool searches for files with similar import dependencies based on Neo4j graph relationships.` }],
+        isError: true
+      };
+    }
+  }
+
+  async explainWithContext(args) {
+    await this.ensureInitialized();
+    const { topic, context_type = 'all', detail_level = 'intermediate' } = args;
+
+    try {
+      const results = await this.dataAccess.multiSourceSearch(topic, {
+        sources: ['vector', 'graph'],
+        maxResults: 5
+      });
+
+      let output = `# Explanation: ${topic}\n\n`;
+      output += `**Context Type:** ${context_type}\n`;
+      output += `**Detail Level:** ${detail_level}\n\n`;
+
+      if (results.vector && results.vector.length > 0) {
+        output += `## Documentation Context\n\n`;
+        for (const result of results.vector.slice(0, 3)) {
+          output += `${result.document || result.text}\n\n`;
+        }
+      }
+
+      if (results.graph && results.graph.length > 0) {
+        output += `## Code Structure Context\n\n`;
+        for (const result of results.graph.slice(0, 3)) {
+          output += `- **${result.name || result.file}**: ${result.type || 'Component'}\n`;
+        }
+        output += `\n`;
+      }
+
+      output += `## Summary\n\n`;
+      output += `This explanation combines semantic documentation search with code structure analysis.\n`;
+      
+      return { content: [{ type: 'text', text: output }] };
+    } catch (error) {
+      return {
+        content: [{ type: 'text', text: `Error explaining with context: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  async analyzeEE2Compliance(args) {
+    await this.ensureInitialized();
+    
+    if (this.initializationError) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[INFO] EE2 Compliance analysis not available: ${this.initializationError.message}`
+        }]
+      };
+    }
+    
+    const { content, analysis_type = 'comprehensive', include_recommendations = true } = args;
+
+    try {
+      console.error(`[ANALYZE] Starting EE2 compliance analysis: type=${analysis_type}`);
+      
+      let output = `# EE2 Compliance Review\n\n`;
+      output += `**Analysis Focus:** ${analysis_type.replace(/_/g, ' ')}\n\n`;
+      
+      // Step 1: Retrieve relevant EE2 standards using semantic search
+      const categories = analysis_type === 'comprehensive' 
+        ? ['error_handling', 'environment_variables', 'file_naming', 'code_standards']
+        : [analysis_type];
+      
+      const standards = {};
+      for (const category of categories) {
+        const query = this._buildStandardsQuery(category);
+        const results = await this.dataAccess.hybridQuery(query, {
+          nResults: 3,
+          includeGraphContext: false
+        });
+        standards[category] = results;
+      }
+      
+      console.error(`[OK] Retrieved standards for ${Object.keys(standards).length} categories`);
+      
+      // Step 2: Analyze content against retrieved standards (consultative tone)
+      const observations = [];
+      const suggestions = [];
+      
+      // Error handling analysis
+      if (standards.error_handling) {
+        const hasSetEu = /set -[eu]/.test(content);
+        const isBashScript = /^#!\/bin\/(ba)?sh/.test(content);
+        
+        if (isBashScript && !hasSetEu) {
+          observations.push({
+            category: 'Error Handling',
+            pattern: 'Bash script without explicit error handling',
+            suggestion: 'Consider adding "set -eu" or "set -euo pipefail" near the script start',
+            reasoning: 'The EE2 standards suggest explicit error handling to improve reliability and debugging',
+            reference: standards.error_handling[0]?.metadata?.section_headers || 'General Application Standards'
+          });
+        }
+      }
+      
+      // Environment variable analysis
+      if (standards.environment_variables) {
+        const unquotedVars = content.match(/\$[A-Z_][A-Z0-9_]*/g) || [];
+        const quotedVars = content.match(/"\$\{[A-Z_][A-Z0-9_]*\}"/g) || [];
+        
+        if (unquotedVars.length > quotedVars.length) {
+          observations.push({
+            category: 'Environment Variables',
+            pattern: `Found ${unquotedVars.length} unquoted variable references`,
+            suggestion: 'You might want to quote variables as "${VARIABLE}" to prevent word splitting',
+            reasoning: 'Quoted variables help avoid unexpected behavior with spaces or special characters',
+            reference: standards.environment_variables[0]?.metadata?.section_headers || 'Standard Variables'
+          });
+        }
+      }
+      
+      // Format output with consultative tone
+      if (observations.length === 0) {
+        output += `## Review Summary\n\n`;
+        output += `The code appears to align well with EE2 guidelines for the analyzed categories. `;
+        output += `No significant concerns were identified.\n\n`;
+      } else {
+        output += `## Observations & Suggestions\n\n`;
+        output += `Based on the EE2 implementation standards, here are some areas you might consider reviewing:\n\n`;
+        
+        for (const obs of observations) {
+          output += `### ${obs.category}\n\n`;
+          output += `**Pattern observed:** ${obs.pattern}\n\n`;
+          output += `**Suggestion:** ${obs.suggestion}\n\n`;
+          output += `**Why this matters:** ${obs.reasoning}\n\n`;
+          output += `**Reference:** ${obs.reference}\n\n`;
+          output += `---\n\n`;
+        }
+      }
+      
+      // Include relevant standard excerpts for context
+      if (include_recommendations && Object.keys(standards).length > 0) {
+        output += `## Relevant EE2 Standards\n\n`;
+        output += `Here are the applicable guidelines from the EE2 implementation standards:\n\n`;
+        
+        for (const [category, results] of Object.entries(standards)) {
+          if (results && results.length > 0) {
+            const top = results[0];
+            const docText = top.document || top.text || '';
+            output += `### ${category.replace(/_/g, ' ').toUpperCase()}\n\n`;
+            if (top.metadata?.section_headers) {
+              output += `**Section:** ${top.metadata.section_headers}\n\n`;
+            }
+            if (docText) {
+              output += `${docText.substring(0, 400)}...\n\n`;
+            }
+          }
+        }
+      }
+      
+      output += `\n---\n\n`;
+      output += `*Note: These suggestions are based on EE2 implementation standards and are provided as guidance. `;
+      output += `Your specific use case may have valid reasons for different approaches.*\n`;
+
+      console.error(`[OK] Compliance analysis complete: ${observations.length} observations`);
+      return { content: [{ type: 'text', text: output }] };
+      
+    } catch (error) {
+      console.error(`[ERROR] Compliance analysis failed: ${error.message}`);
+      return {
+        content: [{ type: 'text', text: `Unable to complete compliance analysis: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+  
+  _buildStandardsQuery(category) {
+    const queries = {
+      'error_handling': 'error handling bash scripts set -eu exit codes trap',
+      'environment_variables': 'environment variable naming quoting standards ${VAR}',
+      'file_naming': 'file naming conventions ex- J- production utilities',
+      'workflow_structure': 'workflow structure job scripts directory organization',
+      'production_utilities': 'production utilities standard tools logging',
+      'code_standards': 'code standards documentation comments best practices',
+      'directory_structure': 'directory structure organization requirements'
+    };
+    return queries[category] || category;
+  }
+
+  async generateComplianceReport(args) {
+    await this.ensureInitialized();
+    
+    if (this.initializationError) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[INFO] Compliance reporting not available: ${this.initializationError.message}`
+        }]
+      };
+    }
+    
+    const { scope = 'summary', categories = [], format = 'markdown' } = args;
+
+    try {
+      console.error(`[REPORT] Generating EE2 compliance report: scope=${scope}, format=${format}`);
+      
+      let output = `# EE2 Implementation Standards Reference\n\n`;
+      output += `**Generated:** ${new Date().toISOString().split('T')[0]}\n`;
+      output += `**Scope:** ${scope}\n\n`;
+      
+      output += `This report provides guidance based on the NCEP WCOSS Implementation Standards (EE2). `;
+      output += `These are recommendations to help align code with production best practices.\n\n`;
+
+      const allCategories = [
+        'environment_variables',
+        'error_handling',
+        'file_naming',
+        'workflow_structure',
+        'production_utilities',
+        'code_standards',
+        'directory_structure'
+      ];
+
+      const targetCategories = categories.length > 0 ? categories : allCategories;
+      
+      // Retrieve actual standards from knowledge base
+      for (const category of targetCategories) {
+        const query = this._buildStandardsQuery(category);
+        const results = await this.dataAccess.hybridQuery(query, {
+          nResults: 2,
+          includeGraphContext: false
+        });
+        
+        output += `## ${category.replace(/_/g, ' ').toUpperCase()}\n\n`;
+        
+        if (results && results.length > 0) {
+          const top = results[0];
+          const docText = top.document || top.text || '';
+          
+          if (top.metadata?.section_headers) {
+            output += `**Reference:** ${top.metadata.section_headers}\n\n`;
+          }
+          
+          if (scope === 'summary' && docText) {
+            output += `${docText.substring(0, 300)}...\n\n`;
+          } else if (scope === 'detailed' && docText) {
+            output += `${docText}\n\n`;
+            if (results[1]) {
+              const doc2 = results[1].document || results[1].text || '';
+              if (doc2) {
+                output += `### Additional Context\n\n`;
+                output += `${doc2.substring(0, 400)}...\n\n`;
+              }
+            }
+          } else if (scope === 'checklist' && docText) {
+            // Extract key points as checklist items
+            const points = this._extractChecklistItems(docText);
+            for (const point of points) {
+              output += `- [ ] ${point}\n`;
+            }
+            output += `\n`;
+          }
+          
+          if (top.metadata?.url) {
+            output += `**Documentation:** ${top.metadata.url}\n\n`;
+          }
+        } else {
+          output += `*Guidelines for this category are being retrieved from the standards documentation.*\n\n`;
+        }
+        
+        output += `---\n\n`;
+      }
+      
+      output += `\n## How to Use This Report\n\n`;
+      output += `- These guidelines are **suggestions** based on NCEP operational standards\n`;
+      output += `- Consider your specific use case when applying recommendations\n`;
+      output += `- Standards help improve maintainability and reliability\n`;
+      output += `- Consult with your team lead if you have questions about applicability\n\n`;
+      
+      output += `**Note:** This is reference material, not a mandated checklist. `;
+      output += `Use professional judgment when applying these guidelines to your code.\n`;
+
+      console.error(`[OK] Compliance report generated: ${targetCategories.length} categories`);
+      return { content: [{ type: 'text', text: output }] };
+      
+    } catch (error) {
+      console.error(`[ERROR] Report generation failed: ${error.message}`);
+      return {
+        content: [{ type: 'text', text: `Unable to generate compliance report: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+  
+  _extractChecklistItems(text) {
+    // Extract actionable items from documentation text
+    const items = [];
+    const lines = text.split('\n');
+    
+    for (const line of lines) {
+      // Look for bullet points, numbered lists, or imperative statements
+      if (/^[-•*]\s+/.test(line) || /^\d+\.\s+/.test(line)) {
+        items.push(line.replace(/^[-•*\d.]\s+/, '').trim());
+      } else if (/^(Use|Always|Never|Ensure|Check|Verify|Include|Add|Set)\s+/i.test(line)) {
+        items.push(line.trim());
+      }
+    }
+    
+    return items.slice(0, 8); // Limit to top 8 items
+  }
+
+  async getKnowledgeBaseStatus(args) {
+    await this.ensureInitialized();
+    const { include_graph = true, include_vector = true } = args;
+
+    try {
+      const stats = await this.dataAccess.getStatistics();
+      
+      let output = `# Knowledge Base Status\n\n`;
+      
+      if (include_vector && stats.vector) {
+        output += `## Vector Database (ChromaDB)\n\n`;
+        
+        // Handle collections object properly
+        const totalCollections = stats.vector.totalCollections || 0;
+        const collections = stats.vector.collections || {};
+        const totalDocs = Object.values(collections).reduce((sum, count) => sum + count, 0);
+        
+        output += `- **Collections:** ${totalCollections}\n`;
+        if (totalCollections > 0) {
+          output += `- **Collections Detail:**\n`;
+          for (const [name, count] of Object.entries(collections)) {
+            output += `  - ${name}: ${count} documents\n`;
+          }
+        }
+        output += `- **Total Documents:** ${totalDocs}\n`;
+        
+        // Determine health based on actual data
+        const isHealthy = totalCollections > 0 && totalDocs > 0;
+        output += `- **Status:** ${isHealthy ? '[OK] Healthy' : '[ERROR] Unhealthy'}\n\n`;
+      }
+
+      if (include_graph && stats.graph) {
+        output += `## Graph Database (Neo4j)\n\n`;
+        output += `- **Files:** ${stats.graph.fileCount || 0}\n`;
+        output += `- **Functions:** ${stats.graph.functionCount || 0}\n`;
+        output += `- **Classes:** ${stats.graph.classCount || 0}\n`;
+        
+        // Handle relationships - they come as array of {relationshipType, count} objects
+        let totalRelationships = 0;
+        const relationshipMap = {};
+        
+        if (Array.isArray(stats.graph.relationships)) {
+          for (const rel of stats.graph.relationships) {
+            const type = rel.relationshipType;
+            const count = parseInt(rel.count) || 0;
+            relationshipMap[type] = count;
+            totalRelationships += count;
+          }
+        }
+        
+        output += `- **Total Relationships:** ${totalRelationships}\n`;
+        
+        if (Object.keys(relationshipMap).length > 0) {
+          output += `- **Relationship Types:**\n`;
+          const sortedRels = Object.entries(relationshipMap)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 10);
+          for (const [type, count] of sortedRels) {
+            output += `  - ${type}: ${count}\n`;
+          }
+        }
+        
+        // Determine health based on actual data
+        const isHealthy = (stats.graph.fileCount || 0) > 0 && totalRelationships > 0;
+        output += `- **Status:** ${isHealthy ? '[OK] Healthy' : '[ERROR] Unhealthy'}\n\n`;
+      }
+
+      return { content: [{ type: 'text', text: output }] };
+    } catch (error) {
+      return {
+        content: [{ type: 'text', text: `Error getting status: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  async ensureInitialized() {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+  }
+
+  async scanRepositoryCompliance(args) {
+    await this.ensureInitialized();
+    
+    if (this.initializationError) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[INFO] Repository scan not available: ${this.initializationError.message}`
+        }]
+      };
+    }
+    
+    const { 
+      repository_path, 
+      file_patterns = ['**/*.sh', '**/*.py', '**/JEVS_*', '**/exglobal_*', '**/*.config'],
+      sample_size = 10000,  // Default to full scan
+      categories = ['error_handling', 'environment_variables', 'file_naming']
+    } = args;
+
+    try {
+      console.error(`[SCAN] Starting repository compliance scan: ${repository_path}`);
+      const fs = await import('fs');
+      const path = await import('path');
+      const { glob } = await import('glob');
+      
+      // Verify repository exists
+      if (!fs.existsSync(repository_path)) {
+        return {
+          content: [{ type: 'text', text: `Repository not found: ${repository_path}` }],
+          isError: true
+        };
+      }
+      
+      // Collect all files matching patterns
+      const allFiles = [];
+      const filesByType = {
+        shell_scripts: [],
+        python_scripts: [],
+        job_cards: [],
+        config_files: []
+      };
+      
+      for (const pattern of file_patterns) {
+        const matches = await glob(pattern, {
+          cwd: repository_path,
+          absolute: false,
+          ignore: ['**/dev/**', 'dev/**']  // Exclude /dev and all subdirectories
+        });
+        allFiles.push(...matches.map(f => path.join(repository_path, f)));
+      }
+      
+      console.error(`[OK] Found ${allFiles.length} files (excluding /dev directory)`);
+      
+      // Categorize files
+      for (const file of allFiles) {
+        const basename = path.basename(file);
+        const ext = path.extname(file);
+        
+        if (ext === '.sh' || basename.startsWith('ex')) {
+          filesByType.shell_scripts.push(file);
+        } else if (ext === '.py') {
+          filesByType.python_scripts.push(file);
+        } else if (basename.startsWith('JEVS_') || basename.startsWith('J')) {
+          filesByType.job_cards.push(file);
+        } else if (ext === '.config' || ext === '.cfg') {
+          filesByType.config_files.push(file);
+        }
+      }
+      
+      // Determine files to analyze - full scan or sample
+      const samplesToAnalyze = [];
+      const totalFiles = Object.values(filesByType).reduce((sum, arr) => sum + arr.length, 0);
+      
+      // If sample_size >= total files, analyze everything (full scan)
+      if (sample_size >= totalFiles) {
+        console.error(`[ANALYZE] Full repository scan - analyzing all ${totalFiles} files`);
+        for (const [type, files] of Object.entries(filesByType)) {
+          samplesToAnalyze.push(...files.map(f => ({ file: f, type })));
+        }
+      } else {
+        // Sample mode - randomly select files
+        const samplesPerType = Math.floor(sample_size / 4);
+        console.error(`[ANALYZE] Sample mode - analyzing ${sample_size} of ${totalFiles} files`);
+        for (const [type, files] of Object.entries(filesByType)) {
+          const shuffled = files.sort(() => 0.5 - Math.random());
+          samplesToAnalyze.push(...shuffled.slice(0, samplesPerType).map(f => ({ file: f, type })));
+        }
+      }
+      
+      // Analyze samples and collect statistics
+      const issuesByCategory = {};
+      const fileIssues = [];
+      
+      for (const category of categories) {
+        issuesByCategory[category] = {
+          total_files_with_issues: 0,
+          specific_files: [],
+          common_patterns: []
+        };
+      }
+      
+      for (const { file, type } of samplesToAnalyze) {
+        try {
+          const content = fs.readFileSync(file, 'utf-8');
+          const lines = content.split('\n');
+          const relativePath = path.relative(repository_path, file);
+          
+          // Enhanced analysis with code examples and specific fixes
+          const fileIssue = {
+            file: relativePath,
+            type,
+            issues: [],
+            examples: []  // Actual code snippets showing violations
+          };
+          
+          // Error handling check - ENHANCED
+          if (categories.includes('error_handling')) {
+            const violations = [];
+            
+            if (content.includes('#!/bin/bash') || content.includes('#!/bin/sh')) {
+              // Check for shebang position (must be line 1)
+              let shebangLine = -1;
+              for (let i = 0; i < Math.min(3, lines.length); i++) {
+                if (lines[i].match(/^#!/)) {
+                  shebangLine = i;
+                  break;
+                }
+              }
+              
+              if (shebangLine > 0) {
+                violations.push({
+                  issue: `Shebang on line ${shebangLine + 1}, must be line 1`,
+                  line: shebangLine + 1,
+                  current: lines[shebangLine],
+                  fix: `Remove ${shebangLine} blank line${shebangLine > 1 ? 's' : ''} before shebang - it must be the very first line`
+                });
+              }
+              
+              // Check for set -e/set -u
+              if (!content.match(/set -[eu]/)) {
+                violations.push({
+                  issue: 'Missing set -e or set -u',
+                  line: shebangLine >= 0 ? shebangLine + 2 : 2,
+                  current: shebangLine >= 0 ? lines[shebangLine] : lines[0],
+                  fix: 'Add "set -eu" after shebang to enable error handling'
+                });
+              }
+              
+              // Check for FATAL ERROR prefix usage
+              const errorLines = lines.filter((l, i) => 
+                l.match(/echo.*error|exit [1-9]/) && !l.includes('FATAL ERROR:')
+              );
+              if (errorLines.length > 0) {
+                violations.push({
+                  issue: 'Error messages missing FATAL ERROR: prefix',
+                  example: errorLines[0].trim(),
+                  fix: 'Prefix error messages with "FATAL ERROR:" per EE2 standard'
+                });
+              }
+              
+              // Check for input data validation
+              if (content.match(/\.(nc|grib|grib2|bin)\b/) && !content.match(/if.*-f.*then/i)) {
+                violations.push({
+                  issue: 'No input data existence check before processing',
+                  fix: 'Add "if [ ! -f $INPUT_FILE ]; then echo FATAL ERROR: ...; exit 1; fi"'
+                });
+              }
+            }
+            
+            if (violations.length > 0) {
+              fileIssue.issues.push('error_handling');
+              fileIssue.examples.push(...violations);
+              issuesByCategory.error_handling.total_files_with_issues++;
+            }
+          }
+          
+          // Environment variable check - ENHANCED
+          if (categories.includes('environment_variables')) {
+            const violations = [];
+            
+            // Find unquoted variables
+            const unquotedVars = [];
+            lines.forEach((line, idx) => {
+              const matches = line.match(/(?<!["'])\$([A-Z_][A-Z0-9_]*)\b(?!["'])/g);
+              if (matches && matches.length > 0) {
+                unquotedVars.push({
+                  line: idx + 1,
+                  content: line.trim(),
+                  variables: matches
+                });
+              }
+            });
+            
+            if (unquotedVars.length > 5) {  // More than 5 instances
+              violations.push({
+                issue: `${unquotedVars.length} unquoted environment variables`,
+                example: unquotedVars[0].content,
+                line: unquotedVars[0].line,
+                fix: 'Quote variables: "$VAR" or "${VAR}" per EE2 standard'
+              });
+            }
+            
+            // Check for hardcoded paths
+            const hardcodedPaths = lines.filter((l, i) =>
+              l.match(/\/[a-z]+\/[a-z]+\/[a-z]+/) && !l.match(/\$\{?[A-Z_]+/)
+            );
+            if (hardcodedPaths.length > 0) {
+              violations.push({
+                issue: 'Hardcoded absolute paths found',
+                example: hardcodedPaths[0].trim(),
+                fix: 'Replace with standard variables: $HOMEmodel, $USHmodel, $EXECmodel'
+              });
+            }
+            
+            if (violations.length > 0) {
+              fileIssue.issues.push('environment_variables');
+              fileIssue.examples.push(...violations);
+              issuesByCategory.environment_variables.total_files_with_issues++;
+            }
+          }
+          
+          // File naming check - ENHANCED
+          if (categories.includes('file_naming')) {
+            const basename = path.basename(file);
+            if (type === 'job_cards' && !basename.match(/^(J|JEVS_)/)) {
+              fileIssue.issues.push('file_naming');
+              fileIssue.examples.push({
+                issue: 'Job card naming violation',
+                current: basename,
+                fix: `Rename to JEVS_${basename} or J${basename}`
+              });
+              issuesByCategory.file_naming.total_files_with_issues++;
+            }
+          }
+          
+          if (fileIssue.issues.length > 0) {
+            fileIssues.push(fileIssue);
+            for (const issue of fileIssue.issues) {
+              if (issuesByCategory[issue].specific_files.length < 20) {
+                issuesByCategory[issue].specific_files.push(relativePath);
+              }
+              // Store first 3 examples per category
+              if (issuesByCategory[issue].common_patterns.length < 3) {
+                issuesByCategory[issue].common_patterns.push(...fileIssue.examples.slice(0, 1));
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`[WARN] Failed to analyze ${file}: ${err.message}`);
+        }
+      }
+      
+      console.error(`[OK] Analysis complete: ${fileIssues.length} files with issues`);
+      
+      // Filter out categories with zero issues (pragmatic reporting)
+      const categoriesWithIssues = Object.entries(issuesByCategory)
+        .filter(([_, data]) => data.total_files_with_issues > 0)
+        .reduce((acc, [cat, data]) => {
+          acc[cat] = data;
+          return acc;
+        }, {});
+      
+      // Return structured data focused on ACTIONABLE findings only
+      const scanResult = {
+        repository: repository_path,
+        scan_date: new Date().toISOString(),
+        statistics: {
+          total_files: allFiles.length,
+          files_by_type: {
+            shell_scripts: filesByType.shell_scripts.length,
+            python_scripts: filesByType.python_scripts.length,
+            job_cards: filesByType.job_cards.length,
+            config_files: filesByType.config_files.length
+          },
+          samples_analyzed: samplesToAnalyze.length,
+          files_with_issues: fileIssues.length
+        },
+        issues_by_category: categoriesWithIssues,  // Only categories with issues
+        actionable_examples: fileIssues.slice(0, 10).map(f => ({
+          file: f.file,
+          type: f.type,
+          violations: f.examples
+        })),
+        analysis_categories: Object.keys(categoriesWithIssues)  // Only report on issues found
+      };
+      
+      // Format as pragmatic action items, not descriptive report
+      const output = `# EE2 Compliance Scan - Action Items
+
+\`\`\`json
+${JSON.stringify(scanResult, null, 2)}
+\`\`\`
+
+**Instructions for LLM:**
+Generate a PRAGMATIC report focused ONLY on actionable findings:
+1. Skip any category with 0 issues - do not describe compliant areas
+2. For each issue category, show:
+   - Count of affected files
+   - 3-5 actual code examples from violations
+   - Specific fix recommendation (not EE2 theory)
+3. Create a fix priority list with file paths and exact changes needed
+4. Keep report focused on "what to change" not "what the standards say"
+5. Use violation examples from actionable_examples field
+4. Use generate_compliance_report tool to get EE2 standards context
+5. Maintain consultative tone throughout
+
+The data above provides counts, file lists, and patterns. You format the final report.`;
+      
+      return { content: [{ type: 'text', text: output }] };
+      
+    } catch (error) {
+      console.error(`[ERROR] Repository scan failed: ${error.message}`);
+      return {
+        content: [{ type: 'text', text: `Repository scan failed: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  async cleanup() {
+    if (this.dataAccess) {
+      await this.dataAccess.close();
+      this.dataAccess = null;
+    }
+    this.isInitialized = false;
+  }
+}
+
+export default SemanticSearchTools;

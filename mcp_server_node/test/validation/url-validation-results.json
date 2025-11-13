@@ -1,0 +1,432 @@
+{
+  "results": {
+    "valid": [
+      {
+        "url": "https://spack-stack.readthedocs.io/en/latest/",
+        "category": "external",
+        "key": "documentation",
+        "displayName": "Spack Stack - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://spack.readthedocs.io/en/latest/",
+        "category": "external",
+        "key": "spack_official",
+        "displayName": "Spack Stack - Spack Official",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://ufs-weather-model.readthedocs.io/en/latest/",
+        "category": "external",
+        "key": "user_guide",
+        "displayName": "Ufs - User Guide",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://global-workflow.readthedocs.io/en/latest/",
+        "category": "internal",
+        "key": "documentation",
+        "displayName": "Global Workflow - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/JCSDA/spack-stack/wiki",
+        "category": "external",
+        "key": "wiki",
+        "displayName": "Spack Stack - Wiki",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/",
+        "category": "external",
+        "key": "documentation",
+        "displayName": "Wgrib2 - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://ufs-community.github.io/UFS_UTILS/",
+        "category": "external",
+        "key": "documentation",
+        "displayName": "Ufs Utils - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://peps.python.org/pep-0008/",
+        "category": "standards_and_policies",
+        "key": "pep8_style",
+        "displayName": "Python - Pep8 Style",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/JCSDA/spack-stack",
+        "category": "external",
+        "key": "github",
+        "displayName": "Spack Stack - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://peps.python.org/pep-0257/",
+        "category": "standards_and_policies",
+        "key": "pep257_docstrings",
+        "displayName": "Python - Pep257 Docstrings",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://wxflow.readthedocs.io/en/latest/",
+        "category": "external",
+        "key": "documentation",
+        "displayName": "Wxflow - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://pylint.readthedocs.io/en/latest/",
+        "category": "standards_and_policies",
+        "key": "pylint_standards",
+        "displayName": "Python - Pylint Standards",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://computing.llnl.gov/projects/spack-hpc-package-manager",
+        "category": "external",
+        "key": "llnl_spack",
+        "displayName": "Spack Stack - Llnl Spack",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://numpydoc.readthedocs.io/en/latest/format.html",
+        "category": "standards_and_policies",
+        "key": "numpy_docstring",
+        "displayName": "Python - Numpy Docstring",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/ufs-community/ufs-weather-model/wiki",
+        "category": "external",
+        "key": "wiki",
+        "displayName": "Ufs Weather Model - Wiki",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI",
+        "category": "external",
+        "key": "github",
+        "displayName": "Gsi - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://google.github.io/styleguide/shellguide.html",
+        "category": "standards_and_policies",
+        "key": "bash_style_guide",
+        "displayName": "Shell - Bash Style Guide",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://nws-hpc-standards.readthedocs.io/en/latest/index.html#",
+        "category": "standards_and_policies",
+        "key": "ee2_standards",
+        "displayName": "Environmental Equivalence - Ee2 Standards",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://www.weather.gov/directives/sym/pd01000007curr.pdf",
+        "category": "standards_and_policies",
+        "key": "technical_procedures",
+        "displayName": "Nws - Technical Procedures",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/NCEPLIBS/wiki/Codes-that-use-NCEPLIBS",
+        "category": "external",
+        "key": "wiki",
+        "displayName": "Nceplibs - Wiki",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/UPP",
+        "category": "external",
+        "key": "github",
+        "displayName": "Upp - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://www.weather.gov/directives/",
+        "category": "standards_and_policies",
+        "key": "operational_procedures",
+        "displayName": "Nws - Operational Procedures",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/JCSDA/jedi-bundle",
+        "category": "external",
+        "key": "github",
+        "displayName": "Jedi Bundle - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://cmake.org/cmake/help/latest/guide/user-interaction/",
+        "category": "standards_and_policies",
+        "key": "cmake_best_practices",
+        "displayName": "Cmake - Cmake Best Practices",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/global-workflow",
+        "category": "internal",
+        "key": "github",
+        "displayName": "Global Workflow - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/global-workflow.git",
+        "category": "internal",
+        "key": "base_url",
+        "displayName": "Global Workflow - Base Url",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://cmake.org/cmake/help/latest/guide/tutorial/",
+        "category": "standards_and_policies",
+        "key": "cmake_guidelines",
+        "displayName": "Cmake - Cmake Guidelines",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/gfs-utils",
+        "category": "external",
+        "key": "github",
+        "displayName": "Gfs Utils - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://www.shellcheck.net/wiki/",
+        "category": "standards_and_policies",
+        "key": "shellcheck",
+        "displayName": "Shell - Shellcheck",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI.git",
+        "category": "external",
+        "key": "github",
+        "displayName": "Gsi - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/ufs-community/ufs-weather-model",
+        "category": "external",
+        "key": "github",
+        "displayName": "Ufs - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/ufs-community/UFS_UTILS",
+        "category": "external",
+        "key": "github",
+        "displayName": "Ufs Utils - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://www.fortran90.org/src/best-practices.html",
+        "category": "standards_and_policies",
+        "key": "style_guide",
+        "displayName": "Fortran - Style Guide",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://christopherwharrop.github.io/rocoto",
+        "category": "external",
+        "key": "documentation",
+        "displayName": "Rocoto - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://pabloariasal.github.io/2018/02/19/its-time-to-do-cmake-right/",
+        "category": "standards_and_policies",
+        "key": "best_practices",
+        "displayName": "Cmake - Best Practices",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/christopherwharrop-NOAA/rocoto",
+        "category": "external",
+        "key": "github",
+        "displayName": "Rocoto - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/NCEPLIBS",
+        "category": "external",
+        "key": "github",
+        "displayName": "Nceplibs - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://ufs-weather-model.readthedocs.io/",
+        "category": "external",
+        "key": "documentation",
+        "displayName": "Ufs - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/ufs-community/UFS_UTILS.git",
+        "category": "external",
+        "key": "github",
+        "displayName": "Ufs Utils - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://rdhpcs-common-docs.rdhpcs.noaa.gov/wiki/index.php/Welcome_to_RDHPCS_Common_Documentation_Wiki",
+        "category": "external",
+        "key": "main_site",
+        "displayName": "Rdhpcs General - Main Site",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://upp.readthedocs.io/",
+        "category": "external",
+        "key": "documentation",
+        "displayName": "Upp - Documentation",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/wxflow",
+        "category": "external",
+        "key": "github",
+        "displayName": "Wxflow - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/fortran-lang/stdlib/blob/master/STYLE_GUIDE.md",
+        "category": "standards_and_policies",
+        "key": "coding_standards",
+        "displayName": "Fortran - Coding Standards",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GDASApp.git",
+        "category": "external",
+        "key": "github",
+        "displayName": "Gdas App - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/EMC_verif-global.git",
+        "category": "external",
+        "key": "github",
+        "displayName": "Verif Global - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI-Utils.git",
+        "category": "external",
+        "key": "github",
+        "displayName": "Gsi Utils - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      },
+      {
+        "url": "https://github.com/NOAA-EMC/GSI-Monitor.git",
+        "category": "external",
+        "key": "github",
+        "displayName": "Gsi Monitor - Github",
+        "valid": true,
+        "status": 200,
+        "error": null
+      }
+    ],
+    "invalid": [],
+    "questionable": []
+  },
+  "timestamp": "2025-09-09T23:15:22.300Z"
+}

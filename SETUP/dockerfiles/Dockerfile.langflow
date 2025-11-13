@@ -1,0 +1,37 @@
+# Global Workflow MCP RAG - Custom LangFlow Container
+# Based on official LangFlow image with custom configuration for ChromaDB integration
+FROM langflowai/langflow:latest
+
+# Metadata
+LABEL maintainer="Terry.McGuinness@noaa.gov"
+LABEL description="LangFlow visualizer for Global Workflow MCP RAG system"
+LABEL version="1.0.0"
+LABEL project="NOAA Global Workflow MCP RAG"
+
+# Set environment variables for our configuration
+ENV LANGFLOW_AUTO_LOGIN=false
+ENV LANGFLOW_SUPERUSER=admin
+ENV LANGFLOW_SUPERUSER_PASSWORD=admin123
+ENV LANGFLOW_CORS_ORIGINS=*
+ENV LANGFLOW_HOST=0.0.0.0
+ENV LANGFLOW_PORT=7860
+
+# Create directory for persistent data
+RUN mkdir -p /app/langflow-data && \
+    chmod 777 /app/langflow-data
+
+# Create a custom configuration directory
+# COPY langflow-config/ /app/config/
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:7860/api/v1/health || exit 1
+
+# Default command (inherits from base image)
+# CMD ["langflow", "run"]
+
+# Expose port
+EXPOSE 7860
+
+# Volume for persistent data
+VOLUME ["/app/langflow-data"]

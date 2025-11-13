@@ -1,0 +1,36 @@
+{
+  "createdAt": "2025-07-30T19:51:50.787Z",
+  "totalDocuments": 707,
+  "totalChunks": 53,
+  "config": {
+    "supportedExtensions": [
+      ".md",
+      ".txt",
+      ".py",
+      ".sh",
+      ".yml",
+      ".yaml",
+      ".json",
+      ".xml",
+      ".cmake",
+      ".rst"
+    ],
+    "excludePatterns": [
+      "node_modules",
+      ".git",
+      "__pycache__",
+      ".vscode",
+      "build",
+      "dist",
+      ".pytest_cache",
+      ".coverage",
+      "venv",
+      ".venv",
+      "env",
+      "fix",
+      "exec"
+    ],
+    "chunkSize": 1000,
+    "maxFiles": 50
+  }
+}

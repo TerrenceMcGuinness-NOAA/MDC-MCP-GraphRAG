@@ -1,0 +1,234 @@
+# Global Workflow MCP RAG - Complete Stack
+# Orchestrates LangFlow and future MCP Server containers
+# ChromaDB runs as systemd service on host (port 8080)
+#
+# Usage: 
+#   source ${SETUP}/mcp_env.sh  # or source bootstrap.sh
+#   cd ${SETUP}
+#   docker compose up -d
+#
+
+services:
+  # ChromaDB Vector Database - DISABLED (Running as systemd service on host)
+  # Service: chromadb-persistent.service
+  # Port: 8080 on host
+  # Data: /mcp_rag_eib/data/chromadb
+  # chromadb:
+  #   image: chromadb/chroma:latest
+  #   container_name: global-workflow-chromadb
+  #   hostname: chromadb
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - chromadb-data:/chroma/chroma
+  #   environment:
+  #     - CHROMA_SERVER_HTTP_PORT=8000
+  #     - CHROMA_SERVER_HOST=0.0.0.0
+  #     - PERSIST_DIRECTORY=/chroma/chroma
+  #     - TELEMETRY_DISABLED=1
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   networks:
+  #     - mcp-rag-network
+
+  # Neo4j Graph Database - Graph RAG for GFS structural relationships
+  # Web UI: http://localhost:7474
+  # Bolt: bolt://localhost:7687
+  neo4j:
+    image: neo4j:5.15.0
+    container_name: global-workflow-neo4j
+    hostname: neo4j
+    ports:
+      - "7474:7474"  # HTTP (Neo4j Browser)
+      - "7687:7687"  # Bolt protocol
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-import:/var/lib/neo4j/import
+      - neo4j-plugins:/plugins
+    environment:
+      - NEO4J_AUTH=neo4j/gfsworkflow2025
+      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
+      - NEO4J_dbms_memory_heap_initial__size=1G
+      - NEO4J_dbms_memory_heap_max__size=4G
+      - NEO4J_dbms_memory_pagecache_size=2G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p gfsworkflow2025 'RETURN 1' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - mcp-rag-network
+
+  # LangFlow RAG Pipeline Visualizer
+  langflow:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.langflow
+    container_name: global-workflow-langflow
+    hostname: langflow
+    ports:
+      - "7860:7860"
+    volumes:
+      - langflow-data:/app/langflow-data
+    environment:
+      - LANGFLOW_AUTO_LOGIN=false
+      - LANGFLOW_SUPERUSER=admin
+      - LANGFLOW_SUPERUSER_PASSWORD=admin123
+      - CHROMA_HOST=host.docker.internal
+      - CHROMA_PORT=${CHROMADB_PORT:-8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - mcp-rag-network
+
+  # ecFlow Workflow Server - Orchestration engine for operational workflows  
+  ecflow-server:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.ecflow-server
+    container_name: global-workflow-ecflow-server
+    hostname: ecflow-server
+    ports:
+      - "3141:3141"
+    volumes:
+      - ecflow-data:/home/ecflow/workspace
+    environment:
+      - ECF_HOME=/home/ecflow/server
+      - ECF_LOG=/home/ecflow/logs
+      - ECF_PORT=3141
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ecflow_client", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - mcp-rag-network
+
+  # ecFlow UI - Workflow visualization (X11 forwarding for SSH access)
+  ecflow-ui:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.ecflow-ui-fixed
+    container_name: global-workflow-ecflow-ui
+    hostname: ecflow-ui
+    network_mode: host
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - ECF_HOST=localhost
+      - ECF_PORT=3141
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+    depends_on:
+      ecflow-server:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3141 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # MCP Server (Future - Phase 4)
+  # mcp-server:
+  #   build:
+  #     context: .
+  #     dockerfile: dockerfiles/Dockerfile.mcp-server
+  #   container_name: global-workflow-mcp-server
+  #   hostname: mcp-server
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=production
+  #     - CHROMA_URL=http://chromadb:8000
+  #     - MCP_WORKFLOW_ROOT=/app/global-workflow
+  #   volumes:
+  #     - mcp-data:/app/data
+  #     - /contrib/Terry.McGuinness/global-workflow_MCP_node.js-RAG:/app/global-workflow:ro
+  #   depends_on:
+  #     chromadb:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - mcp-rag-network
+
+# Persistent data volumes
+volumes:
+  # chromadb-data: DISABLED - using systemd service on host
+  
+  langflow-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/langflow
+  
+  neo4j-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/data
+  
+  neo4j-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/logs
+  
+  neo4j-import:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/import
+  
+  neo4j-plugins:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/plugins
+
+  ecflow-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/ecflow
+  
+  # mcp-data:
+  #   driver: local
+  #   driver_opts:
+  #     type: none
+  #     o: bind
+  #     device: /contrib/Terry.McGuinness/opt/mcp-data
+
+# Custom network for inter-container communication
+networks:
+  mcp-rag-network:
+    driver: bridge
+    name: global-workflow-mcp-rag

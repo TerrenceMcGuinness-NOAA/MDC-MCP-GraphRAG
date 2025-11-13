@@ -1,0 +1,476 @@
+{
+  "timestamp": 1757459722.311,
+  "total_checked": 47,
+  "relevant": [
+    {
+      "url": "https://global-workflow.readthedocs.io/en/latest/",
+      "label": "documentation",
+      "context": "internal.documentation",
+      "status": "accessible",
+      "title": "Global Workflow - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://spack-stack.readthedocs.io/en/latest/",
+      "label": "documentation",
+      "context": "external.documentation",
+      "status": "accessible",
+      "title": "Spack Stack - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://spack.readthedocs.io/en/latest/",
+      "label": "spack_official",
+      "context": "external.spack_official",
+      "status": "accessible",
+      "title": "Spack Stack - Spack Official",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://ufs-weather-model.readthedocs.io/en/latest/",
+      "label": "user_guide",
+      "context": "external.user_guide",
+      "status": "accessible",
+      "title": "Ufs - User Guide",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/",
+      "label": "documentation",
+      "context": "external.documentation",
+      "status": "accessible",
+      "title": "Wgrib2 - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/global-workflow",
+      "label": "github",
+      "context": "internal.github",
+      "status": "accessible",
+      "title": "Global Workflow - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/JCSDA/spack-stack/wiki",
+      "label": "wiki",
+      "context": "external.wiki",
+      "status": "accessible",
+      "title": "Spack Stack - Wiki",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://ufs-community.github.io/UFS_UTILS/",
+      "label": "documentation",
+      "context": "external.documentation",
+      "status": "accessible",
+      "title": "Ufs Utils - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/NCEPLIBS/wiki/Codes-that-use-NCEPLIBS",
+      "label": "wiki",
+      "context": "external.wiki",
+      "status": "accessible",
+      "title": "Nceplibs - Wiki",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/christopherwharrop-NOAA/rocoto",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Rocoto - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/JCSDA/spack-stack",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Spack Stack - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://nws-hpc-standards.readthedocs.io/en/latest/index.html#",
+      "label": "ee2_standards",
+      "context": "standards_and_policies.ee2_standards",
+      "status": "accessible",
+      "title": "Environmental Equivalence - Ee2 Standards",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://wxflow.readthedocs.io/en/latest/",
+      "label": "documentation",
+      "context": "external.documentation",
+      "status": "accessible",
+      "title": "Wxflow - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://peps.python.org/pep-0257/",
+      "label": "pep257_docstrings",
+      "context": "standards_and_policies.pep257_docstrings",
+      "status": "accessible",
+      "title": "Python - Pep257 Docstrings",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/ufs-community/ufs-weather-model/wiki",
+      "label": "wiki",
+      "context": "external.wiki",
+      "status": "accessible",
+      "title": "Ufs Weather Model - Wiki",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://computing.llnl.gov/projects/spack-hpc-package-manager",
+      "label": "llnl_spack",
+      "context": "external.llnl_spack",
+      "status": "accessible",
+      "title": "Spack Stack - Llnl Spack",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/ufs-community/ufs-weather-model",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Ufs - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/GSI",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Gsi - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://peps.python.org/pep-0008/",
+      "label": "pep8_style",
+      "context": "standards_and_policies.pep8_style",
+      "status": "accessible",
+      "title": "Python - Pep8 Style",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/JCSDA/jedi-bundle",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Jedi Bundle - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://google.github.io/styleguide/shellguide.html",
+      "label": "bash_style_guide",
+      "context": "standards_and_policies.bash_style_guide",
+      "status": "accessible",
+      "title": "Shell - Bash Style Guide",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://numpydoc.readthedocs.io/en/latest/format.html",
+      "label": "numpy_docstring",
+      "context": "standards_and_policies.numpy_docstring",
+      "status": "accessible",
+      "title": "Python - Numpy Docstring",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://pylint.readthedocs.io/en/latest/",
+      "label": "pylint_standards",
+      "context": "standards_and_policies.pylint_standards",
+      "status": "accessible",
+      "title": "Python - Pylint Standards",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/GSI.git",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Gsi - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/global-workflow.git",
+      "label": "base_url",
+      "context": "internal.base_url",
+      "status": "accessible",
+      "title": "Global Workflow - Base Url",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/UPP",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Upp - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://christopherwharrop.github.io/rocoto",
+      "label": "documentation",
+      "context": "external.documentation",
+      "status": "accessible",
+      "title": "Rocoto - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://rdhpcs-common-docs.rdhpcs.noaa.gov/wiki/index.php/Welcome_to_RDHPCS_Common_Documentation_Wiki",
+      "label": "main_site",
+      "context": "external.main_site",
+      "status": "accessible",
+      "title": "Rdhpcs General - Main Site",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://pabloariasal.github.io/2018/02/19/its-time-to-do-cmake-right/",
+      "label": "best_practices",
+      "context": "standards_and_policies.best_practices",
+      "status": "accessible",
+      "title": "Cmake - Best Practices",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://www.weather.gov/directives/sym/pd01000007curr.pdf",
+      "label": "technical_procedures",
+      "context": "standards_and_policies.technical_procedures",
+      "status": "accessible",
+      "title": "Nws - Technical Procedures",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://www.fortran90.org/src/best-practices.html",
+      "label": "style_guide",
+      "context": "standards_and_policies.style_guide",
+      "status": "accessible",
+      "title": "Fortran - Style Guide",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://www.shellcheck.net/wiki/",
+      "label": "shellcheck",
+      "context": "standards_and_policies.shellcheck",
+      "status": "accessible",
+      "title": "Shell - Shellcheck",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://www.weather.gov/directives/",
+      "label": "operational_procedures",
+      "context": "standards_and_policies.operational_procedures",
+      "status": "accessible",
+      "title": "Nws - Operational Procedures",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://cmake.org/cmake/help/latest/guide/tutorial/",
+      "label": "cmake_guidelines",
+      "context": "standards_and_policies.cmake_guidelines",
+      "status": "accessible",
+      "title": "Cmake - Cmake Guidelines",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://cmake.org/cmake/help/latest/guide/user-interaction/",
+      "label": "cmake_best_practices",
+      "context": "standards_and_policies.cmake_best_practices",
+      "status": "accessible",
+      "title": "Cmake - Cmake Best Practices",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://upp.readthedocs.io/",
+      "label": "documentation",
+      "context": "external.documentation",
+      "status": "accessible",
+      "title": "Upp - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/ufs-community/UFS_UTILS.git",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Ufs Utils - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/ufs-community/UFS_UTILS",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Ufs Utils - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/NCEPLIBS",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Nceplibs - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/wxflow",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Wxflow - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/gfs-utils",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Gfs Utils - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://ufs-weather-model.readthedocs.io/",
+      "label": "documentation",
+      "context": "external.documentation",
+      "status": "accessible",
+      "title": "Ufs - Documentation",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/fortran-lang/stdlib/blob/master/STYLE_GUIDE.md",
+      "label": "coding_standards",
+      "context": "standards_and_policies.coding_standards",
+      "status": "accessible",
+      "title": "Fortran - Coding Standards",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/EMC_verif-global.git",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Verif Global - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/GDASApp.git",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Gdas App - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/GSI-Monitor.git",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Gsi Monitor - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    },
+    {
+      "url": "https://github.com/NOAA-EMC/GSI-Utils.git",
+      "label": "github",
+      "context": "external.github",
+      "status": "accessible",
+      "title": "Gsi Utils - Github",
+      "content_sample": "Content validation pending",
+      "word_count": 0,
+      "relevance_keywords": []
+    }
+  ]
+}

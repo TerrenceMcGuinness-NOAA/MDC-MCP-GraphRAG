@@ -1,0 +1,45 @@
+# ecFlow UI Dockerfile  
+# Based on eowyn/debian-ecflowui with custom configuration
+FROM eowyn/debian-ecflowui:latest
+
+LABEL maintainer="Terry.McGuinness@noaa.gov"
+LABEL description="ecFlow UI for Global Workflow visualization (X11 required)"
+LABEL version="5.14.1"
+
+# Set environment variables for ecFlow connection
+ENV ECF_HOST=ecflow-server
+ENV ECF_PORT=3141
+ENV DISPLAY=:0
+
+# Install VNC server for headless operation (optional)
+USER root
+RUN apt-get update && \
+    apt-get install -y \
+        tightvncserver \
+        xvfb \
+        x11vnc \
+        fluxbox \
+        wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+USER ecflow
+WORKDIR /home/ecflow
+
+# Create VNC startup script
+RUN mkdir -p ~/.vnc && \
+    echo "#!/bin/bash" > ~/.vnc/xstartup && \
+    echo "xrdb ~/.Xresources" >> ~/.vnc/xstartup && \
+    echo "fluxbox &" >> ~/.vnc/xstartup && \
+    echo "ecflow_ui &" >> ~/.vnc/xstartup && \
+    chmod +x ~/.vnc/xstartup
+
+# Expose VNC port
+EXPOSE 5901
+
+# Health check - ping ecFlow server
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+  CMD nc -z ${ECF_HOST} ${ECF_PORT} || exit 1
+
+# Start VNC server with ecFlow UI
+CMD ["sh", "-c", "vncserver :1 -geometry 1024x768 -depth 24 && tail -f ~/.vnc/*.log"]

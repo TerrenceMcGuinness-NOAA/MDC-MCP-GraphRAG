@@ -1,0 +1,9 @@
+https://wxflow.readthedocs.io/en/stable/
+# priority: 1
+# lastmod: 2025-05-28T19:56:03.460612+00:00
+# changefreq: weekly
+
+https://wxflow.readthedocs.io/en/latest/
+# priority: 0.9
+# lastmod: 2025-08-12T17:35:32.427452+00:00
+# changefreq: daily

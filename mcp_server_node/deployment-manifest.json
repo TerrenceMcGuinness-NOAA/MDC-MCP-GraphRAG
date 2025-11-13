@@ -1,0 +1,110 @@
+{
+  "version": "2.0.0-week1",
+  "deploymentDate": "2025-10-16",
+  "description": "Week 1 complete - Data Access Layer implemented",
+  "sourceRepo": "/mcp_rag_eib/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot/mcp_server_node",
+  "targetRuntime": "/mcp_rag_eib/mcp_server_node",
+  "changelog": [
+    "Added Data Access Layer: GraphDatabase.js, VectorDatabase.js, UnifiedDataAccess.js",
+    "Added comprehensive test suite with Vitest",
+    "Updated package.json with test dependencies",
+    "Added health check scripts",
+    "Removed legacy optimization experiments",
+    "Consolidated package.json files"
+  ],
+  "productionFiles": {
+    "servers": [
+      "mcp-server.js",
+      "mcp-server-rag.js",
+      "mcp-server-github-rag.js"
+    ],
+    "sourceDirectories": [
+      "src/core/",
+      "src/data/",
+      "src/ingestion/",
+      "src/knowledge-base/",
+      "src/rag/",
+      "src/tests/",
+      "src/tools/"
+    ],
+    "configuration": [
+      "package.json",
+      "vitest.config.js",
+      "vitest.setup.js"
+    ],
+    "utilities": [
+      "run-documentation-ingestion.js"
+    ],
+    "healthChecks": [
+      "test-data-access.js",
+      "test-neo4j-connection.js",
+      "test-chromadb-3x.js",
+      "test-rag-quick.js",
+      "validate-ee2-search.js"
+    ]
+  },
+  "legacyFiles": {
+    "toArchive": [
+      "embedding-optimizer.js",
+      "optimized-rag-server.js",
+      "optimized-vector-store.js",
+      "test-enhanced-rag-system.js",
+      "test_mcp_tool.js",
+      "test-optimization.js",
+      "test-phase3-integration.js",
+      "test_rag_connection.js",
+      "test_search_detailed.js",
+      "package-optimized.json",
+      "package-rag.json",
+      "package-unified.json"
+    ],
+    "archiveLocation": "/mcp_rag_eib/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot/mcp_server_node/archive/legacy_pre_week1",
+    "archiveDate": "2025-10-16",
+    "reason": "Pre-AWS prototype artifacts, superseded by Week 1 refactor"
+  },
+  "excludePatterns": [
+    "node_modules/",
+    "*.test.js",
+    "__tests__/",
+    ".git/",
+    "*.log",
+    ".DS_Store",
+    "*.swp",
+    "*~"
+  ],
+  "deploymentSteps": [
+    "1. Archive legacy files to contrib/",
+    "2. Backup current runtime",
+    "3. Sync production files from repository",
+    "4. Run npm install",
+    "5. Verify health checks",
+    "6. Update deployment log"
+  ],
+  "healthCheckCommands": [
+    "node test-data-access.js",
+    "node test-neo4j-connection.js",
+    "node test-chromadb-3x.js"
+  ],
+  "rollbackManifest": "deployment-manifest-v1.0.0.json",
+  "dependencies": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0",
+    "services": [
+      "chromadb-persistent.service",
+      "docker (neo4j container)",
+      "docker (langflow container)"
+    ]
+  },
+  "postDeployment": {
+    "verifyServices": [
+      "systemctl status chromadb-persistent.service",
+      "docker ps | grep neo4j",
+      "docker ps | grep langflow"
+    ],
+    "testConnections": [
+      "curl -f http://localhost:8080/api/v1/heartbeat",
+      "curl -f http://localhost:7474",
+      "curl -f http://localhost:7860"
+    ]
+  }
+}

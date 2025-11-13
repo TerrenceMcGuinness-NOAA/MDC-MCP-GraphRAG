@@ -1,0 +1,16 @@
+{
+	"servers": {
+		"global-workflow-rag-mcp": {
+			"type": "stdio",
+			"command": "node",
+			"args": ["/home/tmcguinness/COPILOT/GITHUB/NOAA/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot/mcp_server_node/mcp-server-rag.js"],
+			"cwd": "/home/tmcguinness/COPILOT/GITHUB/NOAA/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot/mcp_server_node",
+			"env": {
+				"NODE_ENV": "production",
+				"RAG_MODE": "local",
+				"KNOWLEDGE_BASE_PATH": "/home/tmcguinness/COPILOT/GITHUB/NOAA/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot/mcp_server_node/knowledge-base"
+			}
+		}
+	},
+	"inputs": []
+}

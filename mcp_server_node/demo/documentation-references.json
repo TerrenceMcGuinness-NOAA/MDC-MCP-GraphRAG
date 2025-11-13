@@ -1,0 +1,212 @@
+{
+  "documentation_references": {
+    "internal": {
+      "global_workflow": {
+        "github": "https://github.com/NOAA-EMC/global-workflow",
+        "base_url": "https://github.com/NOAA-EMC/global-workflow.git",
+        "docs_path": "/docs/source",
+        "documentation": "https://global-workflow.readthedocs.io/en/latest/"
+      }
+    },
+    "external": {
+      "ufs": {
+        "documentation": "https://ufs-weather-model.readthedocs.io/",
+        "github": "https://github.com/ufs-community/ufs-weather-model",
+        "user_guide": "https://ufs-weather-model.readthedocs.io/en/latest/"
+      },
+      "rocoto": {
+        "github": "https://github.com/christopherwharrop-NOAA/rocoto",
+        "documentation": "https://christopherwharrop.github.io/rocoto"
+      },
+      "gsi": {
+        "github": "https://github.com/NOAA-EMC/GSI"
+      },
+      "spack_stack": {
+        "github": "https://github.com/JCSDA/spack-stack",
+        "documentation": "https://spack-stack.readthedocs.io/en/latest/",
+        "wiki": "https://github.com/JCSDA/spack-stack/wiki",
+        "spack_official": "https://spack.readthedocs.io/en/latest/",
+        "_TODO": "Add LLNL Spack documentation when access is available: https://computing.llnl.gov/projects/spack-hpc-package-manager"
+      },
+      "hpc_systems": {
+        "rdhpcs_general": {
+          "main_site": "https://rdhpcs-common-docs.rdhpcs.noaa.gov/wiki/index.php/Welcome_to_RDHPCS_Common_Documentation_Wiki"
+        }
+      },
+      "noaa_tools": {
+        "nceplibs": {
+          "github": "https://github.com/NOAA-EMC/NCEPLIBS",
+          "docs_path": "/docs",
+          "wiki": "https://github.com/NOAA-EMC/NCEPLIBS/wiki/Codes-that-use-NCEPLIBS"  
+        },
+        "upp": {
+          "github": "https://github.com/NOAA-EMC/UPP",
+          "documentation": "https://upp.readthedocs.io/"
+        },
+        "wgrib2": {
+          "documentation": "https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/"
+        },
+        "ufs_utils": {
+          "github": "https://github.com/ufs-community/UFS_UTILS"
+        }
+      },
+      "jcsda_jedi": {
+        "jedi_bundle": {
+          "github": "https://github.com/JCSDA/jedi-bundle"
+        }
+      },
+      "submodules": {
+        "atmospheric_modeling": {
+          "ufs_weather_model": {
+            "wiki": "https://github.com/ufs-community/ufs-weather-model/wiki"
+          }
+        },
+        "data_assimilation": {
+          "gsi": {
+            "github": "https://github.com/NOAA-EMC/GSI.git"
+          },
+          "gdas_app": {
+            "github": "https://github.com/NOAA-EMC/GDASApp.git"
+          },
+          "gsi_utils": {
+            "github": "https://github.com/NOAA-EMC/GSI-Utils.git"
+          },
+          "gsi_monitor": {
+            "github": "https://github.com/NOAA-EMC/GSI-Monitor.git"
+          }
+        },
+        "utilities": {
+          "wxflow": {
+            "github": "https://github.com/NOAA-EMC/wxflow",
+            "documentation": "https://wxflow.readthedocs.io/en/latest/"
+          },
+          "ufs_utils": {
+            "github": "https://github.com/ufs-community/UFS_UTILS.git",
+            "documentation": "https://ufs-community.github.io/UFS_UTILS/"
+          },
+          "gfs_utils": {
+            "github": "https://github.com/NOAA-EMC/gfs-utils"
+          }
+        },
+        "verification": {
+          "verif_global": {
+            "github": "https://github.com/NOAA-EMC/EMC_verif-global.git"
+          }
+        },
+        "workflow": {
+        }
+      }
+    },
+    "standards_and_policies": {
+      "environmental_equivalence": {
+        "ee2_standards": "https://nws-hpc-standards.readthedocs.io/en/latest/index.html#"
+      },
+      "nws": {
+        "operational_procedures": "https://www.weather.gov/directives/",
+        "technical_procedures": "https://www.weather.gov/directives/sym/pd01000007curr.pdf"
+      },
+      "python": {
+        "pep8_style": "https://peps.python.org/pep-0008/",
+        "pep257_docstrings": "https://peps.python.org/pep-0257/",
+        "numpy_docstring": "https://numpydoc.readthedocs.io/en/latest/format.html",
+        "pylint_standards": "https://pylint.readthedocs.io/en/latest/"
+      },
+      "shell": {
+        "bash_style_guide": "https://google.github.io/styleguide/shellguide.html",
+        "shellcheck": "https://www.shellcheck.net/wiki/"
+      },
+      "cmake": {
+        "cmake_guidelines": "https://cmake.org/cmake/help/latest/guide/tutorial/",
+        "cmake_best_practices": "https://cmake.org/cmake/help/latest/guide/user-interaction/",
+        "best_practices": "https://pabloariasal.github.io/2018/02/19/its-time-to-do-cmake-right/"
+      },
+      "fortran": {
+        "style_guide": "https://www.fortran90.org/src/best-practices.html",
+        "coding_standards": "https://github.com/fortran-lang/stdlib/blob/master/STYLE_GUIDE.md"
+      }
+    }
+  },
+  "reference_metadata": {
+    "last_updated": "2025-07-30T20:00:00.000Z",
+    "version": "1.0.0",
+    "maintained_by": "RAG System",
+    "update_frequency": "monthly",
+    "validation_required": true
+  },
+  "url_validation": {
+    "check_interval_hours": 24,
+    "retry_attempts": 3,
+    "timeout_seconds": 30,
+    "exclude_from_validation": [
+      "internal.global_workflow.base_url"
+    ]
+  },
+  "search_priorities": {
+    "internal": 10,
+    "external.ufs": 9,
+    "external.spack_stack": 9,
+    "external.rocoto": 9,
+    "external.submodules.atmospheric_modeling": 8,
+    "external.submodules.data_assimilation": 8,
+    "external.gsi": 8,
+    "external.submodules.utilities": 7,
+    "external.jcsda_jedi": 7,
+    "external.submodules.verification": 7,
+    "external.submodules.workflow": 7,
+    "external.hpc_systems": 7,
+    "external.noaa_tools": 6,
+    "standards_and_policies.python": 6,
+    "standards_and_policies.shell": 6,
+    "standards_and_policies.cmake": 6,
+    "standards_and_policies.fortran": 6,
+    "standards_and_policies.environmental_equivalence": 6,
+    "standards_and_policies.nws": 5
+  },
+  "priority_contexts": {
+    "compliance_analysis": {
+      "description": "Used by EE2 compliance MCP tools and PR review analysis",
+      "sources": [
+        "standards_and_policies.environmental_equivalence",
+        "standards_and_policies.nws",
+        "internal"
+      ],
+      "exclusive": true,
+      "comment": "When analyzing compliance, ONLY use these sources"
+    },
+    "code_standards": {
+      "description": "Used for code style and quality checks",
+      "sources": [
+        "standards_and_policies.python",
+        "standards_and_policies.shell",
+        "standards_and_policies.cmake",
+        "standards_and_policies.fortran"
+      ],
+      "exclusive": false,
+      "comment": "Language-specific standards, can supplement with project docs"
+    },
+    "general_development": {
+      "description": "Used for general developer queries and assistance",
+      "sources": [
+        "internal",
+        "external.ufs",
+        "external.spack_stack",
+        "external.rocoto",
+        "external.submodules",
+        "external.noaa_tools"
+      ],
+      "exclusive": false,
+      "comment": "General search uses normal priority weighting"
+    },
+    "operational_procedures": {
+      "description": "Used for deployment and operational guidance",
+      "sources": [
+        "standards_and_policies.environmental_equivalence",
+        "standards_and_policies.nws",
+        "internal",
+        "external.hpc_systems"
+      ],
+      "exclusive": false,
+      "comment": "Operational context emphasizes standards but includes system docs"
+    }
+  }
+}

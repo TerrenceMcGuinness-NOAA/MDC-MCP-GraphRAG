@@ -1,0 +1,1 @@
+../start-mcp-server-node.sh

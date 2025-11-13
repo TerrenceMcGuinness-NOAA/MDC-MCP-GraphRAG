@@ -1,0 +1,211 @@
+{
+  "scan_date": "2025-08-12",
+  "total_submodules": 10,
+  "submodule_documentation": {
+    "sorc/ufs_model.fd": {
+      "github": "https://github.com/ufs-community/ufs-weather-model",
+      "path": "sorc/ufs_model.fd",
+      "documentation_files": [
+        "README.md",
+        "doc/"
+      ],
+      "documentation_urls": [
+        "https://readthedocs.org/projects/ufs-weather-model/badge/?badge=latest",
+        "http://ufs-weather-model.readthedocs.io/",
+        "https://github.com/ufs-community/ufs-weather-model/wiki",
+        "https://github.com/ufs-community/ufs-weather-model/wiki/Regression-Test-Policy-for-Weather-Model-Platforms-and-Compilers"
+      ],
+      "has_readthedocs": true,
+      "has_wiki": true
+    },
+    "sorc/wxflow": {
+      "github": "https://github.com/NOAA-EMC/wxflow",
+      "path": "sorc/wxflow",
+      "documentation_files": [
+        "README.md",
+        "docs/index.rst",
+        "docs/"
+      ],
+      "documentation_urls": [
+        "https://readthedocs.org/projects/wxflow/badge/?version=latest",
+        "https://wxflow.readthedocs.io/en/latest/?badge=latest",
+        "https://wxflow.readthedocs.io/en/latest/"
+      ],
+      "has_readthedocs": true,
+      "has_wiki": false
+    },
+    "sorc/gfs_utils.fd": {
+      "github": "https://github.com/NOAA-EMC/gfs-utils",
+      "path": "sorc/gfs_utils.fd",
+      "documentation_files": [],
+      "documentation_urls": [],
+      "has_readthedocs": false,
+      "has_wiki": false,
+      "potential_readthedocs": "https://gfs-utils.readthedocs.io/"
+    },
+    "sorc/ufs_utils.fd": {
+      "github": "https://github.com/ufs-community/UFS_UTILS.git",
+      "path": "sorc/ufs_utils.fd",
+      "documentation_files": [
+        "README.md",
+        "docs/README.md",
+        "docs/"
+      ],
+      "documentation_urls": [
+        "https://noaa-emcufs-utils.readthedocs.io/en/latest/.",
+        "https://ufs-community.github.io/UFS_UTILS/.",
+        "https://ufs-community.github.io/UFS_UTILS",
+        "https://noaa-emcufs-utils.readthedocs.io/en/latest"
+      ],
+      "has_readthedocs": true,
+      "has_wiki": false
+    },
+    "sorc/verif-global.fd": {
+      "github": "https://github.com/NOAA-EMC/EMC_verif-global.git",
+      "path": "sorc/verif-global.fd",
+      "documentation_files": [
+        "README.md",
+        "doc/"
+      ],
+      "documentation_urls": [],
+      "has_readthedocs": false,
+      "has_wiki": false,
+      "potential_readthedocs": "https://emc_verif-global.readthedocs.io/"
+    },
+    "sorc/gsi_enkf.fd": {
+      "github": "https://github.com/NOAA-EMC/GSI.git",
+      "path": "sorc/gsi_enkf.fd",
+      "documentation_files": [
+        "doc/"
+      ],
+      "documentation_urls": [],
+      "has_readthedocs": false,
+      "has_wiki": false,
+      "potential_readthedocs": "https://gsi.readthedocs.io/"
+    },
+    "sorc/gdas.cd": {
+      "github": "https://github.com/NOAA-EMC/GDASApp.git",
+      "path": "sorc/gdas.cd",
+      "documentation_files": [
+        "README.md"
+      ],
+      "documentation_urls": [],
+      "has_readthedocs": false,
+      "has_wiki": false,
+      "potential_readthedocs": "https://gdasapp.readthedocs.io/"
+    },
+    "sorc/gsi_utils.fd": {
+      "github": "https://github.com/NOAA-EMC/GSI-Utils.git",
+      "path": "sorc/gsi_utils.fd",
+      "documentation_files": [
+        "README.md"
+      ],
+      "documentation_urls": [],
+      "has_readthedocs": false,
+      "has_wiki": false,
+      "potential_readthedocs": "https://gsi-utils.readthedocs.io/"
+    },
+    "sorc/gsi_monitor.fd": {
+      "github": "https://github.com/NOAA-EMC/GSI-Monitor.git",
+      "path": "sorc/gsi_monitor.fd",
+      "documentation_files": [
+        "README.md"
+      ],
+      "documentation_urls": [],
+      "has_readthedocs": false,
+      "has_wiki": false,
+      "potential_readthedocs": "https://gsi-monitor.readthedocs.io/"
+    },
+    "dev/ci/scripts/utils/Rocoto": {
+      "github": "https://github.com/TerrenceMcGuinness-NOAA/rocoto.git",
+      "path": "dev/ci/scripts/utils/Rocoto",
+      "documentation_files": [
+        "README.md",
+        "docs/"
+      ],
+      "documentation_urls": [
+        "http://christopherwharrop.github.io/rocoto/"
+      ],
+      "has_readthedocs": false,
+      "has_wiki": false
+    }
+  },
+  "mcp_categories": {
+    "atmospheric_modeling": [
+      {
+        "name": "sorc_ufs_model.fd",
+        "info": {
+          "github": "https://github.com/ufs-community/ufs-weather-model",
+          "documentation": "http://ufs-weather-model.readthedocs.io/",
+          "wiki": "https://github.com/ufs-community/ufs-weather-model/wiki/Regression-Test-Policy-for-Weather-Model-Platforms-and-Compilers"
+        }
+      },
+      {
+        "name": "sorc_ufs_utils.fd",
+        "info": {
+          "github": "https://github.com/ufs-community/UFS_UTILS.git",
+          "documentation": "https://noaa-emcufs-utils.readthedocs.io/en/latest"
+        }
+      }
+    ],
+    "data_assimilation": [
+      {
+        "name": "sorc_gsi_enkf.fd",
+        "info": {
+          "github": "https://github.com/NOAA-EMC/GSI.git"
+        }
+      },
+      {
+        "name": "sorc_gdas.cd",
+        "info": {
+          "github": "https://github.com/NOAA-EMC/GDASApp.git"
+        }
+      },
+      {
+        "name": "sorc_gsi_utils.fd",
+        "info": {
+          "github": "https://github.com/NOAA-EMC/GSI-Utils.git"
+        }
+      },
+      {
+        "name": "sorc_gsi_monitor.fd",
+        "info": {
+          "github": "https://github.com/NOAA-EMC/GSI-Monitor.git"
+        }
+      }
+    ],
+    "ocean_modeling": [],
+    "utilities": [
+      {
+        "name": "sorc_wxflow",
+        "info": {
+          "github": "https://github.com/NOAA-EMC/wxflow",
+          "documentation": "https://wxflow.readthedocs.io/en/latest/"
+        }
+      },
+      {
+        "name": "sorc_gfs_utils.fd",
+        "info": {
+          "github": "https://github.com/NOAA-EMC/gfs-utils"
+        }
+      }
+    ],
+    "verification": [
+      {
+        "name": "sorc_verif-global.fd",
+        "info": {
+          "github": "https://github.com/NOAA-EMC/EMC_verif-global.git"
+        }
+      }
+    ],
+    "workflow": [
+      {
+        "name": "dev_ci_scripts_utils_Rocoto",
+        "info": {
+          "github": "https://github.com/TerrenceMcGuinness-NOAA/rocoto.git",
+          "documentation": "http://christopherwharrop.github.io/rocoto/"
+        }
+      }
+    ]
+  }
+}

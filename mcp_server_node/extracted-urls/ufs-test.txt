@@ -1,0 +1,3 @@
+https://ufs-weather-model.readthedocs.io/en/ufs-v2.0.0/
+https://ufs-weather-model.readthedocs.io/en/release-public-v3.0.0/
+https://ufs-weather-model.readthedocs.io/en/develop/
