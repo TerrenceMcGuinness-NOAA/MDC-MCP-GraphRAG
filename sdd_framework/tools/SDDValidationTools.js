@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * SDD Validation Tools Specification
+ * SDD (Specification-Driven Design) Framework Validation Tools
  * 
- * SEMANTIC CLARITY: These are SDD development tools, NOT MCP health monitoring.
- * Domain separation: SDD validation vs MCP system health
+ * SEMANTIC SEPARATION:
+ * - health_check: MCP server operational status (ServerUtilities.js)
+ * - sdd_validate: SDD development framework validation (this module)
  * 
- * Purpose: Bootstrap development - using the system to write the system
- * Tools for validating specifications, development progress, and framework integrity
+ * Purpose: Validate SDD framework integrity and development progress
+ * Context: Self-developing system using system to write system
  * 
  * @version 1.0.0
  * @domain SDD_Framework
@@ -15,17 +16,167 @@
  * @date 2025-11-13
  */
 
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 /**
- * SDD Validation Tools Class
- * 
- * CRITICAL: This is NOT health_check (which is MCP server monitoring)
- * This is sdd_validate (which is development process validation)
+ * SDD Framework Validation Class
  */
-export class SDDValidationTools {
-  constructor() {
-    this.frameworkRoot = process.env.SDD_FRAMEWORK_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/sdd_framework';
-    this.validationResults = new Map();
+class SDDValidator {
+  constructor(frameworkRoot = '/mcp_rag_eib/eib-mcp-rag-server') {
+    this.frameworkRoot = frameworkRoot;
+    this.sddFrameworkPath = path.join(frameworkRoot, 'sdd_framework');
+    this.mcpRuntimePath = path.join(frameworkRoot, 'mcp_server_node');
+    this.architecturePath = path.join(frameworkRoot, 'mcp_architecture');
   }
+
+  /**
+   * sdd_validate - Main SDD framework validation
+   * Validates specification compliance and framework integrity
+   */
+  async sdd_validate() {
+    const results = {
+      timestamp: new Date().toISOString(),
+      framework_status: 'unknown',
+      validation_results: {},
+      compliance_score: 0,
+      recommendations: []
+    };
+
+    try {
+      // Validate directory structure
+      results.validation_results.structure = await this.validateStructure();
+      
+      // Validate methodology compliance
+      results.validation_results.methodology = await this.validateMethodology();
+      
+      // Validate tool integration
+      results.validation_results.tools = await this.validateTools();
+      
+      // Validate workflow completeness
+      results.validation_results.workflows = await this.validateWorkflows();
+      
+      // Calculate compliance score
+      results.compliance_score = this.calculateComplianceScore(results.validation_results);
+      
+      // Determine overall status
+      results.framework_status = this.determineFrameworkStatus(results.compliance_score);
+      
+      // Generate recommendations
+      results.recommendations = this.generateRecommendations(results.validation_results);
+      
+      return results;
+    } catch (error) {
+      results.framework_status = 'error';
+      results.validation_results.error = error.message;
+      return results;
+    }
+  }
+
+  /**
+   * framework_integrity - Check framework structural integrity
+   */
+  async framework_integrity() {
+    const integrity = {
+      timestamp: new Date().toISOString(),
+      structural_integrity: 'unknown',
+      component_status: {},
+      integration_health: 'unknown'
+    };
+
+    try {
+      // Check SDD framework components
+      integrity.component_status.sdd_framework = await this.checkSDDComponents();
+      
+      // Check MCP runtime integration
+      integrity.component_status.mcp_runtime = await this.checkMCPIntegration();
+      
+      // Check architecture separation
+      integrity.component_status.architecture = await this.checkArchitectureSeparation();
+      
+      // Assess overall integrity
+      integrity.structural_integrity = this.assessStructuralIntegrity(integrity.component_status);
+      integrity.integration_health = this.assessIntegrationHealth(integrity.component_status);
+      
+      return integrity;
+    } catch (error) {
+      integrity.structural_integrity = 'compromised';
+      integrity.component_status.error = error.message;
+      return integrity;
+    }
+  }
+
+  /**
+   * development_status - Track SDD development progress
+   */
+  async development_status() {
+    const status = {
+      timestamp: new Date().toISOString(),
+      phase: 'unknown',
+      progress_metrics: {},
+      milestone_completion: {},
+      next_actions: []
+    };
+
+    try {
+      // Analyze current development phase
+      status.phase = await this.identifyDevelopmentPhase();
+      
+      // Calculate progress metrics
+      status.progress_metrics = await this.calculateProgressMetrics();
+      
+      // Check milestone completion
+      status.milestone_completion = await this.checkMilestones();
+      
+      // Identify next actions
+      status.next_actions = await this.identifyNextActions();
+      
+      return status;
+    } catch (error) {
+      status.phase = 'error';
+      status.progress_metrics.error = error.message;
+      return status;
+    }
+  }
+
+  /**
+   * bootstrap_progress - Monitor bootstrap development cycle
+   */
+  async bootstrap_progress() {
+    const bootstrap = {
+      timestamp: new Date().toISOString(),
+      bootstrap_phase: 'unknown',
+      self_development_capability: 'unknown',
+      system_maturity: 0,
+      bootstrap_metrics: {}
+    };
+
+    try {
+      // Assess bootstrap phase
+      bootstrap.bootstrap_phase = await this.assessBootstrapPhase();
+      
+      // Evaluate self-development capability
+      bootstrap.self_development_capability = await this.evaluateSelfDevelopment();
+      
+      // Calculate system maturity
+      bootstrap.system_maturity = await this.calculateSystemMaturity();
+      
+      // Gather bootstrap metrics
+      bootstrap.bootstrap_metrics = await this.gatherBootstrapMetrics();
+      
+      return bootstrap;
+    } catch (error) {
+      bootstrap.bootstrap_phase = 'initialization_error';
+      bootstrap.bootstrap_metrics.error = error.message;
+      return bootstrap;
+    }
+  }
+
+  // === Implementation Methods ===
 
   /**
    * Register SDD validation tools with MCP server
@@ -324,6 +475,288 @@ export class SDDValidationTools {
   async planNextBootstrapIteration() {
     return `**Next**: Implement SDD validation tools using current framework\\n**Goal**: Framework can validate and improve itself\\n**Timeline**: Current development cycle`;
   }
+
+  async validateStructure() {
+    const requiredDirs = ['methodology', 'validation', 'tools', 'workflows', 'templates'];
+    const structure = { valid: true, missing: [], present: [] };
+
+    for (const dir of requiredDirs) {
+      const dirPath = path.join(this.sddFrameworkPath, dir);
+      try {
+        await fs.access(dirPath);
+        structure.present.push(dir);
+      } catch {
+        structure.missing.push(dir);
+        structure.valid = false;
+      }
+    }
+
+    return structure;
+  }
+
+  async validateMethodology() {
+    const methodologyPath = path.join(this.sddFrameworkPath, 'methodology');
+    const requiredFiles = ['spec_driven_design_core.md', 'historical_manifest.md'];
+    const methodology = { compliant: true, files: {} };
+
+    for (const file of requiredFiles) {
+      const filePath = path.join(methodologyPath, file);
+      try {
+        const stats = await fs.stat(filePath);
+        methodology.files[file] = { exists: true, size: stats.size };
+      } catch {
+        methodology.files[file] = { exists: false };
+        methodology.compliant = false;
+      }
+    }
+
+    return methodology;
+  }
+
+  async validateTools() {
+    // Check if this file exists and other SDD tools
+    const toolsPath = path.join(this.sddFrameworkPath, 'tools');
+    const tools = { available: [], functional: true };
+
+    try {
+      const files = await fs.readdir(toolsPath);
+      tools.available = files.filter(f => f.endsWith('.js') || f.endsWith('.py'));
+    } catch {
+      tools.functional = false;
+    }
+
+    return tools;
+  }
+
+  async validateWorkflows() {
+    const workflowsPath = path.join(this.sddFrameworkPath, 'workflows');
+    const workflows = { defined: [], executable: true };
+
+    try {
+      const files = await fs.readdir(workflowsPath);
+      workflows.defined = files;
+    } catch {
+      workflows.executable = false;
+    }
+
+    return workflows;
+  }
+
+  calculateComplianceScore(results) {
+    let score = 0;
+    let total = 0;
+
+    // Structure compliance (25%)
+    if (results.structure?.valid) score += 25;
+    total += 25;
+
+    // Methodology compliance (25%)
+    if (results.methodology?.compliant) score += 25;
+    total += 25;
+
+    // Tools availability (25%)
+    if (results.tools?.functional) score += 25;
+    total += 25;
+
+    // Workflows readiness (25%)
+    if (results.workflows?.executable) score += 25;
+    total += 25;
+
+    return Math.round((score / total) * 100);
+  }
+
+  determineFrameworkStatus(score) {
+    if (score >= 90) return 'excellent';
+    if (score >= 75) return 'good';
+    if (score >= 50) return 'acceptable';
+    if (score >= 25) return 'needs_improvement';
+    return 'critical';
+  }
+
+  generateRecommendations(results) {
+    const recommendations = [];
+
+    if (!results.structure?.valid) {
+      recommendations.push('Create missing SDD framework directories');
+    }
+    if (!results.methodology?.compliant) {
+      recommendations.push('Complete methodology documentation');
+    }
+    if (!results.tools?.functional) {
+      recommendations.push('Implement SDD validation tools');
+    }
+    if (!results.workflows?.executable) {
+      recommendations.push('Define operational workflows');
+    }
+
+    return recommendations;
+  }
+
+  async checkSDDComponents() {
+    try {
+      await fs.access(this.sddFrameworkPath);
+      return { status: 'operational', path: this.sddFrameworkPath };
+    } catch {
+      return { status: 'missing', path: this.sddFrameworkPath };
+    }
+  }
+
+  async checkMCPIntegration() {
+    try {
+      await fs.access(this.mcpRuntimePath);
+      return { status: 'integrated', path: this.mcpRuntimePath };
+    } catch {
+      return { status: 'disconnected', path: this.mcpRuntimePath };
+    }
+  }
+
+  async checkArchitectureSeparation() {
+    try {
+      await fs.access(this.architecturePath);
+      return { status: 'separated', path: this.architecturePath };
+    } catch {
+      return { status: 'coupled', path: this.architecturePath };
+    }
+  }
+
+  assessStructuralIntegrity(components) {
+    const operational = Object.values(components).filter(c => 
+      c.status === 'operational' || c.status === 'integrated' || c.status === 'separated'
+    ).length;
+    const total = Object.keys(components).length;
+    
+    if (operational === total) return 'intact';
+    if (operational >= total * 0.7) return 'stable';
+    return 'compromised';
+  }
+
+  assessIntegrationHealth(components) {
+    if (components.mcp_runtime?.status === 'integrated' && 
+        components.architecture?.status === 'separated') {
+      return 'healthy';
+    }
+    return 'requires_attention';
+  }
+
+  async identifyDevelopmentPhase() {
+    // Check what's been completed to identify current phase
+    const structure = await this.validateStructure();
+    const methodology = await this.validateMethodology();
+    
+    if (structure.valid && methodology.compliant) {
+      return 'implementation';
+    } else if (structure.valid) {
+      return 'specification';
+    } else {
+      return 'initialization';
+    }
+  }
+
+  async calculateProgressMetrics() {
+    const validation = await this.sdd_validate();
+    return {
+      completion_percentage: validation.compliance_score,
+      framework_maturity: this.determineFrameworkStatus(validation.compliance_score),
+      active_components: Object.keys(validation.validation_results).length
+    };
+  }
+
+  async checkMilestones() {
+    return {
+      systematic_organization: true,  // Already completed
+      sdd_framework_creation: true,   // Already completed
+      tool_implementation: false,     // In progress
+      workflow_integration: false,    // Pending
+      bootstrap_capability: false     // Future
+    };
+  }
+
+  async identifyNextActions() {
+    const milestones = await this.checkMilestones();
+    const actions = [];
+
+    if (!milestones.tool_implementation) {
+      actions.push('Complete SDD validation tool implementation');
+    }
+    if (!milestones.workflow_integration) {
+      actions.push('Integrate SDD workflows with MCP runtime');
+    }
+    if (!milestones.bootstrap_capability) {
+      actions.push('Establish bootstrap development cycle');
+    }
+
+    return actions;
+  }
+
+  async assessBootstrapPhase() {
+    const tools = await this.validateTools();
+    if (tools.available.length > 0) {
+      return 'tooling_development';
+    }
+    return 'framework_establishment';
+  }
+
+  async evaluateSelfDevelopment() {
+    // Check if system can modify itself using SDD tools
+    const hasValidationTools = (await this.validateTools()).available.length > 0;
+    const hasMethodology = (await this.validateMethodology()).compliant;
+    
+    if (hasValidationTools && hasMethodology) {
+      return 'emerging';
+    }
+    return 'dependent';
+  }
+
+  async calculateSystemMaturity() {
+    const validation = await this.sdd_validate();
+    const integrity = await this.framework_integrity();
+    
+    // Maturity based on validation score and integration health
+    let maturity = validation.compliance_score * 0.7; // 70% from validation
+    if (integrity.integration_health === 'healthy') {
+      maturity += 30; // 30% from integration health
+    }
+    
+    return Math.min(100, Math.round(maturity));
+  }
+
+  async gatherBootstrapMetrics() {
+    return {
+      self_modification_capability: await this.evaluateSelfDevelopment(),
+      tool_autonomy_level: (await this.validateTools()).available.length,
+      system_maturity_score: await this.calculateSystemMaturity(),
+      bootstrap_readiness: await this.assessBootstrapPhase()
+    };
+  }
 }
 
-export default SDDValidationTools;
+// CLI Interface for direct execution
+if (import.meta.url === `file://${__filename}`) {
+  const validator = new SDDValidator();
+  const command = process.argv[2] || 'sdd_validate';
+  
+  const commands = {
+    'sdd_validate': () => validator.sdd_validate(),
+    'framework_integrity': () => validator.framework_integrity(),
+    'development_status': () => validator.development_status(),
+    'bootstrap_progress': () => validator.bootstrap_progress()
+  };
+
+  if (commands[command]) {
+    commands[command]()
+      .then(result => {
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(0);
+      })
+      .catch(error => {
+        console.error('SDD Validation Error:', error);
+        process.exit(1);
+      });
+  } else {
+    console.error('Unknown command. Available: sdd_validate, framework_integrity, development_status, bootstrap_progress');
+    process.exit(1);
+  }
+}
+
+export { SDDValidator };
+export default SDDValidator;
