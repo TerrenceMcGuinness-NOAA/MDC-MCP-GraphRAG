@@ -6,10 +6,10 @@
 ################################################################################
 
 # Get the directory where this script is located
-export SETUP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export PERSISTENT_ROOT="/mcp_rag_eib"
-export MCP_ROOT="${PERSISTENT_ROOT}/mcp_server_node"
-export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_forked"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source centralized environment configuration
+source "${SCRIPT_DIR}/mcp-env.sh" --quiet
 
 echo "=========================================="
 echo "MCP RAG Bootstrap Environment"

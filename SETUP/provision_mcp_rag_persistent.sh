@@ -16,8 +16,8 @@
 # Architecture:
 #   - Spack: /mcp_rag_eib/spack (package manager with Lmod modules)
 #   - ChromaDB: Installed to Spack Python 3.11.14 (port 8080, v2 API)
-#   - MCP Server: /mcp_rag_eib/mcp_server_node
-#   - Git Repo: /mcp_rag_eib/global-workflow_MCP_node.js-RAG (PERSISTENT)
+#   - MCP Server: /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+#   - Git Repo: /mcp_rag_eib/global-workflow_forked (PERSISTENT)
 #   - Data/Cache: /mcp_rag_eib/data, /mcp_rag_eib/cache
 #
 # Usage:
@@ -448,7 +448,7 @@ Documentation=https://docs.trychroma.com/
 Type=simple
 User=Terry.McGuinness
 Group=Terry.McGuinness
-WorkingDirectory=/mcp_rag_eib/mcp_server_node
+WorkingDirectory=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
 
 # Environment variables
 Environment="PERSIST_DIRECTORY=/mcp_rag_eib/data/chromadb"
@@ -506,46 +506,28 @@ fi
 log_section "STEP 9: MCP Server Node.js Environment"
 
 log_info "Setting up MCP server in ${MCP_ROOT}..."
+log_info "  Co-located architecture: Source and runtime in same location"
 
 cd "${MCP_ROOT}"
 
-# Copy MCP server files from PERSISTENT git repository
-log_info "Git Repository: ${GIT_REPO}"
-log_info "MCP Source: ${MCP_SOURCE}"
+# In co-located architecture, MCP_SOURCE and MCP_ROOT are the same
+# No copying needed - just verify the repository is in place
+log_info "MCP Server Location: ${MCP_ROOT}"
 
-if [ -d "${MCP_SOURCE}" ]; then
-    log_info "Copying MCP server files from persistent git repo..."
-    
-    # Copy source code
-    cp -r "${MCP_SOURCE}/src" "${MCP_ROOT}/" 2>/dev/null || true
-    
-    # Copy package files
-    cp "${MCP_SOURCE}/package"*.json "${MCP_ROOT}/" 2>/dev/null || true
-    
-    # Copy startup scripts
-    mkdir -p "${MCP_ROOT}/bin"
-    cp "${MCP_SOURCE}/"*.sh "${MCP_ROOT}/bin/" 2>/dev/null || true
-    chmod +x "${MCP_ROOT}/bin/"*.sh 2>/dev/null || true
-    
-    # Copy configuration files
-    cp "${MCP_SOURCE}/"*.js "${MCP_ROOT}/" 2>/dev/null || true
-    cp "${MCP_SOURCE}/.gitignore" "${MCP_ROOT}/" 2>/dev/null || true
-    
-    log_success "MCP server files copied from ${MCP_SOURCE}"
-else
-    log_error "MCP source not found at ${MCP_SOURCE}"
-    log_error "Git repo may not be cloned yet or path is incorrect"
+if [ ! -d "${MCP_ROOT}" ]; then
+    log_error "MCP_ROOT not found at ${MCP_ROOT}"
+    log_error "Expected: eib-mcp-rag-server should be cloned to ${PERSISTENT_ROOT}/eib-mcp-rag-server"
     exit 1
 fi
 
-# Determine which package.json to use
-if [ -f "${MCP_ROOT}/package-unified.json" ]; then
-    log_info "Using package-unified.json (full MCP+RAG stack)..."
-    cp "${MCP_ROOT}/package-unified.json" "${MCP_ROOT}/package.json"
-elif [ -f "${MCP_ROOT}/package-rag.json" ]; then
-    log_info "Using package-rag.json (RAG-focused)..."
-    cp "${MCP_ROOT}/package-rag.json" "${MCP_ROOT}/package.json"
+# Verify package.json exists
+if [ ! -f "${MCP_ROOT}/package.json" ]; then
+    log_error "package.json not found in ${MCP_ROOT}"
+    log_error "MCP server repository may not be properly cloned"
+    exit 1
 fi
+
+log_success "MCP server directory verified (co-located runtime/source)"
 
 # Install Node.js dependencies
 log_info "Installing Node.js dependencies (this may take 5-10 minutes)..."
@@ -569,118 +551,25 @@ log_success "Node.js dependencies installed"
 ################################################################################
 log_section "STEP 10: Environment Configuration"
 
-log_info "Creating persistent environment configuration..."
+log_info "Using centralized environment configuration from ${SETUP}/mcp-env.sh"
 
-cat > "${MCP_ROOT}/mcp-env.sh" << 'ENVEOF'
-#!/bin/bash
-################################################################################
-# MCP RAG Persistent Environment Configuration
-# Version: 3.4.1
-# 
-# What is this?
-#   - Sets up all environment variables for MCP RAG system
-#   - Initializes Spack module system and loads ChromaDB dependencies
-#   - Configures cache directories
-#   - Makes Node.js and ChromaDB accessible
-#
-# Usage: source /mcp_rag_eib/mcp_server_node/mcp-env.sh
-################################################################################
-
-# Persistent storage paths
-export PERSISTENT_ROOT="/mcp_rag_eib"
-export SPACK_ROOT="${PERSISTENT_ROOT}/spack"
-export MCP_ROOT="${PERSISTENT_ROOT}/mcp_server_node"
-export CHROMADB_ROOT="${PERSISTENT_ROOT}/etc/chromadb"
-export CHROMADB_DATA="${PERSISTENT_ROOT}/data/chromadb"
-export CACHE_ROOT="${PERSISTENT_ROOT}/cache"
-
-# Git repository (now at PERSISTENT_ROOT level, not under MCP_ROOT)
-export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_forked"
-export MCP_SOURCE="${GIT_REPO}/dev/ci/scripts/utils/Copilot/mcp_server_node"
-
-# Service endpoints
-export CHROMADB_URL="http://127.0.0.1:8080"
-export CHROMADB_PORT=8080
-
-# MCP configuration
-export MCP_WORKFLOW_ROOT="${GIT_REPO}"
-export MCP_KNOWLEDGE_BASE="${MCP_ROOT}/knowledge-base"
-export MCP_DATABASE="${MCP_ROOT}/database"
-export MCP_LOGS="${MCP_ROOT}/logs"
-
-# Cache directories (for faster rebuilds)
-export TRANSFORMERS_CACHE="${CACHE_ROOT}/transformers"
-export NPM_CONFIG_CACHE="${CACHE_ROOT}/npm"
-export PIP_CACHE_DIR="${CACHE_ROOT}/pip"
-export HF_HOME="${CACHE_ROOT}/huggingface"
-
-# Node.js configuration
-export NODE_ENV=production
-export NODE_PATH="${MCP_ROOT}/node_modules"
-
-# Module system initialization (Rocky 9 Architecture)
-# ARCHITECTURE: system Lmod + local Spack at /mcp_rag_eib/spack
-# NOT using: /apps/spack or /contrib-epic/spack-stack-rocky8
-if [ -f /apps/lmod/lmod/init/bash ]; then
-    # Use system Lmod
-    source /apps/lmod/lmod/init/bash
-    module use /apps/modules/modulefiles 2>/dev/null
-    if [ -d /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core ]; then
-        module use /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core 2>/dev/null
-    fi
-    ml python/3.11 2>/dev/null || true
-elif [ -f /usr/share/Modules/init/bash ]; then
-    # Fallback to Environment Modules
-    source /usr/share/Modules/init/bash
-    module use /apps/modules/modulefiles 2>/dev/null
-    module load python/3.11 2>/dev/null || true
+# Verify canonical environment file exists
+if [ ! -f "${SETUP}/mcp-env.sh" ]; then
+    log_error "Canonical mcp-env.sh not found at ${SETUP}/mcp-env.sh"
+    exit 1
 fi
-
-# Source Spack environment (for spack command)
-if [ -f /mcp_rag_eib/spack/share/spack/setup-env.sh ]; then
-    source /mcp_rag_eib/spack/share/spack/setup-env.sh
-fi
-
-# Update PATH
-export PATH="${MCP_ROOT}/node_modules/.bin:${MCP_ROOT}/bin:${PATH}"
-
-echo "══════════════════════════════════════════════════════════"
-echo "  MCP RAG Environment Loaded (v3.4.0)"
-echo "══════════════════════════════════════════════════════════"
-echo ""
-echo "Persistent Storage:"
-echo "  Root:        ${PERSISTENT_ROOT}"
-echo "  Spack:       ${SPACK_ROOT}"
-echo "  MCP Server:  ${MCP_ROOT}"
-echo "  Git Repo:    ${GIT_REPO}"
-echo ""
-echo "Services:"
-echo "  ChromaDB:    ${CHROMADB_URL}"
-echo "  Data Path:   ${CHROMADB_DATA}"
-echo ""
-echo "Configuration:"
-echo "  Workflow:    ${MCP_WORKFLOW_ROOT}"
-echo "  Knowledge:   ${MCP_KNOWLEDGE_BASE}"
-echo "  Logs:        ${MCP_LOGS}"
-echo ""
-echo "Cache (reused across rebuilds):"
-echo "  NPM:         ${NPM_CONFIG_CACHE}"
-echo "  pip:         ${PIP_CACHE_DIR}"
-echo "  Transformers: ${TRANSFORMERS_CACHE}"
-echo "══════════════════════════════════════════════════════════"
-ENVEOF
-
-chmod +x "${MCP_ROOT}/mcp-env.sh"
 
 # Add to user's bash profile (if not already there)
 if ! grep -q "mcp-env.sh" /home/${USER}/.bash_profile 2>/dev/null; then
     echo "" >> /home/${USER}/.bash_profile
     echo "# MCP RAG Environment (Auto-configured $(date +%Y-%m-%d))" >> /home/${USER}/.bash_profile
-    echo "source ${MCP_ROOT}/mcp-env.sh" >> /home/${USER}/.bash_profile
+    echo "source ${SETUP}/mcp-env.sh" >> /home/${USER}/.bash_profile
     log_success "Environment added to .bash_profile"
+else
+    log_info "Environment already configured in .bash_profile"
 fi
 
-log_success "Environment configuration created at ${MCP_ROOT}/mcp-env.sh"
+log_success "Environment configuration references canonical ${SETUP}/mcp-env.sh"
 
 ################################################################################
 # STEP 11: Git Repository Setup
@@ -694,10 +583,7 @@ if [ ! -d "${GIT_REPO}/.git" ]; then
     log_info "Cloning global-workflow repository to persistent storage..."
     
     # Clone to persistent location (not under MCP_ROOT, but alongside it)
-    su - ${USER} -c "cd ${PERSISTENT_ROOT} && git clone https://github.com/TerrenceMcGuinness-NOAA/global-workflow.git global-workflow_MCP_node.js-RAG"
-    
-    # Checkout the MCP branch
-    su - ${USER} -c "cd ${GIT_REPO} && git checkout MCP_node.js-RAG_ParallelWorks"
+    su - ${USER} -c "cd ${PERSISTENT_ROOT} && git clone https://github.com/ufs-community/global-workflow.git global-workflow_forked"
     
     log_success "Repository cloned to ${GIT_REPO}"
 else
@@ -707,11 +593,12 @@ else
     su - ${USER} -c "cd ${GIT_REPO} && git pull" || log_warning "Git pull failed (may have local changes)"
 fi
 
-# Verify MCP source exists
+# MCP server is now in separate eib-mcp-rag-server repo
+# Verify MCP source exists (now points to co-located server directory)
 if [ ! -d "${MCP_SOURCE}" ]; then
-    log_error "MCP source directory not found at ${MCP_SOURCE}"
-    log_error "Expected: ${GIT_REPO}/dev/ci/scripts/utils/Copilot/mcp_server_node"
-    exit 1
+    log_warning "MCP source directory not found at ${MCP_SOURCE}"
+    log_info "MCP servers should be in eib-mcp-rag-server repository"
+    log_info "Expected: ${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
 fi
 
 # Set ownership
@@ -721,70 +608,25 @@ log_success "Git repository verified at ${GIT_REPO}"
 log_info "MCP source available at: ${MCP_SOURCE}"
 
 ################################################################################
-# STEP 11.5: Deploy MCP Server Code to Runtime
+# STEP 11.5: Verify MCP Server Directory (Co-located Architecture)
 ################################################################################
-log_section "STEP 11.5: Deploy MCP Server Code to Runtime"
+log_section "STEP 11.5: Verify MCP Server Directory"
 
-log_info "Deploying MCP server code from repository to runtime..."
+log_info "Verifying co-located MCP server at ${MCP_ROOT}..."
 
-# Check if deployment script exists
-DEPLOY_SCRIPT="${MCP_SOURCE}/deploy-to-runtime.sh"
-if [ ! -f "${DEPLOY_SCRIPT}" ]; then
-    log_warning "Deployment script not found at ${DEPLOY_SCRIPT}"
-    log_warning "Falling back to manual rsync..."
-    
-    # Fallback: Manual sync
-    log_info "Syncing ${MCP_SOURCE} → ${MCP_ROOT}"
-    mkdir -p "${MCP_ROOT}"
-    rsync -av --delete \
-        --exclude='node_modules' \
-        --exclude='*.test.js' \
-        --exclude='__tests__' \
-        --exclude='.git' \
-        --exclude='*.log' \
-        "${MCP_SOURCE}/" "${MCP_ROOT}/"
-    
-    chown -R ${USER}:${USER} "${MCP_ROOT}"
-    log_success "Manual sync completed"
-else
-    log_info "Using deployment manifest system..."
-    
-    # Make deploy script executable
-    chmod +x "${DEPLOY_SCRIPT}"
-    
-    # Run deployment script (skip backup during provisioning)
-    log_info "Running: ${DEPLOY_SCRIPT} --skip-backup"
-    cd "${MCP_SOURCE}"
-    
-    # Run as user to avoid permission issues
-    su - ${USER} -c "cd ${MCP_SOURCE} && ${DEPLOY_SCRIPT} --skip-backup" || {
-        log_error "Deployment script failed!"
-        log_warning "Falling back to manual sync..."
-        
-        # Fallback if deployment script fails
-        rsync -av --delete \
-            --exclude='node_modules' \
-            --exclude='*.test.js' \
-            --exclude='__tests__' \
-            --exclude='.git' \
-            --exclude='*.log' \
-            "${MCP_SOURCE}/" "${MCP_ROOT}/"
-        
-        chown -R ${USER}:${USER} "${MCP_ROOT}"
-        log_success "Manual sync completed (fallback)"
-    }
+# In co-located architecture, MCP_SOURCE and MCP_ROOT are the same
+if [ ! -d "${MCP_ROOT}" ]; then
+    log_error "MCP server directory not found at ${MCP_ROOT}"
+    log_error "Expected: ${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
+    log_info "Please ensure eib-mcp-rag-server repository is cloned to ${PERSISTENT_ROOT}"
+    exit 1
 fi
 
 # Ensure proper ownership
 chown -R ${USER}:${USER} "${MCP_ROOT}"
 
-log_success "MCP server code deployed to ${MCP_ROOT}"
-
-# Show deployment info if available
-if [ -f "${MCP_ROOT}/DEPLOYMENT_LOG.json" ]; then
-    log_info "Deployment log found - showing latest deployment:"
-    cat "${MCP_ROOT}/DEPLOYMENT_LOG.json" | jq -r '.deployments[-1] | "  Version: \(.version)\n  Timestamp: \(.timestamp)\n  User: \(.user)"' 2>/dev/null || log_info "  (Unable to parse deployment log)"
-fi
+log_success "MCP server directory verified at ${MCP_ROOT}"
+log_info "Co-located architecture: No deployment/sync needed (runtime = source)"
 
 ################################################################################
 # STEP 12: Claude CLI Installation
@@ -1129,25 +971,15 @@ else
     echo "  ❌ ChromaDB not accessible"
 fi
 
-echo -e "\n${CYAN}MCP Server Deployment:${NC}"
-if [ -f "${MCP_ROOT}/DEPLOYMENT_LOG.json" ]; then
-    echo "  ✅ Deployment log found"
-    DEPLOY_VERSION=$(cat "${MCP_ROOT}/DEPLOYMENT_LOG.json" | jq -r '.deployments[-1].version' 2>/dev/null || echo "unknown")
-    DEPLOY_TIME=$(cat "${MCP_ROOT}/DEPLOYMENT_LOG.json" | jq -r '.deployments[-1].timestamp' 2>/dev/null || echo "unknown")
-    echo "  📦 Version: ${DEPLOY_VERSION}"
-    echo "  🕐 Deployed: ${DEPLOY_TIME}"
-    
-    # Check for Week 1 Data Access Layer
-    if [ -d "${MCP_ROOT}/src/data" ]; then
-        echo "  ✅ Data Access Layer: Present"
-        [ -f "${MCP_ROOT}/src/data/GraphDatabase.js" ] && echo "     • GraphDatabase.js ✓"
-        [ -f "${MCP_ROOT}/src/data/VectorDatabase.js" ] && echo "     • VectorDatabase.js ✓"
-        [ -f "${MCP_ROOT}/src/data/UnifiedDataAccess.js" ] && echo "     • UnifiedDataAccess.js ✓"
-    else
-        echo "  ⚠️  Data Access Layer: Missing (run deploy-to-runtime.sh)"
-    fi
+echo -e "\n${CYAN}MCP Server Status:${NC}"
+if [ -d "${MCP_ROOT}/src" ]; then
+    echo "  ✅ MCP Server: Source code present"
+    echo "  📁 Location: ${MCP_ROOT}"
+    [ -f "${MCP_ROOT}/mcp-server-full.js" ] && echo "     • mcp-server-full.js ✓"
+    [ -f "${MCP_ROOT}/mcp-server-sdd.js" ] && echo "     • mcp-server-sdd.js ✓"
+    [ -f "${MCP_ROOT}/mcp-server-workflow-core.js" ] && echo "     • mcp-server-workflow-core.js ✓"
 else
-    echo "  ⚠️  No deployment log - manual sync used"
+    echo "  ⚠️  MCP Server: Source code missing"
 fi
 
 echo -e "\n${CYAN}NPM Dependencies:${NC}"
@@ -1164,9 +996,8 @@ df -h "${PERSISTENT_ROOT}" | tail -1 | awk '{printf "  Storage: %s used of %s (A
 echo -e "\n${CYAN}Directory Structure:${NC}"
 echo "  ${CHROMADB_ROOT} (ChromaDB installation)"
 echo "  ${CHROMADB_DATA} (ChromaDB data)"
-echo "  ${MCP_ROOT} (MCP server runtime)"
-echo "  ${MCP_SOURCE} (MCP server source)"
-echo "  ${GIT_REPO} (Git repository)"
+echo "  ${MCP_ROOT} (MCP server - co-located runtime/source)"
+echo "  ${GIT_REPO} (Global workflow source - for analysis)"
 echo "  ${CACHE_ROOT} (Cache storage)"
 
 ################################################################################
@@ -1236,7 +1067,7 @@ echo -e "  - No venv bloat - direct installation to Spack site-packages"
 
 echo -e "\n${CYAN}Next Steps:${NC}"
 echo -e "  1. ${YELLOW}Log out and back in${NC} (for docker group membership)"
-echo -e "  2. ${YELLOW}Source environment:${NC} source ${MCP_ROOT}/mcp-env.sh"
+echo -e "  2. ${YELLOW}Source environment:${NC} source ${SETUP}/mcp-env.sh"
 echo -e "  3. ${YELLOW}Load Spack modules:${NC} source ${MCP_ROOT}/setup-spack-chromadb.sh"
 echo -e "  4. ${YELLOW}Verify ChromaDB:${NC} curl http://127.0.0.1:${CHROMADB_PORT}/api/v2/heartbeat"
 echo -e "  4. ${YELLOW}Access Neo4j Browser:${NC} http://localhost:7474 (neo4j / gfsworkflow2025)"
