@@ -537,9 +537,14 @@ log_info "  ChromaDB Node.js client will be chromadb@3.0.17 (for ChromaDB 1.1.1)
 # First ensure we have the latest package.json with chromadb@^3.0.17
 npm install --cache "${CACHE_ROOT}/npm" --loglevel=info
 
-# Explicitly install chromadb, embedding function, and glob for file pattern matching
-log_info "Ensuring ChromaDB 3.x client, embedding function, and glob..."
-npm install --cache "${CACHE_ROOT}/npm" chromadb@latest @chroma-core/default-embed glob@latest
+# Explicitly install critical MCP dependencies
+log_info "Ensuring critical MCP dependencies..."
+npm install --cache "${CACHE_ROOT}/npm" \
+    chromadb@latest \
+    neo4j-driver@latest \
+    @xenova/transformers@latest \
+    @chroma-core/default-embed \
+    glob@latest
 
 log_info "Installed packages: $(find node_modules -maxdepth 1 -type d | wc -l) packages"
 log_info "ChromaDB client: $(npm list chromadb 2>/dev/null | grep chromadb || echo 'Check manually')"
