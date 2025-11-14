@@ -6,12 +6,12 @@ Central registry of all documentation sources for ingestion
 This is the SINGLE SOURCE OF TRUTH for documentation URLs.
 All ingestion and listing scripts MUST import from this file.
 
-Version: 4.2.0
-Last Updated: November 11, 2025
+Version: 4.2.1
+Last Updated: November 14, 2025
 """
 
 # Current active version
-VERSION = "4.2.0"
+VERSION = "4.2.1"
 COLLECTION_NAME = "global-workflow-docs-v4-2-0-unified"
 
 # Documentation sources organized by tier
@@ -74,6 +74,22 @@ DOCUMENTATION_SOURCES = {
             'priority': 2,
             'description': 'Rocoto workflow manager',
             'max_pages': 50
+        },
+        {
+            'name': 'ecflow',
+            'url': 'https://ecflow.readthedocs.io/en/develop/overview.html',
+            'type': 'readthedocs',
+            'priority': 2,
+            'description': 'ecFlow workflow scheduler and manager (ECMWF)',
+            'max_pages': 100
+        },
+        {
+            'name': 'pyflow',
+            'url': 'https://pyflow-workflow-generator.readthedocs.io/en/latest/',
+            'type': 'readthedocs',
+            'priority': 2,
+            'description': 'Pyflow Python workflow generator',
+            'max_pages': 100
         }
     ],
     'tier3_build_system': [
