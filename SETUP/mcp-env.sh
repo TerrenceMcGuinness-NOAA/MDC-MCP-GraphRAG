@@ -63,10 +63,26 @@ fi
 
 # Python configuration - only load if not already loaded
 if command -v module >/dev/null 2>&1 && ! module list 2>&1 | grep -q python; then
+    # Load gcc to expose compiler-dependent modules (py-* packages from spack)
+    # Then load all ChromaDB and Neo4j dependencies from spack
     if command -v ml >/dev/null 2>&1; then
-        ml python/3.11 2>/dev/null || true
+        ml gcc/11.5.0 2>/dev/null || true
+        ml python/3.11 py-pip 2>/dev/null || true
+        # Neo4j driver
+        ml py-neo4j 2>/dev/null || true
+        # ChromaDB dependencies (chromadb itself installed via pip --user)
+        ml py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
+        # Sentence-transformers dependencies
+        ml py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
     else
-        module load python/3.11 2>/dev/null || true
+        module load gcc/11.5.0 2>/dev/null || true
+        module load python/3.11 py-pip 2>/dev/null || true
+        # Neo4j driver
+        module load py-neo4j 2>/dev/null || true
+        # ChromaDB dependencies (chromadb itself installed via pip --user)
+        module load py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
+        # Sentence-transformers dependencies
+        module load py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
     fi
 fi
 

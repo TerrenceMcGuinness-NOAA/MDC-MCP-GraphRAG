@@ -414,14 +414,17 @@ source /usr/share/lmod/lmod/init/bash
 module use "${MODULE_DIR}"
 module load gcc/11.5.0
 module load python/3.11.14
-module load py-fastapi py-uvicorn py-pydantic
-spack load py-pip
+module load py-pip
+# Load ChromaDB Python dependencies from spack
+module load py-pydantic py-httpx py-idna py-requests py-certifi py-anyio py-sniffio
+module load py-numpy py-scipy py-pillow py-tokenizers py-tqdm py-pyyaml
+module load py-neo4j
 
-log_info "Installing ChromaDB v1.3.0 to Spack Python..."
-pip install chromadb
+log_info "Installing ChromaDB v1.3.4 to user site-packages..."
+python3 -m pip install --user chromadb
 
 log_info "Verifying ChromaDB installation..."
-python -c "import chromadb; print(f'ChromaDB version: {chromadb.__version__}')" || {
+python3 -c "import chromadb; print(f'ChromaDB version: {chromadb.__version__}')" || {
     log_error "ChromaDB installation verification failed"
     exit 1
 }

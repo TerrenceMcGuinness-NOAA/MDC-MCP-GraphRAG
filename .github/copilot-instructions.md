@@ -146,16 +146,38 @@ This repository provides an intelligent AI assistant system for the **NOAA Globa
 
 ### Python Package Management
 
-**CRITICAL: Use Spack-Managed Python**
+**CRITICAL: Spack-First Policy with Pip Fallback**
 
-All Python packages MUST be installed in the spack-managed environment:
+**Philosophy**: Use spack modules for all Python dependencies. Only use pip for packages not available in spack.
+
+**Standard Workflow**:
 
 ```bash
-# REQUIRED: Source spack environment before pip install
-source /mcp_rag_eib/mcp_server_node/setup-spack-chromadb.sh
+# 1. Load gcc to expose py-* modules
+module load gcc/11.5.0
 
-# Then install packages to user directory
-pip3 install --user <package_name>
+# 2. Load ALL required dependencies from spack
+module load py-pydantic py-neo4j py-httpx py-idna py-requests py-certifi py-anyio py-sniffio
+module load py-numpy py-scipy py-pillow py-tokenizers py-tqdm py-pyyaml
+
+# 3. For packages NOT in spack, use pip with appropriate strategy:
+
+# Strategy A: --no-deps for simple packages with all deps in spack
+pip3 install --user --no-deps <simple_package>
+
+# Strategy B: Full install for complex packages (e.g., chromadb with many non-spack deps)
+python3 -m pip install --user chromadb  # Use python3 -m pip to ensure correct Python/pip pairing
+```
+
+**Key Patterns**:
+- `pip3 install --user --no-deps <package>` - For packages where ALL dependencies exist in spack
+- `python3 -m pip install --user <package>` - For complex packages with many non-spack dependencies (like chromadb)
+- Always use `python3 -m pip` (not `pip3` alone) to ensure pip matches the active Python version
+
+**Check if package exists in spack**:
+```bash
+spack list py-<package_name>
+module avail py-<package_name>  # After loading gcc/11.5.0
 ```
 
 **Key Locations:**
@@ -164,9 +186,12 @@ pip3 install --user <package_name>
 - Setup script: `/mcp_rag_eib/eib-mcp-rag-server/SETUP/mcp-env.sh`
 
 **DO NOT:**
-- Use `python3 -m venv` (virtual environments deprecated)
-- Install without sourcing spack environment
+- Use `pip install` without `--user` (pollutes system environment)
+- Use `pip3` for packages when spack Python is active (use `python3 -m pip` instead)
+- Install without loading gcc module first (py-* modules won't be visible)
 - Use system Python or conda
+
+**Hierarchical Module System**: Spack uses Lmod hierarchical modules. You MUST load compiler modules (gcc) before compiler-dependent modules (py-*) become available.
 
 **References:** See `docs/development/SPACK_CHROMADB_QUICK_REFERENCE.md` and `SPACK_MODULE_SETUP_COMPLETE.md` in documentation.
 
