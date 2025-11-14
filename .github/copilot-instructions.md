@@ -1,6 +1,6 @@
 # AI Coding Agent Instructions for MCP/RAG Development Repository
 
-**Repository Context**: This is the **MCP/RAG Development Repository** for the NOAA Global Workflow system. This is NOT the production global-workflow repository - this is a specialized development environment for building Model Context Protocol (MCP) tools with Retrieval-Augmented Generation (RAG) capabilities.
+**Repository Context**: This is the **eib-mcp-rag-server** repository - a dedicated MCP/RAG development environment that provides intelligent AI assistance for the NOAA Global Workflow system. This repository contains MCP servers and tools that analyze, document, and support development of the operational GFS forecasting infrastructure.
 
 ## Empirical Accuracy Principle
 
@@ -16,59 +16,86 @@ This principle ensures accuracy and builds trust in the AI assistance provided t
 
 ## Project Mission
 
-This repository serves as the development platform for creating an intelligent AI assistant system that provides:
-- **Real-time access** to NOAA Global Workflow documentation and code
-- **Semantic search** across workflow components using vector embeddings
-- **Graph-based analysis** of code dependencies and relationships
-- **Operational guidance** for HPC deployment and workflow execution
-- **MCP protocol integration** with VS Code and other AI coding assistants
+This repository provides an intelligent AI assistant system for the **NOAA Global Workflow** - the operational infrastructure running GFS (Global Forecast System), GEFS (Global Ensemble Forecast System), and related atmospheric models. The MCP tools built here enable:
 
-**Goal**: Build a comprehensive knowledge base and tool ecosystem that enables AI agents to provide accurate, contextual assistance for global-workflow development and operations.
+- **Real-time access** to Global Workflow documentation, code structure, and operational procedures
+- **Semantic search** across workflow components using vector embeddings (ChromaDB)
+- **Graph-based analysis** of code dependencies and relationships (Neo4j)
+- **Operational guidance** for HPC deployment across NOAA platforms (Hera, Hercules, Orion, WCOSS2, Gaea)
+- **MCP protocol integration** with VS Code, Claude, and other AI coding assistants
+
+**Goal**: Enable AI agents to provide accurate, contextual assistance for global-workflow development, operations, and troubleshooting - supporting the critical infrastructure that produces operational weather forecasts.
+
+**Target Repository**: [ufs-community/global-workflow](https://github.com/ufs-community/global-workflow) - The operational GFS workflow system
 
 ## System Architecture
 
-### Runtime Environment
+### Runtime Environment (Co-located Architecture)
 ```
 /mcp_rag_eib/
-├── global-workflow_MCP_node.js-RAG/    # This repository (development)
-│   ├── dev/ci/scripts/utils/Copilot/mcp_server_node/  # MCP server source code
+├── eib-mcp-rag-server/                 # THIS REPOSITORY (co-located source + runtime)
+│   ├── .github/                        # Copilot/Cursor instructions
+│   ├── SETUP/                          # Provisioning and bootstrap scripts
+│   │   ├── bootstrap.sh                # Complete system initialization
+│   │   ├── provision_mcp_rag_persistent.sh  # Full provisioning
+│   │   └── mcp-env.sh                  # Single source of truth for environment
+│   ├── mcp_server_node/                # MCP servers (co-located runtime/source)
 │   │   ├── src/                        # Server implementation (Week 2 architecture)
-│   │   ├── scripts/                    # MCP-specific utility scripts
+│   │   │   ├── UnifiedMCPServer.js     # Main server (v3.0.0)
+│   │   │   └── tools/                  # Tool modules
+│   │   ├── scripts/                    # MCP ingestion/utility scripts
 │   │   ├── test/                       # MCP server tests
+│   │   ├── knowledge-base/             # Documentation cache (gitignored)
+│   │   ├── chromadb_data/              # Vector DB data (gitignored)
+│   │   ├── logs/                       # Runtime logs (gitignored)
+│   │   ├── node_modules/               # npm packages (gitignored)
 │   │   └── package.json                # Node.js dependencies
-│   ├── scripts/                        # GLOBAL-WORKFLOW operational scripts (NOT MCP)
-│   │   ├── exglobal_*.py               # GFS operational Python scripts
-│   │   └── exglobal_*.sh               # GFS operational shell scripts
-│   ├── WEEK_*_PLAN.md                  # Development planning docs
+│   ├── docs/                           # Development documentation
 │   └── changelog.md                    # Version history
 │
-├── mcp_server_node/                    # Runtime deployment (25GB persistent)
-│   ├── src/                            # Deployed MCP server code
-│   │   ├── UnifiedMCPServer.js         # Main server (v3.0.0)
-│   │   └── tools/                      # Tool modules
-│   ├── scripts/                        # Deployed MCP utility scripts
-│   ├── knowledge-base/                 # Local documentation cache
-│   ├── database/                       # Neo4j graph database
-│   └── logs/                           # Server logs
+├── global-workflow_forked/             # Analysis target (NOT modified by MCP)
+│   ├── scripts/                        # GFS operational scripts (exglobal_*.py/sh)
+│   ├── jobs/                           # Rocoto job definitions
+│   ├── parm/                           # Configuration files
+│   └── workflow/                       # Workflow orchestration
 │
-└── SETUP/                              # Provisioning scripts and configs
+├── data/                               # Persistent data storage
+│   ├── chromadb/                       # ChromaDB persistent data
+│   └── neo4j/                          # Neo4j graph database
+│
+├── cache/                              # Build/runtime caches
+│   ├── npm/                            # npm cache
+│   ├── pip/                            # Python package cache
+│   └── transformers/                   # Hugging Face model cache
+│
+└── spack/                              # Spack package manager
 ```
 
 ### Directory Structure Rules
 
-**CRITICAL: Distinguish MCP from Global Workflow**
+**CRITICAL: Co-located Architecture**
 
-1. **`/scripts/`** = Global Workflow operational scripts (exglobal_*.py, exgdas_*.sh)
-   - These run GFS/GDAS forecasts, not MCP tools
-   - DO NOT put MCP-related scripts here
+1. **`eib-mcp-rag-server/`** = This MCP development repository
+   - Source code and runtime data in same tree
+   - Runtime data excluded via `.gitignore` (node_modules/, chromadb_data/, logs/)
+   - No deployment/sync needed - direct execution from repo
 
-2. **`/dev/ci/scripts/utils/Copilot/mcp_server_node/`** = MCP development
-   - All MCP server code, tests, and utilities go here
-   - MCP ingestion scripts belong in `mcp_server_node/scripts/`
+2. **`eib-mcp-rag-server/mcp_server_node/`** = MCP servers location
+   - `src/` - Server source code (in git)
+   - `scripts/` - MCP ingestion/utility scripts (in git)
+   - `test/` - Test suites (in git)
+   - `node_modules/`, `chromadb_data/`, `logs/` - Runtime data (gitignored)
 
-3. **Runtime deployment**: `/mcp_rag_eib/mcp_server_node/`
-   - Deployed code from dev location
-   - Use `deploy-to-runtime.sh` to sync
+3. **`global-workflow_forked/`** = Analysis target repository
+   - Global Workflow operational code (GFS/GEFS/GDAS)
+   - **DO NOT modify** - MCP tools provide read-only analysis
+   - `scripts/` contains GFS operational scripts (exglobal_*.py, exgdas_*.sh)
+   - MCP tools analyze this repo, never change it
+
+4. **`SETUP/`** = Provisioning and bootstrap
+   - `bootstrap.sh` - Complete system initialization (idempotent)
+   - `provision_mcp_rag_persistent.sh` - Full infrastructure setup
+   - `mcp-env.sh` - Single source of truth for environment variables
 
 ### Data Infrastructure
 
@@ -88,11 +115,13 @@ This repository serves as the development platform for creating an intelligent A
 
 **MCP Server** (Node.js)
 - **Version**: 3.0.0 (Week 2 architecture)
-- **Location**: /mcp_rag_eib/mcp_server_node
-- **Mode**: Full (21 tools: 3 static + 7 semantic + 4 code + 3 operational + 4 GitHub)
-- **Status**: Running, auto-starts via VS Code
+- **Location**: /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+- **Mode**: Full (20 tools: 3 static + 7 semantic + 4 code + 3 operational + 3 system)
+- **Status**: Running via VS Code MCP integration
+- **Tools Available**: WorkflowInfoTools, SemanticSearchTools, CodeAnalysisTools, OperationalTools
+- **GitHub Tools**: Available as separate MCP server (mcp-server-github)
 
-**Development Status**: See `WEEK_*_PLAN.md` and `changelog.md` for current progress and planning details.
+**Development Status**: See `changelog.md` for version history and `docs/development/` for planning documents.
 
 ### Python Package Management
 
@@ -111,62 +140,54 @@ pip3 install --user <package_name>
 **Key Locations:**
 - Spack Python: `/mcp_rag_eib/spack/opt/spack/linux-skylake_avx512/.../python-3.11.14/`
 - User packages: `~/.local/lib/python3.11/site-packages/`
-- Setup script: `/mcp_rag_eib/mcp_server_node/setup-spack-chromadb.sh`
+- Setup script: `/mcp_rag_eib/eib-mcp-rag-server/SETUP/mcp-env.sh`
 
 **DO NOT:**
 - Use `python3 -m venv` (virtual environments deprecated)
 - Install without sourcing spack environment
 - Use system Python or conda
 
-**References:** `SPACK_CHROMADB_QUICK_REFERENCE.md`, `SPACK_MODULE_SETUP_COMPLETE.md`
+**References:** See `docs/development/SPACK_CHROMADB_QUICK_REFERENCE.md` and `SPACK_MODULE_SETUP_COMPLETE.md` in documentation.
 
 ## Development Planning Paradigm
 
-### WEEK Schema Naming Convention
+### Documentation Organization
 
-**CRITICAL**: All development work follows the **WEEK_N_** naming schema for spec-driven planning:
-
-**Planning Documents** (Repository Root):
-- `WEEK_1_COMPLETE.md` - Week 1 completion report
-- `WEEK_1_STATUS_REPORT.md` - Week 1 status summary  
-- `WEEK_1_SUMMARY.md` - Week 1 achievements
-- `WEEK_2_TOOL_AUDIT.md` - Week 2 tool inventory
-- `WEEK_3_PLAN.md` - Week 3 comprehensive plan
-- `WEEK_3_QUICK_START.md` - Week 3 quick reference
+**Planning Documents** (Repository Root `docs/development/`):
+- Development plans, architecture docs, and status reports
+- `changelog.md` - Version history and changes
+- `WEEK_*_PLAN.md` files archived in documentation
 
 **Ingestion Scripts** (MCP Server Scripts):
-- `ingest_documentation_week3.py` - Week 3 enhanced ingestion script
-  - Location: `dev/ci/scripts/utils/Copilot/mcp_server_node/scripts/`
-  - **This is the authoritative ingestion script**
-  - Do NOT use root-level `populate_chromadb.py` (deprecated)
+- Location: `mcp_server_node/scripts/`
+- Latest: `ingest_documentation_week3.py` - Week 3 enhanced ingestion
+- **Do NOT use** root-level `populate_chromadb.py` (deprecated)
 
-**Naming Rules**:
-1. All planning docs use `WEEK_N_DESCRIPTION.md` format
-2. All ingestion scripts use `ingest_*_weekN.py` format
-3. Collection names use version format: `global-workflow-docs-vN-N-N`
-4. Always check WEEK files before starting work
+**Collection Naming**:
+- Format: `global-workflow-docs-vN-N-N`
+- Example: `global-workflow-docs-v4-2-0-unified`
+- Version matches ingestion script generation
 
-### MCP Health Check Tool
+### MCP Health Check Tools
 
-**Tool Name**: `get_knowledge_base_status` (MCP tool, available when server running)
+**Available Health Check Tools** (MCP tools):
+- `get_knowledge_base_status` - Vector + graph DB status, collection counts
+- `mcp_health_check` - Complete system health (all components)
 
 **Purpose**: Verify system health and development state
 - ChromaDB: Collections, document counts, API version
-- Neo4j: Graph database connectivity, node counts
-- File system: WEEK files, scripts, changelog status
+- Neo4j: Graph database connectivity, node/relationship counts
+- File system: MCP server status, tool availability
 - Version tracking: Current architecture version
 
 **Usage Pattern**:
 ```javascript
-// When resuming work or checking context
-get_knowledge_base_status()
-// Returns: ChromaDB status, Neo4j status, collection list, versions
-```
+// Check overall system health
+mcp_health_check({ detailed: true })
 
-**Integration with WEEK Schema**:
-- Health check tool reads WEEK files to understand current phase
-- Validates collection names match WEEK version expectations
-- Ensures ingestion scripts are using correct WEEK naming
+// Check knowledge base specifics
+get_knowledge_base_status({ detailed: true, include_graph: true, include_vector: true })
+```
 
 ## Development Guidelines
 
@@ -222,32 +243,30 @@ get_knowledge_base_status
 - MCP tools accessible in GitHub Copilot Chat interface
 - stdio transport works correctly over SSH (no HTTP/SSE needed)
 
-**Current Known Issue (Oct 16, 2025):**
-- MCP tools work in Copilot Chat but not in agentic edit interface
-- This is a VS Code interface limitation, not a transport issue
-- Working solution: Use Copilot Chat panel for MCP tool queries
-- Alternative solution being tested: Run VS Code locally with vscode.dev tunnel
-
 ### Tool Selection Guide
 
-**Quick Static Queries** → WorkflowInfoTools (3 tools)
+**Quick Static Queries** → Workflow Info Tools (3 tools)
 - Fast overview, platform configs, file system analysis
 - No database dependencies (<10ms response)
 
-**Documentation Search** → SemanticSearchTools (7 tools)
+**Documentation Search** → Semantic Search Tools (8 tools)
 - Hybrid vector + graph search, EE2 compliance, code patterns
 - RAG-enriched contextual explanations
+- Repository-wide compliance scanning
 
-**Code Analysis** → CodeAnalysisTools (4 tools)
+**Code Analysis** → Code Analysis Tools (4 tools)
 - File/function/class analysis, dependency mapping
 - Call chain tracing, relationship analysis
+- Graph-based traversal
 
-**Operational Procedures** → OperationalTools (3 tools)
+**Operational Procedures** → Operational Tools (3 tools)
 - HPC platform procedures, deep component explanations
 - Job script inventory and categorization
+- Platform-specific operational guidance
 
-**Repository Integration** → GitHubTools (4 tools)
-- Cross-repository analysis, issue search, PR tracking
+**System Health** → System Health Tools (2 tools)
+- Knowledge base status and statistics
+- Complete MCP system health checks
 
 See "Available MCP Tools" section below for complete tool list with exact names.
 
@@ -259,7 +278,7 @@ See "Available MCP Tools" section below for complete tool list with exact names.
 ps aux | grep UnifiedMCPServer
 
 # View logs
-tail -50 /mcp_rag_eib/mcp_server_node/logs/mcp-server.log
+tail -50 /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/logs/mcp-server.log
 
 # Test ChromaDB connection
 curl http://localhost:8080/api/v1/heartbeat
@@ -306,38 +325,37 @@ For detailed information about production global-workflow components, job script
 
 ## Available MCP Tools (Complete List)
 
-**Note**: MCP tools have NO prefix - use the base tool names directly (e.g., `list_job_scripts`, not `mcp_global-workflow-full_list_job_scripts`).
+**Note**: MCP tools have NO prefix - use the base tool names directly (e.g., `list_job_scripts`, not `mcp_eib-mcp-rag-r_list_job_scripts`).
 
-### Core Workflow Tools (3 tools)
+### Workflow Info Tools (3 tools)
 - `get_workflow_structure` - System architecture and component overview
-- `get_system_configs` - HPC platform-specific configurations
-- `describe_component` - Quick component file system description
+- `get_system_configs` - HPC platform-specific configurations (hera, hercules, orion, wcoss2, gaea)
+- `describe_component` - Quick component file system description (static analysis)
 
-### Operational Tools (3 tools)
-- `list_job_scripts` - Complete inventory of workflow job scripts
-- `explain_workflow_component` - Deep component analysis and explanation
-- `get_operational_guidance` - HPC operational procedures and best practices
-
-### Semantic Search Tools (7 tools)
-- `search_documentation` - Semantic search across all workflow documentation
-- `search_ee2_standards` - EE2 compliance standards search
-- `find_similar_code` - Vector-based code pattern matching and similarity search
-- `explain_with_context` - Contextual explanations using RAG knowledge base
-- `analyze_ee2_compliance` - EE2 compliance analysis
-- `generate_compliance_report` - Comprehensive compliance reports
-- `get_knowledge_base_status` - System health check (vector + graph DB)
+### Semantic Search Tools (8 tools)
+- `search_documentation` - Hybrid semantic + graph search across workflow documentation and code
+- `search_ee2_standards` - Search EE2 compliance standards and documentation
+- `find_related_files` - Find files with similar dependencies and import relationships
+- `explain_with_context` - Provide comprehensive explanations using hybrid search
+- `analyze_ee2_compliance` - Analyze code or documentation for EE2 compliance
+- `generate_compliance_report` - Generate comprehensive EE2 compliance report
+- `scan_repository_compliance` - Scan entire repository for EE2 compliance issues
+- `get_knowledge_base_status` - Get comprehensive knowledge base statistics (vector + graph DB)
 
 ### Code Analysis Tools (4 tools)
-- `analyze_code_structure` - File/function/class structural analysis
-- `find_dependencies` - Dependency mapping (upstream/downstream/both)
-- `trace_execution_path` - Call chain traversal from starting function
-- `find_callers_callees` - Function relationship analysis
+- `analyze_code_structure` - Analyze code structure, relationships, and dependencies for a specific file
+- `find_dependencies` - Find all dependencies (imports) and dependents (importers) for a file or module
+- `trace_execution_path` - Trace the execution path from a starting function through call chains
+- `find_callers_callees` - Find all functions that call a target function (callers) and functions it calls (callees)
 
-### GitHub Tools (4 tools)
-- `analyze_workflow_dependencies` - Graph-based workflow dependency analysis
-- `search_issues` - Search GitHub issues for troubleshooting
-- `get_pull_requests` - Pull request information and changes
-- `analyze_repository_structure` - Multi-repository structure analysis
+### Operational Tools (3 tools)
+- `get_operational_guidance` - Get operational guidance and best practices for HPC operations
+- `explain_workflow_component` - Get detailed explanation of a workflow component with graph context
+- `list_job_scripts` - List and categorize job scripts in the workflow
+
+### System Health Tools (2 tools)
+- `get_knowledge_base_status` - Vector + graph DB status, collection counts (also in Semantic Search Tools)
+- `mcp_health_check` - Complete system health check (all components)
 
 ## MCP Tool Usage Examples
 
@@ -359,7 +377,7 @@ Based on the MCP analysis above, here's the recommended approach...
 
 ## MCP Server Location
 
-All MCP tools are implemented in `dev/ci/scripts/utils/Copilot/mcp_server_node/`:
+All MCP tools are implemented in `mcp_server_node/`:
 - `src/UnifiedMCPServer.js` - Main server (v3.0.0)
 - `src/tools/` - Tool modules (WorkflowInfoTools, SemanticSearchTools, CodeAnalysisTools, OperationalTools, GitHubTools)
 - `scripts/` - MCP utility scripts (ingestion, validation, parsing)
@@ -371,6 +389,6 @@ All MCP tools are implemented in `dev/ci/scripts/utils/Copilot/mcp_server_node/`
 - Ingestion scripts: `scripts/ingest_*.py` (ChromaDB population)
 - Validation scripts: `scripts/validate_*.py` (URL/data validation)
 - Test scripts: `test/test_*.js` (Node.js) or `scripts/test_*.py` (Python)
-- DO NOT put MCP scripts in `/scripts/` (that's for GFS operational scripts)
+- DO NOT put MCP scripts in `global-workflow_forked/scripts/` (that's for GFS operational scripts)
 
 **Note**: If you encounter placeholder responses from RAG-enhanced tools, this indicates the vector database needs initialization or document ingestion. The core workflow tools should always provide functional responses.

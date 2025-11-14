@@ -53,34 +53,34 @@ curl http://localhost:7860/api/v1/health
 ### Hybrid Triple-Store RAG System (v3.0.8+)
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  MCP RAG Infrastructure (v3.0.8)                        │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  Spack Package Manager       100+ Packages              │
-│  ├─ Python 3.11.14 (module-managed)                     │
-│  ├─ FastAPI, Uvicorn, Pydantic (Lmod hierarchy)        │
-│  └─ No virtual environments (user site-packages)        │
-│                                                          │
-│  ChromaDB (systemd)         Port 8080                   │
-│  ├─ Vector embeddings for semantic similarity           │
-│  └─ Uses Spack Python environment                       │
-│                                                          │
-│  Neo4j (Docker)             Ports 7474, 7687            │
-│  ├─ Graph relationships for structural queries          │
-│  ├─ APOC procedures library                             │
-│  └─ Graph Data Science (GDS) algorithms                 │
-│                                                          │
-│  LangFlow (Docker)          Port 7860                   │
-│  └─ RAG pipeline visualization and testing              │
-│                                                          │
-│  MCP Server (Node.js)       21 Tools                    │
-│  ├─ 9 Workflow tools (RAG-enhanced)                     │
-│  ├─ 5 GitHub ecosystem tools                            │
-│  ├─ 3 Neo4j graph tools                                 │
-│  └─ 4 Operational tools                                 │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────┐
+│  MCP RAG Infrastructure (v3.0.8)                      │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│  Spack Package Manager       100+ Packages            │
+│  ├─ Python 3.11.14 (module-managed)                   │
+│  ├─ FastAPI, Uvicorn, Pydantic (Lmod hierarchy)       │
+│  └─ No virtual environments (user site-packages)      │
+│                                                       │
+│  ChromaDB (systemd)         Port 8080                 │
+│  ├─ Vector embeddings for semantic similarity         │
+│  └─ Uses Spack Python environment                     │
+│                                                       │
+│  Neo4j (Docker)             Ports 7474, 7687          │
+│  ├─ Graph relationships for structural queries        │
+│  ├─ APOC procedures library                           │
+│  └─ Graph Data Science (GDS) algorithms               │
+│                                                       │
+│  LangFlow (Docker)          Port 7860                 │
+│  └─ RAG pipeline visualization and testing            │
+│                                                       │
+│  MCP Server (Node.js)       21 Tools                  │
+│  ├─ 9 Workflow tools (RAG-enhanced)                   │
+│  ├─ 5 GitHub ecosystem tools                          │
+│  ├─ 3 Neo4j graph tools                               │
+│  └─ 4 Operational tools                               │
+│                                                       │
+└───────────────────────────────────────────────────────┘
 ```
 
 ### Storage Layout
