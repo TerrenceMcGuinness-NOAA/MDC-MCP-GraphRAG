@@ -77,7 +77,7 @@ DOCUMENTATION_SOURCES = {
         },
         {
             'name': 'ecflow',
-            'url': 'https://ecflow.readthedocs.io/en/develop/overview.html',
+            'url': 'https://ecflow.readthedocs.io/en/develop/',
             'type': 'readthedocs',
             'priority': 2,
             'description': 'ecFlow workflow scheduler and manager (ECMWF)',
