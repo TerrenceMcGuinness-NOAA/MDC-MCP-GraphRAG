@@ -334,7 +334,7 @@ class DocumentationIngester:
         
         # Get URLs to process
         urls = []
-        if source['sitemap']:
+        if source.get('sitemap'):
             # Try sitemap first
             urls = self.fetch_sitemap(source['sitemap'])
             # If sitemap fails, fall back to crawling
