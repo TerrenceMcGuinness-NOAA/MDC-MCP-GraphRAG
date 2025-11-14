@@ -1,0 +1,6 @@
+[submodule "supported_repos/global-workflow"]
+	path = supported_repos/global-workflow
+	url = https://github.com/TerrenceMcGuinness-NOAA/global-workflow
+[submodule "supported_repos/nws-hpc-standards"]
+	path = supported_repos/nws-hpc-standards
+	url = git@github.com:TerrenceMcGuinness-NOAA/nws-hpc-standards.git

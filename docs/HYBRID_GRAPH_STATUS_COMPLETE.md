@@ -359,7 +359,7 @@ for (const result of vectorResults) {
 2. **Code Collection Empty**
    - `code_with_context` collection has 242 docs but not fully populated
    - `findCodeWithDependencies()` skips semantic similarity due to this
-   - **Solution**: Run code ingestion script to populate from global-workflow_forked/
+   - **Solution**: Run code ingestion script to populate from supported_repos/global-workflow/
 
 3. **No Graph-to-Vector Sync**
    - Changes to graph DB don't automatically update vector embeddings
@@ -503,7 +503,7 @@ curl http://localhost:8080/mcp/tools/mcp_health_check
 Now that hybrid/graph architecture is complete, we can focus on:
 
 1. **Week 3: Collection Population**
-   - Ingest nws-hpc-standards RST files
+   - Ingest supported_repos/nws-hpc-standards/ RST files
    - Create `ee2-standards-v5-0-0-enhanced` collection
    - Populate with >500 EE2 compliance chunks
 

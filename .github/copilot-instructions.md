@@ -50,14 +50,18 @@ This repository provides an intelligent AI assistant system for the **NOAA Globa
 │   │   ├── logs/                       # Runtime logs (gitignored)
 │   │   ├── node_modules/               # npm packages (gitignored)
 │   │   └── package.json                # Node.js dependencies
+│   ├── supported_repos/                # Git submodules (analysis targets)
+│   │   ├── global-workflow/            # Submodule: Global Workflow operational code
+│   │   │   ├── scripts/                # GFS operational scripts (exglobal_*.py/sh)
+│   │   │   ├── jobs/                   # Rocoto job definitions
+│   │   │   ├── parm/                   # Configuration files
+│   │   │   └── workflow/               # Workflow orchestration
+│   │   └── nws-hpc-standards/          # Submodule: EE2 compliance standards (RST format)
+│   │       ├── standards/              # EE2 standard documents
+│   │       ├── examples/               # Compliance examples
+│   │       └── docs/                   # Standards documentation
 │   ├── docs/                           # Development documentation
 │   └── changelog.md                    # Version history
-│
-├── global-workflow_forked/             # Analysis target (NOT modified by MCP)
-│   ├── scripts/                        # GFS operational scripts (exglobal_*.py/sh)
-│   ├── jobs/                           # Rocoto job definitions
-│   ├── parm/                           # Configuration files
-│   └── workflow/                       # Workflow orchestration
 │
 ├── data/                               # Persistent data storage
 │   ├── chromadb/                       # ChromaDB persistent data
@@ -73,12 +77,13 @@ This repository provides an intelligent AI assistant system for the **NOAA Globa
 
 ### Directory Structure Rules
 
-**CRITICAL: Co-located Architecture**
+**CRITICAL: Co-located Architecture with Git Submodules**
 
 1. **`eib-mcp-rag-server/`** = This MCP development repository
    - Source code and runtime data in same tree
    - Runtime data excluded via `.gitignore` (node_modules/, chromadb_data/, logs/)
    - No deployment/sync needed - direct execution from repo
+   - Git submodules for analysis target repositories
 
 2. **`eib-mcp-rag-server/mcp_server_node/`** = MCP servers location
    - `src/` - Server source code (in git)
@@ -86,11 +91,27 @@ This repository provides an intelligent AI assistant system for the **NOAA Globa
    - `test/` - Test suites (in git)
    - `node_modules/`, `chromadb_data/`, `logs/` - Runtime data (gitignored)
 
-3. **`global-workflow_forked/`** = Analysis target repository
-   - Global Workflow operational code (GFS/GEFS/GDAS)
-   - **DO NOT modify** - MCP tools provide read-only analysis
-   - `scripts/` contains GFS operational scripts (exglobal_*.py, exgdas_*.sh)
-   - MCP tools analyze this repo, never change it
+3. **`eib-mcp-rag-server/supported_repos/`** = Git submodules (analysis targets)
+   - **`global-workflow/`** - Git submodule tracking TerrenceMcGuinness-NOAA/global-workflow
+     - Global Workflow operational code (GFS/GEFS/GDAS)
+     - **DO NOT modify** - MCP tools provide read-only analysis
+     - `scripts/` contains GFS operational scripts (exglobal_*.py, exgdas_*.sh)
+     - Branch: develop
+   - **`nws-hpc-standards/`** - Git submodule tracking TerrenceMcGuinness-NOAA/nws-hpc-standards
+     - EE2 compliance standards in RST format
+     - MCP tools ingest for enhanced EE2 embeddings
+     - Branch: develop (mcp_enhanced_embedings branch to be pushed)
+   - **Submodule Usage**:
+     ```bash
+     # Initialize submodules after cloning
+     git submodule update --init --recursive
+     
+     # Update submodules to latest
+     git submodule update --remote
+     
+     # Check submodule status
+     git submodule status
+     ```
 
 4. **`SETUP/`** = Provisioning and bootstrap
    - `bootstrap.sh` - Complete system initialization (idempotent)
