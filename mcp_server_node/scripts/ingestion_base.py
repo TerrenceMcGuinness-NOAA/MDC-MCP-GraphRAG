@@ -737,6 +737,326 @@ class BaseIngester:
         print("="*60)
 
 
+class RSTDirectiveParser:
+    """
+    Parse RST (reStructuredText) directives for MCP semantic metadata extraction.
+    Specialized for EE2 compliance standards with custom mcp:* directives.
+    
+    Version: 5.0.0
+    Date: November 14, 2025
+    """
+    
+    # MCP custom directives for compliance documentation
+    MCP_DIRECTIVES = [
+        'mcp:standard',      # Core compliance requirement
+        'mcp:example',       # Code example demonstrating compliance
+        'mcp:guidance',      # Implementation guidance for developers
+        'mcp:reference',     # Links to related standards or documentation
+        'mcp:validation'     # Validation rules or test criteria
+    ]
+    
+    # EE2 compliance categories (from EE2VectorStore.js)
+    COMPLIANCE_CATEGORIES = {
+        'environment_variables': {
+            'weight': 2.5,
+            'keywords': ['environment', 'variable', 'export', 'env', 'path', 'comroot', 'dataroot']
+        },
+        'error_handling': {
+            'weight': 2.5,
+            'keywords': ['error', 'exception', 'exit', 'trap', 'cleanup', 'failure', 'err_']
+        },
+        'production_utilities': {
+            'weight': 2.2,
+            'keywords': ['utility', 'script', 'module', 'library', 'tool', 'function']
+        },
+        'workflow_structure': {
+            'weight': 2.0,
+            'keywords': ['workflow', 'rocoto', 'job', 'task', 'dependency', 'sequence']
+        },
+        'file_naming': {
+            'weight': 1.8,
+            'keywords': ['filename', 'naming', 'convention', 'path', 'directory']
+        },
+        'directory_structure': {
+            'weight': 1.8,
+            'keywords': ['directory', 'folder', 'structure', 'hierarchy', 'organization']
+        },
+        'code_standards': {
+            'weight': 1.5,
+            'keywords': ['style', 'format', 'documentation', 'comment', 'best practice']
+        }
+    }
+    
+    # Intent classification keywords
+    INTENT_KEYWORDS = {
+        'validation': ['must', 'required', 'shall', 'check', 'validate', 'verify', 'test', 'ensure'],
+        'guidance': ['should', 'recommend', 'suggest', 'consider', 'best practice', 'tip', 'note'],
+        'example': ['example', 'sample', 'demonstration', 'shows', 'illustrates', 'usage'],
+        'reference': ['see', 'refer', 'related', 'link', 'documentation', 'section', 'chapter']
+    }
+    
+    def __init__(self):
+        self.stats = {
+            'directives_parsed': 0,
+            'sections_extracted': 0,
+            'code_blocks_found': 0,
+            'attributes_extracted': 0
+        }
+    
+    def parse_document(self, rst_content: str, source_file: str = None) -> List[Dict]:
+        """
+        Parse RST document into structured sections with directive metadata.
+        
+        Args:
+            rst_content: Raw RST document content
+            source_file: Optional source file path for tracking
+            
+        Returns:
+            List of dicts with {text, metadata, directive_type, attributes}
+        """
+        sections = []
+        
+        # Split by directive boundaries using regex
+        directive_pattern = r'\.\.\s+(' + '|'.join(re.escape(d) for d in self.MCP_DIRECTIVES) + r')::\s*([^\n]*)'
+        
+        # Find all directive positions
+        matches = list(re.finditer(directive_pattern, rst_content))
+        
+        if not matches:
+            # No MCP directives found - treat as single section
+            return [{
+                'text': rst_content.strip(),
+                'metadata': {'source_file': source_file} if source_file else {},
+                'directive_type': None,
+                'attributes': {}
+            }]
+        
+        # Process each directive section
+        for i, match in enumerate(matches):
+            directive_type = match.group(1)
+            directive_arg = match.group(2).strip()
+            
+            # Extract section content (until next directive or end)
+            start_pos = match.start()
+            end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(rst_content)
+            section_content = rst_content[start_pos:end_pos]
+            
+            # Extract directive attributes and content
+            attributes = self.extract_directive_metadata(section_content, directive_arg)
+            content_text = self.extract_content_from_section(section_content)
+            
+            sections.append({
+                'text': content_text.strip(),
+                'metadata': {'source_file': source_file} if source_file else {},
+                'directive_type': directive_type,
+                'attributes': attributes
+            })
+            
+            self.stats['directives_parsed'] += 1
+            self.stats['sections_extracted'] += 1
+        
+        return sections
+    
+    def extract_directive_metadata(self, directive_block: str, directive_arg: str = None) -> Dict:
+        """
+        Extract :attribute: values from directive block.
+        
+        Example:
+            .. mcp:standard:: environment_variables
+               :category: environment_variables
+               :level: must
+               :intent: validation
+               :platforms: hera,hercules
+        
+        Returns:
+            Dict of attribute name -> value
+        """
+        attributes = {}
+        
+        # Add directive argument if present (e.g., "environment_variables")
+        if directive_arg:
+            attributes['directive_arg'] = directive_arg
+        
+        # Extract :attribute: value pairs
+        attr_pattern = r'^\s*:([a-z_]+):\s*(.+)$'
+        
+        for line in directive_block.split('\n'):
+            match = re.match(attr_pattern, line)
+            if match:
+                attr_name = match.group(1)
+                attr_value = match.group(2).strip()
+                attributes[attr_name] = attr_value
+                self.stats['attributes_extracted'] += 1
+        
+        return attributes
+    
+    def extract_content_from_section(self, section_text: str) -> str:
+        """
+        Extract the actual content body from a directive section.
+        Removes directive syntax, keeps text and code blocks.
+        """
+        lines = section_text.split('\n')
+        content_lines = []
+        in_content = False
+        
+        for line in lines:
+            # Skip directive declaration line
+            if line.strip().startswith('..') and any(d in line for d in self.MCP_DIRECTIVES):
+                continue
+            
+            # Skip attribute lines
+            if re.match(r'^\s*:[a-z_]+:', line):
+                continue
+            
+            # Start collecting content after attributes
+            if line.strip() and not line.strip().startswith(':'):
+                in_content = True
+            
+            if in_content:
+                content_lines.append(line)
+        
+        return '\n'.join(content_lines)
+    
+    def identify_intent(self, text: str, directive_type: str = None) -> Tuple[str, float]:
+        """
+        Classify document intent with confidence score.
+        
+        Args:
+            text: Document text content
+            directive_type: Optional directive type (mcp:example, etc.)
+            
+        Returns:
+            (intent, confidence) where intent in:
+            - 'validation': Checking/testing compliance
+            - 'guidance': Implementation instructions
+            - 'example': Code examples demonstrating compliance
+            - 'reference': Background/links to related material
+        """
+        text_lower = text.lower()
+        
+        # Directive type provides strong signal
+        if directive_type:
+            if 'example' in directive_type:
+                return ('example', 0.95)
+            elif 'validation' in directive_type:
+                return ('validation', 0.95)
+            elif 'guidance' in directive_type:
+                return ('guidance', 0.95)
+            elif 'reference' in directive_type:
+                return ('reference', 0.95)
+            elif 'standard' in directive_type:
+                return ('validation', 0.85)
+        
+        # Keyword-based classification
+        intent_scores = {}
+        
+        for intent, keywords in self.INTENT_KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw in text_lower)
+            intent_scores[intent] = score
+        
+        # Find highest scoring intent
+        if intent_scores:
+            max_intent = max(intent_scores, key=intent_scores.get)
+            max_score = intent_scores[max_intent]
+            
+            # Normalize confidence (max 20 keyword matches = 1.0 confidence)
+            confidence = min(max_score / 20.0, 0.9)
+            
+            # Must have at least 1 match
+            if max_score > 0:
+                return (max_intent, max(confidence, 0.5))
+        
+        # Default: validation intent with low confidence
+        return ('validation', 0.3)
+    
+    def extract_code_blocks(self, text: str) -> List[Dict]:
+        """
+        Extract code examples with language detection.
+        
+        Supports:
+        - RST code-block directive: .. code-block:: python
+        - Markdown-style: ```python
+        - Indented code blocks
+        """
+        code_blocks = []
+        
+        # RST code-block directive
+        rst_code_pattern = r'\.\.\s+code-block::\s+(\w+)\s*\n\s*\n((?:(?:\s{3,}|\t).+\n?)+)'
+        for match in re.finditer(rst_code_pattern, text):
+            language = match.group(1)
+            code = match.group(2)
+            # Remove leading indentation
+            code = '\n'.join(line[3:] if len(line) > 3 else line for line in code.split('\n'))
+            
+            code_blocks.append({
+                'language': language,
+                'code': code.strip(),
+                'type': 'rst_directive'
+            })
+            self.stats['code_blocks_found'] += 1
+        
+        # Markdown-style code blocks
+        md_code_pattern = r'```(\w+)?\s*\n(.*?)```'
+        for match in re.finditer(md_code_pattern, text, re.DOTALL):
+            language = match.group(1) or 'unknown'
+            code = match.group(2)
+            
+            code_blocks.append({
+                'language': language,
+                'code': code.strip(),
+                'type': 'markdown'
+            })
+            self.stats['code_blocks_found'] += 1
+        
+        return code_blocks
+    
+    def categorize_compliance(self, text: str, directive_attrs: Dict = None) -> List[Tuple[str, float]]:
+        """
+        Determine compliance categories based on content and attributes.
+        
+        Args:
+            text: Document text content
+            directive_attrs: Directive attributes (may include explicit :category:)
+            
+        Returns:
+            List of (category, confidence) tuples, sorted by confidence
+        """
+        categories = []
+        
+        # Check for explicit category attribute
+        if directive_attrs and 'category' in directive_attrs:
+            explicit_cat = directive_attrs['category']
+            if explicit_cat in self.COMPLIANCE_CATEGORIES:
+                categories.append((explicit_cat, 1.0))
+                return categories
+        
+        # Keyword-based categorization
+        text_lower = text.lower()
+        
+        for category, info in self.COMPLIANCE_CATEGORIES.items():
+            keywords = info['keywords']
+            weight = info['weight']
+            
+            # Count keyword matches
+            matches = sum(1 for kw in keywords if kw in text_lower)
+            
+            if matches > 0:
+                # Confidence = (matches * category_weight) / max_possible
+                # Normalized to 0-1 range
+                confidence = min((matches * weight) / 20.0, 0.95)
+                categories.append((category, confidence))
+        
+        # Sort by confidence descending
+        categories.sort(key=lambda x: x[1], reverse=True)
+        
+        # Return top 3 categories
+        return categories[:3]
+    
+    def get_stats(self) -> Dict:
+        """Return parsing statistics"""
+        return self.stats.copy()
+
+
 # Export public API
 __all__ = [
     'SemanticChunker',
@@ -745,6 +1065,7 @@ __all__ = [
     'LocalRepoParser',
     'MetadataEnricher',
     'BaseIngester',
+    'RSTDirectiveParser',
     'EMBEDDING_MODEL',
     'DEFAULT_MIN_CHUNK_SIZE',
     'DEFAULT_MAX_CHUNK_SIZE'
