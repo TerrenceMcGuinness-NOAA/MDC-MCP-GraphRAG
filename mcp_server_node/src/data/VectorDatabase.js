@@ -60,9 +60,9 @@ export class VectorDatabase {
       const url = `http://${this.config.host}:${this.config.port}${this.config.path}`;
       this.client = new ChromaClient({ path: url });
 
-      // Verify connection with heartbeat
-      const heartbeat = await this.client.heartbeat();
-      console.log('[OK] ChromaDB heartbeat:', heartbeat);
+      // Note: Heartbeat check removed - ChromaDB v2 API deprecated v1/heartbeat endpoint
+      // Connection will be verified on first actual query
+      console.log('[OK] ChromaDB client initialized:', url);
 
       // Initialize singleton embedding model (lazy loading)
       if (!sharedEmbedder || embeddingModelName !== this.config.embeddingModel) {

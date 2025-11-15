@@ -32,6 +32,7 @@ import { SemanticSearchTools } from './tools/SemanticSearchTools.js';
 import { CodeAnalysisTools } from './tools/CodeAnalysisTools.js';
 import { OperationalTools } from './tools/OperationalTools.js';
 import { GitHubTools } from './tools/GitHubTools.js';
+import { SDDWorkflowTools } from './tools/SDDWorkflowTools.js';
 import path from 'path';
 
 class UnifiedMCPServer {
@@ -48,7 +49,7 @@ class UnifiedMCPServer {
     // Initialize base server
     this.server = new BaseServer(
       'global-workflow-unified-mcp',
-      '3.0.0',
+      '3.1.0',  // Phase 3A: SDD Workflow Automation
       {
         tools: {},
         resources: {},
@@ -68,6 +69,12 @@ class UnifiedMCPServer {
     if (this.options.enableGitHub) {
       this.githubTools = new GitHubTools(this.options.githubToken);
     }
+
+    // Initialize SDD Workflow Tools (Phase 3A)
+    this.sddWorkflowTools = new SDDWorkflowTools(
+      null,  // dataAccess (to be connected)
+      null   // healthMonitor (to be connected)
+    );
 
     this.registerAllTools();
   }
@@ -114,6 +121,14 @@ class UnifiedMCPServer {
       } catch (error) {
         console.error(`[WARN] GitHub tools registration failed: ${error.message}`);
       }
+    }
+
+    // Register SDD Workflow tools (6 tools) - Phase 3A
+    try {
+      this.sddWorkflowTools.registerTools(this.server);
+      console.error('[MCP] SDD Workflow tools registered');
+    } catch (error) {
+      console.error(`[WARN] SDD Workflow tools registration failed: ${error.message}`);
     }
 
     // Register utility tools (2 tools)
@@ -168,7 +183,7 @@ class UnifiedMCPServer {
     const stats = this.server.getStats();
     
     let info = `# ${stats.name} v${stats.version}\n\n`;
-    info += `**Architecture**: Week 2 Consolidated (21 tools across 5 modules)\n`;
+    info += `**Architecture**: Week 2 Consolidated + Phase 3A SDD Automation (27 tools)\n`;
     info += `**Total Tools**: ${stats.toolCount}\n\n`;
     
     info += `## Tool Categories\n\n`;
@@ -207,6 +222,14 @@ class UnifiedMCPServer {
       info += `- get_ingested_urls_array - URL tracking\n`;
       info += `- list_ingested_urls - Ingestion status\n\n`;
     }
+
+    info += `### SDD Workflow Tools (6 tools - Phase 3A)\n`;
+    info += `- list_sdd_workflows - List available workflows\n`;
+    info += `- get_sdd_workflow - Get workflow details\n`;
+    info += `- execute_sdd_workflow - Execute workflow with parameters\n`;
+    info += `- get_sdd_execution_history - View execution history\n`;
+    info += `- validate_sdd_compliance - SDD compliance validation\n`;
+    info += `- get_sdd_framework_status - Framework status and metrics\n\n`;
 
     info += `### Utility Tools (2 tools)\n`;
     info += `- get_server_info - This tool\n`;

@@ -20,6 +20,9 @@ ENV LANGFLOW_PORT=7860
 RUN mkdir -p /app/langflow-data && \
     chmod 777 /app/langflow-data
 
+# Install sentence-transformers and dependencies
+RUN pip install --no-cache-dir sentence-transformers torch
+
 # Create a custom configuration directory
 # COPY langflow-config/ /app/config/
 

@@ -31,8 +31,10 @@ class RAGEnhancedMCPServer {
       },
     });
 
-    // Initialize vector database connection (in-memory for testing)
-    this.chromaClient = new ChromaClient();
+    // Initialize vector database connection
+    this.chromaClient = new ChromaClient({
+      path: process.env.CHROMA_SERVER_URL || 'http://localhost:8080'
+    });
     this.collection = null;
     this.embedModel = null;
 
@@ -63,7 +65,7 @@ class RAGEnhancedMCPServer {
         // Try to initialize ChromaDB collection (graceful fallback if not available)
         try {
           const collectionPromise = this.chromaClient.getOrCreateCollection({
-            name: 'global-workflow-docs'
+            name: 'global-workflow-docs-v5-0-0-consolidated'
           });
           const dbTimeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('ChromaDB timeout')), 5000)
