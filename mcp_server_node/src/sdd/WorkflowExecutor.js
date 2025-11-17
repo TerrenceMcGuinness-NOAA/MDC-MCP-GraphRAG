@@ -196,16 +196,27 @@ export class WorkflowExecutor {
    * Execute health check step
    */
   async executeHealthCheck(step, params) {
-    if (!this.healthMonitor) {
-      return { status: 'skipped', message: 'Health monitor not available' };
+    if (!this.dataAccess) {
+      return { status: 'skipped', message: 'Data access not available' };
     }
 
-    const health = await this.healthMonitor.checkHealth();
-    return {
-      status: health.status,
-      metrics: health.metrics,
-      timestamp: new Date().toISOString()
-    };
+    try {
+      const health = await this.dataAccess.healthCheck();
+      return {
+        status: health.status,
+        graphDB: health.graph,
+        vectorDB: health.vector,
+        connected: health.connected,
+        metrics: health.metrics,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 
   /**
@@ -230,10 +241,86 @@ export class WorkflowExecutor {
    * Execute validation step
    */
   async executeValidation(step, params) {
-    // Placeholder for validation logic
+    const checks = step.checks || [];
+    const results = [];
+    let allPassed = true;
+
+    for (const check of checks) {
+      try {
+        let passed = false;
+        let message = '';
+
+        switch (check.type) {
+          case 'result_count':
+            // Validate result count meets minimum threshold
+            const minCount = check.minCount || 0;
+            const actualCount = params.resultCount || 0;
+            passed = actualCount >= minCount;
+            message = passed 
+              ? `Result count ${actualCount} meets minimum ${minCount}`
+              : `Result count ${actualCount} below minimum ${minCount}`;
+            break;
+
+          case 'health_status':
+            // Validate health status is healthy
+            const status = params.status || 'unknown';
+            passed = status === 'healthy';
+            message = passed
+              ? 'Health status is healthy'
+              : `Health status is ${status}`;
+            break;
+
+          case 'data_freshness':
+            // Validate data is recent enough
+            const maxAge = check.maxAgeSeconds || 3600;
+            const timestamp = params.timestamp ? new Date(params.timestamp) : new Date();
+            const ageSeconds = (Date.now() - timestamp.getTime()) / 1000;
+            passed = ageSeconds <= maxAge;
+            message = passed
+              ? `Data age ${ageSeconds.toFixed(0)}s within limit ${maxAge}s`
+              : `Data age ${ageSeconds.toFixed(0)}s exceeds limit ${maxAge}s`;
+            break;
+
+          case 'pattern_match':
+            // Validate data matches expected pattern
+            const pattern = new RegExp(check.pattern || '.*');
+            const content = params.content || params.query || '';
+            passed = pattern.test(content);
+            message = passed
+              ? 'Content matches expected pattern'
+              : 'Content does not match pattern';
+            break;
+
+          default:
+            message = `Unknown validation type: ${check.type}`;
+            passed = false;
+        }
+
+        results.push({
+          check: check.type,
+          passed,
+          message
+        });
+
+        if (!passed) {
+          allPassed = false;
+        }
+
+      } catch (error) {
+        results.push({
+          check: check.type || 'unknown',
+          passed: false,
+          message: `Validation error: ${error.message}`
+        });
+        allPassed = false;
+      }
+    }
+
     return {
-      status: 'passed',
-      checks: step.checks || [],
+      status: allPassed ? 'passed' : 'failed',
+      checks: results,
+      totalChecks: checks.length,
+      passedChecks: results.filter(r => r.passed).length,
       timestamp: new Date().toISOString()
     };
   }

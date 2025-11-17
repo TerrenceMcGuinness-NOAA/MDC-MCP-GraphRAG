@@ -33,6 +33,7 @@ import { CodeAnalysisTools } from './tools/CodeAnalysisTools.js';
 import { OperationalTools } from './tools/OperationalTools.js';
 import { GitHubTools } from './tools/GitHubTools.js';
 import { SDDWorkflowTools } from './tools/SDDWorkflowTools.js';
+import { UnifiedDataAccess } from './data/UnifiedDataAccess.js';
 import path from 'path';
 
 class UnifiedMCPServer {
@@ -57,6 +58,9 @@ class UnifiedMCPServer {
       }
     );
 
+    // Initialize unified data access layer (shared across all RAG-enabled tools)
+    this.dataAccess = new UnifiedDataAccess();
+
     // Initialize tool modules (Week 2 consolidated architecture)
     this.workflowInfoTools = new WorkflowInfoTools();
     this.codeAnalysisTools = new CodeAnalysisTools();
@@ -70,10 +74,10 @@ class UnifiedMCPServer {
       this.githubTools = new GitHubTools(this.options.githubToken);
     }
 
-    // Initialize SDD Workflow Tools (Phase 3A)
+    // Initialize SDD Workflow Tools (Phase 3C: Connected to runtime)
     this.sddWorkflowTools = new SDDWorkflowTools(
-      null,  // dataAccess (to be connected)
-      null   // healthMonitor (to be connected)
+      this.dataAccess,  // Connected to unified data access layer
+      null              // healthMonitor (uses dataAccess.healthCheck internally)
     );
 
     this.registerAllTools();
