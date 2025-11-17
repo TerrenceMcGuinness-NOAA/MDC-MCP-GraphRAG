@@ -43,12 +43,14 @@ export NODE_PATH="${MCP_ROOT}/node_modules"
 if ! command -v module >/dev/null 2>&1; then
     # No module system initialized - set one up
     if [ -f /apps/lmod/lmod/init/bash ]; then
-        # Use system Lmod
+        # Use system Lmod - temporarily disable unbound variable check
+        # (Lmod init script may reference unset variables like FPATH)
+        set +u 2>/dev/null || true
         source /apps/lmod/lmod/init/bash
+        set -u 2>/dev/null || true
         module use /apps/modules/modulefiles 2>/dev/null
-        if [ -d /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core ]; then
-            module use /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core 2>/dev/null
-        fi
+        # DO NOT add Spack hierarchical modules here - they require gcc to be loaded first
+        # Spack modules will be added later in the provisioning script after gcc is loaded
     elif [ -f /usr/share/Modules/init/bash ]; then
         # Fallback to Environment Modules
         source /usr/share/Modules/init/bash

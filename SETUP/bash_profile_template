@@ -29,7 +29,7 @@ alias gwsetup='source /luster/Terry.McGuinness/global-workflow_forked/workflow/g
 alias sor='source ~/.bash_profile'
 alias sot='gvim ~/.bash_profile'
 
-alias work='cd /mcp_rag_eib/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot'
+alias work='cd /contrib/Terry.McGuinness/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot'
 
 # Docker utility function
 #docker_volumes() { docker inspect "$1" --format='{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'; }
@@ -56,6 +56,8 @@ if [ -f /apps/lmod/lmod/init/bash ]; then
     fi
     
     # Load required modules
+    # Load gcc to expose compiler-dependent spack modules (py-* packages)
+    ml gcc/11.5.0 2>/dev/null || true
     ml rocoto 2>/dev/null || true
     ml contrib 2>/dev/null || true
     ml python/3.11 2>/dev/null || true

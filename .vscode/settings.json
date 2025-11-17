@@ -1,8 +1,35 @@
 {
     "chat.mcp.serverSampling": {
-        "global-workflow_MCP_node.js-RAG/.vscode/mcp.json: global-workflow-full": {
+        ".vscode/mcp.json: eib-mcp-rag-full": {
             "allowedModels": [
-                "copilot/claude-3.5-sonnet"
+                "copilot/claude-3.5-sonnet",
+                "copilot/claude-sonnet-4.5",
+                "copilot/gemini-pro-2.5",
+                "copilot/gpt-5.1-codex"
+            ]
+        },
+        ".vscode/mcp.json: eib-mcp-rag-runtime": {
+            "allowedModels": [
+                "copilot/claude-3.5-sonnet",
+                "copilot/claude-sonnet-4.5",
+                "copilot/gemini-pro-2.5",
+                "copilot/gpt-5.1-codex"
+            ]
+        },
+        ".vscode/mcp.json: eib-sdd-validator": {
+            "allowedModels": [
+                "copilot/claude-3.5-sonnet",
+                "copilot/claude-sonnet-4.5",
+                "copilot/gemini-pro-2.5",
+                "copilot/gpt-5.1-codex"
+            ]
+        },
+        ".vscode/mcp.json: global-workflow-core": {
+            "allowedModels": [
+                "copilot/claude-3.5-sonnet",
+                "copilot/claude-sonnet-4.5",
+                "copilot/gemini-pro-2.5",
+                "copilot/gpt-5.1-codex"
             ]
         }
     }

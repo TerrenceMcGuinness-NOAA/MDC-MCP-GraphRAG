@@ -72,14 +72,17 @@ log_error() {
 # Configuration - Must source environment file first
 MCP_ENV_FILE="${PWD}/mcp-env.sh"
 if [ ! -f "${MCP_ENV_FILE}" ]; then
-    log_error "Environment file not found: ${MCP_ENV_FILE}"
-    log_info "Please ensure mcp-env.sh exists before running provisioning"
-    log_info "Or run bootstrap.sh first to create the environment"
+    log_error "Environment configuration not found: ${MCP_ENV_FILE}"
+    log_error "Current directory: ${PWD}"
+    log_error "Expected: /mcp_rag_eib/SETUP/mcp-env.sh"
     exit 1
 fi
 
 log_info "Sourcing environment configuration..."
+# Temporarily disable unbound variable check for Lmod initialization
+set +u
 source "${MCP_ENV_FILE}"
+set -u
 
 # Verify critical variables are set
 if [ -z "${PERSISTENT_ROOT}" ] || [ -z "${CHROMADB_ROOT}" ] || [ -z "${MCP_ROOT}" ]; then
@@ -194,7 +197,8 @@ if [ -f /usr/share/Modules/init/bash ]; then
     module use /apps/modules/modulefiles 2>/dev/null || true
     
     log_info "Available modules:"
-    module avail 2>&1 | grep -E "(python|node|git|gcc|hpc)" || log_info "  (standard modules only)"
+    # Suppress errors from Spack hierarchical modules (they need gcc loaded first)
+    module avail 2>&1 | grep -v "Magic cookie" | grep -v "Module ERROR" | grep -E "(python|node|git|gcc|hpc)" || log_info "  (standard modules only)"
     
     # Check if Python 3.11 is available as module
     if module avail python/3.11 2>&1 | grep -q "python/3.11"; then
@@ -491,15 +495,27 @@ systemctl daemon-reload
 systemctl enable chromadb-spack.service
 systemctl start chromadb-spack.service
 
-log_info "Waiting for ChromaDB to start..."
-sleep 10
+log_info "Waiting for ChromaDB to start (can take up to 90 seconds)..."
+RETRY_COUNT=0
+MAX_RETRIES=18  # 18 * 5 seconds = 90 seconds max wait
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl -s "http://127.0.0.1:${CHROMADB_PORT}/api/v2/heartbeat" > /dev/null 2>&1; then
+        log_success "ChromaDB running on port ${CHROMADB_PORT} (API v2)"
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        echo -n "."
+        sleep 5
+    fi
+done
+echo ""
 
-# Test ChromaDB v2 API
-if curl -s "http://127.0.0.1:${CHROMADB_PORT}/api/v2/heartbeat" > /dev/null 2>&1; then
-    log_success "ChromaDB running on port ${CHROMADB_PORT} (API v2)"
-else
-    log_error "ChromaDB failed to start"
+# Final check
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    log_error "ChromaDB failed to start after 90 seconds"
     log_info "Check logs: journalctl -u chromadb-spack.service -n 50"
+    log_info "Service status: systemctl status chromadb-spack.service"
     exit 1
 fi
 
@@ -543,11 +559,12 @@ npm install --cache "${CACHE_ROOT}/npm" --loglevel=info
 # Explicitly install critical MCP dependencies
 log_info "Ensuring critical MCP dependencies..."
 npm install --cache "${CACHE_ROOT}/npm" \
-    chromadb@latest \
-    neo4j-driver@latest \
+    @modelcontextprotocol/sdk@latest \
+    chromadb@^3.1.4 \
     @xenova/transformers@latest \
-    @chroma-core/default-embed \
-    glob@latest
+    @octokit/rest@latest \
+    glob@latest \
+    neo4j-driver@latest
 
 log_info "Installed packages: $(find node_modules -maxdepth 1 -type d | wc -l) packages"
 log_info "ChromaDB client: $(npm list chromadb 2>/dev/null | grep chromadb || echo 'Check manually')"
