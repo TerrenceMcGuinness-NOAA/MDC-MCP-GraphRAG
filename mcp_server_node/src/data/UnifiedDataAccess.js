@@ -81,7 +81,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collection = 'global-workflow-docs-v4-1-0-enhanced',  // v4.1.0: Semantic chunking, recursive crawling (222 docs, 44 pages)
+      collection = 'global-workflow-docs-v6-0-0-docker',  // v6.0.0: Docker ChromaDB re-ingest (156 docs)
       nResults = 10,
       includeGraphContext = true,
       includeDependencies = true,
@@ -274,7 +274,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collections = ['global-workflow-docs-v4-1-0-enhanced'],  // v4.1.0: Semantic chunking (222 docs)
+      collections = ['global-workflow-docs-v6-0-0-docker', 'ee2-standards-v6-0-0-docker'],  // v6.0.0: Docker ChromaDB (156+34 docs)
       nResults = 10,
       enrichWithGraph = true
     } = options;
@@ -353,7 +353,7 @@ export class UnifiedDataAccess {
         // Search for documentation about these modules
         const docQuery = moduleNames.slice(0, 3).join(' ');
         documentation = await this.vectorDB.query(
-          'global-workflow-docs-v4-1-0-enhanced',
+          'global-workflow-docs-v6-0-0-docker',
           docQuery,
           { nResults: 5 }
         );

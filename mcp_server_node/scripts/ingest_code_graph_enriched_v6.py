@@ -47,7 +47,7 @@ except ImportError as e:
 # CONFIGURATION
 # ============================================================================
 
-COLLECTION_NAME = "code_with_context_v6_graph_enriched"
+COLLECTION_NAME = os.getenv("CODE_COLLECTION", "code_with_context_v7_docker")
 CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")

@@ -303,10 +303,15 @@ export class VectorDatabase {
         include = ['documents', 'metadatas', 'distances']
       } = options;
 
-      // Execute query using queryTexts - let the embedding function handle it
-      console.error(`[QUERY] Executing ChromaDB query with queryTexts...`);
+      // Generate query embedding client-side (Docker ChromaDB requires this)
+      console.error(`[QUERY] Generating query embedding client-side...`);
+      const queryEmbeddings = await this.generateEmbeddings([queryText]);
+      console.error(`[OK] Query embedding generated: ${queryEmbeddings[0].length}-dim`);
+      
+      // Execute query using queryEmbeddings (pass vector directly)
+      console.error(`[QUERY] Executing ChromaDB query with queryEmbeddings...`);
       const results = await collection.query({
-        queryTexts: [queryText],
+        queryEmbeddings: [queryEmbeddings[0]],
         nResults,
         where,
         whereDocument,
