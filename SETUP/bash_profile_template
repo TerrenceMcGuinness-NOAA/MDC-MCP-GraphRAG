@@ -50,17 +50,21 @@ if [ -f /apps/lmod/lmod/init/bash ]; then
     # Add legacy TCL module path
     module use /apps/modules/modulefiles 2>/dev/null
     
-    # Add local Spack Lmod modules
+    # Add local Spack Lmod modules (Core level only - hierarchical modules added by Lmod automatically)
     if [ -d /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core ]; then
         module use /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core 2>/dev/null
     fi
     
     # Load required modules
-    # Load gcc to expose compiler-dependent spack modules (py-* packages)
+    # Load gcc FIRST to expose compiler-dependent spack modules (py-* packages)
+    # Lmod will automatically add hierarchical paths: .../gcc/11.5.0/
     ml gcc/11.5.0 2>/dev/null || true
     ml rocoto 2>/dev/null || true
     ml contrib 2>/dev/null || true
     ml python/3.11 2>/dev/null || true
+    
+    # Load essential Python packages from Spack for ChromaDB
+    ml py-pip py-pydantic py-neo4j 2>/dev/null || true
 elif [ -f /usr/share/Modules/init/bash ]; then
     # Fallback to Environment Modules if system Lmod not available
     . /usr/share/Modules/init/bash

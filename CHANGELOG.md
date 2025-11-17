@@ -1,5 +1,48 @@
 # MCP Server Changelog
 
+## Version 3.5.0 - ChromaDB Docker Migration (November 17, 2025)
+
+### Critical Architecture Change
+- **ChromaDB Migration**: Switched from Spack Python installation to Docker container
+  - **Problem**: Spack Python venv wrapper prevented proper user site-packages installation
+  - **Problem**: Rocky 9 system Python has SQLite 3.x < 3.35.0 (ChromaDB requires >= 3.35.0)
+  - **Solution**: Docker container (chromadb/chroma:latest) eliminates all dependency conflicts
+  
+### Benefits of Docker ChromaDB
+- ✅ **No Python version conflicts** - Self-contained environment
+- ✅ **No SQLite version issues** - Container has correct SQLite version
+- ✅ **No venv/site-packages confusion** - Isolated from host Python
+- ✅ **Easy upgrades** - `docker pull chromadb/chroma:latest`
+- ✅ **Persistent storage** - Volume mount `/mcp_rag_eib/data/chromadb`
+- ✅ **Systemd integration** - `chromadb-docker.service`
+- ✅ **Clean separation** - ChromaDB separate from development environment
+
+### Files Changed
+- `SETUP/provision_mcp_rag_persistent.sh` (v3.5.0)
+  - STEP 7: Replaced Spack pip installation with Docker pull
+  - STEP 8: Replaced chromadb-spack.service with chromadb-docker.service
+  - Updated version header and documentation
+- `SETUP/chromadb-docker.service` - New systemd service file (reference copy)
+- `mcp_server_node/start-chromadb-system.sh` - Created (unused, for reference)
+- `/etc/systemd/system/chromadb-docker.service` - Active service definition
+
+### Service Configuration
+```bash
+# Service: chromadb-docker.service
+# Port mapping: 8080 (host) -> 8000 (container)
+# Volume: /mcp_rag_eib/data/chromadb -> /chroma/chroma
+# Image: chromadb/chroma:latest
+# API: v2 (http://localhost:8080/api/v2/heartbeat)
+```
+
+### Deployment Notes
+- Old `chromadb-spack.service` disabled and stopped
+- Existing ChromaDB data preserved and accessible via volume mount
+- Startup time reduced from 90s to 30s max
+- Startup health checks use API v2 endpoints
+
+---
+
 ## Version 3.2.0 - CI Test Case Expert System (November 15, 2025)
 
 ### Major Features

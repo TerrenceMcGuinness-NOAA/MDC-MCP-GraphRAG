@@ -1,0 +1,43 @@
+[Unit]
+Description=ChromaDB Vector Database Server (Docker)
+After=docker.service
+Requires=docker.service
+Documentation=https://docs.trychroma.com/
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Stop and remove any existing container
+ExecStartPre=-/usr/bin/docker stop chromadb
+ExecStartPre=-/usr/bin/docker rm chromadb
+
+# Start ChromaDB in Docker
+# Maps container port 8000 -> host port 8080
+# Volume mounts /mcp_rag_eib/data/chromadb for persistence
+ExecStart=/usr/bin/docker run --name chromadb \
+    --rm \
+    -p 8080:8000 \
+    -v /mcp_rag_eib/data/chromadb:/chroma/chroma \
+    -e IS_PERSISTENT=TRUE \
+    -e PERSIST_DIRECTORY=/chroma/chroma \
+    -e ANONYMIZED_TELEMETRY=FALSE \
+    chromadb/chroma:latest
+
+# Stop container on service stop
+ExecStop=/usr/bin/docker stop chromadb
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chromadb-docker
+
+[Install]
+WantedBy=multi-user.target

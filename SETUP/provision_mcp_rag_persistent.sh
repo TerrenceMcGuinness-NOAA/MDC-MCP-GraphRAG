@@ -2,11 +2,12 @@
 
 ################################################################################
 # MCP RAG Persistent Infrastructure Provisioning Script
-# Version: 3.4.1
+# Version: 3.5.0
 # 
 # Purpose: Complete redesign for persistent MCP/RAG infrastructure
 #          on dedicated /mcp_rag_eib mount (25GB)
-# Changelog: v3.4.1 - Updated ChromaDB health checks to use v2 API endpoints
+# Changelog: v3.5.0 - Migrated ChromaDB to Docker (resolves SQLite/venv issues)
+#            v3.4.1 - Updated ChromaDB health checks to use v2 API endpoints
 #            v3.4.0 - Migrated to Spack module system (no venv)
 #            v3.3.1 - Added ONNX Runtime validation test (pre-built binaries)
 #            v3.3.0 - Added automated deployment with manifest system
@@ -15,7 +16,7 @@
 #
 # Architecture:
 #   - Spack: /mcp_rag_eib/spack (package manager with Lmod modules)
-#   - ChromaDB: Installed to Spack Python 3.11.14 (port 8080, v2 API)
+#   - ChromaDB: Docker container (chromadb/chroma:latest, port 8080, v2 API)
 #   - MCP Server: /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
 #   - Git Repo: /mcp_rag_eib/global-workflow_forked (PERSISTENT)
 #   - Data/Cache: /mcp_rag_eib/data, /mcp_rag_eib/cache
@@ -26,7 +27,7 @@
 #
 # Author: NOAA EMC Global Workflow Team
 # Contributors: Terry McGuinness, Claude Sonnet 4.5
-# Date: 2025-11-01
+# Date: 2025-11-17
 ################################################################################
 
 set -euo pipefail
@@ -391,90 +392,65 @@ module avail python 2>&1 | grep "python/" || log_warning "Python modules not fou
 log_success "Spack environment initialized"
 
 ################################################################################
-# STEP 7: ChromaDB Installation via Spack
+# STEP 7: ChromaDB Docker Setup
 ################################################################################
-log_section "STEP 7: ChromaDB Installation via Spack (Port ${CHROMADB_PORT})"
+log_section "STEP 7: ChromaDB Docker Setup (Port ${CHROMADB_PORT})"
 
-log_info "Installing ChromaDB dependencies via Spack..."
-
-# Check if packages are already installed
-if ! spack find py-fastapi@0.115.12 &>/dev/null; then
-    log_info "Installing py-fastapi..."
-    spack install py-fastapi@0.115.12
-fi
-
-if ! spack find py-uvicorn@0.34.2 &>/dev/null; then
-    log_info "Installing py-uvicorn..."
-    spack install py-uvicorn@0.34.2
-fi
-
-if ! spack find py-pydantic@2.10.1 &>/dev/null; then
-    log_info "Installing py-pydantic..."
-    spack install py-pydantic@2.10.1
-fi
-
-log_info "Loading Spack Python environment..."
-source /usr/share/lmod/lmod/init/bash
-module use "${MODULE_DIR}"
-module load gcc/11.5.0
-module load python/3.11.14
-module load py-pip
-# Load ChromaDB Python dependencies from spack
-module load py-pydantic py-httpx py-idna py-requests py-certifi py-anyio py-sniffio
-module load py-numpy py-scipy py-pillow py-tokenizers py-tqdm py-pyyaml
-module load py-neo4j
-
-log_info "Installing ChromaDB v1.3.4 to user site-packages..."
-python3 -m pip install --user chromadb
-
-log_info "Verifying ChromaDB installation..."
-python3 -c "import chromadb; print(f'ChromaDB version: {chromadb.__version__}')" || {
-    log_error "ChromaDB installation verification failed"
+log_info "Pulling ChromaDB Docker image..."
+if docker pull chromadb/chroma:latest; then
+    log_success "ChromaDB Docker image pulled successfully"
+else
+    log_error "Failed to pull ChromaDB Docker image"
     exit 1
-}
+fi
 
-# Set ownership
+log_info "Creating ChromaDB data directory: ${CHROMADB_DATA}"
+mkdir -p "${CHROMADB_DATA}"
 chown -R ${USER}:${USER} "${CHROMADB_DATA}"
 
-log_success "ChromaDB v1.3.0 installed via Spack (no venv needed)"
+log_info "Verifying Docker daemon is running..."
+if ! systemctl is-active --quiet docker; then
+    log_error "Docker service is not running"
+    exit 1
+fi
+
+log_success "ChromaDB Docker image ready"
 
 ################################################################################
-# STEP 8: ChromaDB Systemd Service
+# STEP 8: ChromaDB Docker Systemd Service
 ################################################################################
-log_section "STEP 8: ChromaDB Systemd Service Configuration"
+log_section "STEP 8: ChromaDB Docker Systemd Service Configuration"
 
-log_info "Creating ChromaDB Spack-based service for port ${CHROMADB_PORT}..."
+log_info "Creating ChromaDB Docker service for port ${CHROMADB_PORT}..."
 
-cat > /etc/systemd/system/chromadb-spack.service << 'EOF'
+cat > /etc/systemd/system/chromadb-docker.service << 'EOF'
 [Unit]
-Description=ChromaDB Vector Database Server (Spack-managed)
-After=network.target
+Description=ChromaDB Vector Database Server (Docker)
+After=docker.service
+Requires=docker.service
 Documentation=https://docs.trychroma.com/
 
 [Service]
 Type=simple
-User=Terry.McGuinness
-Group=Terry.McGuinness
-WorkingDirectory=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+User=root
+Group=root
 
-# Environment variables
-Environment="PERSIST_DIRECTORY=/mcp_rag_eib/data/chromadb"
-Environment="CHROMA_SERVER_HOST=0.0.0.0"
-Environment="CHROMA_SERVER_HTTP_PORT=8080"
-Environment="ALLOW_RESET=true"
+# Stop and remove any existing container
+ExecStartPre=-/usr/bin/docker stop chromadb
+ExecStartPre=-/usr/bin/docker rm chromadb
 
-# Source Spack environment and start ChromaDB
-ExecStart=/bin/bash -c '\
-  source /usr/share/lmod/lmod/init/bash && \
-  source /mcp_rag_eib/spack/share/spack/setup-env.sh && \
-  module use /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core && \
-  module load gcc/11.5.0-fuceq3c && \
-  module load python/3.11.14-em7rqij && \
-  module load py-fastapi/0.115.12-r6tgxqg && \
-  module load py-uvicorn/0.34.2-nuc4pxd && \
-  module load py-pydantic/2.10.1-5dvmyys && \
-  spack load py-pip && \
-  chroma run --host ${CHROMA_SERVER_HOST} --port ${CHROMA_SERVER_HTTP_PORT} --path ${PERSIST_DIRECTORY}'
+# Start ChromaDB in Docker
+ExecStart=/usr/bin/docker run --name chromadb \
+    --rm \
+    -p 8080:8000 \
+    -v /mcp_rag_eib/data/chromadb:/chroma/chroma \
+    -e IS_PERSISTENT=TRUE \
+    -e PERSIST_DIRECTORY=/chroma/chroma \
+    -e ANONYMIZED_TELEMETRY=FALSE \
+    chromadb/chroma:latest
+
+# Stop container on service stop
+ExecStop=/usr/bin/docker stop chromadb
 
 # Restart policy
 Restart=always
@@ -485,37 +461,45 @@ StartLimitBurst=5
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=chromadb-spack
+SyslogIdentifier=chromadb-docker
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable chromadb-spack.service
-systemctl start chromadb-spack.service
+# Disable old service if it exists
+if systemctl is-enabled chromadb-spack.service &>/dev/null; then
+    log_info "Disabling old chromadb-spack.service..."
+    systemctl disable chromadb-spack.service || true
+    systemctl stop chromadb-spack.service || true
+fi
 
-log_info "Waiting for ChromaDB to start (can take up to 90 seconds)..."
+systemctl daemon-reload
+systemctl enable chromadb-docker.service
+systemctl start chromadb-docker.service
+
+log_info "Waiting for ChromaDB Docker container to start (can take up to 30 seconds)..."
 RETRY_COUNT=0
-MAX_RETRIES=18  # 18 * 5 seconds = 90 seconds max wait
+MAX_RETRIES=10  # 10 * 3 seconds = 30 seconds max wait
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if curl -s "http://127.0.0.1:${CHROMADB_PORT}/api/v2/heartbeat" > /dev/null 2>&1; then
-        log_success "ChromaDB running on port ${CHROMADB_PORT} (API v2)"
+        log_success "ChromaDB running on port ${CHROMADB_PORT} (API v2, Docker)"
         break
     fi
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
         echo -n "."
-        sleep 5
+        sleep 3
     fi
 done
 echo ""
 
 # Final check
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    log_error "ChromaDB failed to start after 90 seconds"
-    log_info "Check logs: journalctl -u chromadb-spack.service -n 50"
-    log_info "Service status: systemctl status chromadb-spack.service"
+    log_error "ChromaDB failed to start after 30 seconds"
+    log_info "Check logs: journalctl -u chromadb-docker.service -n 50"
+    log_info "Check container: docker logs chromadb"
+    log_info "Service status: systemctl status chromadb-docker.service"
     exit 1
 fi
 
