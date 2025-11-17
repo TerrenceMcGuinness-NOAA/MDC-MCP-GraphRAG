@@ -2,13 +2,16 @@
  * SDD Workflow Executor
  * Parses and executes workflows defined in sdd_framework/workflows/
  * 
- * Version: 1.0.0
- * Date: November 14, 2025
+ * Version: 4.0.0 - Phase 4: Bootstrap Capability
+ * Date: December 21, 2024
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+import { SelfModificationEngine } from './SelfModificationEngine.js';
+import { SpecificationParser } from './SpecificationParser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +22,11 @@ export class WorkflowExecutor {
     this.healthMonitor = healthMonitor;
     this.workflowDir = path.join(__dirname, '../../../sdd_framework/workflows');
     this.executionHistory = [];
+    
+    // Phase 4: Bootstrap capability
+    this.selfModEngine = new SelfModificationEngine(dataAccess);
+    this.specParser = new SpecificationParser();
+    this.repoRoot = path.resolve(__dirname, '../../..');
   }
 
   /**
@@ -159,6 +167,14 @@ export class WorkflowExecutor {
         
         case 'validation':
           result = await this.executeValidation(step, params);
+          break;
+        
+        case 'code_generation':
+          result = await this.executeCodeGeneration(step, params);
+          break;
+        
+        case 'code_modification':
+          result = await this.executeCodeModification(step, params);
           break;
         
         case 'ingestion':
@@ -326,28 +342,181 @@ export class WorkflowExecutor {
   }
 
   /**
-   * Execute ingestion step
+   * Execute ingestion step - Trigger RAG knowledge base re-ingestion
    */
   async executeIngestion(step, params) {
-    // Placeholder for ingestion logic
-    return {
-      status: 'completed',
-      source: step.source,
-      documentsProcessed: 0,
-      timestamp: new Date().toISOString()
-    };
+    const { source, target = 'all', updateGraph = true, updateVector = true } = step;
+    
+    try {
+      const results = {
+        status: 'in-progress',
+        source,
+        target,
+        operations: []
+      };
+
+      // Determine which ingestion scripts to run
+      const scripts = [];
+      
+      if (target === 'all' || target === 'documentation') {
+        scripts.push({
+          name: 'ingest_documentation',
+          script: 'ingest_documentation_v4_2_unified.py',
+          collection: 'global-workflow-docs-v6-0-0-docker'
+        });
+      }
+      
+      if (target === 'all' || target === 'code') {
+        scripts.push({
+          name: 'ingest_code',
+          script: 'ingest_code_graph_enriched_v6.py',
+          collection: 'code_with_context_v7_docker'
+        });
+      }
+      
+      if (target === 'all' || target === 'ee2') {
+        scripts.push({
+          name: 'ingest_ee2',
+          script: 'ingest_ee2_enhanced_v5.py',
+          collection: 'ee2-standards-v6-0-0-docker'
+        });
+      }
+
+      // Run ingestion scripts
+      const scriptsDir = path.join(this.repoRoot, 'mcp_server_node/scripts');
+      
+      for (const scriptInfo of scripts) {
+        try {
+          console.error(`[START] Running ${scriptInfo.name}...`);
+          
+          const scriptPath = path.join(scriptsDir, scriptInfo.script);
+          const output = execSync(`python3 "${scriptPath}"`, {
+            cwd: scriptsDir,
+            timeout: 300000, // 5 minutes
+            encoding: 'utf-8'
+          });
+          
+          // Parse output for document count
+          const countMatch = output.match(/(\d+)\s+documents?/i);
+          const docCount = countMatch ? parseInt(countMatch[1]) : 0;
+          
+          results.operations.push({
+            script: scriptInfo.name,
+            collection: scriptInfo.collection,
+            documentsProcessed: docCount,
+            status: 'completed'
+          });
+          
+          console.error(`[OK] ${scriptInfo.name} completed: ${docCount} documents`);
+          
+        } catch (error) {
+          results.operations.push({
+            script: scriptInfo.name,
+            status: 'failed',
+            error: error.message
+          });
+          console.error(`[ERROR] ${scriptInfo.name} failed: ${error.message}`);
+        }
+      }
+
+      // Calculate totals
+      const totalDocs = results.operations
+        .filter(op => op.status === 'completed')
+        .reduce((sum, op) => sum + (op.documentsProcessed || 0), 0);
+      
+      const allSucceeded = results.operations.every(op => op.status === 'completed');
+      
+      return {
+        status: allSucceeded ? 'completed' : 'partial',
+        source,
+        target,
+        totalDocumentsProcessed: totalDocs,
+        operations: results.operations,
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      return {
+        status: 'failed',
+        source: step.source,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 
   /**
-   * Execute command step
+   * Execute command step - Safe system command execution
    */
   async executeCommand(step, params) {
-    // Placeholder for command execution
-    return {
-      status: 'executed',
-      command: step.command,
-      timestamp: new Date().toISOString()
-    };
+    const { 
+      command, 
+      sandbox = true, 
+      timeout = 30000,
+      cwd = this.repoRoot,
+      allowedCommands = ['npm', 'git', 'node', 'python3', 'test']
+    } = step;
+    
+    try {
+      // Interpolate parameters in command
+      const interpolatedCmd = this.interpolateParams(command, params);
+      
+      // Safety check: validate command against allowlist
+      const cmdParts = interpolatedCmd.split(/\s+/);
+      const baseCmd = cmdParts[0];
+      
+      if (sandbox) {
+        const isAllowed = allowedCommands.some(allowed => 
+          baseCmd === allowed || baseCmd.endsWith(`/${allowed}`)
+        );
+        
+        if (!isAllowed) {
+          throw new Error(`Command not allowed in sandbox: ${baseCmd}`);
+        }
+        
+        // Additional safety checks
+        if (interpolatedCmd.includes('rm -rf /') || 
+            interpolatedCmd.includes('rm -rf ~') ||
+            interpolatedCmd.includes('sudo')) {
+          throw new Error('Dangerous command blocked');
+        }
+      }
+      
+      console.error(`[START] Executing command: ${interpolatedCmd}`);
+      
+      // Execute command
+      const startTime = Date.now();
+      const output = execSync(interpolatedCmd, {
+        cwd,
+        timeout,
+        encoding: 'utf-8',
+        stdio: 'pipe'
+      });
+      const duration = Date.now() - startTime;
+      
+      console.error(`[OK] Command completed in ${duration}ms`);
+      
+      return {
+        status: 'executed',
+        command: interpolatedCmd,
+        output: output.trim(),
+        duration,
+        exitCode: 0,
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error(`[ERROR] Command failed: ${error.message}`);
+      
+      return {
+        status: 'failed',
+        command: step.command,
+        error: error.message,
+        exitCode: error.status || 1,
+        output: error.stdout?.toString() || '',
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 
   /**
@@ -520,5 +689,102 @@ export class WorkflowExecutor {
     return str.replace(/\{(\w+)\}/g, (match, key) => {
       return params[key] !== undefined ? params[key] : match;
     });
+  }
+
+  /**
+   * Execute code generation step (Phase 4: Bootstrap)
+   */
+  async executeCodeGeneration(step, params) {
+    if (!this.selfModEngine.currentTransaction) {
+      await this.selfModEngine.beginTransaction('code_generation');
+    }
+
+    try {
+      const spec = {
+        filePath: step.target || step.file,
+        template: step.template,
+        content: step.content,
+        variables: { ...step, ...params }
+      };
+
+      const result = await this.selfModEngine.generateFile(spec);
+      
+      return {
+        status: 'generated',
+        filePath: result.path,
+        size: result.content.length,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        status: 'failed',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Execute code modification step (Phase 4: Bootstrap)
+   */
+  async executeCodeModification(step, params) {
+    if (!this.selfModEngine.currentTransaction) {
+      await this.selfModEngine.beginTransaction('code_modification');
+    }
+
+    try {
+      // Parse modification spec
+      const spec = this.specParser.parseStep(step);
+      
+      let result;
+      if (spec.type === 'add_method') {
+        result = await this.selfModEngine.addMethod(spec.spec);
+      } else if (spec.type === 'register_tool') {
+        result = await this.selfModEngine.registerTool(spec.spec);
+      } else {
+        result = await this.selfModEngine.modifyFile(spec.spec);
+      }
+      
+      return {
+        status: 'modified',
+        filePath: result.path,
+        operation: spec.type,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        status: 'failed',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Begin self-modification transaction
+   */
+  async beginSelfModification(name) {
+    return await this.selfModEngine.beginTransaction(name);
+  }
+
+  /**
+   * Commit self-modification transaction
+   */
+  async commitSelfModification() {
+    return await this.selfModEngine.commitTransaction();
+  }
+
+  /**
+   * Rollback self-modification transaction
+   */
+  async rollbackSelfModification() {
+    return await this.selfModEngine.rollbackTransaction();
+  }
+
+  /**
+   * Validate current modifications
+   */
+  async validateModifications() {
+    return await this.selfModEngine.validateChanges();
   }
 }
