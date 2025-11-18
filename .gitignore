@@ -59,6 +59,7 @@ build/
 
 # IDE - Project settings OK, user-specific NO
 # VS Code
+.vscode/                  # Ignore entire directory - managed manually
 .vscode/settings.json     # Commit if project-standard
 .vscode/*.code-workspace  # User workspaces - ignore
 .vscode/launch.json       # Commit if project-standard
