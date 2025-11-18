@@ -9,7 +9,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         PHASE 1: DOCUMENT INGESTION                          │
+│                         PHASE 1: DOCUMENT INGESTION                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────┐
@@ -276,7 +276,7 @@ Combined context sent to LLM = Better answer
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│         PARALLEL COLLECTIONS STRATEGY                │
+│         PARALLEL COLLECTIONS STRATEGY               │
 └─────────────────────────────────────────────────────┘
 
 Same documents, different embeddings:
