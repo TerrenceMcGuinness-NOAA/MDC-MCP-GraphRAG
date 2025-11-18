@@ -1,0 +1,713 @@
+# EVS EE2 Compliance Remediation Workflow
+# SDD Framework Integration
+# Date: November 18, 2025
+# Repository: NOAA-EMC/EVS (release/evs.v2.0.0)
+
+metadata:
+  workflow_name: evs_ee2_compliance_remediation
+  version: "1.0.0"
+  created: "2025-11-18"
+  author: "MCP RAG System"
+  repository: "NOAA-EMC/EVS"
+  branch: "release/evs.v2.0.0"
+  gist_url: "https://gist.github.com/TerrenceMcGuinness-NOAA/fae7ea2c59c7ebb5cca40dae09a78959"
+  
+description: |
+  Systematic remediation of 670 non-compliant files (97.2% of repository) to meet
+  NCEP Central Operations EE2 standards for production deployment on WCOSS2.
+  
+  Critical Issues:
+  - 225 files lack error handling (set -e, set -u, trap handlers)
+  - 631 files contain unquoted environment variables
+  - Overall compliance: 2.8% (19/689 files)
+  
+  Estimated Effort: 260-330 developer hours (8-10 weeks with 1-2 FTEs)
+
+objectives:
+  - Achieve 100% EE2 compliance for operational scripts
+  - Implement robust error handling across all shell scripts
+  - Quote all environment variables to prevent expansion errors
+  - Add input validation and trap handlers
+  - Maintain backward compatibility and output accuracy
+  - Establish CI/CD enforcement of compliance standards
+
+phases:
+  - phase_1_critical_path
+  - phase_2_secondary_components
+  - phase_3_remaining_scripts
+  - phase_4_validation_documentation
+
+# ==============================================================================
+# PHASE 1: CRITICAL PATH SCRIPTS (Weeks 1-3)
+# ==============================================================================
+
+phase_1_critical_path:
+  name: "Phase 1: Critical Path Scripts"
+  duration: "3 weeks"
+  effort_hours: 128
+  priority: "P0"
+  
+  description: |
+    Fix the 32 highest-priority scripts that run in critical operational paths:
+    mesoscale (RAP/NAM CONUS forecasts), global_det (GFS), RTOFS (ocean),
+    subseasonal (extended forecasts), and NWPS (coastal waves).
+  
+  target_files: 32
+  
+  components:
+    mesoscale:
+      files: 6
+      scripts:
+        - scripts/stats/mesoscale/exevs_stats_mesoscale_rap_snowfall.sh
+        - scripts/stats/mesoscale/exevs_stats_mesoscale_rap_precip.sh
+        - scripts/stats/mesoscale/exevs_stats_mesoscale_rap_grid2obs.sh
+        - scripts/stats/mesoscale/exevs_stats_mesoscale_nam_snowfall.sh
+        - scripts/stats/mesoscale/exevs_stats_mesoscale_nam_precip.sh
+        - scripts/stats/mesoscale/exevs_stats_mesoscale_nam_grid2obs.sh
+      owner: "Developer A"
+      criticality: "CONUS forecasts - mission critical"
+      
+    global_det:
+      files: 4
+      scripts:
+        - scripts/stats/global_det/exevs_stats_global_det_wave_grid2obs.sh
+        - scripts/stats/global_det/exevs_stats_global_det_atmos_wmo.sh
+        - scripts/stats/global_det/exevs_stats_global_det_atmos_grid2obs.sh
+        - scripts/stats/global_det/exevs_stats_global_det_atmos_grid2grid.sh
+      owner: "Developer B"
+      criticality: "GFS deterministic - operational backbone"
+      
+    rtofs:
+      files: 2
+      scripts:
+        - scripts/stats/rtofs/exevs_stats_rtofs_grid2obs.sh
+        - scripts/stats/rtofs/exevs_stats_rtofs_grid2grid.sh
+      owner: "Developer A"
+      criticality: "Ocean forecasts - high visibility"
+      issues:
+        - "82 unquoted variables in grid2grid (worst file in repo)"
+        - "69 unquoted variables in grid2obs"
+        - "No input data validation"
+      
+    subseasonal:
+      files: 2
+      scripts:
+        - scripts/stats/subseasonal/exevs_stats_subseasonal_grid2obs.sh
+        - scripts/stats/subseasonal/exevs_stats_subseasonal_grid2grid.sh
+      owner: "Developer B"
+      criticality: "Extended forecasts - climate operations"
+      
+    nwps:
+      files: 1
+      scripts:
+        - scripts/stats/nwps/exevs_nwps_wave_grid2obs_stats.sh
+      owner: "Developer A"
+      criticality: "Coastal wave forecasts - public safety"
+  
+  tasks:
+    - task_id: "P1-001"
+      name: "Add error handling to all P0 scripts"
+      steps:
+        - "Insert 'set -eu' and 'set -o pipefail' after shebang"
+        - "Add trap handlers for cleanup on failure"
+        - "Validate all required environment variables"
+        - "Check input file/directory existence before processing"
+      
+    - task_id: "P1-002"
+      name: "Quote all environment variables"
+      steps:
+        - "Convert all $VAR to \"${VAR}\""
+        - "Review intentional glob expansions (keep unquoted if needed)"
+        - "Add braces for consistency: $VAR → ${VAR}"
+      
+    - task_id: "P1-003"
+      name: "Add error checking for critical operations"
+      steps:
+        - "Check return codes for cd, mkdir, cp, mv commands"
+        - "Add error messages with context (script name, operation, expected state)"
+        - "Ensure Python/external commands exit on failure"
+      
+    - task_id: "P1-004"
+      name: "Create unit tests for each fixed script"
+      steps:
+        - "Test script exits on undefined variable"
+        - "Test script exits on missing input files"
+        - "Test script exits on permission errors"
+        - "Test error messages are informative"
+      
+    - task_id: "P1-005"
+      name: "Regression testing on operational data"
+      steps:
+        - "Run fixed scripts on 30 days of operational data"
+        - "Compare output with baseline (must match exactly)"
+        - "Verify performance degradation <5%"
+        - "Document any differences requiring investigation"
+  
+  deliverables:
+    - "32 P0 scripts fully EE2 compliant"
+    - "Unit test suite for P0 scripts"
+    - "Regression test results (pass/fail report)"
+    - "Code review documentation"
+    - "Performance benchmark results"
+  
+  acceptance_criteria:
+    - "All 32 scripts have set -eu and set -o pipefail"
+    - "All environment variables quoted"
+    - "Input validation present in all scripts"
+    - "Error messages include context and actionable information"
+    - "Unit tests pass for all error conditions"
+    - "Regression tests show identical output to baseline"
+    - "Performance degradation <5%"
+
+# ==============================================================================
+# PHASE 2: SECONDARY COMPONENTS (Weeks 4-6)
+# ==============================================================================
+
+phase_2_secondary_components:
+  name: "Phase 2: Secondary Components"
+  duration: "3 weeks"
+  effort_hours: 114
+  priority: "P1"
+  
+  description: |
+    Fix 95 scripts in important but non-critical components: global ensemble
+    (GEFS), global chemistry, NFCENS (Navy ensemble), GLWU (Great Lakes),
+    AQM (air quality), and CAM (convection-allowing models).
+  
+  target_files: 95
+  
+  components:
+    global_ens:
+      files: 15
+      owner: "Developer C"
+      criticality: "GEFS ensemble forecasts"
+      
+    global_chem:
+      files: 10
+      owner: "Developer C"
+      criticality: "Atmospheric chemistry verification"
+      
+    nfcens:
+      files: 10
+      owner: "Developer D"
+      criticality: "Navy Fleet Numerical ensemble"
+      
+    glwu:
+      files: 10
+      owner: "Developer D"
+      criticality: "Great Lakes wave forecasts"
+      
+    aqm:
+      files: 25
+      owner: "Developer E"
+      criticality: "Air quality modeling"
+      
+    cam:
+      files: 25
+      owner: "Developer E"
+      criticality: "Convection-allowing models (high-res)"
+  
+  tasks:
+    - task_id: "P2-001"
+      name: "Apply standardized fixes from Phase 1"
+      steps:
+        - "Use automated tools where applicable"
+        - "Manual review for complex scripts"
+        - "Maintain component-specific patterns"
+      
+    - task_id: "P2-002"
+      name: "Develop automated testing framework"
+      steps:
+        - "Create test data generator"
+        - "Build test harness for batch execution"
+        - "Implement automated regression comparison"
+      
+    - task_id: "P2-003"
+      name: "CI/CD integration"
+      steps:
+        - "Add pre-commit hooks for compliance checks"
+        - "Integrate with GitHub Actions"
+        - "Configure automated linting (shellcheck, pycodestyle)"
+  
+  deliverables:
+    - "95 P1 scripts fully compliant"
+    - "Automated testing framework operational"
+    - "CI/CD pipeline configured"
+    - "Compliance dashboard (real-time monitoring)"
+  
+  acceptance_criteria:
+    - "All P1 scripts meet EE2 standards"
+    - "Automated tests run successfully in CI/CD"
+    - "Pre-commit hooks prevent non-compliant code"
+    - "Regression tests automated and passing"
+
+# ==============================================================================
+# PHASE 3: REMAINING SCRIPTS (Weeks 7-10)
+# ==============================================================================
+
+phase_3_remaining_scripts:
+  name: "Phase 3: Remaining Scripts"
+  duration: "4 weeks"
+  effort_hours: 144
+  priority: "P2"
+  
+  description: |
+    Fix remaining 562 files using automated tools and batch processing.
+    Apply lessons learned from Phases 1-2 to accelerate remediation.
+  
+  target_files: 562
+  
+  approach:
+    - "Automated bulk fixes using tools/add_error_handling.sh"
+    - "Automated variable quoting using tools/quote_variables.sh"
+    - "Manual review for edge cases and complex scripts"
+    - "Batch testing with automated regression suite"
+  
+  tasks:
+    - task_id: "P3-001"
+      name: "Automated bulk remediation"
+      steps:
+        - "Run automated error handling insertion"
+        - "Run automated variable quoting"
+        - "Generate diff reports for manual review"
+      
+    - task_id: "P3-002"
+      name: "Manual review and edge case handling"
+      steps:
+        - "Review all automated changes"
+        - "Fix intentional glob expansions"
+        - "Handle complex variable substitutions"
+      
+    - task_id: "P3-003"
+      name: "Comprehensive regression testing"
+      steps:
+        - "Run full suite on 90 days operational data"
+        - "Validate outputs match baseline"
+        - "Document any discrepancies"
+      
+    - task_id: "P3-004"
+      name: "Documentation updates"
+      steps:
+        - "Update developer guidelines"
+        - "Create compliance checklist for new code"
+        - "Document common patterns and solutions"
+  
+  deliverables:
+    - "562 remaining scripts compliant"
+    - "Automated tool suite documented and maintained"
+    - "Comprehensive regression test results"
+    - "Updated developer documentation"
+  
+  acceptance_criteria:
+    - "All 562 scripts meet EE2 standards"
+    - "Automated tools produce reliable results"
+    - "Full regression suite passes"
+    - "Documentation complete and accessible"
+
+# ==============================================================================
+# PHASE 4: VALIDATION & DOCUMENTATION (Weeks 11-12)
+# ==============================================================================
+
+phase_4_validation_documentation:
+  name: "Phase 4: Validation & Documentation"
+  duration: "2 weeks"
+  effort_hours: 76
+  priority: "P0"
+  
+  description: |
+    Final validation, integration testing, documentation, and preparation
+    for operational deployment. Establish ongoing compliance enforcement.
+  
+  tasks:
+    - task_id: "P4-001"
+      name: "Full system integration testing"
+      steps:
+        - "Run complete EVS workflow with all fixed scripts"
+        - "Test on multiple HPC platforms (Hera, Hercules, WCOSS2)"
+        - "Validate end-to-end output accuracy"
+        - "Performance benchmarking across all components"
+      
+    - task_id: "P4-002"
+      name: "Operational readiness review"
+      steps:
+        - "Code review by NCEP Central Operations"
+        - "Security review (if required)"
+        - "Documentation review"
+        - "Training for operations staff"
+      
+    - task_id: "P4-003"
+      name: "Create compliance enforcement mechanisms"
+      steps:
+        - "Finalize pre-commit hooks"
+        - "Configure GitHub Actions for PR checks"
+        - "Create compliance dashboard"
+        - "Document enforcement procedures"
+      
+    - task_id: "P4-004"
+      name: "Finalize documentation"
+      steps:
+        - "Update EVS technical documentation"
+        - "Create migration guide for developers"
+        - "Document lessons learned"
+        - "Create troubleshooting guide"
+      
+    - task_id: "P4-005"
+      name: "Production cutover planning"
+      steps:
+        - "Create rollback plan"
+        - "Schedule parallel operations window"
+        - "Define success criteria for cutover"
+        - "Plan post-deployment monitoring"
+  
+  deliverables:
+    - "Full integration test report"
+    - "Operational readiness certification"
+    - "Compliance enforcement framework"
+    - "Complete documentation package"
+    - "Production cutover plan"
+  
+  acceptance_criteria:
+    - "Integration tests pass on all HPC platforms"
+    - "NCEP operations approval obtained"
+    - "CI/CD enforcement operational"
+    - "Documentation complete and approved"
+    - "Cutover plan reviewed and approved"
+
+# ==============================================================================
+# AUTOMATED REMEDIATION TOOLS
+# ==============================================================================
+
+tools:
+  error_handling_insertion:
+    script: "tools/add_error_handling.sh"
+    description: "Automatically insert error handling after shebang"
+    usage: |
+      #!/bin/bash
+      set -eu
+      for script in scripts/{stats,prep,plots}/**/*.sh; do
+          if ! grep -q "^set -e" "$script"; then
+              cp "$script" "${script}.bak"
+              sed -i '2i\\nset -eu\nset -o pipefail\n' "$script"
+              echo "Added error handling to: $script"
+          fi
+      done
+    
+  variable_quoting:
+    script: "tools/quote_variables.sh"
+    description: "Automatically quote environment variables"
+    usage: |
+      #!/bin/bash
+      set -eu
+      for script in scripts/{stats,prep,plots}/**/*.sh; do
+          cp "$script" "${script}.bak"
+          sed -i 's/cd \$\([A-Z_]*\)/cd "${\1}"/g' "$script"
+          sed -i 's/mkdir -p \$\([A-Z_]*\)/mkdir -p "${\1}"/g' "$script"
+          sed -i 's/export \([A-Z_]*\)=\$\([A-Z_]*\)/export \1="${\2}"/g' "$script"
+          echo "Quoted variables in: $script"
+      done
+    warning: "Manual review required - some glob expansions are intentional"
+    
+  compliance_scanner:
+    script: "tools/scan_compliance.sh"
+    description: "Scan repository for EE2 compliance issues"
+    usage: "bash tools/scan_compliance.sh <directory> > compliance_report.txt"
+    
+  regression_tester:
+    script: "tools/run_regression_tests.sh"
+    description: "Compare outputs between baseline and fixed scripts"
+    usage: "bash tools/run_regression_tests.sh <baseline_dir> <new_dir>"
+
+# ==============================================================================
+# RESOURCE REQUIREMENTS
+# ==============================================================================
+
+resources:
+  personnel:
+    - role: "Lead Developer"
+      fte: 0.5
+      duration: "12 weeks"
+      responsibilities:
+        - "Architecture and design decisions"
+        - "Code review and approval"
+        - "Integration coordination"
+        - "Stakeholder communication"
+    
+    - role: "Developer A"
+      fte: 1.0
+      duration: "12 weeks"
+      responsibilities:
+        - "P0 scripts: mesoscale, RTOFS, NWPS"
+        - "Unit test development"
+        - "Performance testing"
+    
+    - role: "Developer B"
+      fte: 1.0
+      duration: "12 weeks"
+      responsibilities:
+        - "P0 scripts: global_det, subseasonal"
+        - "Regression testing"
+        - "Documentation"
+    
+    - role: "Developer C"
+      fte: 1.0
+      duration: "8 weeks"
+      responsibilities:
+        - "P1 scripts: global_ens, global_chem"
+        - "Automated tool development"
+    
+    - role: "Developer D"
+      fte: 1.0
+      duration: "8 weeks"
+      responsibilities:
+        - "P1 scripts: NFCENS, GLWU"
+        - "CI/CD integration"
+    
+    - role: "Developer E"
+      fte: 1.0
+      duration: "8 weeks"
+      responsibilities:
+        - "P1 scripts: AQM, CAM"
+        - "Batch processing coordination"
+    
+    - role: "QA Tester"
+      fte: 0.5
+      duration: "12 weeks"
+      responsibilities:
+        - "Test case development"
+        - "Regression test execution"
+        - "Results validation"
+    
+    - role: "Technical Writer"
+      fte: 0.25
+      duration: "4 weeks"
+      responsibilities:
+        - "Documentation updates"
+        - "User guides"
+        - "Training materials"
+  
+  computing:
+    test_system: "Dedicated compute allocation for parallel testing"
+    storage: "5TB for test output comparisons"
+    ci_cd: "GitHub Actions runners for automated compliance checks"
+  
+  total_effort:
+    fte_months: 5.25
+    total_hours: 462
+    timeline: "12 weeks + 1 week production cutover"
+
+# ==============================================================================
+# RISK MANAGEMENT
+# ==============================================================================
+
+risks:
+  high:
+    - risk: "Breaking changes in production"
+      probability: "Medium"
+      impact: "High"
+      mitigation:
+        - "Comprehensive regression testing"
+        - "Parallel operations during cutover"
+        - "Immediate rollback capability"
+      
+    - risk: "Resource constraints (personnel availability)"
+      probability: "Medium"
+      impact: "High"
+      mitigation:
+        - "Phased approach allows flexibility"
+        - "Automated tools reduce manual effort"
+        - "Cross-training team members"
+      
+    - risk: "Schedule slippage"
+      probability: "Medium"
+      impact: "Medium"
+      mitigation:
+        - "Buffer built into timeline (2 weeks)"
+        - "Weekly progress reviews"
+        - "Early identification of blockers"
+  
+  medium:
+    - risk: "Unexpected edge cases in automated fixes"
+      probability: "Medium"
+      impact: "Low"
+      mitigation:
+        - "Manual review of all automated changes"
+        - "Incremental rollout by component"
+      
+    - risk: "Insufficient test coverage"
+      probability: "Low"
+      impact: "Medium"
+      mitigation:
+        - "90 days operational data for regression tests"
+        - "Unit tests for all error paths"
+  
+  low:
+    - risk: "Performance degradation"
+      probability: "Low"
+      impact: "Low"
+      mitigation:
+        - "Error handling overhead <1%"
+        - "Continuous performance monitoring"
+      
+    - risk: "Compatibility issues with existing workflows"
+      probability: "Low"
+      impact: "Medium"
+      mitigation:
+        - "Maintain backward compatibility"
+        - "Parallel testing with production"
+
+# ==============================================================================
+# SUCCESS METRICS
+# ==============================================================================
+
+metrics:
+  code_quality:
+    - metric: "Scripts with set -e"
+      baseline: "33%"
+      target: "100%"
+      measurement: "Automated scan"
+    
+    - metric: "Quoted variables"
+      baseline: "10%"
+      target: "100%"
+      measurement: "Automated scan"
+    
+    - metric: "Input validation"
+      baseline: "<5%"
+      target: "100%"
+      measurement: "Code review"
+    
+    - metric: "Error messages with context"
+      baseline: "Sparse"
+      target: "All failures"
+      measurement: "Code review"
+    
+    - metric: "Overall compliance"
+      baseline: "2.8%"
+      target: "100%"
+      measurement: "Compliance report"
+  
+  operational:
+    - metric: "Silent failures"
+      target: "0"
+      measurement: "Production monitoring (30 days)"
+    
+    - metric: "Mean time to detection"
+      target: "<5 minutes"
+      measurement: "Log analysis"
+    
+    - metric: "False positives"
+      target: "<1%"
+      measurement: "Operations feedback"
+    
+    - metric: "Output accuracy"
+      target: "100% match with baseline"
+      measurement: "Regression tests"
+    
+    - metric: "Performance impact"
+      target: "<5% degradation"
+      measurement: "Benchmark tests"
+
+# ==============================================================================
+# TIMELINE & MILESTONES
+# ==============================================================================
+
+timeline:
+  week_1_3:
+    milestone: "P0 Critical Path Complete"
+    deliverables:
+      - "32 P0 scripts code-complete"
+      - "Unit tests passing"
+      - "Regression tests on 30 days data"
+    
+  week_4_6:
+    milestone: "P1 Secondary Components Complete"
+    deliverables:
+      - "95 P1 scripts code-complete"
+      - "Automated testing framework operational"
+      - "CI/CD integration complete"
+    
+  week_7_10:
+    milestone: "All Scripts Remediated"
+    deliverables:
+      - "562 remaining scripts compliant"
+      - "Full regression suite passing"
+      - "Documentation updated"
+    
+  week_11_12:
+    milestone: "Ready for Production"
+    deliverables:
+      - "Integration tests complete"
+      - "NCEP operations approval"
+      - "Cutover plan approved"
+    
+  week_13:
+    milestone: "Production Deployment"
+    activities:
+      - "Parallel operations (3 days)"
+      - "Production cutover"
+      - "Post-deployment monitoring"
+
+# ==============================================================================
+# COMPLIANCE STANDARDS REFERENCE
+# ==============================================================================
+
+standards:
+  error_handling:
+    required:
+      - "set -eu after shebang (exit on error, undefined variables)"
+      - "set -o pipefail (catch errors in pipes)"
+      - "Trap handlers for cleanup on failure"
+      - "Input data validation before processing"
+      - "Error messages with context (script, operation, state)"
+    
+  environment_variables:
+    required:
+      - "Quote all variable references: \"${VAR}\" or \"$VAR\""
+      - "Never use $VAR unquoted in production code"
+      - "Validate variables before use: ${VAR:?Variable not set}"
+    
+  code_standards:
+    required:
+      - "Follow Google Shell Style Guide"
+      - "Use shellcheck for static analysis"
+      - "Meaningful function and variable names"
+      - "Comments for complex logic only (code should be self-documenting)"
+
+# ==============================================================================
+# REFERENCES
+# ==============================================================================
+
+references:
+  primary:
+    - name: "EVS EE2 Compliance Report"
+      url: "https://gist.github.com/TerrenceMcGuinness-NOAA/fae7ea2c59c7ebb5cca40dae09a78959"
+      description: "Comprehensive analysis of 689 files with detailed examples"
+    
+    - name: "NCEP WCOSS Implementation Standards (EE2)"
+      url: "https://nws-hpc-standards.readthedocs.io/"
+      description: "Official NCEP production standards documentation"
+    
+    - name: "Global Workflow EE2 Analysis"
+      url: "internal"
+      description: "Comparable analysis for cross-reference"
+  
+  tools:
+    - name: "Google Shell Style Guide"
+      url: "https://google.github.io/styleguide/shellguide.html"
+    
+    - name: "ShellCheck"
+      url: "https://www.shellcheck.net/"
+      description: "Static analysis tool for shell scripts"
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+
+notes:
+  - "This workflow follows SDD framework methodology for systematic remediation"
+  - "All phases have clear acceptance criteria and deliverables"
+  - "Automated tools accelerate Phase 3 bulk processing"
+  - "CI/CD integration prevents regression after deployment"
+  - "Comprehensive regression testing ensures operational continuity"
+  - "Timeline includes 2-week buffer for unforeseen issues"
+  - "Weekly status reviews recommended to track progress"
