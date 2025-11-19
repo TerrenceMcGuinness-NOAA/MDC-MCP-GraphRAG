@@ -948,16 +948,18 @@ export class SemanticSearchTools {
               // Phase 2 Correction: Check for set -x (not set -eu)
               // EE2 only requires "set -x" for debug logging per standards.rst lines 588-595
               // Phase 2 SME correction: Do NOT flag missing set -eu (80% false positive rate)
+              // Phase 2 Pattern Recognition: Files using err_chk are compliant
               if (this.phase2Config) {
-                // Use Phase 2 knowledge: Only set -x is required
-                if (!content.match(/set -x/)) {
+                // Use Phase 2 knowledge: set -x OR err_chk/err_exit usage is compliant
+                const hasErrorHandling = content.match(/set -x/) || content.match(/err_chk|err_exit/);
+                if (!hasErrorHandling) {
                   violations.push({
                     issue: 'Missing set -x (EE2 debug logging requirement)',
                     line: shebangLine >= 0 ? shebangLine + 2 : 2,
                     current: shebangLine >= 0 ? lines[shebangLine] : lines[0],
                     fix: 'Add "set -x" after shebang per EE2 standard (NOT set -eu)',
                     evidence: 'standards.rst lines 588-595, 868-919, 926-985',
-                    phase2_correction: 'set -eu is NOT required by EE2'
+                    phase2_correction: 'set -eu is NOT required by EE2; err_chk/err_exit usage indicates compliant error handling'
                   });
                 }
               } else {

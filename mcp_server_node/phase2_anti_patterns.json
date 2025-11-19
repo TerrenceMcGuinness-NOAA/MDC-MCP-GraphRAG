@@ -1,9 +1,9 @@
 {
   "version": "6.0.0",
   "phase": 2,
-  "generated": "2025-11-19T21:34:30.512Z",
+  "generated": "2025-11-19T22:41:09.597Z",
   "source_collection": "ee2-standards-v6-0-0-corrected",
-  "total_documents": 16,
+  "total_documents": 23,
   "anti_patterns": {
     "error_handling": [
       {
@@ -55,6 +55,16 @@
         "sme_justification": "Not required by EE2; err_chk/err_exit provide error handling",
         "evidence": [],
         "description": "Original EE2 Text:\n   \n   * Enable debug logging at the top of *each* shell script:\n       .. code-block:: bash\n   \n          set -x\n   \n       and add timing info to the execution trace by including ..."
+      },
+      {
+        "name": "unknown",
+        "directive": "mcp:anti_pattern",
+        "severity": "must_fix",
+        "context": "operational_scripts",
+        "false_positive_rate": null,
+        "sme_justification": "File operations (cp, mv, ln) can fail silently due to disk space, permissions, network issues. Without err_chk, script continues with missing/incomplete data causing downstream failures that are hard to diagnose.",
+        "evidence": [],
+        "description": "**Anti-Pattern Description:**\n   File operations (``cp``, ``mv``, ``ln``) executed without subsequent \n   ``err_chk`` call, allowing silent failures to propagate.\n\n**Non-Compliant Example (evs_href_pr..."
       }
     ],
     "environment_variables": [],
@@ -78,6 +88,14 @@
         "context": "operational_job",
         "ee2_section": "",
         "description": "**CORRECT - Use EE2 utilities for error handling**:\n\n.. code-block:: bash\n\n   # ✅ CORRECT - Use err_chk after critical operations\n   mpiexec <options> $EXECmodel/$pgm >>$pgmout 2>errfile\n   export err..."
+      },
+      {
+        "name": "unknown",
+        "directive": "mcp:correct_pattern",
+        "severity": "required",
+        "context": "operational_job",
+        "ee2_section": "",
+        "description": "**Pattern Description:**\n   After every critical operation (file operations, data processing, \n   external commands), immediately capture exit status and call ``err_chk``.\n\n**Critical Operations Requi..."
       }
     ],
     "environment_variables": [],
@@ -114,6 +132,36 @@
       "priority": "critical",
       "enforcement": "code_analysis",
       "description": "4. **Precision Measurement**\n   \n   Compare pre/post annotation accuracy on EVS scripts:\n   \n   - Baseline false positive rate: ~80% (set -eu issue)\n   - Target false positive rate: <20%\n   - Expected..."
+    },
+    {
+      "name": "unknown",
+      "priority": "high",
+      "enforcement": "all_queries",
+      "description": "**Rule Description:**\n   When analyzing error handling compliance, AI must distinguish between:\n   \n   **Level 1: Fully Compliant (No Issues)**\n      File consistently uses ``err_chk`` after ALL criti..."
+    },
+    {
+      "name": "unknown",
+      "priority": "high",
+      "enforcement": "all_queries",
+      "description": "def analyze_err_chk_compliance(file_content, file_path):\n       \"\"\"\n       Analyze err_chk usage patterns to distinguish compliance levels.\n       \"\"\"\n       critical_ops = find_critical_operations(fi..."
+    },
+    {
+      "name": "unknown",
+      "priority": "medium",
+      "enforcement": "all_queries",
+      "description": "**Rule Description:**\n   When recommending error handling fixes, AI should cite existing \n   compliant files as positive examples to provide actionable guidance.\n\n**Recommendation Template:**\n\n.. code..."
+    },
+    {
+      "name": "unknown",
+      "priority": "high",
+      "enforcement": "all_queries",
+      "description": "**Rule Description:**\n   Compliance reports should show distribution across three levels, \n   not just binary compliant/non-compliant.\n\n**Metrics Template:**\n\n.. code-block:: text\n\n**Error Handling Co..."
+    },
+    {
+      "name": "unknown",
+      "priority": "high",
+      "enforcement": "all_queries",
+      "description": "5. **\"Should I add err_chk after every cp command?\"**\n   Expected: Yes, with examples from compliant files\n\n========================================================================\nTRACEABILITY\n======..."
     }
   ],
   "metadata": {
