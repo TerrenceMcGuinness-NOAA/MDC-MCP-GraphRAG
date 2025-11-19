@@ -8,23 +8,45 @@
  * 
  * Features:
  * - Hybrid semantic + graph search via UnifiedDataAccess
- * - EE2 compliance analysis and standards search
+ * - EE2 compliance analysis and standards search (Phase 2 SME corrections)
  * - Multi-source knowledge retrieval
  * - Code similarity detection with graph context
  * - Contextual explanations
  * 
- * @version 2.0.0
+ * Phase 2 Integration:
+ * - Loads phase2_anti_patterns.json for scan validation
+ * - Single source of truth: RST annotations → ChromaDB → JSON config
+ * 
+ * @version 2.1.0
  * @author Claude Sonnet 4.5
  * @supervisor Terry McGuinness
- * @date 2025-10-16
+ * @date 2025-11-19
  */
 
 import { UnifiedDataAccess } from '../data/UnifiedDataAccess.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load Phase 2 configuration (generated from knowledge base)
+let phase2Config = null;
+try {
+  const configPath = join(__dirname, '..', '..', 'phase2_anti_patterns.json');
+  phase2Config = JSON.parse(readFileSync(configPath, 'utf-8'));
+  console.error(`[OK] Loaded Phase 2 config: ${phase2Config.anti_patterns.error_handling.length} anti-patterns`);
+} catch (error) {
+  console.error(`[WARN] Phase 2 config not found: ${error.message}`);
+  console.error('[WARN] Scan tool will use fallback validation');
+}
 
 export class SemanticSearchTools {
   constructor(dataAccess = null) {
     this.dataAccess = dataAccess;  // Accept injected dependency for testing
     this.isInitialized = !!dataAccess;  // Already initialized if dataAccess provided
+    this.phase2Config = phase2Config;  // Phase 2 anti-pattern configuration
   }
 
   async initialize() {
@@ -923,14 +945,31 @@ export class SemanticSearchTools {
                 });
               }
               
-              // Check for set -e/set -u
-              if (!content.match(/set -[eu]/)) {
-                violations.push({
-                  issue: 'Missing set -e or set -u',
-                  line: shebangLine >= 0 ? shebangLine + 2 : 2,
-                  current: shebangLine >= 0 ? lines[shebangLine] : lines[0],
-                  fix: 'Add "set -eu" after shebang to enable error handling'
-                });
+              // Phase 2 Correction: Check for set -x (not set -eu)
+              // EE2 only requires "set -x" for debug logging per standards.rst lines 588-595
+              // Phase 2 SME correction: Do NOT flag missing set -eu (80% false positive rate)
+              if (this.phase2Config) {
+                // Use Phase 2 knowledge: Only set -x is required
+                if (!content.match(/set -x/)) {
+                  violations.push({
+                    issue: 'Missing set -x (EE2 debug logging requirement)',
+                    line: shebangLine >= 0 ? shebangLine + 2 : 2,
+                    current: shebangLine >= 0 ? lines[shebangLine] : lines[0],
+                    fix: 'Add "set -x" after shebang per EE2 standard (NOT set -eu)',
+                    evidence: 'standards.rst lines 588-595, 868-919, 926-985',
+                    phase2_correction: 'set -eu is NOT required by EE2'
+                  });
+                }
+              } else {
+                // Fallback: Check for any error handling (backward compatibility)
+                if (!content.match(/set -[eux]/)) {
+                  violations.push({
+                    issue: 'Missing error handling (set -x recommended)',
+                    line: shebangLine >= 0 ? shebangLine + 2 : 2,
+                    current: shebangLine >= 0 ? lines[shebangLine] : lines[0],
+                    fix: 'Add "set -x" for debug logging per EE2 standard'
+                  });
+                }
               }
               
               // Check for FATAL ERROR prefix usage
@@ -945,12 +984,25 @@ export class SemanticSearchTools {
                 });
               }
               
-              // Check for input data validation
+              // Phase 2 Correction: Input validation WITHOUT forced exits
+              // NCO SPAs prohibit explicit exit statements (60% false positive rate)
+              // Use err_exit utility instead per standards.rst line 191
               if (content.match(/\.(nc|grib|grib2|bin)\b/) && !content.match(/if.*-f.*then/i)) {
-                violations.push({
-                  issue: 'No input data existence check before processing',
-                  fix: 'Add "if [ ! -f $INPUT_FILE ]; then echo FATAL ERROR: ...; exit 1; fi"'
-                });
+                if (this.phase2Config) {
+                  // Phase 2: Recommend err_exit utility (no forced exit)
+                  violations.push({
+                    issue: 'No input data existence check before processing',
+                    fix: 'Add: if [ ! -f "$INPUT_FILE" ]; then err_exit "FATAL ERROR: Required file $INPUT_FILE not found"; fi',
+                    evidence: 'standards.rst line 191',
+                    phase2_correction: 'Use err_exit utility, NOT explicit exit statements'
+                  });
+                } else {
+                  // Fallback: Original recommendation (includes exit 1)
+                  violations.push({
+                    issue: 'No input data existence check before processing',
+                    fix: 'Add "if [ ! -f $INPUT_FILE ]; then echo FATAL ERROR: ...; exit 1; fi"'
+                  });
+                }
               }
             }
             

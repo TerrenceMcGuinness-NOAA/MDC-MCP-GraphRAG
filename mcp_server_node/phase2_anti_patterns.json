@@ -1,0 +1,125 @@
+{
+  "version": "6.0.0",
+  "phase": 2,
+  "generated": "2025-11-19T21:34:30.512Z",
+  "source_collection": "ee2-standards-v6-0-0-corrected",
+  "total_documents": 16,
+  "anti_patterns": {
+    "error_handling": [
+      {
+        "name": "unknown",
+        "directive": "mcp:sme_correction",
+        "severity": "critical",
+        "context": "operational_scripts",
+        "false_positive_rate": "~80% (affects almost all scripts)",
+        "sme_justification": "",
+        "evidence": [],
+        "description": "**AI-Generated Recommendation (INCORRECT)**:\n   ❌ \"Missing ``set -eu`` in scripts\"\n\n**SME Correction**:\n   - ❌ ``set -eu`` is **NOT in EE2 standards**\n   - ✅ ``set -e`` is **NOT required** in operatio..."
+      },
+      {
+        "name": "unknown",
+        "directive": "mcp:anti_pattern",
+        "severity": "must_not",
+        "context": "operational_scripts",
+        "false_positive_rate": null,
+        "sme_justification": "Not present in EE2 standards or examples",
+        "evidence": [],
+        "description": "Do **NOT** recommend adding these to operational scripts:\n\n.. code-block:: bash\n\n   set -e   # ❌ NOT required by EE2\n   set -eu  # ❌ NOT required by EE2 (adds non-standard -u)\n   set -euo pipefail  # ..."
+      },
+      {
+        "name": "unknown",
+        "directive": "mcp:sme_correction",
+        "severity": "critical",
+        "context": "operational_scripts",
+        "false_positive_rate": "~60% (many scripts flagged incorrectly)",
+        "sme_justification": "",
+        "evidence": [],
+        "description": "**AI-Generated Recommendation (INCORRECT)**:\n   ❌ \"Add ``exit 0`` and ``exit 1`` statements throughout scripts\"\n\n**SME Correction**:\n   - ❌ Forced exits (``exit 0``, ``exit 1``) are **explicitly prohi..."
+      },
+      {
+        "name": "unknown",
+        "directive": "mcp:anti_pattern",
+        "severity": "must_not",
+        "context": "operational_job",
+        "false_positive_rate": null,
+        "sme_justification": "NCO SPA guidance - explicitly prohibited",
+        "evidence": [],
+        "description": "**INCORRECT - Do NOT recommend these patterns**:\n\n.. code-block:: bash\n\n   # ❌ WRONG - NCO SPAs prohibit this\n   if [ $status -ne 0 ]; then\n       exit 1\n   fi\n   \n   # ❌ WRONG - NCO SPAs prohibit thi..."
+      },
+      {
+        "name": "unknown",
+        "directive": "mcp:anti_pattern",
+        "severity": "must_not",
+        "context": "all_scripts",
+        "false_positive_rate": null,
+        "sme_justification": "Not required by EE2; err_chk/err_exit provide error handling",
+        "evidence": [],
+        "description": "Original EE2 Text:\n   \n   * Enable debug logging at the top of *each* shell script:\n       .. code-block:: bash\n   \n          set -x\n   \n       and add timing info to the execution trace by including ..."
+      }
+    ],
+    "environment_variables": [],
+    "file_naming": [],
+    "workflow_structure": []
+  },
+  "correct_patterns": {
+    "error_handling": [
+      {
+        "name": "unknown",
+        "directive": "mcp:correct_pattern",
+        "severity": "must",
+        "context": "operational_scripts",
+        "ee2_section": "",
+        "description": "**CORRECT EE2 operational script header**:\n\n.. code-block:: bash\n\n   #!/bin/sh\n   # OR\n   #!/bin/bash\n   \n   # ... header comments ...\n   \n   set -x                                 # enable verbose lo..."
+      },
+      {
+        "name": "unknown",
+        "directive": "mcp:correct_pattern",
+        "severity": "must",
+        "context": "operational_job",
+        "ee2_section": "",
+        "description": "**CORRECT - Use EE2 utilities for error handling**:\n\n.. code-block:: bash\n\n   # ✅ CORRECT - Use err_chk after critical operations\n   mpiexec <options> $EXECmodel/$pgm >>$pgmout 2>errfile\n   export err..."
+      }
+    ],
+    "environment_variables": [],
+    "file_naming": [],
+    "workflow_structure": []
+  },
+  "ai_guidance_rules": [
+    {
+      "name": "unknown",
+      "priority": "critical",
+      "enforcement": "all_queries",
+      "description": "**Rule**:\n   When analyzing code against EE2 standards:\n   \n   - ONLY recommend changes explicitly stated in EE2 documentation\n   - DO NOT add \"improvements\" or \"best practices\" beyond EE2 requirement..."
+    },
+    {
+      "name": "unknown",
+      "priority": "critical",
+      "enforcement": "all_queries",
+      "description": "**Rule**:\n   Before recommending changes, determine script context:\n   \n   **Operational Jobs** (jobs/JXXXXX, scripts/exXXXXX.sh):\n      - Strict EE2 compliance required\n      - NCO SPA operational gu..."
+    },
+    {
+      "name": "unknown",
+      "priority": "critical",
+      "enforcement": "code_analysis",
+      "description": "**Rule**:\n   When code contains patterns marked with ``mcp:anti_pattern`` directive:\n   \n   - Flag usage as compliance violation\n   - Reference SME justification in error message\n   - Do NOT suggest t..."
+    },
+    {
+      "name": "unknown",
+      "priority": "critical",
+      "enforcement": "code_analysis",
+      "description": "☐ **EVS Development Team Lead**\n      - Date: _____________\n      - Signature: _____________\n      - Confirms: Annotations accurately reflect EVS operational experience\n   \n   ☐ **NCO SPA (Site Prepar..."
+    },
+    {
+      "name": "unknown",
+      "priority": "critical",
+      "enforcement": "code_analysis",
+      "description": "4. **Precision Measurement**\n   \n   Compare pre/post annotation accuracy on EVS scripts:\n   \n   - Baseline false positive rate: ~80% (set -eu issue)\n   - Target false positive rate: <20%\n   - Expected..."
+    }
+  ],
+  "metadata": {
+    "purpose": "Phase 2 SME corrections for EE2 compliance scanning",
+    "architecture": "Hybrid: Generated from semantic embeddings for runtime performance",
+    "update_procedure": "Re-run scripts/generatePhase2Config.js when Phase 2 annotations change",
+    "traceability": "All rules traceable to sdd_framework/phase2_annotations/*.rst files"
+  }
+}
