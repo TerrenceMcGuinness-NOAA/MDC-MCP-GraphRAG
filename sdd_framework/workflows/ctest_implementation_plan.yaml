@@ -1,0 +1,240 @@
+# SDD Framework: CTest Expansion Development Plan
+# Version: 1.0.0
+# Author: TerrenceMcGuinness-NOAA
+# Date: 2025-11-18
+# GitHub Issue: https://github.com/NOAA-EMC/global-workflow/issues/4254
+
+metadata:
+  name: ctest_expansion_development_plan
+  version: 1.0.0
+  description: |
+    A comprehensive 6-week development plan to implement 9 new CTest cases 
+    for the global-workflow, covering atmosphere-only (ATM) and coupled 
+    (S2SW) configurations. This plan is structured to align with the SDD 
+    (System Development and Documentation) framework, ensuring systematic 
+    development, validation, and integration.
+
+project_overview:
+  objective: |
+    To enhance the regression testing capabilities of the global-workflow by 
+    adding 9 new CTests. This will improve validation of critical operational 
+    stages, including initial condition staging, tropical cyclone tracking, 
+    genesis detection, and the full chain of wave model processing.
+  scope:
+    - 3 new C48_ATM tests: gfs_stage_ic, gfs_tracker, gfs_genesis
+    - 6 new C48_S2SW tests: gfs_stage, gfs_waveinit, gfs_wavepostsbs_f000-f002, 
+      gfs_wavebndpnt, gfs_wavebndpntbll, gfs_wavepostpnt
+  estimated_duration: 6 weeks
+  estimated_effort: 80-100 developer hours
+
+timeline_and_phases:
+  - phase: 1
+    name: C48_ATM Test Implementation
+    duration: 2 weeks
+    objective: |
+      Implement and validate the three atmosphere-only CTests to ensure robust 
+      testing of IC staging and tropical cyclone algorithms.
+    tasks:
+      - task: 1.1
+        title: Create YAML Configurations for ATM Tests
+        description: |
+          Develop C48_ATM-gfs_stage_ic.yaml, C48_ATM-gfs_tracker.yaml, and 
+          C48_ATM-gfs_genesis.yaml following the established format in dev/ctests/cases.
+        deliverables:
+          - 3 YAML configuration files.
+        acceptance_criteria:
+          - YAML files pass linting and schema validation.
+          - Configurations correctly reference job scripts and input/output paths.
+
+      - task: 1.2
+        title: Stage Input Data for ATM Tests
+        description: |
+          Identify and stage required input data (ICs, forecast history) from stable 
+          nightly baseline runs into the $STAGED_CTESTS directory.
+        deliverables:
+          - Staged input data for all 3 ATM tests.
+        acceptance_criteria:
+          - Data is accessible from HPC platforms (Hera, Hercules, Orion).
+          - Directory structure matches what the CTest framework expects.
+
+      - task: 1.3
+        title: Implement Validation Scripts
+        description: |
+          Create Python or shell scripts in dev/ctests/scripts to validate the outputs 
+          of each ATM test (e.g., file existence, checksums, content validation of tracker output).
+        deliverables:
+          - 3 validation scripts.
+        acceptance_criteria:
+          - Scripts return exit code 0 for success and non-zero for failure.
+          - Validation logic is comprehensive and covers all critical output aspects.
+
+      - task: 1.4
+        title: Integrate with CMake and Run Locally
+        description: |
+          Add the new tests to the dev/ctests/CMakeLists.txt file and run them locally 
+          to ensure they execute correctly.
+        deliverables:
+          - Updated CMakeLists.txt.
+          - Successful local test execution logs.
+        acceptance_criteria:
+          - `ctest -R C48_ATM` successfully runs the 3 new tests.
+          - Tests pass on at least one HPC platform.
+
+  - phase: 2
+    name: C48_S2SW Test Implementation
+    duration: 3 weeks
+    objective: |
+      Implement and validate the six coupled-system CTests, focusing on the wave 
+      model's workflow from initialization to post-processing.
+    tasks:
+      - task: 2.1
+        title: Create YAML Configurations for S2SW Tests
+        description: |
+          Develop the 6 YAML configuration files for the S2SW tests, paying close 
+          attention to multi-component dependencies.
+        deliverables:
+          - 6 YAML configuration files.
+        acceptance_criteria:
+          - Configurations correctly define dependencies between test jobs (e.g., wavebndpnt 
+            depends on forecast output).
+
+      - task: 2.2
+        title: Stage Input Data for S2SW Tests
+        description: |
+          Stage all required input data, including atmosphere, ocean, ice, and wave ICs, 
+          and restart files from coupled baseline runs.
+        deliverables:
+          - Staged input data for all 6 S2SW tests.
+        acceptance_criteria:
+          - Restart file patterns (e.g., 6-hour offsets) are correctly handled.
+          - All components for a single cycle are consistent.
+
+      - task: 2.3
+        title: Implement Wave-Specific Validation Scripts
+        description: |
+          Develop validation scripts for wave model outputs, including spectral bin data, 
+          boundary point files, and NetCDF point outputs.
+        deliverables:
+          - 6 validation scripts.
+        acceptance_criteria:
+          - Scripts can parse and validate binary and NetCDF wave data formats.
+          - Validation criteria are approved by the wave modeling team.
+
+      - task: 2.4
+        title: Integrate with CMake and Test Dependencies
+        description: |
+          Add the S2SW tests to CMakeLists.txt and test the dependency chain to ensure 
+          tests that rely on others' outputs run in the correct order.
+        deliverables:
+          - Updated CMakeLists.txt.
+          - Successful local test execution logs demonstrating dependency handling.
+        acceptance_criteria:
+          - `ctest -R C48_S2SW` successfully runs all new S2SW tests.
+          - Tests pass on all target HPC platforms.
+
+  - phase: 3
+    name: Integration, Documentation, and Finalization
+    duration: 1 week
+    objective: |
+      Finalize the project by integrating all new tests into the CI/CD pipeline, 
+      updating documentation, and ensuring the framework is robust and maintainable.
+    tasks:
+      - task: 3.1
+        title: Update CI/CD Pipeline
+        description: |
+          Modify the GitHub Actions or other CI/CD workflows to include the new CTest 
+          suites in automated regression testing.
+        deliverables:
+          - Updated CI/CD configuration files.
+        acceptance_criteria:
+          - New tests run automatically on pull requests targeting the 'develop' branch.
+          - CI/CD dashboard correctly reports the status of the new tests.
+
+      - task: 3.2
+        title: Update Documentation
+        description: |
+          Update dev/ctests/README.md to include descriptions of the 9 new tests, 
+          their purpose, and expected runtime. Create a troubleshooting guide for common failures.
+        deliverables:
+          - Updated README.md.
+          - New TROUBLESHOOTING.md or a section in the README.
+        acceptance_criteria:
+          - Documentation is clear, concise, and provides enough detail for a new developer 
+            to understand and run the tests.
+
+      - task: 3.3
+        title: Final Code Review and Merge
+        description: |
+          Conduct a final code review of all new configurations and scripts, then merge 
+          the feature branch into 'develop'.
+        deliverables:
+          - Approved pull request.
+        acceptance_criteria:
+          - Code adheres to repository style guides.
+          - All acceptance criteria from all phases are met.
+          - Feature branch is successfully merged and deleted.
+
+resource_management:
+  personnel:
+    - role: Lead Developer
+      name: TerrenceMcGuinness-NOAA
+      responsibilities:
+        - Oversee all phases of development.
+        - Implement C48_ATM tests.
+        - Review all code and documentation.
+    - role: Support Developer / Wave Expert
+      name: TBD
+      responsibilities:
+        - Implement C48_S2SW tests.
+        - Provide expertise on wave model validation.
+        - Assist with data staging.
+  hpc_resources:
+    - platform: Hera
+      usage: Primary development and testing.
+    - platform: Hercules
+      usage: Validation and cross-platform compatibility testing.
+    - platform: Orion
+      usage: Validation and cross-platform compatibility testing.
+  storage:
+    - allocation: 50 GB
+      location: $STAGED_CTESTS on Lustre
+      purpose: Staging of baseline input data and validation datasets.
+
+risk_management:
+  - risk: Baseline data becomes unavailable or changes.
+    probability: Low
+    impact: Medium
+    mitigation: |
+      Establish a frozen, versioned set of baseline data for the duration of the 
+      project. Use a specific, dated run (e.g., 2021032312) as the source of truth.
+
+  - risk: Validation criteria for wave model are ambiguous.
+    probability: Medium
+    impact: Medium
+    mitigation: |
+      Engage with the wave modeling team in Week 1 to formally define and document 
+      pass/fail criteria for all wave-related tests. Obtain sign-off before 
+      implementing validation scripts.
+
+  - risk: CI/CD integration proves more complex than anticipated.
+    probability: Medium
+    impact: High
+    mitigation: |
+      Begin investigating CI/CD modifications in parallel during Phase 2. Allocate 
+      a dedicated developer to this task and create a small proof-of-concept PR 
+      to test the integration early.
+
+deliverables_summary:
+  - 9 new CTest YAML configuration files.
+  - ~30 GB of staged input data.
+  - 9 new validation scripts.
+  - Updated dev/ctests/CMakeLists.txt.
+  - Updated dev/ctests/README.md.
+  - Updated CI/CD workflow configurations.
+  - An approved and merged pull request containing all changes.
+
+success_metrics:
+  - All 9 new CTests are integrated and pass consistently across all target HPC platforms.
+  - The project is completed within the 6-week timeline and 100-hour effort estimate.
+  - The CI/CD pipeline provides reliable, automated feedback on the new test cases.
+  - Documentation allows a new team member to understand and execute the tests without assistance.
