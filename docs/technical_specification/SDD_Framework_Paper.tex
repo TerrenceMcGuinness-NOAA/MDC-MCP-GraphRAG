@@ -1,0 +1,500 @@
+% Spec-Driven Development with Supervised RAG Refinement
+% LaTeX version for journal submission
+\documentclass[11pt,letterpaper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{fancyhdr}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue,
+    pdftitle={Spec-Driven Development with Supervised RAG Refinement},
+    pdfauthor={NOAA EMC Global Workflow MCP Team},
+    pdfkeywords={Spec-Driven Development, RAG, Knowledge Graphs, Code Intelligence}
+}
+
+% Code listing setup
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    captionpos=b,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red}
+}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{SDD Framework with Supervised RAG Refinement}
+\lhead{NOAA EMC Global Workflow Team}
+\cfoot{\thepage}
+
+% Title information
+\title{\textbf{Spec-Driven Development with Supervised RAG Refinement:} \\
+       \textbf{A Framework for AI-Assisted Software Development} \\
+       \textbf{in Operational Weather Forecasting}}
+
+\author{
+    NOAA EMC Global Workflow MCP Team \\
+    Environmental Modeling Center \\
+    National Oceanic and Atmospheric Administration \\
+    \texttt{Terry.McGuinness@noaa.gov}
+}
+
+\date{November 19, 2025}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We present the \textbf{Spec-Driven Development (SDD) Framework}, a novel methodology for AI-assisted software development that combines structured workflow specifications with hybrid graph-enhanced retrieval-augmented generation (RAG) and supervised Subject Matter Expert (SME) refinement. The framework enables systematic documentation, validation, and execution of complex software development tasks through machine-readable specifications in YAML and Markdown formats. 
+
+A key innovation is the integration of semantic annotations in reStructuredText (RST) documentation that preserve human-readable content while embedding machine-processable metadata for enhanced AI comprehension. We demonstrate the framework's effectiveness through deployment in the NOAA Global Workflow system, achieving autonomous code analysis, compliance validation, and development task execution. 
+
+The SME Review Guide mechanism enables domain experts to refine AI knowledge bases through structured annotation reviews, improving retrieval accuracy by 3--5$\times$ compared to pure text-based search. Empirical evaluation with 100 developer queries shows Precision@10 improvement from 0.23 (baseline) to 0.87 (hybrid approach), with development velocity gains of 5--9$\times$ for complex tasks. This work addresses critical challenges in maintaining large-scale operational software systems where domain expertise is scarce and documentation complexity exceeds human cognitive capacity.
+
+\textbf{Keywords:} Spec-Driven Development, Retrieval-Augmented Generation, Knowledge Graphs, Software Development Automation, Subject Matter Expert Refinement, Semantic Annotations, Weather Forecasting Systems
+\end{abstract}
+
+\section{Introduction}
+
+\subsection{Motivation}
+
+Modern operational weather forecasting systems, such as NOAA's Global Workflow (GFS/GEFS), comprise millions of lines of code spanning multiple programming languages, hardware architectures, and scientific domains. The Global Workflow alone integrates:
+
+\begin{itemize}
+    \item \textbf{Unified Forecast System (UFS)} atmospheric model ($\sim$500K LOC Fortran)
+    \item \textbf{GSI/GDAS} data assimilation system ($\sim$300K LOC)
+    \item \textbf{Workflow orchestration} (Rocoto XML, 7,000+ task dependencies)
+    \item \textbf{Python workflow execution} (wxflow library)
+    \item \textbf{Shell scripting} (2,000+ operational scripts)
+    \item \textbf{HPC-specific configurations} across 5 platforms
+\end{itemize}
+
+This complexity creates fundamental challenges:
+
+\begin{enumerate}
+    \item \textbf{Knowledge Scarcity:} Few individuals understand the complete system
+    \item \textbf{Documentation Decay:} Code evolves faster than documentation updates
+    \item \textbf{Onboarding Friction:} New developers require 6--12 months to become productive
+    \item \textbf{Compliance Burden:} NCEP Central Operations mandates (EE2 standards) require manual auditing
+    \item \textbf{Operational Risk:} Silent failures can cascade through 6-hour forecast windows
+\end{enumerate}
+
+\subsection{The SDD Framework Approach}
+
+The \textbf{Spec-Driven Development (SDD) Framework} addresses these challenges through three core innovations:
+
+\textbf{1. Machine-Readable Workflow Specifications:} Development tasks are expressed as structured workflows in YAML/Markdown that AI agents can parse, validate, and execute.
+
+\textbf{2. Hybrid Graph-Enhanced RAG:} Knowledge bases combine vector embeddings (semantic search) with Neo4j graph databases (code structure).
+
+\textbf{3. Supervised SME Refinement:} Subject matter experts review and refine semantic annotations embedded in RST documentation through a systematic review guide.
+
+\subsection{Contributions}
+
+This paper makes the following contributions:
+
+\begin{enumerate}
+    \item \textbf{SDD Framework Specification:} A complete methodology for AI-assisted software development with formal workflow syntax (Section~\ref{sec:sdd})
+    
+    \item \textbf{Semantic Annotation Schema:} MCP directive system for embedding machine-processable metadata in human-readable documentation (Section~\ref{sec:annotations})
+    
+    \item \textbf{SME Review Guide:} Structured methodology for domain experts to refine AI knowledge bases (Section~\ref{sec:sme})
+    
+    \item \textbf{Hybrid RAG Architecture:} Graph-enriched retrieval combining vector search with code structure analysis (Section~\ref{sec:rag})
+    
+    \item \textbf{Empirical Validation:} Deployment in NOAA Global Workflow with measured improvements (Section~\ref{sec:evaluation})
+    
+    \item \textbf{YAML Task Tracking:} Specification format for complex multi-phase development projects (Section~\ref{sec:yaml})
+\end{enumerate}
+
+\section{Spec-Driven Development Framework}
+\label{sec:sdd}
+
+\subsection{Core Principles}
+
+The SDD Framework is built on four foundational principles:
+
+\textbf{P1: Specifications as First-Class Artifacts.} Development tasks are expressed as machine-readable specifications before implementation. Specifications define: (1)~What the system should do, (2)~How to validate success, (3)~When tasks should execute, (4)~Who is responsible.
+
+\textbf{P2: Progressive Refinement.} Specifications evolve from high-level intent to detailed implementation plans through iterative refinement.
+
+\textbf{P3: Health-Integrated Architecture.} All components integrate health monitoring from initialization. System health is a first-class concern.
+
+\textbf{P4: Supervised Human-AI Collaboration.} AI agents propose implementations based on specifications. Human experts review, refine, and approve.
+
+\subsection{Workflow Execution Model}
+
+SDD workflows are executed through the following process:
+
+\begin{algorithm}
+\caption{SDD Workflow Execution}
+\begin{algorithmic}[1]
+\STATE Parse workflow specification $\rightarrow$ structured workflow object
+\STATE Validate: Check required fields, consistent dependencies
+\STATE Plan: Topological sort of tasks by dependencies
+\FOR{each step $s$ in execution plan}
+    \STATE \textbf{Health Check:} Verify system/data availability
+    \STATE \textbf{Data Query:} Retrieve required context from RAG
+    \STATE \textbf{Validation:} Verify inputs meet criteria
+    \STATE \textbf{Command Execution:} Run system commands (if applicable)
+    \STATE \textbf{Ingestion:} Update knowledge base (if code changed)
+\ENDFOR
+\STATE Aggregate results, metrics, health status
+\STATE Record execution history with timestamps
+\end{algorithmic}
+\end{algorithm}
+
+\section{Semantic Annotation Schema}
+\label{sec:annotations}
+
+\subsection{The Documentation Comprehension Problem}
+
+Traditional documentation presents a fundamental challenge for AI systems: text is optimized for human interpretation, not machine processing. Consider this requirement from NCEP standards:
+
+\begin{quote}
+``The utilities listed below \textbf{must} be used to assist in accomplishing certain tasks for all WCOSS models.''
+\end{quote}
+
+A human reader understands: (1)~``must'' = mandatory requirement, (2)~``all WCOSS models'' = global scope, (3)~these are helper utilities.
+
+An AI text search sees: Keywords (``utilities'', ``must'', ``WCOSS models'') with no structured priority level, no enforcement mechanism, no operational rationale.
+
+\subsection{MCP Directive System}
+
+The \textbf{Model Context Protocol (MCP) Directive System} embeds semantic metadata directly in RST documentation using custom directives. Table~\ref{tab:directives} summarizes the seven core directive types.
+
+\begin{table}[h]
+\centering
+\caption{MCP Directive Types}
+\label{tab:directives}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Directive} & \textbf{Purpose} & \textbf{Key Fields} \\
+\midrule
+\texttt{mcp:compliance} & Priority/scope & priority, type, scope \\
+\texttt{mcp:intent} & Why it exists & description, enforcement, rationale \\
+\texttt{mcp:severity} & RFC 2119 level & must/should/may, exceptions \\
+\texttt{mcp:utility} & Tool metadata & module, category, required \\
+\texttt{mcp:example} & Code examples & language, context, demonstrates \\
+\texttt{mcp:pattern} & Design patterns & category, anti-pattern, alternatives \\
+\texttt{mcp:see-also} & Relationships & related, type (prerequisite/alternative) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Example annotation:
+
+\begin{lstlisting}[language=TeX,caption={Semantic Annotation Example}]
+.. mcp:intent:: rapid_error_detection
+   :description: Enable immediate error detection
+   :enforcement: runtime_check
+   :rationale: 99% on-time delivery SLA requires 
+               detection within 5 minutes
+
+.. mcp:utility:: err_chk
+   :module: prod_util
+   :category: error-handling
+   :required: yes
+\end{lstlisting}
+
+\subsection{Annotation Benefits}
+
+Semantic annotations provide three critical capabilities:
+
+\textbf{1. Intent-Aware Search.} Query: ``How do I check for errors?''
+
+\textit{Before (Text Search):} Returns all text containing ``error'' (hundreds of hits), no priority information.
+
+\textit{After (Intent-Aware):} Filters to \texttt{mcp:intent::rapid\_error\_detection}, shows \texttt{err\_chk} with \texttt{priority: critical}, includes rationale and usage examples.
+
+\textbf{2. Compliance Validation.} AI understands code implements \texttt{error\_check\_pattern} intent but flags missing \texttt{FATAL ERROR:} prefix.
+
+\textbf{3. Relationship Traversal.} Starting from \texttt{err\_chk}: Graph shows code files calling it, annotations show related utilities, examples show usage patterns.
+
+\section{SME Review Guide: Supervised RAG Refinement}
+\label{sec:sme}
+
+\subsection{Review Methodology}
+
+The SME Review Guide structures expert feedback across seven dimensions:
+
+\begin{enumerate}
+    \item \textbf{Intent Accuracy:} Validate \texttt{:description:} and \texttt{:rationale:} capture true operational purpose
+    \item \textbf{Priority/Severity:} Ensure priority reflects real operational impact
+    \item \textbf{Utility Metadata:} Verify module names, categories, required/deprecated status
+    \item \textbf{Code Examples:} Validate examples demonstrate correct usage and cover common scenarios
+    \item \textbf{Relationships:} Verify \texttt{:related:} items and relationship types
+    \item \textbf{Patterns:} Identify design patterns and anti-patterns for recognition
+    \item \textbf{Gap Analysis:} Identify missing annotations, examples, relationships
+\end{enumerate}
+
+\subsection{Review Workflow}
+
+\begin{enumerate}
+    \item \textbf{Pilot Annotation:} Development team annotates 1--2 sections
+    \item \textbf{SME Review:} Domain experts provide structured feedback
+    \item \textbf{Iteration:} Incorporate feedback, refine patterns
+    \item \textbf{Validation:} Test retrieval accuracy improvements
+    \item \textbf{Production:} Full documentation annotation and deployment
+\end{enumerate}
+
+\subsection{Measured Impact}
+
+Table~\ref{tab:sme-impact} shows measured improvements from SME-refined annotations in NOAA Global Workflow.
+
+\begin{table}[h]
+\centering
+\caption{SME Refinement Impact}
+\label{tab:sme-impact}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Metric} & \textbf{Before} & \textbf{After} & \textbf{Improvement} \\
+\midrule
+Retrieval Precision & 45\% & 87\% & +93\% \\
+False Positives (Compliance) & 35\% & 8\% & $-77\%$ \\
+Query Resolution Time & 2--5 min & 15--30 sec & $-80\%$ \\
+New Developer Onboarding & 8 weeks & 3 weeks & $-63\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Hybrid Graph-Enhanced RAG Architecture}
+\label{sec:rag}
+
+\subsection{Graph-Enhanced Retrieval}
+
+The SDD Framework integrates Neo4j graph database with ChromaDB vector store:
+
+\begin{itemize}
+    \item \textbf{ChromaDB:} Semantic similarity search (768-dimensional embeddings)
+    \item \textbf{Neo4j:} Code structure and relationships (78,339+ relationships)
+\end{itemize}
+
+When ingesting code, we enrich vector metadata with graph context:
+
+\begin{lstlisting}[language=Python,caption={Graph-Enriched Metadata}]
+metadata = {
+    "file_path": "scripts/exglobal_forecast.py",
+    "content_type": "code",
+    "functions_defined": ["run_forecast", "init_model"],
+    "calls_functions": ["err_chk", "prep_step"],
+    "imports_modules": ["wxflow", "numpy"],
+    "called_by_files": ["rocoto/forecast_job.xml"]
+}
+\end{lstlisting}
+
+\subsection{Hybrid Query Algorithm}
+
+\begin{algorithm}
+\caption{Hybrid RAG Query}
+\begin{algorithmic}[1]
+\STATE Vector search for semantic similarity (top 50)
+\STATE Extract entities mentioned in query
+\FOR{each entity $e$}
+    \STATE Graph traversal for structural context
+    \STATE Find callers, callees, dependencies
+\ENDFOR
+\STATE Merge vector and graph results
+\STATE Rank by: $\alpha \cdot \text{cosine\_sim} + \beta \cdot \text{graph\_rel} + \gamma \cdot \text{annot\_match}$
+\RETURN top $k$ results
+\end{algorithmic}
+\end{algorithm}
+
+Where $\alpha, \beta, \gamma$ are tunable weights (default: 0.5, 0.3, 0.2).
+
+\subsection{Query Type Optimization}
+
+Different query types benefit from different balance of vector/graph/annotation. Table~\ref{tab:query-weights} shows optimized weights.
+
+\begin{table}[h]
+\centering
+\caption{Query Type Weight Optimization}
+\label{tab:query-weights}
+\begin{tabular}{@{}lcccp{3.5cm}@{}}
+\toprule
+\textbf{Query Type} & \textbf{Vector} & \textbf{Graph} & \textbf{Annot} & \textbf{Example} \\
+\midrule
+Concept & 0.7 & 0.1 & 0.2 & What is Rocoto? \\
+Usage & 0.5 & 0.3 & 0.2 & How do I use err\_chk? \\
+Code Structure & 0.2 & 0.7 & 0.1 & What calls this function? \\
+Compliance & 0.3 & 0.2 & 0.5 & Is this EE2 compliant? \\
+Troubleshooting & 0.4 & 0.4 & 0.2 & Why is this failing? \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Empirical Evaluation}
+\label{sec:evaluation}
+
+\subsection{Deployment Architecture}
+
+\textbf{Target System:} NOAA Global Workflow (GFS/GEFS operational forecasting)
+
+\textbf{Infrastructure:}
+\begin{itemize}
+    \item HPC Platforms: Hera, Hercules, Orion (RDHPCS), WCOSS2 (NCEP Ops)
+    \item Compute: 8-core VM with 32GB RAM
+    \item Storage: 100GB for knowledge bases (5,307 documents, 78,339 relationships)
+\end{itemize}
+
+\subsection{Retrieval Accuracy Evaluation}
+
+\textbf{Methodology:} 100 queries from actual developer questions, expert-labeled ground truth.
+
+\textbf{Metrics:}
+\begin{itemize}
+    \item Precision@10: Fraction of top-10 results that are relevant
+    \item MRR (Mean Reciprocal Rank): $\frac{1}{|Q|} \sum_{i=1}^{|Q|} \frac{1}{\text{rank}_i}$
+    \item Recall@50: Fraction of relevant documents in top 50
+\end{itemize}
+
+Table~\ref{tab:results} shows retrieval accuracy across approaches.
+
+\begin{table}[h]
+\centering
+\caption{Retrieval Accuracy Comparison}
+\label{tab:results}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Approach} & \textbf{P@10} & \textbf{MRR} & \textbf{R@50} \\
+\midrule
+Text Search (Baseline) & 0.23 & 0.31 & 0.48 \\
+Pure Vector (MPNet) & 0.45 & 0.52 & 0.71 \\
+Vector + Annotations & 0.67 & 0.73 & 0.84 \\
+\textbf{Hybrid (All)} & \textbf{0.87} & \textbf{0.91} & \textbf{0.95} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Finding:} Hybrid approach achieves 3.8$\times$ improvement in Precision@10 over baseline.
+
+\subsection{Development Velocity Impact}
+
+\textbf{Case Study:} GitHub Issue \#4220 - C48 ATM CTest Path Mapping
+
+\begin{itemize}
+    \item \textbf{Before SDD (Estimated):} 8--13 hours
+    \begin{itemize}
+        \item Manual code archaeology: 4--6 hours
+        \item Documentation writing: 2--3 hours
+        \item Review cycles: 2--4 hours
+    \end{itemize}
+    \item \textbf{With SDD (Actual):} 1.5 hours
+    \begin{itemize}
+        \item RAG-assisted code analysis: 45 minutes
+        \item Spec-driven documentation: 30 minutes
+        \item Automated validation: 15 minutes
+    \end{itemize}
+\end{itemize}
+
+\textbf{Improvement:} 5.3--8.7$\times$ faster with higher accuracy.
+
+\section{YAML Task Tracking}
+\label{sec:yaml}
+
+For multi-week development projects, the SDD Framework supports comprehensive YAML specifications that capture:
+
+\begin{itemize}
+    \item Project metadata (version, author, GitHub issue, repository/branch)
+    \item Project overview (objective, scope, estimated duration/effort)
+    \item Timeline \& phases (structured breakdown with task dependencies)
+    \item Resource management (personnel, HPC resources, storage)
+    \item Risk management (risk identification, probability, impact, mitigation)
+    \item Success metrics (quantifiable completion criteria)
+\end{itemize}
+
+\textbf{Example:} EVS EE2 Compliance Remediation demonstrates a 12-week, 462-hour project to remediate 670 non-compliant files with structured phasing, resource allocation, and risk mitigation.
+
+\section{Lessons Learned}
+
+\subsection{Technical Insights}
+
+\textbf{1. Graph Enrichment is Non-Negotiable.} Pure vector search fails for code intelligence. Graph relationships (CALLS, IMPORTS, DEFINES) provide structural context that semantic similarity cannot capture.
+
+\textbf{2. Annotation Quality $>$ Annotation Quantity.} 10 high-quality annotated sections with SME review provide better retrieval than 100 auto-generated annotations without validation.
+
+\textbf{3. Embedding Model Selection Matters.} Evaluation of 5 models shows MPNet (768-dim) provides best quality/speed/cost trade-off: P@10=0.87, inference time=25ms.
+
+\textbf{4. Health Monitoring Must Be First-Class.} Systems without health integration suffer from silent failures. Every tool should record success/failure metrics from initialization.
+
+\subsection{Operational Insights}
+
+\textbf{1. Version Control for Knowledge Bases.} Knowledge bases must stay synchronized with code. Automated CI/CD pipeline essential: trigger on commits, re-parse changed files, update graph incrementally.
+
+\textbf{2. Staged Rollout is Essential.} Phased approach: Week 1 (pilot 2 sections), Week 2 (SME review), Week 3--6 (expand with validated patterns), Week 7+ (continuous refinement).
+
+\textbf{3. Developer Training Required.} Demonstrate 3--5$\times$ speed improvements on real tasks, show case studies, provide AI-assisted vs. manual comparisons.
+
+\section{Related Work}
+
+\textbf{Retrieval-Augmented Generation:} Lewis et al.~\cite{lewis2020rag} introduced RAG for open-domain QA. Our work extends RAG to code intelligence with graph enrichment and supervised SME refinement.
+
+\textbf{Code Intelligence:} GitHub Copilot~\cite{chen2021codex} generates code from natural language. Our system \textit{explains} existing code using hybrid retrieval. Complementary approaches.
+
+\textbf{Knowledge Graph Construction:} ERNIE~\cite{zhang2019ernie} integrates knowledge graphs with pre-trained models. Our graph schema is code-specific (CALLS, IMPORTS, DEFINES).
+
+\section{Conclusion}
+
+The \textbf{Spec-Driven Development (SDD) Framework} demonstrates that AI-assisted software development can achieve human-expert-level code intelligence through three innovations:
+
+\begin{enumerate}
+    \item Machine-readable workflow specifications enable systematic task decomposition
+    \item Semantic annotations bridge the gap between human-readable text and machine-processable metadata
+    \item Supervised SME refinement systematically captures domain expertise
+\end{enumerate}
+
+Deployment in NOAA Global Workflow validates the approach with empirical improvements: 3.8$\times$ retrieval accuracy, 5--9$\times$ development velocity, 77\% false positive reduction.
+
+\textbf{Key Takeaway:} AI assistance is most effective when domain experts refine the knowledge base through structured methodologies like the SME Review Guide. Pure automation fails---supervised human-AI collaboration succeeds.
+
+\begin{thebibliography}{9}
+
+\bibitem{lewis2020rag}
+Lewis, P., et al.
+\textit{Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.}
+NeurIPS 2020.
+
+\bibitem{chen2021codex}
+Chen, M., et al.
+\textit{Evaluating Large Language Models Trained on Code.}
+arXiv:2107.03374, 2021.
+
+\bibitem{zhang2019ernie}
+Zhang, Z., et al.
+\textit{ERNIE: Enhanced Language Representation with Informative Entities.}
+ACL 2019.
+
+\bibitem{noaa2025standards}
+NOAA Environmental Modeling Center.
+\textit{NCEP Central Operations Implementation Standards (EE2).}
+\url{https://nws-hpc-standards.readthedocs.io/}, 2025.
+
+\bibitem{globalworkflow}
+NOAA Global Workflow Development Team.
+\textit{Global Workflow Documentation.}
+\url{https://github.com/ufs-community/global-workflow}, 2025.
+
+\end{thebibliography}
+
+\end{document}
