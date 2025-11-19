@@ -747,12 +747,23 @@ class RSTDirectiveParser:
     """
     
     # MCP custom directives for compliance documentation
+    # Phase 1 directives (original)
     MCP_DIRECTIVES = [
         'mcp:standard',      # Core compliance requirement
         'mcp:example',       # Code example demonstrating compliance
         'mcp:guidance',      # Implementation guidance for developers
         'mcp:reference',     # Links to related standards or documentation
-        'mcp:validation'     # Validation rules or test criteria
+        'mcp:validation',    # Validation rules or test criteria
+        # Phase 2 directives (SME corrections)
+        'mcp:sme_correction',   # Documents systematic false positives
+        'mcp:anti_pattern',     # Explicitly marks prohibited patterns
+        'mcp:correct_pattern',  # Shows approved alternatives
+        'mcp:context_types',    # Defines script contexts (operational/utility/test)
+        'mcp:ai_guidance_rule', # Machine-readable rules for AI query processing
+        'mcp:sme_validation',   # Marks SME-validated content
+        # Phase 1 aliases (compatibility)
+        'mcp:compliance',    # Marks compliance requirement sections
+        'mcp:intent'         # Describes purpose and rationale
     ]
     
     # EE2 compliance categories (from EE2VectorStore.js)

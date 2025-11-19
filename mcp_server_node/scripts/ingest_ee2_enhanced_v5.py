@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Enhanced EE2 Compliance Ingester v5.0.0
+Enhanced EE2 Compliance Ingester v6.0.0 (Phase 2: SME Corrections)
 Specialized ingester for EE2 compliance documentation with RST directive parsing
 
 Features:
-- RST directive parsing (mcp:standard, mcp:example, mcp:guidance, etc.)
+- RST directive parsing (Phase 1 + Phase 2 directives)
+- Phase 2: mcp:sme_correction, mcp:anti_pattern, mcp:correct_pattern
+- Phase 2: mcp:ai_guidance_rule, mcp:sme_validation, mcp:context_types
 - Intent-aware metadata (validation, guidance, example, reference)
 - Multi-category compliance classification
 - Platform-specific filtering (hera, hercules, orion, wcoss2, gaea)
@@ -13,8 +15,8 @@ Features:
 - Semantic tag extraction
 
 Author: NOAA EMC Global Workflow MCP Team
-Version: 5.0.0
-Date: November 14, 2025
+Version: 6.0.0
+Date: November 19, 2025 (Phase 2 Release)
 """
 
 import os
@@ -41,19 +43,19 @@ class EnhancedEE2Ingester(BaseIngester):
     Inherits from BaseIngester and adds RST directive parsing capabilities.
     """
     
-    def __init__(self, collection_name='ee2-standards-v5-0-0-enhanced',
+    def __init__(self, collection_name='ee2-standards-v6-0-0-corrected',
                  chromadb_host='localhost', chromadb_port=8080):
         """
         Initialize Enhanced EE2 Ingester
         
         Args:
-            collection_name: ChromaDB collection name
+            collection_name: ChromaDB collection name (v6.0.0 = Phase 2 corrections)
             chromadb_host: ChromaDB server host
             chromadb_port: ChromaDB server port
         """
         super().__init__(
             collection_name=collection_name,
-            version='5.0.0'
+            version='6.0.0'  # Phase 2: SME corrections
         )
         
         # Initialize RST directive parser
@@ -216,6 +218,43 @@ class EnhancedEE2Ingester(BaseIngester):
         
         # RST directive information
         metadata['rst_directive'] = directive_type if directive_type else 'none'
+        
+        # Phase 2 directive handling
+        if directive_type in ['mcp:sme_correction', 'mcp:anti_pattern', 'mcp:correct_pattern',
+                             'mcp:ai_guidance_rule', 'mcp:sme_validation']:
+            metadata['phase'] = 2
+            metadata['directive_phase'] = 'phase2_sme_corrections'
+            
+            # Phase 2 specific attributes
+            if directive_type == 'mcp:sme_correction':
+                metadata['false_positive_rate'] = directive_attrs.get('false_positive_rate', 'unknown')
+                metadata['severity'] = directive_attrs.get('severity', 'medium')
+                metadata['date_corrected'] = directive_attrs.get('date', '')
+                
+            elif directive_type == 'mcp:anti_pattern':
+                metadata['severity'] = directive_attrs.get('severity', 'must_not')
+                metadata['context'] = directive_attrs.get('context', 'all_scripts')
+                metadata['sme_justification'] = directive_attrs.get('sme_justification', '')
+                metadata['warning'] = directive_attrs.get('warning', '')
+                metadata['language'] = directive_attrs.get('language', 'bash')
+                
+            elif directive_type == 'mcp:correct_pattern':
+                metadata['severity'] = directive_attrs.get('severity', 'must')
+                metadata['context'] = directive_attrs.get('context', 'operational_job')
+                metadata['ee2_section'] = directive_attrs.get('ee2_section', '')
+                metadata['language'] = directive_attrs.get('language', 'bash')
+                
+            elif directive_type == 'mcp:ai_guidance_rule':
+                metadata['priority'] = directive_attrs.get('priority', 'critical')
+                metadata['enforcement'] = directive_attrs.get('enforcement', 'all_queries')
+                
+            elif directive_type == 'mcp:sme_validation':
+                metadata['date_validated'] = directive_attrs.get('date', '')
+                metadata['validation_status'] = directive_attrs.get('status', 'validated')
+        else:
+            # Phase 1 directive handling
+            metadata['phase'] = 1
+            metadata['directive_phase'] = 'phase1_base'
         
         # Extract explicit attributes from directive
         metadata['compliance_category'] = directive_attrs.get('category', 'general')
@@ -528,7 +567,7 @@ class EnhancedEE2Ingester(BaseIngester):
 def main():
     """Main entry point for CLI usage"""
     parser = argparse.ArgumentParser(
-        description='Enhanced EE2 Compliance Ingester v5.0.0'
+        description='Enhanced EE2 Compliance Ingester v6.0.0 (Phase 2: SME Corrections)'
     )
     parser.add_argument(
         'directory',
@@ -536,8 +575,8 @@ def main():
     )
     parser.add_argument(
         '--collection',
-        default='ee2-standards-v5-0-0-enhanced',
-        help='ChromaDB collection name'
+        default='ee2-standards-v6-0-0-corrected',
+        help='ChromaDB collection name (Phase 2: SME corrections)'
     )
     parser.add_argument(
         '--pattern',
