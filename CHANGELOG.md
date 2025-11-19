@@ -1,5 +1,80 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 2 Annotation: EE2 SME Corrections (November 19, 2025)
+
+**Critical Fix**: Systematic false positives in EE2 compliance recommendations (affecting 60-80% of EVS scripts)
+
+### Added
+- **SME-Corrected Annotations** (`ee2_error_handling_sme_corrections.rst`):
+  - Evidence-based corrections with direct quotes from EE2 standards.rst
+  - Line numbers: 588-595 (set -x requirement), 868-919 (Example 8 J-job), 926-985 (Example 9 ex-script)
+  - Proves EE2 requires `set -x` for debug logging, NOT `set -e` or `set -eu`
+  
+- **New MCP Directive Types**:
+  - `mcp:sme_correction` - Documents false positives with severity ratings
+  - `mcp:anti_pattern` - Explicitly marks prohibited patterns with SME justifications
+  - `mcp:correct_pattern` - Shows approved alternatives with working examples
+  - `mcp:context_types` - Distinguishes operational/utility/test script contexts
+  - `mcp:ai_guidance_rule` - Machine-readable rules for AI query processing
+
+- **Context Discrimination System**:
+  - Operational jobs (`jobs/`, `scripts/ex*`): Strict EE2, no exit statements, must use err_chk/err_exit
+  - Utility scripts (`ush/`): EE2 variables apply, more flexibility in error handling
+  - Test scripts (`tests/`): General shell scripting practices allowed
+
+- **AI Guidance Rules**:
+  - **Rule 1: Literal Compliance Only** - Prevent AI from adding "helpful" requirements beyond EE2
+  - **Rule 2: Context-Aware Recommendations** - Script context detection before recommendations
+  - **Rule 3: Anti-Pattern Enforcement** - Flag violations, reference SME justification, suggest corrections
+
+- **Phase 2 Documentation**:
+  - `PHASE_2_ANNOTATION_TRACKER.md` - Status, impact metrics, SME review schedule
+  - SME sign-off block requiring 4 reviewers (EVS Lead, NCO SPA, EIB Ops, EMC GW)
+  - Expected impact: 55-75% reduction in false positives after Phase 3 ingestion
+
+### Fixed
+- **False Positive #1: set -eu Recommendations** (~80% of scripts affected):
+  - **Problem**: AI recommends `set -eu` everywhere
+  - **Evidence**: EE2 standards.rst ONLY shows `set -x` in examples (lines 588-595)
+  - **Evidence**: Example 8 (J-job) uses `set -x`, NO `set -e` (line 873)
+  - **Evidence**: Example 9 (ex-script) uses `set -x`, NO `set -e` (line 950)
+  - **Root Cause**: AI conflating shell scripting best practices with EE2 requirements
+  - **Correction**: Added `mcp:anti_pattern` directive prohibiting `set -e`/`set -eu` recommendations
+
+- **False Positive #2: Forced Exit Statements** (~60% of scripts affected):
+  - **Problem**: AI recommends adding `exit 0` and `exit 1` to operational jobs
+  - **Evidence**: NCO SPAs explicitly asked EVS to REMOVE these statements historically
+  - **Evidence**: EE2 standards.rst only mentions `err_chk` and `err_exit` utilities (lines 187-195)
+  - **Root Cause**: AI not aware of NCO operational culture (scripts must return naturally)
+  - **Correction**: Added `mcp:anti_pattern` directive prohibiting explicit exits in operational contexts
+
+- **Context Confusion**:
+  - **Problem**: AI applies general shell scripting advice to EE2 operational requirements
+  - **Correction**: Context detection logic distinguishes operational/utility/test scripts
+  - **Correction**: Different requirements enforced based on script location and purpose
+
+### Changed
+- **Annotation Strategy**: Shifted from implicit learning to explicit anti-pattern marking
+- **Validation Requirements**: SME review now required before Phase 3 ingestion
+- **Evidence Standards**: All annotations must cite EE2 document sections with line numbers
+
+### Impact Analysis
+| Issue | Scripts Affected | Baseline False Positive Rate | Target Rate | Expected Improvement |
+|-------|------------------|------------------------------|-------------|---------------------|
+| `set -eu` warnings | ~80% of EVS | 80% | <5% | 75% reduction |
+| Forced exit recommendations | ~60% of EVS | 60% | <10% | 50% reduction |
+| **Overall false positives** | **Most scripts** | **70%** | **<15%** | **55% reduction** |
+
+### Next Steps - Phase 3
+- [ ] SME review and sign-off (target: November 22, 2025)
+- [ ] Enhanced ingestion with corrected annotations
+- [ ] Create new collection: `ee2-standards-v6-0-0-corrected`
+- [ ] Query testing on 10 known false positive cases
+- [ ] Measure actual false positive reduction
+- [ ] Update SDD Framework status with Phase 2 results
+
+---
+
 ## Version 4.0.0 - Phase 4: Bootstrap Capability (December 21, 2024)
 
 **Milestone Achievement**: The MCP system can now modify its own code based on SDD workflow specifications - true autonomous development capability.
