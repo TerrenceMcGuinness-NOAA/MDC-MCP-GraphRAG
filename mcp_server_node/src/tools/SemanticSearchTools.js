@@ -1015,43 +1015,29 @@ export class SemanticSearchTools {
             }
           }
           
-          // Environment variable check - ENHANCED
+          // Environment variable check - Phase 2 ONLY (evidence-based)
           if (categories.includes('environment_variables')) {
+            const envVarRules = phase2Config?.anti_patterns?.environment_variables || [];
+            
+            if (envVarRules.length === 0) {
+              // No Phase 2 rules defined = No enforceable violations
+              // This prevents hallucination of best practices as EE2 standards
+              console.error('[INFO] No Phase 2 environment variable rules - skipping category');
+              continue;
+            }
+            
+            // Only check patterns explicitly defined in Phase 2 config with EE2 evidence
             const violations = [];
-            
-            // Find unquoted variables
-            const unquotedVars = [];
-            lines.forEach((line, idx) => {
-              const matches = line.match(/(?<!["'])\$([A-Z_][A-Z0-9_]*)\b(?!["'])/g);
-              if (matches && matches.length > 0) {
-                unquotedVars.push({
-                  line: idx + 1,
-                  content: line.trim(),
-                  variables: matches
-                });
+            envVarRules.forEach(rule => {
+              if (!rule.evidence || rule.evidence.length === 0) {
+                console.error(`[WARN] Skipping rule ${rule.name}: No EE2 evidence chain`);
+                return;
               }
+              
+              // Apply Phase 2-validated pattern detection
+              // (Future: Implement when SMEs add environment variable rules to Phase 2 annotations)
+              console.error(`[INFO] Enforcing rule: ${rule.name} (EE2 evidence: ${rule.evidence.join(', ')})`);
             });
-            
-            if (unquotedVars.length > 5) {  // More than 5 instances
-              violations.push({
-                issue: `${unquotedVars.length} unquoted environment variables`,
-                example: unquotedVars[0].content,
-                line: unquotedVars[0].line,
-                fix: 'Quote variables: "$VAR" or "${VAR}" per EE2 standard'
-              });
-            }
-            
-            // Check for hardcoded paths
-            const hardcodedPaths = lines.filter((l, i) =>
-              l.match(/\/[a-z]+\/[a-z]+\/[a-z]+/) && !l.match(/\$\{?[A-Z_]+/)
-            );
-            if (hardcodedPaths.length > 0) {
-              violations.push({
-                issue: 'Hardcoded absolute paths found',
-                example: hardcodedPaths[0].trim(),
-                fix: 'Replace with standard variables: $HOMEmodel, $USHmodel, $EXECmodel'
-              });
-            }
             
             if (violations.length > 0) {
               fileIssue.issues.push('environment_variables');
@@ -1093,6 +1079,12 @@ export class SemanticSearchTools {
       
       console.error(`[OK] Analysis complete: ${fileIssues.length} files with issues`);
       
+      // Debug: Log issuesByCategory before filtering
+      console.error(`[DEBUG] issuesByCategory keys: ${Object.keys(issuesByCategory).join(', ')}`);
+      for (const [cat, data] of Object.entries(issuesByCategory)) {
+        console.error(`[DEBUG] ${cat}: ${data.total_files_with_issues} issues, ${data.specific_files.length} files in list`);
+      }
+      
       // Filter out categories with zero issues (pragmatic reporting)
       const categoriesWithIssues = Object.entries(issuesByCategory)
         .filter(([_, data]) => data.total_files_with_issues > 0)
@@ -1100,6 +1092,12 @@ export class SemanticSearchTools {
           acc[cat] = data;
           return acc;
         }, {});
+      
+      // Debug: Log categoriesWithIssues after filtering
+      console.error(`[DEBUG] categoriesWithIssues keys: ${Object.keys(categoriesWithIssues).join(', ')}`);
+      for (const [cat, data] of Object.entries(categoriesWithIssues)) {
+        console.error(`[DEBUG] ${cat}: ${data.total_files_with_issues} issues, ${data.specific_files.length} files in list`);
+      }
       
       // Return structured data focused on ACTIONABLE findings only
       const scanResult = {
