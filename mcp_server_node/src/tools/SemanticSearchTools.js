@@ -1019,30 +1019,29 @@ export class SemanticSearchTools {
           if (categories.includes('environment_variables')) {
             const envVarRules = phase2Config?.anti_patterns?.environment_variables || [];
             
-            if (envVarRules.length === 0) {
-              // No Phase 2 rules defined = No enforceable violations
-              // This prevents hallucination of best practices as EE2 standards
-              console.error('[INFO] No Phase 2 environment variable rules - skipping category');
-              continue;
-            }
-            
-            // Only check patterns explicitly defined in Phase 2 config with EE2 evidence
-            const violations = [];
-            envVarRules.forEach(rule => {
-              if (!rule.evidence || rule.evidence.length === 0) {
-                console.error(`[WARN] Skipping rule ${rule.name}: No EE2 evidence chain`);
-                return;
-              }
+            if (envVarRules.length > 0) {
+              // Only check patterns explicitly defined in Phase 2 config with EE2 evidence
+              const violations = [];
+              envVarRules.forEach(rule => {
+                if (!rule.evidence || rule.evidence.length === 0) {
+                  console.error(`[WARN] Skipping rule ${rule.name}: No EE2 evidence chain`);
+                  return;
+                }
+                
+                // Apply Phase 2-validated pattern detection
+                // (Future: Implement when SMEs add environment variable rules to Phase 2 annotations)
+                console.error(`[INFO] Enforcing rule: ${rule.name} (EE2 evidence: ${rule.evidence.join(', ')})`);
+              });
               
-              // Apply Phase 2-validated pattern detection
-              // (Future: Implement when SMEs add environment variable rules to Phase 2 annotations)
-              console.error(`[INFO] Enforcing rule: ${rule.name} (EE2 evidence: ${rule.evidence.join(', ')})`);
-            });
-            
-            if (violations.length > 0) {
-              fileIssue.issues.push('environment_variables');
-              fileIssue.examples.push(...violations);
-              issuesByCategory.environment_variables.total_files_with_issues++;
+              if (violations.length > 0) {
+                fileIssue.issues.push('environment_variables');
+                fileIssue.examples.push(...violations);
+                issuesByCategory.environment_variables.total_files_with_issues++;
+              }
+            } else {
+               // No Phase 2 rules defined = No enforceable violations
+               // This prevents hallucination of best practices as EE2 standards
+               // console.error('[INFO] No Phase 2 environment variable rules - skipping category');
             }
           }
           
