@@ -31,6 +31,9 @@
                 "copilot/gemini-pro-2.5",
                 "copilot/gpt-5.1-codex"
             ]
+        },
+        "eib-mcp-rag-server/.vscode/mcp.json: eib-mcp-rag-full": {
+            "allowedModels": []
         }
     }
 }

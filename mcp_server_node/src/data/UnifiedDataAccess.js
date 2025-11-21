@@ -81,7 +81,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collection = 'global-workflow-docs-v6-0-0-docker',  // v6.0.0: Docker ChromaDB re-ingest (156 docs)
+      collection = 'global-workflow-docs-v6-0-0-docker',  // v6.0.0: Docker container ingestion
       nResults = 10,
       includeGraphContext = true,
       includeDependencies = true,
@@ -236,12 +236,17 @@ export class UnifiedDataAccess {
       }
 
       // Step 5: Optionally get semantically similar code
-      // NOTE: code_with_context collection not yet created - skip semantic similarity
       let similarCode = [];
       if (includeSemanticSimilar && fileInfo.length > 0) {
-        // TODO: Re-enable when code_with_context collection is populated
-        // For now, use graph-based similarity only
-        similarCode = [];
+        try {
+          similarCode = await this.vectorDB.query(
+            'code_with_context_v7_docker',
+            identifier,
+            { nResults: 5 }
+          );
+        } catch (error) {
+          console.warn('[WARN] Failed to fetch similar code from vector DB:', error.message);
+        }
       }
 
       return {
@@ -274,7 +279,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collections = ['global-workflow-docs-v6-0-0-docker', 'ee2-standards-v6-0-0-docker'],  // v6.0.0: Docker ChromaDB (156+34 docs)
+      collections = ['global-workflow-docs-v6-0-0-docker', 'ee2-standards-v6-0-0-docker'],
       nResults = 10,
       enrichWithGraph = true
     } = options;
@@ -405,13 +410,19 @@ export class UnifiedDataAccess {
         });
 
         // Fetch code snippets (limit to prevent overwhelming response)
-        // NOTE: code_with_context collection not yet created - use graph data only
         const snippetPromises = Array.from(allFunctions)
           .slice(0, 10)
           .map(async (fn) => {
-            // TODO: Re-enable when code_with_context collection is populated
-            // For now, return null (graph provides structure, snippets come later)
-            return [fn, null];
+            try {
+              const results = await this.vectorDB.query(
+                'code_with_context_v7_docker',
+                fn,
+                { nResults: 1 }
+              );
+              return [fn, results[0] || null];
+            } catch (error) {
+              return [fn, null];
+            }
           });
 
         const snippets = await Promise.all(snippetPromises);

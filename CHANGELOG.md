@@ -1,5 +1,71 @@
 # MCP Server Changelog
 
+## [3.0.2] - Bug Fixes & Planning (November 21, 2025)
+
+### Fixed
+- **Logic Error in Compliance Scan** (`scan_repository_compliance`):
+  - **Problem**: Empty environment variable rules caused early exit, skipping subsequent checks and result aggregation.
+  - **Fix**: Corrected logic to ensure all categories are processed even if one has no rules.
+  - **Commit**: `7a08c13`
+
+### Added
+- **SDD Plan: Configurable Report Templates**:
+  - **New Workflow**: `sdd_framework/workflows/configurable_report_templates.md`
+  - **Purpose**: Enable SME-driven report formatting via markdown templates.
+  - **Status**: Planned Enhancement (Target v3.1.0+)
+  - **Commit**: `f95a58b`
+
+---
+
+## [3.0.1] - Phase 2 Compliance Fix: Remove Best Practice Hallucinations (November 20, 2025)
+
+**CRITICAL FIX**: Removed hard-coded best practice checks that were bypassing Phase 2 annotation system
+
+### Fixed
+- **Variable Quoting Hallucination** (730 files / 92% affected):
+  - **Problem**: Scan tool reported "Quote variables per EE2 standard" for 730 files
+  - **Reality**: NO such EE2 standard exists for bash variable quoting
+  - **Evidence**: Searched EE2 standards - found NO explicit quoting requirements
+  - **Root Cause**: Hard-coded regex checks in `SemanticSearchTools.js` (lines 1019-1051)
+  - **Fix**: Removed all hard-coded environment variable checks
+  - **Impact**: 681 false positives eliminated
+
+- **Hardcoded Path Checks** (unknown count affected):
+  - **Problem**: Flagging absolute paths without EE2 basis
+  - **Reality**: Best practice recommendation, NOT an EE2 requirement
+  - **Fix**: Removed hard-coded path validation
+
+### Changed
+- **Phase 2-Only Enforcement** (`SemanticSearchTools.js`):
+  - Environment variable category now skipped if no Phase 2 rules exist
+  - All checks must have explicit `phase2Config` entries with EE2 evidence
+  - Added logging: "No Phase 2 rules - skipping category"
+  - Rules without evidence chains are skipped with warnings
+
+- **Evidence Chain Requirement**:
+  - Every violation MUST cite EE2 line numbers (e.g., "standards.rst:588-595")
+  - No exceptions: No evidence = No enforcement
+  - Prevents future hallucinations of non-existent requirements
+
+### Architecture Impact
+- **Before**: 743/792 files (93.8%) with issues (mostly false positives)
+- **After**: ~62/792 files (7.8%) with issues (genuine EE2 violations only)
+- **Trust Restored**: Every violation traceable to actual EE2 standards
+- **Phase 2 Integrity**: Semantic annotations now single source of truth
+
+### Documentation
+- Added `PHASE_2_COMPLIANCE_FIX_PLAN.md` - Detailed implementation plan
+- Added `PHASE_2_COMPLIANCE_FIX_SUMMARY.md` - Executive summary
+- Updated semantic annotation principles in copilot instructions
+
+### Lessons Learned
+- Hard-coded checks bypass Phase 2 annotations → architectural violation
+- "Best practices" must NEVER be presented as "EE2 standards"
+- Evidence chain validation is critical for system integrity
+- SME trust depends on accurate, traceable compliance reporting
+
+---
+
 ## [Unreleased] - Phase 2 Annotation: EE2 SME Corrections (November 19, 2025)
 
 **Critical Fix**: Systematic false positives in EE2 compliance recommendations (affecting 60-80% of EVS scripts)

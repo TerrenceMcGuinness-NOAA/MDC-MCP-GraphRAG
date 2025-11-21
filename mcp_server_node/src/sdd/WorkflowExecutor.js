@@ -619,6 +619,10 @@ export class WorkflowExecutor {
               step.required = value.toLowerCase() === 'yes' || value.toLowerCase() === 'true';
             } else {
               step.metadata[key] = value;
+              // Promote common properties
+              if (['query', 'target', 'source', 'command'].includes(key)) {
+                step[key] = value.replace(/^"(.*)"$/, '$1'); // Remove quotes if present
+              }
             }
           } else if (metaLine.trim() && !metaLine.startsWith('#')) {
             step.description += metaLine.trim() + ' ';

@@ -918,6 +918,63 @@ docker compose ps
 log_success "Docker Compose services started"
 
 ################################################################################
+# STEP 15.5: Remote Access (VNC/noVNC) Setup
+################################################################################
+log_section "STEP 15.5: Remote Access (VNC/noVNC) Setup"
+
+log_info "Installing VNC and noVNC packages..."
+# Use --allowerasing to handle potential conflicts with kasmvncserver
+dnf install -y tigervnc-server novnc python3-websockify --allowerasing || log_warning "VNC packages installation failed"
+
+# SSL Cert generation
+CERT_PATH="/home/${USER}/novnc.pem"
+if [ ! -f "${CERT_PATH}" ]; then
+    log_info "Generating self-signed SSL certificate for noVNC..."
+    # Use system openssl to avoid Spack library conflicts
+    /usr/bin/openssl req -x509 -nodes -newkey rsa:2048 -keyout "${CERT_PATH}" -out "${CERT_PATH}" -days 365 -subj "/CN=localhost" 2>/dev/null || log_warning "Certificate generation failed"
+    chown ${USER}:${USER} "${CERT_PATH}"
+fi
+
+# Websockify Service
+log_info "Configuring websockify systemd service..."
+cat > /etc/systemd/system/websockify.service << EOF
+[Unit]
+Description=Websockify for noVNC
+After=network.target
+
+[Service]
+Type=simple
+User=${USER}
+Group=${USER}
+ExecStart=/usr/bin/websockify --web=/usr/share/novnc/ --cert=${CERT_PATH} 6080 localhost:5901
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable websockify.service
+systemctl start websockify.service
+
+log_success "Remote Access (noVNC) configured on port 6080"
+
+################################################################################
+# STEP 15.6: Desktop Applications (Google Chrome)
+################################################################################
+log_section "STEP 15.6: Desktop Applications"
+
+if ! command -v google-chrome &> /dev/null; then
+    log_info "Installing Google Chrome..."
+    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
+    dnf install -y ./google-chrome-stable_current_x86_64.rpm || log_warning "Google Chrome installation failed"
+    rm -f google-chrome-stable_current_x86_64.rpm
+else
+    log_info "Google Chrome is already installed"
+fi
+
+################################################################################
 # STEP 16: Verification and Summary
 ################################################################################
 log_section "STEP 16: Installation Verification"
@@ -968,6 +1025,7 @@ echo "  jq: $(jq --version 2>/dev/null || echo 'not installed')"
 
 echo -e "\n${CYAN}Services Status:${NC}"
 systemctl is-active chromadb-spack.service && echo "  ✅ ChromaDB: Running" || echo "  ❌ ChromaDB: Not running"
+systemctl is-active websockify.service && echo "  ✅ noVNC: Running (Port 6080)" || echo "  ❌ noVNC: Not running"
 docker ps --filter "name=neo4j" --format "{{.Names}}: {{.Status}}" | grep -q "healthy" && echo "  ✅ Neo4j: Running" || echo "  ❌ Neo4j: Not running"
 docker ps --filter "name=langflow" --format "{{.Names}}: {{.Status}}" | grep -q "healthy" && echo "  ✅ LangFlow: Running" || echo "  ⚠️  LangFlow: Not running"
 
@@ -1025,6 +1083,8 @@ echo -e "  📚 Git Repository: ${GIT_REPO}"
 echo -e "  💾 Cache Storage: ${CACHE_ROOT} (reused across rebuilds)"
 echo -e "  🕸️  Neo4j Graph DB: Port 7474 (UI), 7687 (Bolt)"
 echo -e "  🌊 LangFlow: Port 7860 (RAG Visualizer)"
+echo -e "  🖥️  noVNC Desktop: Port 6080 (HTTPS)"
+echo -e "  🌐 Google Chrome: Installed"
 
 echo -e "\n${CYAN}Key Improvements in v3.4.0:${NC}"
 echo -e "  ✅ Migrated to Spack module system (no virtual environments)"
@@ -1103,6 +1163,7 @@ echo -e "  ${BLUE}ChromaDB logs:${NC}          journalctl -u chromadb-spack.serv
 echo -e "  ${BLUE}Neo4j status:${NC}           docker compose ps neo4j"
 echo -e "  ${BLUE}Neo4j logs:${NC}             docker compose logs neo4j -f"
 echo -e "  ${BLUE}LangFlow logs:${NC}          docker compose logs langflow -f"
+echo -e "  ${BLUE}noVNC status:${NC}           systemctl status websockify.service"
 echo -e "  ${BLUE}ecFlow server status:${NC}   docker compose ps ecflow-server"
 echo -e "  ${BLUE}ecFlow server logs:${NC}     docker compose logs ecflow-server -f"
 echo -e "  ${BLUE}ecFlow UI logs:${NC}         docker compose logs ecflow-ui -f"
