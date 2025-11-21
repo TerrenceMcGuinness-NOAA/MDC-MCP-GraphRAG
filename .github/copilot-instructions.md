@@ -14,6 +14,22 @@
 
 This principle ensures accuracy and builds trust in the AI assistance provided throughout the development process.
 
+## SDD-Driven Development Protocol
+
+**CRITICAL**: Do not implement new features or significant changes without an approved SDD (Software Design Document) plan.
+
+**Protocol**:
+1.  **Plan First**: Before writing code, create a detailed workflow plan in `sdd_framework/workflows/`.
+2.  **File Naming**: Use the format `phaseX_feature_name.md` (e.g., `phase5_service_integration_workflow.md`).
+3.  **Structure**:
+    - **Description**: High-level goal.
+    - **Steps**: Detailed, sequential tasks (e.g., Step 1: Create File, Step 2: Update Config).
+    - **Validation**: How to verify success.
+4.  **Execution**: Follow the plan step-by-step. Do not jump ahead or skip steps.
+5.  **Updates**: If the plan changes, update the SDD file first.
+
+**Rule**: "If it's not in the SDD, it doesn't get coded."
+
 ## Project Mission
 
 This repository provides an intelligent AI assistant system for the **NOAA Global Workflow** - the operational infrastructure running GFS (Global Forecast System), GEFS (Global Ensemble Forecast System), and related atmospheric models. The MCP tools built here enable:
