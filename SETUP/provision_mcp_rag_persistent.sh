@@ -873,9 +873,77 @@ log_section "STEP 15.5: Remote Access (VNC/noVNC) Setup"
 
 log_info "Installing VNC and noVNC packages..."
 # Use --allowerasing to handle potential conflicts with kasmvncserver
-dnf install -y tigervnc-server novnc python3-websockify --allowerasing || log_warning "VNC packages installation failed"
+dnf install -y tigervnc-server novnc python3-websockify xterm twm --allowerasing || log_warning "VNC packages installation failed"
 
-# SSL Cert generation
+# Install MATE desktop environment
+log_info "Installing MATE desktop environment..."
+dnf install -y mate-desktop mate-session-manager mate-panel mate-terminal caja \
+    mate-settings-daemon marco mate-notification-daemon mate-control-center \
+    mate-power-manager network-manager-applet || log_warning "MATE desktop installation failed"
+
+# Create VNC configuration directory
+VNC_DIR="/home/${USER}/.vnc"
+log_info "Configuring VNC for user ${USER}..."
+su - ${USER} -c "mkdir -p ${VNC_DIR}"
+
+# Set VNC password (default: mcp2025vnc)
+# Users should change this with: vncpasswd
+if [ ! -f "${VNC_DIR}/passwd" ]; then
+    log_info "Setting default VNC password..."
+    su - ${USER} -c "echo 'mcp2025vnc' | vncpasswd -f > ${VNC_DIR}/passwd"
+    chmod 600 "${VNC_DIR}/passwd"
+    chown ${USER}:${USER} "${VNC_DIR}/passwd"
+    log_warning "Default VNC password set to 'mcp2025vnc' - please change with: vncpasswd"
+fi
+
+# Create VNC startup script
+log_info "Creating VNC xstartup script..."
+cat > "${VNC_DIR}/xstartup" << 'EOFVNC'
+#!/bin/bash
+# VNC Desktop Startup Script - MATE Desktop for MCP RAG Development
+
+# Clean PATH to avoid conda/miniforge conflicts
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+# Clean up environment
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+# Set XDG variables
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=MATE
+export XDG_SESSION_DESKTOP=mate
+
+# Start D-Bus session bus using SYSTEM dbus-launch (required for MATE)
+eval $(/usr/bin/dbus-launch --sh-syntax --exit-with-session)
+export DBUS_SESSION_BUS_ADDRESS
+
+# Start MATE desktop (preferred)
+if command -v mate-session &> /dev/null; then
+    exec /usr/bin/mate-session
+elif command -v xfce4-session &> /dev/null; then
+    exec /usr/bin/xfce4-session
+else
+    # Minimal fallback with xterm
+    xsetroot -solid grey
+    xterm -geometry 80x24+10+10 -ls -title "Terminal" &
+    exec twm
+fi
+EOFVNC
+chmod +x "${VNC_DIR}/xstartup"
+chown ${USER}:${USER} "${VNC_DIR}/xstartup"
+
+# Create VNC config file
+cat > "${VNC_DIR}/config" << 'EOFCONFIG'
+# TigerVNC configuration
+geometry=1920x1080
+depth=24
+localhost=no
+EOFCONFIG
+chown ${USER}:${USER} "${VNC_DIR}/config"
+
+# SSL Cert generation for noVNC
 CERT_PATH="/home/${USER}/novnc.pem"
 if [ ! -f "${CERT_PATH}" ]; then
     log_info "Generating self-signed SSL certificate for noVNC..."
@@ -884,12 +952,42 @@ if [ ! -f "${CERT_PATH}" ]; then
     chown ${USER}:${USER} "${CERT_PATH}"
 fi
 
-# Websockify Service
+# Create VNC Server systemd user service (for display :1)
+log_info "Creating VNC server systemd service..."
+cat > /etc/systemd/system/vncserver@.service << EOF
+[Unit]
+Description=TigerVNC Server for display %i
+After=syslog.target network.target
+
+[Service]
+Type=simple
+User=${USER}
+Group=${USER}
+WorkingDirectory=/home/${USER}
+
+# Clean up any existing locks
+ExecStartPre=-/bin/sh -c '/usr/bin/vncserver -kill :%i > /dev/null 2>&1 || :'
+
+# Start VNC server
+ExecStart=/usr/bin/vncserver :%i -geometry 1920x1080 -depth 24 -fg
+
+# Stop VNC server
+ExecStop=/usr/bin/vncserver -kill :%i
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Websockify Service (noVNC proxy)
 log_info "Configuring websockify systemd service..."
 cat > /etc/systemd/system/websockify.service << EOF
 [Unit]
-Description=Websockify for noVNC
-After=network.target
+Description=Websockify for noVNC (Browser-based VNC)
+After=network.target vncserver@1.service
+Wants=vncserver@1.service
 
 [Service]
 Type=simple
@@ -904,10 +1002,31 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
+
+# Enable and start VNC server on display :1
+log_info "Starting VNC server on display :1 (port 5901)..."
+systemctl enable vncserver@1.service
+systemctl start vncserver@1.service || {
+    log_warning "Systemd VNC service failed, trying direct start..."
+    su - ${USER} -c "vncserver :1 -geometry 1920x1080 -depth 24" || log_warning "VNC server start failed"
+}
+
+# Enable and start websockify
 systemctl enable websockify.service
 systemctl start websockify.service
 
-log_success "Remote Access (noVNC) configured on port 6080"
+# Verify VNC is running
+sleep 2
+if su - ${USER} -c "vncserver -list" 2>/dev/null | grep -q ":1"; then
+    log_success "VNC server running on display :1 (port 5901)"
+else
+    log_warning "VNC server may not be running - check manually with: vncserver -list"
+fi
+
+log_success "Remote Access (VNC/noVNC) configured"
+log_info "  VNC Server: localhost:5901 (display :1)"
+log_info "  noVNC Web:  https://localhost:6080/vnc.html (forward port 6080)"
+log_info "  VNC Password: mcp2025vnc (change with: vncpasswd)"
 
 ################################################################################
 # STEP 15.6: Desktop Applications (Google Chrome)
@@ -1112,6 +1231,11 @@ echo -e "  ${BLUE}ChromaDB logs:${NC}          journalctl -u chromadb-spack.serv
 echo -e "  ${BLUE}Neo4j status:${NC}           docker compose ps neo4j"
 echo -e "  ${BLUE}Neo4j logs:${NC}             docker compose logs neo4j -f"
 echo -e "  ${BLUE}LangFlow logs:${NC}          docker compose logs langflow -f"
+echo -e "  ${BLUE}VNC server status:${NC}      systemctl status vncserver@1.service"
+echo -e "  ${BLUE}VNC server list:${NC}        vncserver -list"
+echo -e "  ${BLUE}Start VNC manually:${NC}     vncserver :1 -geometry 1920x1080 -depth 24"
+echo -e "  ${BLUE}Stop VNC:${NC}               vncserver -kill :1"
+echo -e "  ${BLUE}Change VNC password:${NC}    vncpasswd"
 echo -e "  ${BLUE}noVNC status:${NC}           systemctl status websockify.service"
 echo -e "  ${BLUE}ecFlow server status:${NC}   docker compose ps ecflow-server"
 echo -e "  ${BLUE}ecFlow server logs:${NC}     docker compose logs ecflow-server -f"
@@ -1137,5 +1261,8 @@ echo -e "  ${YELLOW}Node modules issues:${NC}   rm -rf node_modules && npm insta
 echo -e "  ${YELLOW}Python not found:${NC}      module load python/3.11.14"
 echo -e "  ${YELLOW}ChromaDB import fails:${NC} Ensure Spack modules loaded (39 total)"
 echo -e "  ${YELLOW}API v2 errors:${NC}         ChromaDB 1.3.0 uses API v2 by default"
+echo -e "  ${YELLOW}VNC won't start:${NC}       Check ~/.vnc/*.log, kill stale: vncserver -kill :1"
+echo -e "  ${YELLOW}noVNC connection fails:${NC} Ensure VNC server is running on :1 first"
+echo -e "  ${YELLOW}VNC black screen:${NC}      Check ~/.vnc/xstartup, install desktop: dnf groupinstall 'Server with GUI'"
 
 log_success "Provisioning complete! Environment ready for MCP RAG operations"
