@@ -2,11 +2,16 @@
 
 ################################################################################
 # MCP RAG Persistent Infrastructure Provisioning Script
-# Version: 3.5.0
+# Version: 3.6.0
 # 
-# Purpose: Complete redesign for persistent MCP/RAG infrastructure
-#          on dedicated /mcp_rag_eib mount (25GB)
-# Changelog: v3.5.0 - Migrated ChromaDB to Docker (resolves SQLite/venv issues)
+# Purpose: Complete infrastructure provisioning for MCP/RAG development
+#          on dedicated /mcp_rag_eib mount (25GB) with co-located architecture
+# 
+# Changelog: v3.6.0 - Removed legacy deployment/copy logic (co-located architecture)
+#                   - Git submodules for analysis targets (global-workflow, nws-hpc-standards)
+#                   - VS Code config in eib-mcp-rag-server root (not submodule)
+#                   - Source = Runtime (no deployment/sync needed)
+#            v3.5.0 - Migrated ChromaDB to Docker (resolves SQLite/venv issues)
 #            v3.4.1 - Updated ChromaDB health checks to use v2 API endpoints
 #            v3.4.0 - Migrated to Spack module system (no venv)
 #            v3.3.1 - Added ONNX Runtime validation test (pre-built binaries)
@@ -14,20 +19,25 @@
 #            v3.2.0 - Added Neo4j graph database + LangFlow via Docker Compose
 #            v3.1.0 - Upgraded ChromaDB 0.4.15 → 1.1.1 with dependencies
 #
-# Architecture:
+# Co-located Architecture (v3.6.0+):
 #   - Spack: /mcp_rag_eib/spack (package manager with Lmod modules)
 #   - ChromaDB: Docker container (chromadb/chroma:latest, port 8080, v2 API)
-#   - MCP Server: /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
-#   - Git Repo: /mcp_rag_eib/global-workflow_forked (PERSISTENT)
+#   - MCP Repo: /mcp_rag_eib/eib-mcp-rag-server (tracked git repository)
+#     ├── mcp_server_node/        (MCP servers - source = runtime, no deployment)
+#     ├── SETUP/                  (provisioning scripts)
+#     └── supported_repos/        (git submodules for analysis targets)
+#         ├── global-workflow/    (submodule: UFS Global Workflow - analysis only)
+#         └── nws-hpc-standards/  (submodule: EE2 compliance docs - analysis only)
 #   - Data/Cache: /mcp_rag_eib/data, /mcp_rag_eib/cache
 #
 # Usage:
+#   cd /mcp_rag_eib/eib-mcp-rag-server/SETUP
 #   sudo ./provision_mcp_rag_persistent.sh           # Normal run (preserves caches)
 #   sudo ./provision_mcp_rag_persistent.sh --fresh   # Complete fresh start
 #
 # Author: NOAA EMC Global Workflow Team
 # Contributors: Terry McGuinness, Claude Sonnet 4.5
-# Date: 2025-11-17
+# Date: 2025-11-24
 ################################################################################
 
 set -euo pipefail
@@ -75,7 +85,7 @@ MCP_ENV_FILE="${PWD}/mcp-env.sh"
 if [ ! -f "${MCP_ENV_FILE}" ]; then
     log_error "Environment configuration not found: ${MCP_ENV_FILE}"
     log_error "Current directory: ${PWD}"
-    log_error "Expected: /mcp_rag_eib/SETUP/mcp-env.sh"
+    log_error "Expected: /mcp_rag_eib/eib-mcp-rag-server/SETUP/mcp-env.sh"
     exit 1
 fi
 
@@ -109,7 +119,7 @@ if ! mountpoint -q "${PERSISTENT_ROOT}"; then
     exit 1
 fi
 
-log_section "MCP RAG Persistent Infrastructure Setup v3.4.1"
+log_section "MCP RAG Persistent Infrastructure Setup v3.6.0"
 log_info "Persistent Root: ${PERSISTENT_ROOT}"
 log_info "Spack Root: ${SPACK_ROOT}"
 log_info "Available Space: $(df -h ${PERSISTENT_ROOT} | tail -1 | awk '{print $4}')"
@@ -581,61 +591,35 @@ fi
 log_success "Environment configuration references canonical ${SETUP}/mcp-env.sh"
 
 ################################################################################
-# STEP 11: Git Repository Setup
+# STEP 11: Git Submodules Verification
 ################################################################################
-log_section "STEP 11: Git Repository Verification"
+log_section "STEP 11: Git Submodules Verification"
 
-log_info "Checking persistent git repository at ${GIT_REPO}..."
+log_info "Verifying git submodules in eib-mcp-rag-server repository..."
+
+# eib-mcp-rag-server uses git submodules for analysis target repositories
+# supported_repos/global-workflow - Global Workflow operational code (analysis target)
+# supported_repos/nws-hpc-standards - EE2 compliance standards (analysis target)
 
 if [ ! -d "${GIT_REPO}/.git" ]; then
-    log_warning "Git repository not found at ${GIT_REPO}"
-    log_info "Cloning global-workflow repository to persistent storage..."
-    
-    # Clone to persistent location (not under MCP_ROOT, but alongside it)
-    su - ${USER} -c "cd ${PERSISTENT_ROOT} && git clone https://github.com/ufs-community/global-workflow.git global-workflow_forked"
-    
-    log_success "Repository cloned to ${GIT_REPO}"
+    log_warning "Git submodule not initialized: global-workflow"
+    log_info "Initializing git submodules..."
+    su - ${USER} -c "cd ${PERSISTENT_ROOT}/eib-mcp-rag-server && git submodule update --init --recursive" || {
+        log_error "Failed to initialize git submodules"
+        log_info "Ensure eib-mcp-rag-server is a proper git repository with submodules configured"
+        exit 1
+    }
+    log_success "Git submodules initialized"
 else
-    log_info "Repository already exists at ${GIT_REPO}"
-    log_info "Current branch: $(cd ${GIT_REPO} && git branch --show-current)"
-    log_info "Pulling latest changes..."
-    su - ${USER} -c "cd ${GIT_REPO} && git pull" || log_warning "Git pull failed (may have local changes)"
+    log_info "Git submodule exists: ${GIT_REPO}"
+    log_info "Current branch: $(cd ${GIT_REPO} && git branch --show-current 2>/dev/null || echo 'detached HEAD')"
 fi
 
-# MCP server is now in separate eib-mcp-rag-server repo
-# Verify MCP source exists (now points to co-located server directory)
-if [ ! -d "${MCP_SOURCE}" ]; then
-    log_warning "MCP source directory not found at ${MCP_SOURCE}"
-    log_info "MCP servers should be in eib-mcp-rag-server repository"
-    log_info "Expected: ${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
-fi
+# Set ownership for submodule
+chown -R ${USER}:${USER} "${PERSISTENT_ROOT}/eib-mcp-rag-server/supported_repos" 2>/dev/null || true
 
-# Set ownership
-chown -R ${USER}:${USER} "${GIT_REPO}"
-
-log_success "Git repository verified at ${GIT_REPO}"
-log_info "MCP source available at: ${MCP_SOURCE}"
-
-################################################################################
-# STEP 11.5: Verify MCP Server Directory (Co-located Architecture)
-################################################################################
-log_section "STEP 11.5: Verify MCP Server Directory"
-
-log_info "Verifying co-located MCP server at ${MCP_ROOT}..."
-
-# In co-located architecture, MCP_SOURCE and MCP_ROOT are the same
-if [ ! -d "${MCP_ROOT}" ]; then
-    log_error "MCP server directory not found at ${MCP_ROOT}"
-    log_error "Expected: ${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
-    log_info "Please ensure eib-mcp-rag-server repository is cloned to ${PERSISTENT_ROOT}"
-    exit 1
-fi
-
-# Ensure proper ownership
-chown -R ${USER}:${USER} "${MCP_ROOT}"
-
-log_success "MCP server directory verified at ${MCP_ROOT}"
-log_info "Co-located architecture: No deployment/sync needed (runtime = source)"
+log_success "Git submodules verified"
+log_info "Analysis target: ${GIT_REPO}"
 
 ################################################################################
 # STEP 12: Claude CLI Installation
@@ -648,45 +632,6 @@ npm install -g @anthropic-ai/claude-code
 log_info "Claude CLI version: $(claude --version 2>/dev/null || echo 'Not in PATH yet')"
 
 log_success "Claude CLI installed"
-
-################################################################################
-# STEP 12.5: NPM Dependencies Installation
-################################################################################
-log_section "STEP 12.5: Install NPM Dependencies"
-
-log_info "Installing npm packages in ${MCP_ROOT}..."
-
-cd "${MCP_ROOT}"
-
-# Check if package.json exists
-if [ ! -f "package.json" ]; then
-    log_error "package.json not found in ${MCP_ROOT}"
-    log_error "Deployment may have failed - check previous steps"
-    exit 1
-fi
-
-# Install as user (not root)
-log_info "Running: npm install"
-su - ${USER} -c "cd ${MCP_ROOT} && npm install" || {
-    log_warning "npm install failed, attempting to fix permissions..."
-    
-    # Fix node_modules ownership if it exists
-    if [ -d "${MCP_ROOT}/node_modules" ]; then
-        chown -R ${USER}:${USER} "${MCP_ROOT}/node_modules"
-    fi
-    
-    # Try again
-    su - ${USER} -c "cd ${MCP_ROOT} && npm install" || {
-        log_error "npm install failed after permission fix"
-        exit 1
-    }
-}
-
-log_success "npm dependencies installed"
-
-# Show package count
-PKG_COUNT=$(find "${MCP_ROOT}/node_modules" -maxdepth 1 -type d | wc -l)
-log_info "Installed packages: $((PKG_COUNT - 1))"
 
 ################################################################################
 # STEP 12.6: Validate Pre-built ONNX Runtime
@@ -793,11 +738,13 @@ log_success "MCP server service ready"
 ################################################################################
 log_section "STEP 14: VS Code Workspace Configuration"
 
-log_info "Creating VS Code MCP configuration..."
+log_info "Creating VS Code MCP configuration in eib-mcp-rag-server repository..."
 
-mkdir -p "${GIT_REPO}/.vscode"
+# VS Code config goes in the eib-mcp-rag-server repo root (not in the submodule)
+VSCODE_CONFIG_DIR="${PERSISTENT_ROOT}/eib-mcp-rag-server/.vscode"
+mkdir -p "${VSCODE_CONFIG_DIR}"
 
-cat > "${GIT_REPO}/.vscode/mcp.json" << EOF
+cat > "${VSCODE_CONFIG_DIR}/mcp.json" << EOF
 {
   "servers": {
     "global-workflow-full": {
@@ -839,16 +786,18 @@ cat > "${GIT_REPO}/.vscode/mcp.json" << EOF
 }
 EOF
 
-chown ${USER}:${USER} "${GIT_REPO}/.vscode/mcp.json"
+chown ${USER}:${USER} "${VSCODE_CONFIG_DIR}/mcp.json"
 
-log_success "VS Code MCP configuration created"
+log_success "VS Code MCP configuration created at ${VSCODE_CONFIG_DIR}/mcp.json"
+log_info "Open ${PERSISTENT_ROOT}/eib-mcp-rag-server in VS Code to use MCP tools"
 
 ################################################################################
 # STEP 15: Docker Compose Services (Neo4j + LangFlow)
 ################################################################################
 log_section "STEP 15: Docker Compose Services (Neo4j + LangFlow)"
 
-SETUP_DIR="/mcp_rag_eib/SETUP"
+# Use SETUP variable from mcp-env.sh (already sourced at top of script)
+SETUP_DIR="${SETUP}"
 DOCKER_COMPOSE_FILE="${SETUP_DIR}/docker-compose.yml"
 
 if [ ! -f "${DOCKER_COMPOSE_FILE}" ]; then

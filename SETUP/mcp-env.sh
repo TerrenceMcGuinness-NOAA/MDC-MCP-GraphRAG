@@ -2,23 +2,29 @@
 ################################################################################
 # MCP RAG Persistent Environment Configuration
 # Version: 3.1.0
-# Location: /mcp_rag_eib/SETUP/mcp_env.sh
+# Location: /mcp_rag_eib/eib-mcp-rag-server/SETUP/mcp-env.sh
 #
 # v3.1.0: ChromaDB 1.1.1, Node.js client chromadb@3.0.17, API v2 support
-# Usage: source /mcp_rag_eib/SETUP/mcp_env.sh
+# Usage: source /mcp_rag_eib/eib-mcp-rag-server/SETUP/mcp-env.sh
 ################################################################################
 
 # Core persistent storage paths
 export PERSISTENT_ROOT="/mcp_rag_eib"
-export SETUP="${PERSISTENT_ROOT}/SETUP"
+export SETUP="${PERSISTENT_ROOT}/eib-mcp-rag-server/SETUP"
 export MCP_ROOT="${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
-export GIT_REPO="${PERSISTENT_ROOT}/global-workflow_forked"
+export GIT_REPO="${PERSISTENT_ROOT}/eib-mcp-rag-server/supported_repos/global-workflow"
 
 # ChromaDB configuration
 export CHROMADB_ROOT="${PERSISTENT_ROOT}/etc/chromadb"
 export CHROMADB_DATA="${PERSISTENT_ROOT}/data/chromadb"
 export CHROMADB_URL="http://127.0.0.1:8080"
 export CHROMADB_PORT=8080
+
+# GitHub MCP Server Configuration
+# Set this to your GitHub Personal Access Token (PAT)
+# Generate at: https://github.com/settings/tokens
+# Required scopes: repo, read:org, read:user
+export GITHUB_TOKEN="${GITHUB_TOKEN:-}" # Set via: export GITHUB_TOKEN="ghp_your_token_here"
 
 # MCP infrastructure paths
 export MCP_WORKFLOW_ROOT="${GIT_REPO}"
@@ -111,6 +117,7 @@ if [ "${1:-}" != "--quiet" ]; then
     echo "  ChromaDB Data:        ${CHROMADB_DATA}"
     echo "  ChromaDB Version:     1.1.1 (API v1/v2)"
     echo "  Node Client Version:  chromadb@3.0.17"
+    echo "  GitHub Token:         ${GITHUB_TOKEN:+Set (${#GITHUB_TOKEN} chars)}${GITHUB_TOKEN:-❌ NOT SET}"
     echo ""
     echo "MCP Configuration:"
     echo "  Workflow Root:        ${MCP_WORKFLOW_ROOT}"
@@ -127,8 +134,8 @@ if [ "${1:-}" != "--quiet" ]; then
     echo "  NODE_PATH:            ${NODE_PATH}"
     echo ""
     
-    # Check service status
-    if systemctl is-active --quiet chromadb-persistent.service; then
+    # Check service status (try both possible service names)
+    if systemctl is-active --quiet chromadb-spack.service 2>/dev/null || systemctl is-active --quiet chromadb-docker.service 2>/dev/null || systemctl is-active --quiet chromadb-persistent.service 2>/dev/null; then
         echo "✅ ChromaDB 1.1.1 service is running"
         # Quick version check
         HEARTBEAT=$(curl -s http://127.0.0.1:8080/api/v1/heartbeat 2>/dev/null)

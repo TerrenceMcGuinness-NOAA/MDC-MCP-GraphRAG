@@ -2,7 +2,7 @@
 ################################################################################
 # Bootstrap Script for MCP RAG Persistent Infrastructure
 # Version: 2.0.0
-# Location: /mcp_rag_eib/SETUP/bootstrap.sh
+# Location: /mcp_rag_eib/eib-mcp-rag-server/SETUP/bootstrap.sh
 ################################################################################
 
 # Get the directory where this script is located

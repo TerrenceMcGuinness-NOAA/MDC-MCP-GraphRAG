@@ -21,6 +21,8 @@ alias gitlog="git log --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %C
 alias gitsub="git submodule update --init --recursive -j 10"
 alias gitprune='git fetch -p ; git branch -r | awk "{print $1}" | egrep -v -f /dev/fd/0 <(git branch -vv | grep origin) | awk "{print $1}" | xargs git branch -d'
 
+alias hera_port='ssh -L 6472:localhost:6472 Terry.McGuinness@hera-rsa.princeton.rdhpcs.noaa.gov'
+
 alias neo='neofetch --color_blocks off --ascii_bold off | head -40'
 
 alias viewer='~/bin/rocotoviewer.sh'
@@ -29,7 +31,7 @@ alias gwsetup='source /luster/Terry.McGuinness/global-workflow_forked/workflow/g
 alias sor='source ~/.bash_profile'
 alias sot='gvim ~/.bash_profile'
 
-alias work='cd /contrib/Terry.McGuinness/global-workflow_MCP_node.js-RAG/dev/ci/scripts/utils/Copilot'
+alias work='cd /mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow'
 
 # Docker utility function
 #docker_volumes() { docker inspect "$1" --format='{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'; }
@@ -50,7 +52,7 @@ if [ -f /apps/lmod/lmod/init/bash ]; then
     # Add legacy TCL module path
     module use /apps/modules/modulefiles 2>/dev/null
     
-    # Add local Spack Lmod modules (Core level only - hierarchical modules added by Lmod automatically)
+    # Add local Spack Lmod modules
     if [ -d /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core ]; then
         module use /mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/Core 2>/dev/null
     fi
