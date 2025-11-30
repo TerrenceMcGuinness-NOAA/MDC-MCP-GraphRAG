@@ -450,12 +450,13 @@ ExecStartPre=-/usr/bin/docker stop chromadb
 ExecStartPre=-/usr/bin/docker rm chromadb
 
 # Start ChromaDB in Docker
+# NOTE: ChromaDB latest uses /data as default persist path (not /chroma/chroma)
 ExecStart=/usr/bin/docker run --name chromadb \
     --rm \
     -p 8080:8000 \
-    -v /mcp_rag_eib/data/chromadb:/chroma/chroma \
+    -v /mcp_rag_eib/data/chromadb:/data:Z \
     -e IS_PERSISTENT=TRUE \
-    -e PERSIST_DIRECTORY=/chroma/chroma \
+    -e PERSIST_DIRECTORY=/data \
     -e ANONYMIZED_TELEMETRY=FALSE \
     chromadb/chroma:latest
 
@@ -744,10 +745,12 @@ log_info "Creating VS Code MCP configuration in eib-mcp-rag-server repository...
 VSCODE_CONFIG_DIR="${PERSISTENT_ROOT}/eib-mcp-rag-server/.vscode"
 mkdir -p "${VSCODE_CONFIG_DIR}"
 
+# MCP Server Configuration - v3.1.0 (Week 2 + Phase 3A SDD Automation)
+# 2-server architecture: full (primary) + core (fallback)
 cat > "${VSCODE_CONFIG_DIR}/mcp.json" << EOF
 {
   "servers": {
-    "global-workflow-full": {
+    "eib-mcp-rag-full": {
       "command": "node",
       "args": [
         "${MCP_ROOT}/src/UnifiedMCPServer.js",
@@ -755,20 +758,14 @@ cat > "${VSCODE_CONFIG_DIR}/mcp.json" << EOF
       ],
       "type": "stdio",
       "env": {
+        "MCP_WORKSPACE_ROOT": "${PERSISTENT_ROOT}/eib-mcp-rag-server",
         "MCP_WORKFLOW_ROOT": "${GIT_REPO}",
-        "CHROMA_SERVER_URL": "http://localhost:${CHROMADB_PORT}"
-      }
-    },
-    "global-workflow-rag": {
-      "command": "node",
-      "args": [
-        "${MCP_ROOT}/src/UnifiedMCPServer.js",
-        "rag"
-      ],
-      "type": "stdio",
-      "env": {
-        "MCP_WORKFLOW_ROOT": "${GIT_REPO}",
-        "CHROMA_SERVER_URL": "http://localhost:${CHROMADB_PORT}"
+        "SDD_FRAMEWORK_ROOT": "${PERSISTENT_ROOT}/eib-mcp-rag-server/sdd_framework",
+        "CHROMA_SERVER_URL": "http://localhost:${CHROMADB_PORT}",
+        "CHROMADB_URL": "http://127.0.0.1:${CHROMADB_PORT}",
+        "NEO4J_URI": "bolt://localhost:7687",
+        "ENABLE_RAG": "true",
+        "ENABLE_GITHUB": "true"
       }
     },
     "global-workflow-core": {
@@ -890,7 +887,7 @@ su - ${USER} -c "mkdir -p ${VNC_DIR}"
 # Users should change this with: vncpasswd
 if [ ! -f "${VNC_DIR}/passwd" ]; then
     log_info "Setting default VNC password..."
-    su - ${USER} -c "echo 'mcp2025vnc' | vncpasswd -f > ${VNC_DIR}/passwd"
+    su - ${USER} -c "echo 'mcp2025vnc' | vncpasswd > ${VNC_DIR}/passwd"
     chmod 600 "${VNC_DIR}/passwd"
     chown ${USER}:${USER} "${VNC_DIR}/passwd"
     log_warning "Default VNC password set to 'mcp2025vnc' - please change with: vncpasswd"

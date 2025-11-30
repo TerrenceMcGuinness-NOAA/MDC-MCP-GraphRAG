@@ -16,12 +16,13 @@ ExecStartPre=-/usr/bin/docker rm chromadb
 # Start ChromaDB in Docker
 # Maps container port 8000 -> host port 8080
 # Volume mounts /mcp_rag_eib/data/chromadb for persistence
+# NOTE: ChromaDB latest uses /data as default persist path (not /chroma/chroma)
 ExecStart=/usr/bin/docker run --name chromadb \
     --rm \
     -p 8080:8000 \
-    -v /mcp_rag_eib/data/chromadb:/chroma/chroma \
+    -v /mcp_rag_eib/data/chromadb:/data:Z \
     -e IS_PERSISTENT=TRUE \
-    -e PERSIST_DIRECTORY=/chroma/chroma \
+    -e PERSIST_DIRECTORY=/data \
     -e ANONYMIZED_TELEMETRY=FALSE \
     chromadb/chroma:latest
 

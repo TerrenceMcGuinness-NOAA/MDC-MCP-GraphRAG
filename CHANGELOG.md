@@ -1,5 +1,27 @@
 # MCP Server Changelog
 
+## [3.5.1] - ChromaDB Docker Mount Path Fix (November 30, 2025)
+
+### Fixed
+- **ChromaDB Docker Mount Path Mismatch** (Critical - Collections Not Loading):
+  - **Problem**: ChromaDB container showed 0 collections via API despite SQLite containing 10 collections with 9,637 embeddings
+  - **Root Cause**: Mount path `/chroma/chroma` was outdated; ChromaDB `latest` uses `/data` as default persist path
+  - **Evidence**: Container logs showed `persist_path: "/data"` but volume was mounted to `/chroma/chroma`
+  - **Fix**: Updated mount from `-v .../chromadb:/chroma/chroma` to `-v .../chromadb:/data:Z`
+  - **Files Changed**:
+    - `SETUP/chromadb-docker.service` - Fixed volume mount and persist directory
+    - `SETUP/provision_mcp_rag_persistent.sh` - Same fix for fresh provisioning
+  - **SELinux**: Added `:Z` flag for proper SELinux label on RHEL/Rocky systems
+  - **Result**: All 10 collections now accessible via ChromaDB v2 API
+
+### Technical Details
+- ChromaDB version: latest (1.2.2+)
+- Container persist path changed in newer versions: `/chroma/chroma` → `/data`
+- Old config worked with older ChromaDB versions but broke after container upgrades
+- This is a recurring issue - document mount path in provisioning comments
+
+---
+
 ## [3.0.2] - Bug Fixes & Planning (November 21, 2025)
 
 ### Fixed

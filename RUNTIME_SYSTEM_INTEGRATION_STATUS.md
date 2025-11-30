@@ -1,53 +1,76 @@
-# Runtime System Integration Status - November 13, 2025
+# Runtime System Integration Status - November 30, 2025
 
-## 🎯 **Current Runtime System Status: FULLY OPERATIONAL**
+## 🎯 **Current Runtime System Status: OPERATIONAL (ALIGNED WITH AWS VM)**
+
+**Last Health Check**: November 30, 2025
 
 ### 📊 **Architecture Overview:**
 
 ```
 eib-mcp-rag-server/
-├── sdd_framework/                    # ✅ Systematic SDD Framework (32 files)
-│   ├── methodology/                  # Architecture & Design (9 files)
-│   ├── validation/                   # Status & Compliance (12 files)  
-│   ├── workflows/                    # Development Processes (5 files)
-│   ├── templates/                    # Reusable References (5 files)
-│   └── tools/                        # SDD Validation Tools (1 file)
-├── mcp_architecture/                 # ✅ Clean MCP Architecture
+├── sdd_framework/                    # ✅ Systematic SDD Framework
+│   ├── methodology/                  # Architecture & Design
+│   ├── validation/                   # Status & Compliance
+│   ├── workflows/                    # Development Processes
+│   ├── templates/                    # Reusable References
+│   └── tools/                        # SDDValidationTools.js
+├── mcp_architecture/                 # ✅ Architecture Reference (v3.0.0)
 │   └── src/
-│       ├── UnifiedMCPServer.js      # v0.85 Architecture Server
+│       ├── UnifiedMCPServer.js      # Architecture Server
 │       └── utils/
 │           └── ServerUtilities.js   # Separated Utilities
-└── mcp_server_node/                  # ✅ Runtime Directory (Complete)
+└── mcp_server_node/                  # ✅ Runtime Directory (v3.1.0)
     ├── src/
-    │   └── UnifiedMCPServer.js      # Runtime MCP Server
-    ├── mcp-server.js                # Core MCP Server
-    ├── mcp-server-rag.js           # RAG-enhanced Server
-    ├── optimized-rag-server.js     # Optimized Server
+    │   ├── UnifiedMCPServer.js      # Runtime MCP Server (Week 2 + Phase 3A SDD)
+    │   ├── core/                    # BaseServer
+    │   ├── tools/                   # WorkflowInfo, Semantic, Code, Operational, SDD
+    │   └── data/                    # UnifiedDataAccess, VectorDatabase
+    ├── mcp-server-sdd.js            # Standalone SDD Validation Server
     └── [Full Runtime Environment]
 ```
 
-### 🔧 **VS Code MCP Configuration - Updated & Working:**
+### 🔧 **VS Code MCP Configuration - Updated November 30, 2025:**
 
 ```json
 {
   "servers": {
     "eib-mcp-rag-full": {
       "command": "node",
-      "args": ["/mcp_rag_eib/eib-mcp-rag-server/mcp_architecture/src/UnifiedMCPServer.js", "full"],
+      "args": ["/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js", "full"],
+      "env": {
+        "MCP_WORKSPACE_ROOT": "/mcp_rag_eib/eib-mcp-rag-server",
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow",
+        "SDD_FRAMEWORK_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework",
+        "CHROMA_SERVER_URL": "http://localhost:8080",
+        "CHROMADB_URL": "http://127.0.0.1:8080",
+        "NEO4J_URI": "bolt://localhost:7687",
+        "ENABLE_RAG": "true",
+        "ENABLE_GITHUB": "true"
+      }
+    },
+    "eib-mcp-rag-runtime": {
+      "command": "node",
+      "args": ["/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js", "rag"],
+      "env": {
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow",
+        "CHROMA_SERVER_URL": "http://localhost:8080",
+        "ENABLE_RAG": "true"
+      }
+    },
+    "eib-sdd-validator": {
+      "command": "node",
+      "args": ["/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/mcp-server-sdd.js"],
       "env": {
         "MCP_WORKSPACE_ROOT": "/mcp_rag_eib/eib-mcp-rag-server",
         "SDD_FRAMEWORK_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework"
       }
     },
-    "eib-mcp-rag-runtime": {
-      "command": "node", 
-      "args": ["/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js", "rag"],
-      "env": { /* RAG Runtime Environment */ }
-    },
-    "eib-sdd-validator": {
+    "global-workflow-core": {
       "command": "node",
-      "args": ["/mcp_rag_eib/eib-mcp-rag-server/sdd_framework/tools/SDDValidationTools.js", "sdd_validate"],
-      "env": { /* SDD Validation Environment */ }
+      "args": ["/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js", "core"],
+      "env": {
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
+      }
     }
   }
 }
@@ -55,51 +78,77 @@ eib-mcp-rag-server/
 
 ### ⚡ **Available Runtime Services:**
 
-1. **🏗️ MCP Architecture Server** (`eib-mcp-rag-full`)
-   - Clean v0.85 architecture with separation of concerns
-   - ServerUtilities integration
-   - Full MCP toolset
+1. **🏗️ EIB MCP RAG Full** (`eib-mcp-rag-full`)
+   - Full v3.1.0 architecture with all tools enabled
+   - RAG + GitHub + SDD Workflow tools
+   - ChromaDB v2 API + Neo4j integration
 
 2. **🚀 Runtime RAG Server** (`eib-mcp-rag-runtime`) 
    - Production RAG capabilities
-   - ChromaDB integration
-   - Vector embeddings
+   - ChromaDB v2 API integration (Xenova/all-mpnet-base-v2 embeddings)
+   - Vector embeddings for semantic search
 
 3. **🔍 SDD Validation Service** (`eib-sdd-validator`)
-   - Framework integrity checking
+   - Framework integrity checking via mcp-server-sdd.js
    - Bootstrap development monitoring
-   - Systematic validation tools
+   - 4 validation tools: sdd_validate, framework_integrity, development_status, bootstrap_progress
 
-4. **📋 Legacy Core Server** (`global-workflow-core`)
-   - Backward compatibility
-   - Core workflow tools
+4. **📋 Core Workflow Server** (`global-workflow-core`)
+   - Lightweight mode - no RAG/GitHub dependencies
+   - Core workflow info and code analysis tools only
+   - Fast startup for basic queries
 
-### 📈 **Current System Status:**
+### 📈 **Current System Status (November 30, 2025 Health Check):**
 
 ```json
 {
-  "framework_status": "excellent",
-  "compliance_score": 100,
-  "structural_integrity": "intact", 
-  "integration_health": "healthy",
-  "bootstrap_phase": "tooling_development",
-  "self_development_capability": "emerging",
-  "system_maturity": 100
+  "server_version": "3.1.0",
+  "architecture": "Week 2 Consolidated + Phase 3A SDD Automation",
+  "infrastructure": {
+    "chromadb": "Running (v2 API @ http://127.0.0.1:8080)",
+    "neo4j": "Running (v5.15.0 @ bolt://localhost:7687)",
+    "node_modules": "Installed"
+  },
+  "tool_counts": {
+    "workflow_info": 3,
+    "code_analysis": 4,
+    "sdd_workflow": 6,
+    "utility": 2,
+    "semantic_search": "7 (when RAG enabled)",
+    "operational": "3 (when RAG enabled)",
+    "github": "4 (when GitHub enabled)"
+  },
+  "total_tools": "15-27 depending on mode"
 }
 ```
 
 ### 🎯 **Runtime Capabilities:**
 
 #### ✅ **Operational Features:**
-- **SDD Framework Validation**: 4 working validation tools
+- **SDD Framework Validation**: 4 working validation tools (via mcp-server-sdd.js)
+- **SDD Workflow Automation**: 6 Phase 3A tools for workflow execution
+- **RAG Integration**: ChromaDB v2 + Neo4j hybrid search (when enabled)
+- **Code Analysis**: Graph-based dependency and call chain analysis
 - **Bootstrap Development**: System can validate and improve itself
-- **MCP Integration**: Clean architecture with proper separation
-- **Runtime Environment**: Full Node.js MCP server stack
-- **Documentation System**: 32 systematically organized files
 
 #### 🔧 **Available Commands:**
 
-**SDD Validation:**
+**MCP Server Operations:**
+```bash
+# Full mode - all tools including RAG + GitHub + SDD
+node mcp_server_node/src/UnifiedMCPServer.js full
+
+# RAG mode - workflow + semantic search
+node mcp_server_node/src/UnifiedMCPServer.js rag
+
+# Core mode - lightweight, static tools only
+node mcp_server_node/src/UnifiedMCPServer.js core
+
+# Standalone SDD Validator
+node mcp_server_node/mcp-server-sdd.js
+```
+
+**SDD Validation (CLI):**
 ```bash
 node sdd_framework/tools/SDDValidationTools.js sdd_validate
 node sdd_framework/tools/SDDValidationTools.js framework_integrity  
@@ -107,28 +156,22 @@ node sdd_framework/tools/SDDValidationTools.js development_status
 node sdd_framework/tools/SDDValidationTools.js bootstrap_progress
 ```
 
-**MCP Server Operations:**
-```bash
-node mcp_architecture/src/UnifiedMCPServer.js [mode]
-node mcp_server_node/src/UnifiedMCPServer.js [mode]
-```
+### 🚀 **Configuration Notes:**
 
-### 🚀 **Next Phase Capabilities:**
-
-1. **Bootstrap Development Cycle**: System can now modify itself using SDD tools
-2. **Systematic Improvement**: Framework validates and enhances itself
-3. **Multi-Server Architecture**: Clean separation between development and runtime
-4. **Self-Validating System**: Continuous integrity and progress monitoring
+- **ChromaDB**: Uses v2 API (v1 deprecated), path: `/api/v2`
+- **Embeddings**: Xenova/all-mpnet-base-v2 (768-dim, upgraded from MiniLM 384-dim)
+- **GitHub Token**: Set via `GITHUB_TOKEN` env var for GitHub tools
+- **MCP Config Location**: `.vscode/mcp.json`
 
 ---
 
 ## 🏆 **Integration Achievement:**
 
-**The runtime system is now fully supported from the eib-mcp-rag-server workspace with:**
-- ✅ Correct path configurations
-- ✅ Systematic SDD framework integration  
-- ✅ Bootstrap development capability
-- ✅ Multi-server architecture support
-- ✅ Self-validating system ready for advancement
+**The runtime system is now fully aligned with AWS VM provisioning:**
+- ✅ `.vscode/mcp.json` updated with 4-server architecture
+- ✅ ChromaDB v2 API verified working
+- ✅ Neo4j v5.15.0 confirmed running
+- ✅ Server v3.1.0 with Phase 3A SDD Workflow tools
+- ✅ Proper environment variables for RAG/GitHub enablement
 
-**Status**: **PRODUCTION READY** for continued bootstrap development operations.
+**Status**: **OPERATIONAL** - Reload VS Code window to apply new MCP configuration.

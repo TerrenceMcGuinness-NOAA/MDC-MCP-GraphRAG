@@ -18,10 +18,10 @@ echo "========================================="
 echo ""
 
 # Load MCP environment
-source "$(dirname "${BASH_SOURCE[0]}")/mcp_env.sh" --quiet
+source "$(dirname "${BASH_SOURCE[0]}")/mcp-env.sh" --quiet 2>/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/mcp_env.sh" --quiet
 
-# Check if mcp.json exists
-MCP_CONFIG="${GIT_REPO}/.vscode/mcp.json"
+# Check if mcp.json exists - config is in eib-mcp-rag-server, not the submodule
+MCP_CONFIG="${PERSISTENT_ROOT}/eib-mcp-rag-server/.vscode/mcp.json"
 
 echo -e "${YELLOW}1. Checking MCP configuration file...${NC}"
 if [[ -f "${MCP_CONFIG}" ]]; then
@@ -44,23 +44,23 @@ echo ""
 
 # Check server configurations
 echo -e "${YELLOW}3. Checking server configurations...${NC}"
-SERVERS=$(jq -r 'keys[]' "${MCP_CONFIG}")
+SERVERS=$(jq -r '.servers | keys[]' "${MCP_CONFIG}")
 for server in ${SERVERS}; do
     echo "   Server: ${server}"
     
     # Check if disabled
-    DISABLED=$(jq -r ".\"${server}\".disabled // false" "${MCP_CONFIG}")
+    DISABLED=$(jq -r ".servers.\"${server}\".disabled // false" "${MCP_CONFIG}")
     if [[ "${DISABLED}" == "true" ]]; then
         echo -e "     Status: ${YELLOW}Disabled${NC}"
     else
         echo -e "     Status: ${GREEN}Enabled${NC}"
         
         # Check command
-        COMMAND=$(jq -r ".\"${server}\".command" "${MCP_CONFIG}")
+        COMMAND=$(jq -r ".servers.\"${server}\".command" "${MCP_CONFIG}")
         echo "     Command: ${COMMAND}"
         
         # Check args (first arg is the script path)
-        SCRIPT=$(jq -r ".\"${server}\".args[0]" "${MCP_CONFIG}")
+        SCRIPT=$(jq -r ".servers.\"${server}\".args[0]" "${MCP_CONFIG}")
         echo "     Script: ${SCRIPT}"
         
         if [[ -f "${SCRIPT}" ]]; then
@@ -74,10 +74,10 @@ done
 
 echo -e "${YELLOW}4. Testing MCP server execution...${NC}"
 
-# Get the active server configuration (global-workflow-unified)
-SERVER_NAME="global-workflow-unified"
-COMMAND=$(jq -r ".\"${SERVER_NAME}\".command" "${MCP_CONFIG}")
-SCRIPT=$(jq -r ".\"${SERVER_NAME}\".args[0]" "${MCP_CONFIG}")
+# Get the active server configuration (eib-mcp-rag-full - primary server)
+SERVER_NAME="eib-mcp-rag-full"
+COMMAND=$(jq -r ".servers.\"${SERVER_NAME}\".command" "${MCP_CONFIG}")
+SCRIPT=$(jq -r ".servers.\"${SERVER_NAME}\".args[0]" "${MCP_CONFIG}")
 
 echo "   Testing: ${SERVER_NAME}"
 echo "   Command: ${COMMAND} ${SCRIPT}"
