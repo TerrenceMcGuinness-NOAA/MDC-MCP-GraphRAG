@@ -1,5 +1,55 @@
 # MCP Server Changelog
 
+## [3.5.2] - Empirical Health Check Validation (November 30, 2025)
+
+### Added
+- **Empirical Data Validation in Health Checks**:
+  - **Problem**: Previous health check only validated heartbeat (service running), not data accessibility
+  - **False Positive**: Health check reported "healthy" when ChromaDB had 0 collections accessible
+  - **Solution**: Enhanced health checks with empirical validation:
+    1. **Heartbeat Check**: Service is responding
+    2. **Collection Count Check**: Minimum collections present (default: 1)
+    3. **Document Count Check**: Minimum documents present (default: 100)
+    4. **Sample Query Check**: Optional deep validation (queries work)
+
+### Changed
+- **VectorDatabase.healthCheck()** (`src/data/VectorDatabase.js`):
+  - Now accepts options: `{ deep, minCollections, minDocuments }`
+  - Returns detailed validation results with pass/fail for each check
+  - Includes per-collection document counts
+  - Reports `statusReason` explaining health status
+
+- **UnifiedMCPServer.healthCheck()** (`src/UnifiedMCPServer.js`):
+  - Integrates VectorDatabase empirical validation
+  - Shows data validation table in detailed mode
+  - Includes troubleshooting section for data issues
+  - New `deep` parameter for thorough validation with sample queries
+
+- **mcp_health_check Tool**:
+  - New `deep` parameter for thorough validation
+  - Enhanced output with data validation table
+  - Specific troubleshooting guidance for common issues
+
+### Impact
+- **Before**: Health check showed "3/6 healthy" when data was inaccessible
+- **After**: Health check correctly shows "degraded" or "unhealthy" with specific reasons:
+  - "Only 0 collections (expected >= 1) - possible mount path issue"
+  - "Only 0 documents (expected >= 100) - data may not be ingested"
+
+### Example Output
+```
+Status: healthy
+Reason: All validations passed
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Heartbeat | [OK] | ChromaDB responding |
+| Collections | [OK] | 10 found (min: 1) |
+| Documents | [OK] | 9637 total (min: 100) |
+```
+
+---
+
 ## [3.5.1] - ChromaDB Docker Mount Path Fix (November 30, 2025)
 
 ### Fixed

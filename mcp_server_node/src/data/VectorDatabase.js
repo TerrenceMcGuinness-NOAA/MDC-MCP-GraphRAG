@@ -497,31 +497,133 @@ export class VectorDatabase {
   }
 
   /**
-   * Health check - verify connection and basic query
-   * @returns {Promise<object>} Health status
+   * Health check - verify connection, data availability, and query capability
+   * 
+   * Performs empirical validation to prevent false positives:
+   * 1. Heartbeat check (service running)
+   * 2. Collection count check (data accessible)
+   * 3. Document count check (data populated)
+   * 4. Sample query check (queries work)
+   * 
+   * @param {object} options - Health check options
+   * @param {boolean} options.deep - Run deep validation with sample query (default: false)
+   * @param {number} options.minCollections - Minimum expected collections (default: 1)
+   * @param {number} options.minDocuments - Minimum expected total documents (default: 100)
+   * @returns {Promise<object>} Health status with validation results
    */
-  async healthCheck() {
+  async healthCheck(options = {}) {
+    const {
+      deep = false,
+      minCollections = 1,
+      minDocuments = 100
+    } = options;
+
+    const validationResults = {
+      heartbeat: { passed: false, details: null },
+      collections: { passed: false, count: 0, expected: minCollections, details: null },
+      documents: { passed: false, count: 0, expected: minDocuments, details: null },
+      sampleQuery: { passed: false, skipped: !deep, details: null }
+    };
+
     try {
       if (!this.connected) {
         await this.connect();
       }
 
+      // 1. Heartbeat check - service is running
       const heartbeat = await this.client.heartbeat();
+      validationResults.heartbeat.passed = !!heartbeat;
+      validationResults.heartbeat.details = heartbeat ? 'ChromaDB responding' : 'No heartbeat';
+
+      // 2. Collection count check - data is accessible
       const collections = await this.listCollections();
+      validationResults.collections.count = collections.length;
+      validationResults.collections.passed = collections.length >= minCollections;
+      validationResults.collections.details = collections.length > 0 
+        ? `${collections.length} collections: ${collections.slice(0, 5).join(', ')}${collections.length > 5 ? '...' : ''}`
+        : 'NO COLLECTIONS FOUND - possible mount path issue';
+      validationResults.collections.list = collections;
+
+      // 3. Document count check - data is populated
+      let totalDocuments = 0;
+      const collectionCounts = {};
+      
+      for (const collName of collections) {
+        try {
+          // Use getCollectionCount which handles collection retrieval properly
+          const count = await this.getCollectionCount(collName);
+          collectionCounts[collName] = count;
+          totalDocuments += count;
+        } catch (e) {
+          collectionCounts[collName] = `error: ${e.message}`;
+        }
+      }
+      
+      validationResults.documents.count = totalDocuments;
+      validationResults.documents.passed = totalDocuments >= minDocuments;
+      validationResults.documents.details = totalDocuments > 0
+        ? `${totalDocuments} total documents across ${collections.length} collections`
+        : 'NO DOCUMENTS FOUND - data may not be ingested';
+      validationResults.documents.perCollection = collectionCounts;
+
+      // 4. Sample query check - queries actually work (only if deep=true)
+      if (deep && collections.length > 0) {
+        try {
+          const testCollection = collections[0];
+          const results = await this.query(testCollection, 'test query', { limit: 1 });
+          validationResults.sampleQuery.passed = results && results.length >= 0;
+          validationResults.sampleQuery.details = `Query returned ${results.length} results from ${testCollection}`;
+          validationResults.sampleQuery.skipped = false;
+        } catch (e) {
+          validationResults.sampleQuery.passed = false;
+          validationResults.sampleQuery.details = `Query failed: ${e.message}`;
+          validationResults.sampleQuery.skipped = false;
+        }
+      }
+
+      // Determine overall status based on validations
+      const criticalPassed = validationResults.heartbeat.passed && 
+                            validationResults.collections.passed && 
+                            validationResults.documents.passed;
+      
+      const allPassed = criticalPassed && 
+                       (validationResults.sampleQuery.skipped || validationResults.sampleQuery.passed);
+
+      let status = 'healthy';
+      let statusReason = 'All validations passed';
+
+      if (!validationResults.heartbeat.passed) {
+        status = 'unhealthy';
+        statusReason = 'ChromaDB not responding';
+      } else if (!validationResults.collections.passed) {
+        status = 'unhealthy';
+        statusReason = `Only ${validationResults.collections.count} collections (expected >= ${minCollections}) - possible mount path issue`;
+      } else if (!validationResults.documents.passed) {
+        status = 'degraded';
+        statusReason = `Only ${validationResults.documents.count} documents (expected >= ${minDocuments}) - data may not be ingested`;
+      } else if (!validationResults.sampleQuery.skipped && !validationResults.sampleQuery.passed) {
+        status = 'degraded';
+        statusReason = 'Queries failing despite data present';
+      }
 
       return {
-        status: 'healthy',
+        status,
+        statusReason,
         connected: this.connected,
         heartbeat,
-        collections,
+        validation: validationResults,
+        collections: collections,
+        totalDocuments,
         metrics: this.metrics,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
       return {
         status: 'unhealthy',
+        statusReason: `Health check failed: ${error.message}`,
         connected: false,
         error: error.message,
+        validation: validationResults,
         timestamp: new Date().toISOString()
       };
     }

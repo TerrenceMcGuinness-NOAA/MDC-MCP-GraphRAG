@@ -164,13 +164,18 @@ class UnifiedMCPServer {
 
     this.server.registerTool(
       'mcp_health_check',
-      'Check the health status of all MCP server components',
+      'Check the health status of all MCP server components with empirical data validation',
       {
         type: 'object',
         properties: {
           detailed: {
             type: 'boolean',
-            description: 'Include detailed component status',
+            description: 'Include detailed component status and troubleshooting info',
+            default: false
+          },
+          deep: {
+            type: 'boolean',
+            description: 'Run deep validation including sample queries (slower but more thorough)',
             default: false
           }
         }
@@ -264,13 +269,20 @@ class UnifiedMCPServer {
   }
 
   /**
-   * Check health status of all components
+   * Check health status of all components with empirical data validation
+   * 
+   * Enhanced to prevent false positives by validating:
+   * - Service connectivity (heartbeat)
+   * - Data accessibility (collection count)
+   * - Data population (document count)
+   * - Query capability (optional deep check)
    */
   async healthCheck(args = {}) {
-    const { detailed = false } = args;
+    const { detailed = false, deep = false } = args;
     
     let status = `# Server Health Check\n\n`;
     const checks = [];
+    let dataValidation = null;
 
     // Base server check
     checks.push({
@@ -293,19 +305,50 @@ class UnifiedMCPServer {
       details: '4 graph-based tools available'
     });
 
-    // Semantic search tools check
+    // Semantic search tools check WITH DATA VALIDATION
     if (this.options.enableRAG && this.semanticSearchTools) {
       try {
-        const ragStatus = this.semanticSearchTools.isInitialized ? 'healthy' : 'initializing';
-        checks.push({
-          component: 'Semantic Search Tools',
-          status: ragStatus,
-          details: ragStatus === 'healthy' ? '7 hybrid search tools ready' : 'Loading vector DB'
-        });
+        if (this.semanticSearchTools.isInitialized && this.semanticSearchTools.dataAccess) {
+          // Run empirical validation on vector database
+          const vectorHealth = await this.semanticSearchTools.dataAccess.vectorDB.healthCheck({
+            deep: deep,
+            minCollections: 1,
+            minDocuments: 100
+          });
+          
+          dataValidation = vectorHealth;
+          
+          // Status based on actual data validation, not just connectivity
+          let ragStatus = vectorHealth.status;
+          let ragDetails = vectorHealth.statusReason;
+          
+          if (vectorHealth.status === 'healthy') {
+            ragDetails = `${vectorHealth.totalDocuments} docs in ${vectorHealth.collections?.length || 0} collections`;
+          }
+          
+          checks.push({
+            component: 'Semantic Search Tools',
+            status: ragStatus,
+            details: ragDetails,
+            validation: vectorHealth.validation
+          });
+        } else if (this.semanticSearchTools.isInitialized) {
+          checks.push({
+            component: 'Semantic Search Tools',
+            status: 'degraded',
+            details: 'Initialized but no data access layer'
+          });
+        } else {
+          checks.push({
+            component: 'Semantic Search Tools',
+            status: 'initializing',
+            details: 'Loading vector DB'
+          });
+        }
       } catch (error) {
         checks.push({
           component: 'Semantic Search Tools',
-          status: 'degraded',
+          status: 'unhealthy',
           details: `Error: ${error.message}`
         });
       }
@@ -359,20 +402,26 @@ class UnifiedMCPServer {
 
     // Format results
     const healthyCount = checks.filter(c => c.status === 'healthy').length;
+    const degradedCount = checks.filter(c => c.status === 'degraded' || c.status === 'unhealthy').length;
     const totalCount = checks.length;
     
-    status += `**Overall Status**: ${healthyCount}/${totalCount} components healthy\n\n`;
+    const overallStatus = degradedCount > 0 
+      ? (checks.some(c => c.status === 'unhealthy') ? 'UNHEALTHY' : 'DEGRADED')
+      : 'HEALTHY';
+    
+    status += `**Overall Status**: ${overallStatus} (${healthyCount}/${totalCount} components healthy)\n\n`;
     
     checks.forEach(check => {
       const emoji = {
         'healthy': '[OK]',
         'degraded': '[WARN]',
-        'disabled': '⭕',
+        'unhealthy': '[ERROR]',
+        'disabled': '[OFF]',
         'initializing': '[INIT]'
-      }[check.status] || '❓';
+      }[check.status] || '[?]';
       
       status += `${emoji} **${check.component}**: ${check.status}`;
-      if (detailed) {
+      if (detailed || check.status !== 'healthy') {
         status += ` - ${check.details}`;
       }
       status += '\n';
@@ -380,22 +429,63 @@ class UnifiedMCPServer {
 
     status += '\n';
     
+    // Data validation details (always show if there are issues)
+    if (dataValidation && (detailed || dataValidation.status !== 'healthy')) {
+      status += `## Data Validation\n\n`;
+      const v = dataValidation.validation;
+      
+      status += `| Check | Status | Details |\n`;
+      status += `|-------|--------|--------|\n`;
+      status += `| Heartbeat | ${v.heartbeat.passed ? '[OK]' : '[FAIL]'} | ${v.heartbeat.details} |\n`;
+      status += `| Collections | ${v.collections.passed ? '[OK]' : '[FAIL]'} | ${v.collections.count} found (min: ${v.collections.expected}) |\n`;
+      status += `| Documents | ${v.documents.passed ? '[OK]' : '[FAIL]'} | ${v.documents.count} total (min: ${v.documents.expected}) |\n`;
+      if (!v.sampleQuery.skipped) {
+        status += `| Sample Query | ${v.sampleQuery.passed ? '[OK]' : '[FAIL]'} | ${v.sampleQuery.details} |\n`;
+      }
+      status += '\n';
+      
+      if (v.documents.perCollection && detailed) {
+        status += `### Documents per Collection\n\n`;
+        for (const [name, count] of Object.entries(v.documents.perCollection)) {
+          status += `- **${name}**: ${count}\n`;
+        }
+        status += '\n';
+      }
+    }
+    
     if (detailed) {
       status += `## Recommendations\n\n`;
       
       checks.forEach(check => {
-        if (check.status === 'degraded') {
+        if (check.status === 'unhealthy') {
+          status += `- **${check.component}**: CRITICAL - ${check.details}\n`;
+        } else if (check.status === 'degraded') {
           status += `- **${check.component}**: Check configuration and dependencies\n`;
         } else if (check.status === 'disabled') {
           status += `- **${check.component}**: Enable in configuration if needed\n`;
         }
       });
       
+      // Add specific troubleshooting for data issues
+      if (dataValidation && dataValidation.status !== 'healthy') {
+        status += `\n### Troubleshooting Data Issues\n\n`;
+        if (!dataValidation.validation.collections.passed) {
+          status += `**Collections not found**: Check ChromaDB Docker mount path.\n`;
+          status += `- Expected: \`-v /mcp_rag_eib/data/chromadb:/data:Z\`\n`;
+          status += `- Verify with: \`docker exec chromadb ls -la /data/\`\n\n`;
+        }
+        if (!dataValidation.validation.documents.passed && dataValidation.validation.collections.passed) {
+          status += `**Documents not found**: Data may not be ingested.\n`;
+          status += `- Run ingestion: \`python3 scripts/ingest_*.py\`\n\n`;
+        }
+      }
+      
       status += `\n## Week 2 Architecture\n\n`;
       status += `This server uses the consolidated Week 2 architecture with:\n`;
       status += `- Unified data access layer (Week 1)\n`;
       status += `- Modular tool organization (5 modules)\n`;
       status += `- No duplicate tools (21 unique tools)\n`;
+      status += `- **Empirical health validation (v3.5.1+)**\n`;
     }
 
     return status;
