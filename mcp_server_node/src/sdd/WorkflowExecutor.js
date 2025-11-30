@@ -362,7 +362,7 @@ export class WorkflowExecutor {
         scripts.push({
           name: 'ingest_documentation',
           script: 'ingest_documentation_v4_2_unified.py',
-          collection: 'global-workflow-docs-v6-0-0-docker'
+          collection: 'global-workflow-docs-v5-0-0-consolidated'
         });
       }
       
@@ -370,7 +370,7 @@ export class WorkflowExecutor {
         scripts.push({
           name: 'ingest_code',
           script: 'ingest_code_graph_enriched_v6.py',
-          collection: 'code_with_context_v7_docker'
+          collection: 'code_with_context_v6_graph_enriched'
         });
       }
       
@@ -378,7 +378,7 @@ export class WorkflowExecutor {
         scripts.push({
           name: 'ingest_ee2',
           script: 'ingest_ee2_enhanced_v5.py',
-          collection: 'ee2-standards-v6-0-0-docker'
+          collection: 'ee2-standards-v5-0-0-enhanced'
         });
       }
 

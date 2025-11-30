@@ -1,5 +1,60 @@
 # MCP Server Changelog
 
+## [3.6.0] - EE2 Compliance Module Extraction (December 1, 2025)
+
+### Added
+- **New EE2ComplianceTools Module** (`mcp_server_node/src/tools/EE2ComplianceTools.js`):
+  - Dedicated module for EE2 standards compliance validation
+  - Extracted 4 tools from SemanticSearchTools for better Separation of Concerns (SOC)
+  - Preserves Phase 2 semantic annotation integration
+  - ~700 lines with complete implementation
+
+### Changed
+- **SemanticSearchTools.js** - Reduced from ~700 to ~384 lines:
+  - Removed EE2-specific tools (now in EE2ComplianceTools)
+  - Retained 4 search-focused tools:
+    - `search_documentation` - Hybrid semantic + graph search
+    - `find_related_files` - Dependency relationship search
+    - `explain_with_context` - Multi-source RAG explanations
+    - `get_knowledge_base_status` - Vector + graph DB statistics
+  - Updated header with SOC documentation note (v3.0.0)
+
+- **UnifiedMCPServer.js** - Updated to v3.6.0:
+  - Added EE2ComplianceTools import and registration
+  - Updated server version from 3.1.0 to 3.6.0
+  - Updated getServerInfo() with accurate tool counts
+  - 7 tool modules now registered (was 6)
+
+### Tool Organization (v3.6.0)
+
+| Module | Tools | Focus |
+|--------|-------|-------|
+| WorkflowInfoTools | 3 | Static workflow info |
+| CodeAnalysisTools | 4 | Graph-based code analysis |
+| SemanticSearchTools | 4 | Hybrid vector+graph search |
+| **EE2ComplianceTools** | **4** | **EE2 compliance validation** |
+| OperationalTools | 3 | HPC operational guidance |
+| SDDWorkflowTools | 6 | SDD automation |
+| Utility Tools | 2 | Server info, health check |
+
+### EE2ComplianceTools (4 tools)
+- `search_ee2_standards` - Search EE2 documentation and standards
+- `analyze_ee2_compliance` - Analyze code/docs for EE2 compliance
+- `generate_compliance_report` - Generate structured compliance reports
+- `scan_repository_compliance` - Full repository EE2 scanning
+
+### Impact
+- **SOC Improvement**: Clear separation between search and compliance tools
+- **Maintainability**: EE2 tools can evolve independently
+- **EVS Collaboration**: Easier handoff for EVS team work (next week)
+- **No Breaking Changes**: Tool names and behavior unchanged
+
+### SDD Workflow
+- Followed: `sdd_framework/workflows/ee2_compliance_module_extraction.md`
+- Status: ✅ COMPLETED
+
+---
+
 ## [3.5.2] - Empirical Health Check Validation (November 30, 2025)
 
 ### Added

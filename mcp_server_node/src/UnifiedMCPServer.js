@@ -6,13 +6,15 @@
  * Combines all tool modules with proper separation of concerns:
  * - BaseServer: Core MCP functionality
  * - WorkflowTools: Basic workflow structure and documentation
+ * - SemanticSearchTools: Hybrid semantic + graph search
+ * - EE2ComplianceTools: EE2 standards compliance validation (extracted v3.6.0)
  * - RAGTools: Semantic search and knowledge retrieval
  * - GitHubTools: Repository integration and analysis
  * 
  * This replaces the previous 3 separate server implementations
  * with a clean, modular architecture.
  * 
- * @version 3.0.1
+ * @version 3.6.0
  * @author NOAA EMC Global Workflow Team
  */
 
@@ -29,6 +31,7 @@ quietConsole.enableQuietMode();
 import { BaseServer } from './core/BaseServer.js';
 import { WorkflowInfoTools } from './tools/WorkflowInfoTools.js';
 import { SemanticSearchTools } from './tools/SemanticSearchTools.js';
+import { EE2ComplianceTools } from './tools/EE2ComplianceTools.js';
 import { CodeAnalysisTools } from './tools/CodeAnalysisTools.js';
 import { OperationalTools } from './tools/OperationalTools.js';
 import { GitHubTools } from './tools/GitHubTools.js';
@@ -50,7 +53,7 @@ class UnifiedMCPServer {
     // Initialize base server
     this.server = new BaseServer(
       'global-workflow-unified-mcp',
-      '3.1.0',  // Phase 3A: SDD Workflow Automation
+      '3.6.0',  // v3.6.0: EE2 compliance module extraction (SOC improvement)
       {
         tools: {},
         resources: {},
@@ -67,6 +70,7 @@ class UnifiedMCPServer {
     
     if (this.options.enableRAG) {
       this.semanticSearchTools = new SemanticSearchTools();
+      this.ee2ComplianceTools = new EE2ComplianceTools();
       this.operationalTools = new OperationalTools();
     }
     
@@ -97,13 +101,23 @@ class UnifiedMCPServer {
     this.codeAnalysisTools.registerWith(this.server);
     console.error('[MCP] Code analysis tools registered');
 
-    // Conditionally register semantic search tools (7 tools)
+    // Conditionally register semantic search tools (4 tools - SOC: EE2 tools moved to EE2ComplianceTools)
     if (this.options.enableRAG && this.semanticSearchTools) {
       try {
         this.semanticSearchTools.registerWith(this.server);
         console.error('[MCP] Semantic search tools registered');
       } catch (error) {
         console.error(`[WARN] Semantic search tools registration failed: ${error.message}`);
+      }
+    }
+
+    // Conditionally register EE2 compliance tools (4 tools - extracted for EVS team collaboration)
+    if (this.options.enableRAG && this.ee2ComplianceTools) {
+      try {
+        this.ee2ComplianceTools.registerWith(this.server);
+        console.error('[MCP] EE2 compliance tools registered');
+      } catch (error) {
+        console.error(`[WARN] EE2 compliance tools registration failed: ${error.message}`);
       }
     }
 
@@ -192,7 +206,7 @@ class UnifiedMCPServer {
     const stats = this.server.getStats();
     
     let info = `# ${stats.name} v${stats.version}\n\n`;
-    info += `**Architecture**: Week 2 Consolidated + Phase 3A SDD Automation (27 tools)\n`;
+    info += `**Architecture**: Week 2 Consolidated + v3.6.0 SOC Refactor (7 modules)\n`;
     info += `**Total Tools**: ${stats.toolCount}\n\n`;
     
     info += `## Tool Categories\n\n`;
@@ -209,14 +223,17 @@ class UnifiedMCPServer {
     info += `- find_callers_callees - Relationship analysis\n\n`;
 
     if (this.options.enableRAG) {
-      info += `### Semantic Search Tools (7 tools - vector + graph)\n`;
+      info += `### Semantic Search Tools (4 tools - vector + graph hybrid)\n`;
       info += `- search_documentation - Hybrid semantic search\n`;
-      info += `- search_ee2_standards - EE2 compliance search\n`;
-      info += `- find_similar_code - Vector similarity + graph context\n`;
-      info += `- explain_with_context - Multi-source explanations\n`;
-      info += `- analyze_ee2_compliance - Compliance analysis\n`;
-      info += `- generate_compliance_report - Report generation\n`;
-      info += `- get_knowledge_base_status - System statistics\n\n`;
+      info += `- find_related_files - Dependency relationship search\n`;
+      info += `- explain_with_context - Multi-source RAG explanations\n`;
+      info += `- get_knowledge_base_status - Vector + graph DB statistics\n\n`;
+
+      info += `### EE2 Compliance Tools (4 tools - vector + Phase 2 patterns)\n`;
+      info += `- search_ee2_standards - EE2 documentation search\n`;
+      info += `- analyze_ee2_compliance - Code compliance analysis\n`;
+      info += `- generate_compliance_report - Structured compliance reports\n`;
+      info += `- scan_repository_compliance - Full repository scanning\n\n`;
 
       info += `### Operational Tools (3 tools - hybrid with DB)\n`;
       info += `- get_operational_guidance - HPC procedures\n`;

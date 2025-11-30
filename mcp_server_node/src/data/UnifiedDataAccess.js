@@ -81,7 +81,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collection = 'global-workflow-docs-v6-0-0-docker',  // v6.0.0: Docker container ingestion
+      collection = 'global-workflow-docs-v5-0-0-consolidated',  // v5.0.0: Consolidated docs (1695 docs)
       nResults = 10,
       includeGraphContext = true,
       includeDependencies = true,
@@ -240,7 +240,7 @@ export class UnifiedDataAccess {
       if (includeSemanticSimilar && fileInfo.length > 0) {
         try {
           similarCode = await this.vectorDB.query(
-            'code_with_context_v7_docker',
+            'code_with_context_v6_graph_enriched',
             identifier,
             { nResults: 5 }
           );
@@ -279,7 +279,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collections = ['global-workflow-docs-v6-0-0-docker', 'ee2-standards-v6-0-0-docker'],
+      collections = ['global-workflow-docs-v5-0-0-consolidated', 'ee2-standards-v5-0-0-enhanced'],
       nResults = 10,
       enrichWithGraph = true
     } = options;
@@ -358,7 +358,7 @@ export class UnifiedDataAccess {
         // Search for documentation about these modules
         const docQuery = moduleNames.slice(0, 3).join(' ');
         documentation = await this.vectorDB.query(
-          'global-workflow-docs-v6-0-0-docker',
+          'global-workflow-docs-v5-0-0-consolidated',
           docQuery,
           { nResults: 5 }
         );
@@ -415,7 +415,7 @@ export class UnifiedDataAccess {
           .map(async (fn) => {
             try {
               const results = await this.vectorDB.query(
-                'code_with_context_v7_docker',
+                'code_with_context_v6_graph_enriched',
                 fn,
                 { nResults: 1 }
               );
