@@ -240,7 +240,7 @@ log_info "Installing system dependencies..."
 log_info "  - Development tools (gcc, make, git)"
 log_info "  - Docker components"
 log_info "  - Node.js (will be installed via module system)"
-log_info "  - Utilities (curl, wget, jq)"
+log_info "  - Utilities (curl, wget, jq, neofetch)"
 
 timeout 600 dnf install -y \
     gcc-c++ \
@@ -249,6 +249,7 @@ timeout 600 dnf install -y \
     wget \
     git \
     jq \
+    neofetch \
     docker-ce \
     docker-ce-cli \
     containerd.io \
