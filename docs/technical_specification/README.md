@@ -1,10 +1,38 @@
+# Technical Specification Documentation
+
+This directory contains technical specifications, white papers, and reference documentation for the MCP-RAG system.
+
+## Directory Structure
+
+```
+technical_specification/
+├── README.md                    # This file
+├── COMPILATION_GUIDE.md         # LaTeX compilation instructions
+├── PDF_GENERATION_STATUS.md     # PDF generation status
+│
+└── papers/                      # Technical papers collection
+    ├── README.md                # Papers index
+    ├── sdd_framework/           # SDD Framework papers (Phase 1)
+    ├── hybrid_annotations/      # Phase 2 Hybrid Annotations
+    └── fm_assisted_annotations/ # Phase 3 FM-Assisted Generation
+```
+
+## Quick Links
+
+- **[Papers Collection](papers/README.md)** - All technical papers organized by topic
+- **[SDD Framework Paper](papers/sdd_framework/main.pdf)** - Core technical specification
+- **[Hybrid Annotations Spec](papers/hybrid_annotations/PHASE_2_HYBRID_ARCHITECTURE_SPECIFICATION.md)** - Phase 2 architecture
+- **[FM-Assisted Annotations](papers/fm_assisted_annotations/FM_Assisted_Annotation_Generation.pdf)** - Phase 3 white paper
+
+---
+
 # LaTeX Technical Specification - Compilation Guide
 
 ## Document Information
 
 **Title:** Graph-Enriched Retrieval-Augmented Generation for Operational Weather Forecasting Code Intelligence
 
-**File:** `docs/technical_specification/main.tex`
+**File:** `papers/sdd_framework/main.tex`
 
 **Length:** ~35 pages (estimated when compiled)
 

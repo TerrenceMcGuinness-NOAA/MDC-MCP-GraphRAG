@@ -1,0 +1,88 @@
+\documentclass[10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+
+\geometry{letterpaper, margin=0.75in}
+
+% Header/Footer setup
+\pagestyle{fancy}
+\setlength{\headheight}{14pt}
+\fancyhf{}
+\rhead{NOAA EMC/EIB - AI Funding Proposal}
+\lhead{December 2, 2025}
+\cfoot{\thepage}
+
+\title{\textbf{Scaling AI-Assisted Software Engineering for the\\NOAA Global Workflow}}
+\author{Enterprise Infrastructure Branch (EIB)}
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\section*{Executive Summary}
+The NOAA Environmental Modeling Center (EMC) faces increasing complexity in maintaining and evolving the Global Workflow (GFS, GEFS, GDAS). To address this, we propose scaling our pilot AI-assisted software engineering platform to a "beta" cohort of 10-15 scientific developers. This platform leverages the \textbf{Model Context Protocol (MCP)} and \textbf{Retrieval-Augmented Generation (RAG)} to provide deep, context-aware coding assistance that goes far beyond standard autocomplete. By integrating directly with our specific HPC environments (Hera, Hercules, Orion) and enforcing EE2 compliance standards, this system promises to reduce debugging time, ensure architectural integrity, and accelerate scientific innovation.
+
+\section*{The Solution: A Context-Aware MCP-RAG System}
+Standard AI coding tools lack knowledge of NOAA's specific infrastructure, coding standards, and the intricate dependencies of the Global Workflow. Our solution bridges this gap using a specialized architecture:
+
+\begin{itemize}
+    \item \textbf{Model Context Protocol (MCP):} A standardized way to connect AI models to our internal systems. It allows the AI to "see" our file systems, read our documentation, and understand our specific workflow structures.
+    \item \textbf{Hybrid RAG Engine:} We utilize a dual-database approach for unmatched accuracy:
+    \begin{itemize}
+        \item \textbf{Vector Database (ChromaDB):} Understands the \textit{semantic meaning} of our documentation and code comments (e.g., "How do I validate environment variables?").
+        \item \textbf{Graph Database (Neo4j):} Understands the \textit{structural relationships} of our code (e.g., "Which scripts call \texttt{exglobal\_forecast.py} and what dependencies do they share?").
+    \end{itemize}
+\end{itemize}
+
+This system allows a developer to ask complex questions like, \textit{"How does the C48\_ATM test case interact with the GSI data assimilation step on Hera?"} and receive an answer grounded in our actual codebase and operational procedures, not just general programming knowledge.
+
+\section*{Value Proposition \& Expected Outcomes}
+Investing in this infrastructure is expected to yield significant returns in productivity and code quality:
+
+\begin{itemize}
+    \item \textbf{Accelerated Software Development Time:} We anticipate a 10x productivity boost by automating routine lookups, boilerplate generation, and compliance checking. This drastically shortens the development lifecycle, allowing staff to focus on solving high-value science problems rather than wrestling with syntax or configuration.
+    \item \textbf{Automated Compliance:} The system is trained on NWS/HPC EE2 standards. It proactively suggests compliant patterns for error handling, file naming, and directory structures, reducing technical debt and "compliance cleanup" cycles.
+    \item \textbf{Faster Onboarding:} New staff can query the system to understand legacy components (e.g., Rocoto workflow logic, UFS model coupling) without constantly interrupting senior engineers.
+    \item \textbf{Reduced Operational Risk:} By validating scripts against platform-specific configurations (e.g., WCOSS2 vs. Orion paths) during development, we reduce the likelihood of runtime failures in production.
+\end{itemize}
+
+\section*{Resource Requirements for Beta Rollout (10-15 Users)}
+To scale from our current prototype to a robust beta environment for 10-15 users, we require specific infrastructure and licensing. We propose a tiered deployment leveraging the Parallel Works ACTIVATE platform for secure, scalable management.
+
+\subsection*{Infrastructure Needs}
+\begin{itemize}
+    \item \textbf{Compute Environment:} A single shared AWS instance (e.g., m8i.4xlarge, 16 vCPUs) to host the MCP servers and RAG databases for the entire beta cohort. Individual user clusters are not required.
+    \item \textbf{Orchestration:} Parallel Works ACTIVATE platform to manage user sessions, security, and cloud resources.
+    \item \textbf{AI Services:}
+    \begin{itemize}
+        \item \textbf{GitHub Copilot:} Licenses for all beta users (integration point for the IDE) at \$10/month/user.
+        \item \textbf{LLM API Keys:} Access to Gemini Pro API keys solely for high-volume document ingestion and knowledge base maintenance. Interactive queries are handled via Copilot, so no per-user API keys are needed.
+    \end{itemize}
+\end{itemize}
+
+\subsection*{Cost Estimates (Annualized)}
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Component} & \textbf{Tier 1 (Pilot - 1 User)} & \textbf{Tier 2 (Beta - 20 Users)} \\ \midrule
+AWS Infrastructure & $\sim$\$6,000 & $\sim$\$6,000 \\
+ACTIVATE Platform & \$5,000 (Standard) & \$62,000 (1 Std + 19 Base) \\
+GitHub Copilot & \$120 (\$10/mo) & \$2,400 (20 users) \\
+LLM API (Ingest Only) & $\sim$\$3,000 & $\sim$\$3,000 \\ \midrule
+\textbf{Total Estimated} & \textbf{$\sim$\$14,120} & \textbf{$\sim$\$73,400} \\ \bottomrule
+\end{tabular}
+\caption{Estimated costs for pilot vs. scaled beta deployment.}
+\end{table}
+
+\section*{Conclusion}
+The MCP-RAG system represents a transformative step for NOAA's software engineering capability. By embedding our institutional knowledge into an intelligent assistant, we empower our scientists to build better, compliant, and more robust forecasting systems faster. We request approval to proceed with the Tier 2 procurement to enable this capability for our core development team.
+
+\end{document}
