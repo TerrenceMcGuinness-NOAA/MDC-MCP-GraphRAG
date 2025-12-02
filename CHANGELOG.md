@@ -1,5 +1,52 @@
 # MCP Server Changelog
 
+## [3.6.2] - ONNX Runtime Conflict Fix (December 2025)
+
+### Fixed
+- **SIGSEGV Crash on Health Check** - Critical fix for segmentation fault:
+  - **Root Cause**: Conflicting `onnxruntime-node` versions
+    - `onnxruntime-node@1.14.0` from `@xenova/transformers@2.17.2`
+    - `onnxruntime-node@1.21.0` from `@huggingface/transformers@3.8.0` (via `@chroma-core/default-embed@0.1.9`)
+  - **Solution**: Removed `@chroma-core/default-embed` dependency (was never actually imported in code)
+  - Server now uses single ONNX Runtime version (1.14.0)
+  - Deep health checks with embedding generation now work without crashing
+
+- **Embedding Dimension Mismatch in Health Check**:
+  - Health check sample query was picking first collection alphabetically
+  - Some legacy collections use 384-dim embeddings (different model)
+  - Current model (all-mpnet-base-v2) produces 768-dim embeddings
+  - Added preferred collection list for 768-dim collections
+
+### Changed
+- **VectorDatabase.js** - `healthCheck()` method enhanced:
+  - Now prefers known 768-dimension collections for sample query
+  - Collections: `global-workflow-docs-v5-0-0-consolidated`, `global-workflow-docs-v4-*`, `ee2-standards-v5-*`
+  - Falls back to first available collection if none match
+
+### Removed
+- `@chroma-core/default-embed` from package.json dependencies (unused, caused ONNX conflict)
+
+### Technical Notes
+- NPM package hoisting can cause native library conflicts even if a package isn't imported
+- ONNX Runtime SIGSEGV issues are often version conflicts, not CPU instruction set problems
+- Comment in VectorDatabase.js already said "avoid DefaultEmbeddingFunction dependency" - package.json now aligns
+
+---
+
+## [3.6.1] - GitHub CLI Provisioning Support (December 2025)
+
+### Added
+- **GitHub CLI (gh) Installation** in provisioning script:
+  - Added STEP 6.5 in `SETUP/provision_mcp_rag_persistent.sh`
+  - Installs `gh@2.79.0` via Spack
+  - Required for MCP GitHub tools to function
+  - Makes `gh` command available after `module load gh`
+
+### Changed
+- `SETUP/provision_mcp_rag_persistent.sh` updated to v3.6.1
+
+---
+
 ## [3.6.0] - EE2 Compliance Module Extraction (December 1, 2025)
 
 ### Added

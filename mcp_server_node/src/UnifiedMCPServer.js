@@ -14,7 +14,7 @@
  * This replaces the previous 3 separate server implementations
  * with a clean, modular architecture.
  * 
- * @version 3.6.0
+ * @version 3.6.2
  * @author NOAA EMC Global Workflow Team
  */
 
@@ -53,7 +53,7 @@ class UnifiedMCPServer {
     // Initialize base server
     this.server = new BaseServer(
       'global-workflow-unified-mcp',
-      '3.6.0',  // v3.6.0: EE2 compliance module extraction (SOC improvement)
+      '3.6.2',  // v3.6.2: Fixed ONNX Runtime conflict (removed @chroma-core/default-embed)
       {
         tools: {},
         resources: {},

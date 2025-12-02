@@ -567,9 +567,27 @@ export class VectorDatabase {
       validationResults.documents.perCollection = collectionCounts;
 
       // 4. Sample query check - queries actually work (only if deep=true)
+      // Prefer collections with 768-dim embeddings (all-mpnet-base-v2 model)
+      // to match current embedding generator
       if (deep && collections.length > 0) {
         try {
-          const testCollection = collections[0];
+          // Prefer known 768-dim collections (created with all-mpnet-base-v2)
+          const preferredCollections = [
+            'global-workflow-docs-v5-0-0-consolidated',
+            'global-workflow-docs-v4-2-0-unified',
+            'global-workflow-docs-v4-1-0-enhanced',
+            'global-workflow-docs-v4-0-0-mpnet',
+            'ee2-standards-v5-0-0-enhanced'
+          ];
+          
+          let testCollection = collections[0]; // fallback
+          for (const preferred of preferredCollections) {
+            if (collections.includes(preferred)) {
+              testCollection = preferred;
+              break;
+            }
+          }
+          
           const results = await this.query(testCollection, 'test query', { limit: 1 });
           validationResults.sampleQuery.passed = results && results.length >= 0;
           validationResults.sampleQuery.details = `Query returned ${results.length} results from ${testCollection}`;

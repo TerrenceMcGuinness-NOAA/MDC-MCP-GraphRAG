@@ -2,12 +2,14 @@
 
 ################################################################################
 # MCP RAG Persistent Infrastructure Provisioning Script
-# Version: 3.6.0
+# Version: 3.6.1
 # 
 # Purpose: Complete infrastructure provisioning for MCP/RAG development
 #          on dedicated /mcp_rag_eib mount (25GB) with co-located architecture
 # 
-# Changelog: v3.6.0 - Removed legacy deployment/copy logic (co-located architecture)
+# Changelog: v3.6.1 - Added GitHub CLI (gh@2.79.0) installation via Spack
+#                   - Lmod module support for gh CLI
+#            v3.6.0 - Removed legacy deployment/copy logic (co-located architecture)
 #                   - Git submodules for analysis targets (global-workflow, nws-hpc-standards)
 #                   - VS Code config in eib-mcp-rag-server root (not submodule)
 #                   - Source = Runtime (no deployment/sync needed)
@@ -401,6 +403,40 @@ module use "${MODULE_DIR}"
 module avail python 2>&1 | grep "python/" || log_warning "Python modules not found"
 
 log_success "Spack environment initialized"
+
+################################################################################
+# STEP 6.5: GitHub CLI (gh) Installation via Spack
+################################################################################
+log_section "STEP 6.5: GitHub CLI (gh) Installation via Spack"
+
+log_info "Checking if gh is already installed in Spack..."
+if spack find gh@2.79.0 &>/dev/null; then
+    log_info "gh@2.79.0 already installed in Spack"
+else
+    log_info "Installing GitHub CLI (gh@2.79.0) via Spack..."
+    log_info "  This may take several minutes (Go build from source)..."
+    if spack install gh@2.79.0; then
+        log_success "GitHub CLI installed successfully"
+    else
+        log_warning "GitHub CLI installation failed (non-fatal)"
+        log_info "  You can install manually later: spack install gh@2.79.0"
+    fi
+fi
+
+# Generate Lmod module for gh
+log_info "Generating Lmod module for gh..."
+spack module lmod refresh gh -y 2>/dev/null || log_warning "Module refresh for gh failed"
+
+# Verify gh is loadable
+if module avail gh 2>&1 | grep -q "gh"; then
+    log_success "GitHub CLI module available: module load gh"
+    module load gh
+    log_info "gh version: $(gh --version | head -1)"
+else
+    log_warning "gh module not available via Lmod - try: spack load gh"
+fi
+
+log_success "GitHub CLI setup complete"
 
 ################################################################################
 # STEP 7: ChromaDB Docker Setup
@@ -1088,6 +1124,7 @@ echo "  npm: $(npm --version)"
 echo "  Python: $(python3.11 --version 2>&1 | head -1)"
 echo "  Docker: $(docker --version)"
 echo "  jq: $(jq --version 2>/dev/null || echo 'not installed')"
+echo "  gh: $(gh --version 2>/dev/null | head -1 || echo 'not loaded - run: module load gh')"
 
 echo -e "\n${CYAN}Services Status:${NC}"
 systemctl is-active chromadb-spack.service && echo "  ✅ ChromaDB: Running" || echo "  ❌ ChromaDB: Not running"
@@ -1151,6 +1188,11 @@ echo -e "  🕸️  Neo4j Graph DB: Port 7474 (UI), 7687 (Bolt)"
 echo -e "  🌊 LangFlow: Port 7860 (RAG Visualizer)"
 echo -e "  🖥️  noVNC Desktop: Port 6080 (HTTPS)"
 echo -e "  🌐 Google Chrome: Installed"
+echo -e "  🐙 GitHub CLI: gh@2.79.0 (Spack module)"
+
+echo -e "\n${CYAN}Key Improvements in v3.6.1:${NC}"
+echo -e "  ✅ GitHub CLI (gh@2.79.0) installed via Spack"
+echo -e "  ✅ Lmod module support for gh: module load gh"
 
 echo -e "\n${CYAN}Key Improvements in v3.4.0:${NC}"
 echo -e "  ✅ Migrated to Spack module system (no virtual environments)"
