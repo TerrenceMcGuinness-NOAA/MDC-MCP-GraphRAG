@@ -20,12 +20,17 @@ papers/
 │
 ├── hybrid_annotations/      # Phase 2 Hybrid Semantic Annotations
 │   ├── PHASE_2_HYBRID_ARCHITECTURE_SPECIFICATION.md   # Architecture spec
-│   ├── SME_Training_QuickStart.md    # SME training guide
+│   ├── SME_Training_QuickStart.md    # SME training guide (linguist-friendly)
 │   └── SME_Training_QuickStart.pdf   # Training guide PDF
 │
-└── fm_assisted_annotations/ # Phase 3 FM-Assisted Annotation Generation
-    ├── FM_Assisted_Annotation_Generation.tex   # LaTeX source
-    └── FM_Assisted_Annotation_Generation.pdf   # Compiled PDF (9 pages)
+├── fm_assisted_annotations/ # Phase 3 FM-Assisted Annotation Generation
+│   ├── FM_Assisted_Annotation_Generation.tex   # LaTeX source
+│   └── FM_Assisted_Annotation_Generation.pdf   # Compiled PDF (9 pages)
+│
+└── funding_proposal/        # Grant proposals and funding applications
+    ├── funding_proposal_nov2025.tex   # LaTeX source
+    ├── funding_proposal_nov2025.pdf   # Compiled PDF
+    └── [auxiliary files]
 ```
 
 ## Paper Summaries
@@ -55,13 +60,19 @@ Describes the dual-layer annotation system:
 - Intent-aware metadata enrichment
 - Context discrimination for compliance rules
 
-**SME Training QuickStart**
+**SME Training QuickStart** (Updated December 2025)
 
 Practical guide for Subject Matter Experts to:
 - Write RST annotation files
 - Use custom MCP directives
 - Add anti-patterns and correct patterns
 - Validate annotations
+
+**New in v1.1:** Added **linguistic framework** for language-minded annotators:
+- Semantic relations (hyponymy, synonymy, antonymy) mapped to MCP attributes
+- Modal logic primer for RFC 2119 severity levels
+- Translation metaphor for annotation as "pragmatic glossing"
+- Glossary connecting NLP/linguistic terms to SDD concepts
 
 ---
 
@@ -76,6 +87,14 @@ Proposes a "Person-to-System Convolution" framework:
 - Enables scaling from ~10 to 100+ annotations
 
 **Key Innovation:** Shifts SME role from "author" to "reviewer"
+
+---
+
+### 4. Funding Proposal (`funding_proposal/`)
+
+**November 2025 Funding Proposal**
+
+Grant application materials for continued MCP-RAG development and scaling.
 
 ---
 
@@ -106,6 +125,10 @@ pandoc document.md -o document.pdf
 | Nov 2025 | Hybrid Annotations | 1.0 | Phase 2 architecture spec |
 | Nov 2025 | SME Training | 1.0 | Quick start guide |
 | Dec 2025 | FM-Assisted | 1.0 | New paper on scalable annotation |
+| Dec 2025 | SME Training | 1.1 | **Added linguistic framework for language-minded SMEs** |
+| Dec 2025 | Hybrid Annotations | 1.1 | Added reader's guide for linguists |
+| Dec 2025 | SDD Journal Paper | 1.1 | Added interdisciplinary terminology section |
+| Dec 2025 | Funding Proposal | - | Moved to dedicated subdirectory |
 
 ## Contributing
 
