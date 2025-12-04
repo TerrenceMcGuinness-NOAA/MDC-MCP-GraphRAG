@@ -30,6 +30,55 @@ This principle ensures accuracy and builds trust in the AI assistance provided t
 
 **Rule**: "If it's not in the SDD, it doesn't get coded."
 
+## Glossary of Acronyms
+
+Quick reference for project-specific and commonly used acronyms:
+
+| Acronym | Meaning | Context |
+|---------|---------|---------|
+| **EE2** | EMC Environment 2.0 | NCO coding standards for WCOSS2 production |
+| **GFS** | Global Forecast System | NOAA's operational weather model |
+| **GEFS** | Global Ensemble Forecast System | Ensemble version of GFS |
+| **HPC** | High-Performance Computing | Supercomputer platforms (Hera, WCOSS2, etc.) |
+| **MCP** | Model Context Protocol | AI tool integration standard |
+| **NCO** | NCEP Central Operations | NOAA production operations center |
+| **RAG** | Retrieval-Augmented Generation | AI technique using document retrieval |
+| **RST** | reStructuredText | Markup format for documentation (.rst files) |
+| **SDD** | Software Design Document | Planning docs before implementation |
+| **SME** | Subject Matter Expert | Domain expert who validates AI knowledge |
+| **SOC** | Separation of Concerns | Design principle - tools grouped by function |
+| **SPOT** | Single Point of Truth | One authoritative source for config data |
+| **UFS** | Unified Forecast System | NOAA's unified modeling framework |
+| **WCOSS2** | Weather and Climate Operational Supercomputer System 2 | Current NOAA production HPC |
+
+## Model Selection Guide
+
+When to use which AI model in GitHub Copilot:
+
+| Model | Best For | Cost | Speed |
+|-------|----------|------|-------|
+| **Claude Opus 4.5** | Complex reasoning, architecture, deep analysis, SDD planning | 1x | Slower |
+| **Claude Sonnet 4/4.5** | Daily coding, file edits, straightforward tasks | 1x | Fast |
+| **Claude Haiku 4.5** | Simple lookups, syntax help, bulk/repetitive tasks | 0.33x | Fastest |
+| **Gemini 2.5/3 Pro** | Large context needs (1M+ tokens), long documents | 1x | Fast |
+
+**Task-Specific Recommendations:**
+
+| Task | Model | Why |
+|------|-------|-----|
+| Writing SDD workflow plans | Opus | Multi-step reasoning, dependency tracking |
+| EE2/NCO compliance audits | Opus | Cross-file analysis, standards interpretation |
+| Semantic annotation work | Opus | Understanding meaning across formats |
+| Quick file edits | Sonnet | Straightforward execution |
+| Running/debugging scripts | Sonnet | Direct action, minimal planning |
+| "What does X mean?" | Haiku | Simple retrieval, low cost |
+| Bulk code formatting | Haiku | Repetitive, no reasoning needed |
+
+**Rule of Thumb:**
+- **Opus**: "I need to think through this carefully"
+- **Sonnet**: "I know what I want, just do it"  
+- **Haiku**: "Quick and cheap, nothing complex"
+
 ## Project Mission
 
 This repository provides an intelligent AI assistant system for the **NOAA Global Workflow** - the operational infrastructure running GFS (Global Forecast System), GEFS (Global Ensemble Forecast System), and related atmospheric models. The MCP tools built here enable:

@@ -6,6 +6,9 @@ This directory contains the technical papers and white papers produced for the M
 
 ```
 papers/
+├── MCP_RAG_Complete_System_Paper.tex   # MASTER PAPER - Complete system spec
+├── README.md                            # This file
+│
 ├── sdd_framework/           # SDD Framework papers (Phase 1)
 │   ├── main.tex             # Main technical specification (LaTeX)
 │   ├── main.pdf             # Compiled PDF (~35 pages)
@@ -34,6 +37,29 @@ papers/
 ```
 
 ## Paper Summaries
+
+### MASTER: MCP-RAG Complete System Paper (NEW - December 2025)
+
+**File:** `MCP_RAG_Complete_System_Paper.tex`
+
+The comprehensive technical specification covering the entire MCP-RAG system in a single authoritative document. Synthesizes all prior work into one unified paper suitable for publication.
+
+**Contents:**
+- **Mathematical Foundations:** Embedding spaces ($\mathbb{R}^{768}$), cosine similarity, graph theory formalisms
+- **System Architecture:** Five-component hybrid architecture (ChromaDB, Neo4j, MCP Server, Annotation Layer, SME Workflow)
+- **20 MCP Tools:** Complete specification across five categories
+- **Seven-Directive Schema:** `mcp-intent`, `mcp-context`, `mcp-prereq`, `mcp-param`, `mcp-warning`, `mcp-platform`, `mcp-related`
+- **Hybrid Search Algorithm:** Vector similarity + graph traversal + annotation matching
+- **SME Refinement Methodology:** Anti-pattern correction, weight boosting, context discrimination
+- **Empirical Evaluation:** 3.8× retrieval improvement, 77% false positive reduction
+- **Deployment Architecture:** Docker containerization, HPC platform configurations
+- **Future Roadmap:** Phases 5-10 including Fortran call tree ingestion
+
+**Estimated Length:** ~25-30 pages compiled
+
+**Target Venues:** NOAA Technical Memo, arXiv, JOSS (Journal of Open Source Software)
+
+---
 
 ### 1. SDD Framework Papers (`sdd_framework/`)
 

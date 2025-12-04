@@ -15,8 +15,7 @@
         "CHROMADB_URL": "http://127.0.0.1:8080",
         "NEO4J_URI": "bolt://localhost:7687",
         "ENABLE_RAG": "true",
-        "ENABLE_GITHUB": "true",
-        "GITHUB_TOKEN": "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"
+        "ENABLE_GITHUB": "true"
       }
     },
     "global-workflow-core": {
@@ -29,10 +28,6 @@
       "env": {
         "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
       }
-    },
-    "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/"
     }
   }
 }
