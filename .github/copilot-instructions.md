@@ -190,6 +190,16 @@ python3 -m pip install --user chromadb  # Use python3 -m pip to ensure correct P
 - `python3 -m pip install --user <package>` - For complex packages with many non-spack dependencies (like chromadb)
 - Always use `python3 -m pip` (not `pip3` alone) to ensure pip matches the active Python version
 
+**PIP-ONLY PACKAGES (Not Available in Spack)**:
+These packages MUST use `pip install --user` because they have no Spack equivalent:
+- `chromadb` - Vector database client (connects to Docker container)
+- `sentence-transformers` - Embedding model library (all-mpnet-base-v2)
+
+Installation command:
+```bash
+python3 -m pip install --user chromadb sentence-transformers
+```
+
 **Check if package exists in spack**:
 ```bash
 spack list py-<package_name>

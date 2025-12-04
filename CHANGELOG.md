@@ -1,5 +1,46 @@
 # MCP Server Changelog
 
+## [3.6.3] - Spack Dependency Documentation (December 2025)
+
+### Added
+- **Pip-Only Dependencies Documentation**:
+  - Documented packages not available in Spack that MUST use `pip install --user`
+  - `chromadb` - Vector database client (connects to Docker container)
+  - `sentence-transformers` - Embedding model library (all-mpnet-base-v2)
+
+- **STEP 6.6 in Provisioning Script**:
+  - New step to install pip-only Python dependencies automatically
+  - Runs `python3 -m pip install --user chromadb sentence-transformers`
+  - Verifies installations before proceeding
+
+- **Web Scraping Modules**:
+  - Added `py-beautifulsoup4` and `py-lxml` to Spack module loads
+  - Required for HTML parsing in documentation ingestion scripts
+
+### Changed
+- **SETUP/mcp-env.sh**:
+  - Added `ml py-beautifulsoup4 py-lxml` to both `ml` and `module load` blocks
+  - Added documentation section explaining pip-only packages
+  - Version bumped to document pip-only dependencies
+
+- **SETUP/provision_mcp_rag_persistent.sh**:
+  - Added STEP 6.6 for pip-only Python dependencies
+  - Loads Spack module dependencies before pip install
+  - Verifies chromadb and sentence-transformers after installation
+  - Version bumped to 3.6.3
+
+- **.github/copilot-instructions.md**:
+  - Added "PIP-ONLY PACKAGES" section to Python Package Management
+  - Clear documentation of which packages require pip vs Spack
+
+### Technical Notes
+- Spack-First Policy: All dependencies should use Spack modules when available
+- Only `chromadb` and `sentence-transformers` require pip --user
+- All other Python dependencies (lxml, beautifulsoup4, requests, numpy, etc.) are Spack modules
+- The ingestion scripts (ingest_documentation_v7.py, etc.) now have all required dependencies
+
+---
+
 ## [3.6.2] - ONNX Runtime Conflict Fix (December 2025)
 
 ### Fixed

@@ -439,6 +439,57 @@ fi
 log_success "GitHub CLI setup complete"
 
 ################################################################################
+# STEP 6.6: Pip-Only Python Dependencies (Not Available in Spack)
+################################################################################
+log_section "STEP 6.6: Pip-Only Python Dependencies"
+
+log_info "Installing Python packages not available in Spack..."
+log_info "  These packages MUST use pip --user (no Spack equivalent):"
+log_info "    - chromadb: Vector database client (connects to Docker container)"
+log_info "    - sentence-transformers: Embedding model library (all-mpnet-base-v2)"
+log_info ""
+log_info "  NOTE: All other Python dependencies are loaded via Spack modules."
+log_info "        See mcp-env.sh for the full list of Spack modules."
+
+# First load Spack modules that these packages depend on
+log_info "Loading Spack module dependencies first..."
+source /usr/share/lmod/lmod/init/bash 2>/dev/null || true
+module use "${SPACK_ROOT}/share/spack/lmod/linux-rocky9-x86_64/Core" 2>/dev/null || true
+module load gcc/11.5.0 2>/dev/null || true
+module load python/3.11 py-pip 2>/dev/null || true
+module load py-numpy py-scipy py-pillow py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
+
+# Install pip-only packages as user
+log_info "Installing chromadb and sentence-transformers via pip --user..."
+su - ${USER} -c "
+    source /usr/share/lmod/lmod/init/bash 2>/dev/null || true
+    module use ${SPACK_ROOT}/share/spack/lmod/linux-rocky9-x86_64/Core 2>/dev/null || true
+    module load gcc/11.5.0 python/3.11 py-pip 2>/dev/null || true
+    
+    # Use python3 -m pip to ensure correct Python/pip pairing
+    python3 -m pip install --user --cache-dir ${CACHE_ROOT}/pip chromadb sentence-transformers
+" || {
+    log_warning "Pip package installation failed (non-fatal)"
+    log_info "  Install manually: python3 -m pip install --user chromadb sentence-transformers"
+}
+
+# Verify installation
+log_info "Verifying pip-only packages..."
+if su - ${USER} -c "python3 -c 'import chromadb; print(f\"chromadb: {chromadb.__version__}\")'"; then
+    log_success "chromadb verified"
+else
+    log_warning "chromadb import failed - may need manual installation"
+fi
+
+if su - ${USER} -c "python3 -c 'import sentence_transformers; print(f\"sentence-transformers: {sentence_transformers.__version__}\")'"; then
+    log_success "sentence-transformers verified"
+else
+    log_warning "sentence-transformers import failed - may need manual installation"
+fi
+
+log_success "Pip-only dependencies processed"
+
+################################################################################
 # STEP 7: ChromaDB Docker Setup
 ################################################################################
 log_section "STEP 7: ChromaDB Docker Setup (Port ${CHROMADB_PORT})"

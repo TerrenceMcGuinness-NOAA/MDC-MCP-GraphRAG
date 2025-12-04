@@ -82,6 +82,8 @@ if command -v module >/dev/null 2>&1 && ! module list 2>&1 | grep -q python; the
         ml py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
         # Sentence-transformers dependencies
         ml py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
+        # Web scraping / HTML parsing for documentation ingestion
+        ml py-beautifulsoup4 py-lxml 2>/dev/null || true
     else
         module load gcc/11.5.0 2>/dev/null || true
         module load python/3.11 py-pip 2>/dev/null || true
@@ -91,8 +93,28 @@ if command -v module >/dev/null 2>&1 && ! module list 2>&1 | grep -q python; the
         module load py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
         # Sentence-transformers dependencies
         module load py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
+        # Web scraping / HTML parsing for documentation ingestion
+        module load py-beautifulsoup4 py-lxml 2>/dev/null || true
     fi
 fi
+
+################################################################################
+# PIP-ONLY DEPENDENCIES (Not available in Spack)
+# These packages MUST be installed via: python3 -m pip install --user <package>
+#
+# Required pip --user packages:
+#   - chromadb           : Vector database client (connects to Docker container)
+#   - sentence-transformers : Embedding model library (requires torch)
+#
+# Installation command:
+#   python3 -m pip install --user chromadb sentence-transformers
+#
+# Why pip --user?
+#   - chromadb: Not packaged in Spack, client for Docker-based ChromaDB server
+#   - sentence-transformers: Not in Spack, complex ML library with torch dependency
+#
+# All other dependencies should be loaded via Spack modules above.
+################################################################################
 
 # Ensure user site-packages is in Python path
 export PYTHONUSERBASE="${HOME}/.local"
