@@ -128,6 +128,30 @@ class DocumentationIngesterV7(BaseIngester):
             'duplicates_skipped': 0,
             'errors': 0
         }
+        
+        # Initialize the collection (required by BaseIngester)
+        self.initialize({
+            "description": "Global Workflow Documentation - Unified V7 Collection",
+            "version": VERSION,
+            "created": datetime.now().isoformat(),
+            "embedding_model": "all-mpnet-base-v2",
+            "embedding_dimensions": "768",
+            "tiers": "tier1_critical, tier2_important, tier3_supplementary"
+        })
+        
+        # Load existing document IDs from collection to avoid duplicates on re-run
+        self._load_existing_ids()
+    
+    def _load_existing_ids(self):
+        """Load existing document IDs from collection to enable incremental ingestion"""
+        try:
+            existing = self.collection.get(include=[])
+            self.seen_ids = set(existing['ids'])
+            if self.seen_ids:
+                print(f"[INFO] Loaded {len(self.seen_ids)} existing document IDs (incremental mode)")
+        except Exception as e:
+            print(f"[WARN] Could not load existing IDs: {e}")
+            self.seen_ids = set()
     
     def ingest_all_tiers(self, tiers: list = None):
         """Ingest documentation from specified tiers"""
@@ -162,35 +186,57 @@ class DocumentationIngesterV7(BaseIngester):
         print(f"\n  [SOURCE] {name}: {url}")
         
         try:
-            # Crawl pages
-            pages = self.crawler.crawl(url, max_pages=max_pages)
+            # Create fresh crawler for each source to avoid visited set pollution
+            crawler = URLCrawler(delay=1.0)
+            
+            # Crawl pages - returns list of (url, title, soup) tuples
+            pages = crawler.crawl_recursive(url, max_pages=max_pages)
             self.stats['sources_processed'] += 1
             
-            for page_url, content in pages:
+            for page_url, title, soup in pages:
+                # Extract text content from soup
+                if not soup:
+                    continue
+                    
                 self.stats['documents_processed'] += 1
                 
-                # Create semantic chunks
-                chunks = self.chunker.chunk(content, {
-                    'source': name,
-                    'url': page_url,
-                    'priority': source['priority'],
-                    'description': source['description'],
-                    'ingested_at': datetime.now().isoformat(),
-                    'version': VERSION
-                })
+                # Use SemanticChunker's chunk_by_headers for HTML content
+                raw_chunks = self.chunker.chunk_by_headers(soup, page_url)
                 
-                self.stats['chunks_created'] += len(chunks)
-                
-                # Add chunks to collection
-                for chunk in chunks:
-                    doc_id = self._generate_id(chunk['text'], page_url)
+                # Enrich chunks with metadata
+                for chunk in raw_chunks:
+                    if len(chunk.get('content', '')) < 100:
+                        continue
+                        
+                    self.stats['chunks_created'] += 1
+                    
+                    doc_id = self._generate_id(chunk['content'], page_url)
                     
                     if doc_id in self.seen_ids:
                         self.stats['duplicates_skipped'] += 1
                         continue
                     
+                    # Build metadata
+                    metadata = {
+                        'source': name,
+                        'url': page_url,
+                        'title': title,
+                        'hierarchy': chunk.get('hierarchy', ''),
+                        'priority': source['priority'],
+                        'description': source['description'],
+                        'content_hash': chunk.get('hash', ''),
+                        'ingested_at': datetime.now().isoformat(),
+                        'version': VERSION
+                    }
+                    
                     self.seen_ids.add(doc_id)
-                    self.add_document(doc_id, chunk['text'], chunk['metadata'])
+                    
+                    # Add directly to collection
+                    self.collection.add(
+                        ids=[doc_id],
+                        documents=[chunk['content']],
+                        metadatas=[metadata]
+                    )
                     self.stats['chunks_added'] += 1
             
             print(f"    [OK] {len(pages)} pages processed")

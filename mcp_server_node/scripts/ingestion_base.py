@@ -483,12 +483,52 @@ class URLCrawler:
     def _extract_same_domain_links(self, soup: BeautifulSoup, base_url: str) -> Set[str]:
         """Extract same-domain links from page"""
         base_domain = urlparse(base_url).netloc
+        base_parsed = urlparse(base_url)
         links = set()
+        
+        # Patterns to exclude from crawling
+        exclude_patterns = [
+            '/_sources/',      # RST source files
+            '/_static/',       # Static assets
+            '/_images/',       # Image files
+            '/_modules/',      # Module documentation (often auto-generated)
+            '/genindex',       # Generated index pages
+            '/search.html',    # Search page
+            '/py-modindex',    # Python module index
+            '.txt',            # Text files
+            '.pdf',            # PDF files
+            '.zip',            # Archives
+            '.tar.gz',         # Archives
+        ]
+        
+        # Extract version path from base URL for ReadTheDocs normalization
+        # e.g., /en/latest/ or /en/v1.0/
+        rtd_version_match = None
+        if 'readthedocs.io' in base_domain:
+            import re
+            match = re.search(r'/en/([^/]+)/', base_url)
+            if match:
+                rtd_version_match = match.group(1)  # e.g., 'latest', 'v1.0'
         
         for link in soup.find_all('a', href=True):
             href = link['href']
             full_url = urljoin(base_url, href)
             full_url = full_url.split('#')[0]  # Remove fragments
+            
+            # Skip excluded patterns
+            if any(pattern in full_url for pattern in exclude_patterns):
+                continue
+            
+            # Normalize ReadTheDocs URLs - fix missing version in path
+            # e.g., /en/configuration.html -> /en/latest/configuration.html
+            if rtd_version_match and 'readthedocs.io' in full_url:
+                parsed = urlparse(full_url)
+                path = parsed.path
+                # Check if path is missing the version segment
+                if path.startswith('/en/') and not path.startswith(f'/en/{rtd_version_match}/'):
+                    # Fix: /en/foo.html -> /en/latest/foo.html
+                    fixed_path = path.replace('/en/', f'/en/{rtd_version_match}/', 1)
+                    full_url = f"{parsed.scheme}://{parsed.netloc}{fixed_path}"
             
             if urlparse(full_url).netloc == base_domain:
                 links.add(full_url)
