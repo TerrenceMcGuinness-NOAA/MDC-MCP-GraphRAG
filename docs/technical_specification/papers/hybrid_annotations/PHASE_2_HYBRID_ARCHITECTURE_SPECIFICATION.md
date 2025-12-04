@@ -1,10 +1,26 @@
 # Phase 2 Hybrid Architecture Technical Specification
 
-**Document Version**: 1.0  
-**Date**: November 19, 2025  
+**Document Version**: 1.1  
+**Date**: December 4, 2025  
 **Status**: Production Implementation  
 **Author**: AI Coding Agent (Claude Sonnet 4.5)  
 **Supervisor**: Terry McGuinness, NOAA/EMC/EIB  
+
+---
+
+## For Language-Minded Readers
+
+This document describes a **knowledge representation system** for capturing operational expertise in machine-readable form. If you have a background in linguistics, translation, or language documentation, you'll find familiar concepts throughout:
+
+| System Concept | Linguistic Analogue |
+|----------------|---------------------|
+| MCP Directives | Interlinear glosses, lexical entries |
+| Semantic annotations | Pragmatic markup, illocutionary tagging |
+| Anti-patterns | Negative transfer, interference patterns |
+| Evidence chains | Source attribution, citation networks |
+| Knowledge graph | Lexical relations, semantic networks |
+
+The core insight: **AI systems struggle with implicit knowledge**—the unstated assumptions, operational context, and "everyone knows that" background that human experts carry. This system makes implicit knowledge explicit through structured annotation.
 
 ---
 
@@ -171,6 +187,15 @@ The term "hybrid" refers to the combination of two architectural patterns:
 ### 3.1 Phase 2 Semantic Annotations (Component 2)
 
 **Purpose**: Capture SME corrections as machine-readable directives in RST documentation
+
+**For Linguists**: Think of these as **lexical entries** in a specialized domain dictionary. Each directive type captures a different aspect of meaning:
+
+| Directive Type | Semantic Function | Linguistic Parallel |
+|---------------|-------------------|---------------------|
+| `mcp:sme_correction` | Error correction | Prescriptive grammar note |
+| `mcp:anti_pattern` | Negative constraint | "Do not say..." usage note |
+| `mcp:correct_pattern` | Positive exemplar | Model sentence |
+| `mcp:ai_guidance_rule` | Metalinguistic instruction | Register/style guidance |
 
 **File Structure**:
 ```
@@ -1025,6 +1050,8 @@ Telling AI "do NOT recommend set -eu" (explicit prohibition) works better than:
 - Showing only correct examples (set -x)
 - Hoping AI infers what to avoid
 - Expecting semantic search to filter out bad recommendations
+
+**Linguistic Insight**: This mirrors findings in second language acquisition—explicit negative evidence ("this is wrong") is more effective than implicit correction alone. Learners (and AI systems) need **contrastive data** to form accurate generalizations.
 
 **Principle**: Prohibitions must be explicit, not inferred.
 

@@ -38,13 +38,18 @@ except ImportError:
 # ============================================================================
 
 VERSION = "7.0.0"
-COLLECTION_NAME = os.getenv("EE2_COLLECTION", "ee2-standards-v7-0-0")
+# EE2 ingests into the MAIN v7 collection (not a separate collection)
+COLLECTION_NAME = os.getenv("EE2_COLLECTION", "global-workflow-docs-v7-0-0")
 CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
 
 # EE2 Standards source (git submodule)
 EE2_ROOT = os.getenv("EE2_ROOT",
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/nws-hpc-standards")
+
+# SDD Framework annotations (SME corrections, pattern recognition)
+SDD_ANNOTATIONS_ROOT = os.getenv("SDD_ANNOTATIONS_ROOT",
+    "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework/phase2_annotations")
 
 # Directories to scan for RST files
 RST_DIRECTORIES = [
@@ -87,13 +92,89 @@ class RSTDirectiveParser:
             'important': re.compile(r'\.\.\s+important::\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
         }
         
-        # MCP custom directives
+        # MCP custom directives - capture directive name and full content block
         self.mcp_patterns = {
-            'sme_correction': re.compile(r'\.\.\s+mcp:sme_correction::\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
-            'anti_pattern': re.compile(r'\.\.\s+mcp:anti_pattern::\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
-            'correct_pattern': re.compile(r'\.\.\s+mcp:correct_pattern::\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
-            'ai_guidance_rule': re.compile(r'\.\.\s+mcp:ai_guidance_rule::\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'sme_correction': re.compile(r'\.\.\s+mcp:sme_correction::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'anti_pattern': re.compile(r'\.\.\s+mcp:anti_pattern::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'correct_pattern': re.compile(r'\.\.\s+mcp:correct_pattern::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'ai_guidance_rule': re.compile(r'\.\.\s+mcp:ai_guidance_rule::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'intent': re.compile(r'\.\.\s+mcp:intent::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'compliance': re.compile(r'\.\.\s+mcp:compliance::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'severity': re.compile(r'\.\.\s+mcp:severity::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'utility': re.compile(r'\.\.\s+mcp:utility::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'example': re.compile(r'\.\.\s+mcp:example::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'pattern': re.compile(r'\.\.\s+mcp:pattern::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'envvar': re.compile(r'\.\.\s+mcp:envvar::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
         }
+        
+        # Pattern to extract directive attributes like :severity: critical
+        self.attribute_pattern = re.compile(r':(\w+):\s*(.+?)(?=\n\s*:|$)', re.MULTILINE)
+    
+    def _parse_directive_attributes(self, content: str) -> Dict[str, str]:
+        """Extract :attribute: value pairs from directive content"""
+        attributes = {}
+        for match in self.attribute_pattern.finditer(content):
+            key = match.group(1).strip()
+            value = match.group(2).strip()
+            attributes[key] = value
+        return attributes
+    
+    def _extract_mcp_directives(self, content: str, file_path: str) -> List[Dict]:
+        """Extract MCP semantic annotation directives as separate high-value chunks.
+        
+        These directives are invisible to RST renderers (they're comments)
+        but provide high-value semantic annotations for AI guidance.
+        """
+        directives = []
+        
+        # Map directive types to intent categories
+        intent_map = {
+            'sme_correction': 'validation',
+            'anti_pattern': 'validation',
+            'correct_pattern': 'guidance',
+            'ai_guidance_rule': 'guidance',
+            'intent': 'reference',
+            'compliance': 'validation',
+            'severity': 'validation',
+            'utility': 'reference',
+            'example': 'example',
+            'pattern': 'guidance',
+            'envvar': 'reference',
+        }
+        
+        for directive_type, pattern in self.mcp_patterns.items():
+            for match in pattern.finditer(content):
+                directive_name = match.group(1) if match.group(1) else 'unnamed'
+                directive_content = match.group(2)
+                
+                # Parse attributes from content
+                attributes = self._parse_directive_attributes(directive_content)
+                
+                # Clean up the text content (remove attribute lines, keep description)
+                lines = directive_content.split('\n')
+                text_lines = []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith(':'):
+                        text_lines.append(stripped)
+                cleaned_text = ' '.join(text_lines)
+                
+                # Build full text including directive context
+                full_text = f"[MCP:{directive_type}:{directive_name}] {cleaned_text}"
+                
+                if len(full_text) >= 30:  # Minimum content threshold
+                    directives.append({
+                        'title': f'mcp:{directive_type}::{directive_name}',
+                        'text': full_text[:2000],
+                        'has_code': '```' in directive_content or 'code-block' in directive_content,
+                        'directive_type': directive_type,
+                        'directive_name': directive_name,
+                        'intent': intent_map.get(directive_type, 'guidance'),
+                        'is_mcp_annotation': True,
+                        'attributes': attributes,
+                    })
+        
+        return directives
     
     def parse_file(self, file_path: Path) -> List[Dict]:
         """Parse RST file and extract chunks with metadata"""
@@ -110,13 +191,45 @@ class RSTDirectiveParser:
         # Detect platforms
         platforms = self._detect_platforms(content)
         
-        # Extract sections
+        # FIRST: Extract MCP semantic annotation directives (high-value chunks)
+        mcp_directives = self._extract_mcp_directives(content, str(file_path))
+        
+        for directive in mcp_directives:
+            # Build metadata from directive attributes
+            metadata = {
+                'source': 'ee2-standards-rst',
+                'source_type': 'mcp_directive',
+                'file_path': str(file_path),
+                'title': title,
+                'section': directive['title'],
+                'categories': ','.join(categories),
+                'platforms': ','.join(platforms),
+                'has_code_example': directive.get('has_code', False),
+                'directive_type': directive['directive_type'],
+                'directive_name': directive.get('directive_name', ''),
+                'intent': directive['intent'],
+                'is_mcp_annotation': True,
+                'version': VERSION,
+                'ingested_at': datetime.now().isoformat()
+            }
+            # Add parsed attributes as metadata
+            for attr_key, attr_value in directive.get('attributes', {}).items():
+                metadata[f'mcp_{attr_key}'] = attr_value
+            
+            chunks.append({
+                'text': directive['text'],
+                'metadata': metadata
+            })
+        
+        # SECOND: Extract regular RST sections
         sections = self._extract_sections(content)
         
         for section in sections:
             chunk = {
                 'text': section['text'],
                 'metadata': {
+                    'source': 'ee2-standards-rst',
+                    'source_type': 'local_rst',
                     'file_path': str(file_path),
                     'title': title,
                     'section': section['title'],
@@ -125,6 +238,7 @@ class RSTDirectiveParser:
                     'has_code_example': section.get('has_code', False),
                     'directive_type': section.get('directive_type', 'content'),
                     'intent': section.get('intent', 'reference'),
+                    'is_mcp_annotation': False,
                     'version': VERSION,
                     'ingested_at': datetime.now().isoformat()
                 }
@@ -238,8 +352,10 @@ class EE2IngesterV7:
         self.stats = {
             'files_processed': 0,
             'chunks_created': 0,
+            'mcp_directives_found': 0,
             'categories_found': set(),
             'platforms_found': set(),
+            'directive_types_found': set(),
             'errors': 0
         }
         self.seen_ids = set()
@@ -272,19 +388,32 @@ class EE2IngesterV7:
         for rst_file in root.glob('*.rst'):
             self._process_file(rst_file)
         
+        # Process SDD Framework annotations (SME corrections)
+        sdd_root = Path(SDD_ANNOTATIONS_ROOT)
+        if sdd_root.exists():
+            print(f"\n[DIR] Processing SDD annotations: {SDD_ANNOTATIONS_ROOT}")
+            self._process_directory(sdd_root, source_prefix='sdd-annotations')
+        else:
+            print(f"[SKIP] SDD annotations not found: {SDD_ANNOTATIONS_ROOT}")
+        
         self._print_summary()
     
-    def _process_directory(self, dir_path: Path):
+    def _process_directory(self, dir_path: Path, source_prefix: str = None):
         """Process all RST files in directory"""
         for rst_file in dir_path.rglob('*.rst'):
-            self._process_file(rst_file)
+            self._process_file(rst_file, source_prefix=source_prefix)
     
-    def _process_file(self, file_path: Path):
+    def _process_file(self, file_path: Path, source_prefix: str = None):
         """Process single RST file"""
         try:
             chunks = self.parser.parse_file(file_path)
             
             for chunk in chunks:
+                # Override source if prefix provided (e.g., for SDD annotations)
+                if source_prefix:
+                    chunk['metadata']['source'] = source_prefix
+                    chunk['metadata']['source_type'] = 'sdd_annotation'
+                
                 doc_id = self._generate_id(chunk['text'], str(file_path))
                 
                 if doc_id not in self.seen_ids:
@@ -295,6 +424,12 @@ class EE2IngesterV7:
                         metadatas=[chunk['metadata']]
                     )
                     self.stats['chunks_created'] += 1
+                    
+                    # Track MCP annotations
+                    if chunk['metadata'].get('is_mcp_annotation'):
+                        self.stats['mcp_directives_found'] += 1
+                        directive_type = chunk['metadata'].get('directive_type', 'unknown')
+                        self.stats['directive_types_found'].add(directive_type)
                     
                     # Track categories and platforms
                     for cat in chunk['metadata'].get('categories', '').split(','):
@@ -325,6 +460,9 @@ class EE2IngesterV7:
         print(f"Version:            {VERSION}")
         print(f"Files processed:    {self.stats['files_processed']}")
         print(f"Chunks created:     {self.stats['chunks_created']}")
+        print(f"MCP directives:     {self.stats['mcp_directives_found']}")
+        if self.stats['directive_types_found']:
+            print(f"Directive types:    {', '.join(sorted(self.stats['directive_types_found']))}")
         print(f"Categories found:   {', '.join(sorted(self.stats['categories_found']))}")
         print(f"Platforms found:    {', '.join(sorted(self.stats['platforms_found']))}")
         print(f"Errors:             {self.stats['errors']}")

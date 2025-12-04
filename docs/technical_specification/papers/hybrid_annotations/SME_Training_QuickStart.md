@@ -1,10 +1,29 @@
 # SME Training Quick-Start Guide
 **Getting Subject Matter Experts Up to Speed on Semantic Annotation Review**
 
-**Version:** 1.0  
-**Date:** November 19, 2025  
-**Audience:** Domain experts, operations staff, senior developers  
+**Version:** 1.1  
+**Date:** December 4, 2025  
+**Audience:** Domain experts, operations staff, senior developers, **technical translators**  
 **Time Required:** 2-hour training session + 4-hour hands-on practice
+
+---
+
+## A Note for Language-Minded Experts
+
+If you have a background in **linguistics, translation, or language learning**, you bring unique strengths to this work. Semantic annotation is fundamentally a **translation task**—you're translating *implicit operational knowledge* into *explicit machine-readable statements*.
+
+**Your linguistic skills transfer directly:**
+
+| Linguistic Concept | Semantic Annotation Equivalent |
+|-------------------|--------------------------------|
+| **Denotation vs. Connotation** | Literal text vs. Intent/Rationale |
+| **Register** (formal/informal) | Priority/Severity levels |
+| **Pragmatics** (context-dependent meaning) | `:context:` and `:scope:` attributes |
+| **Semantic fields** | MCP directive categories |
+| **Collocations** | `:related:` relationships |
+| **Translation equivalence** | `:alternatives:` for similar utilities |
+
+Think of MCP directives as **glosses**—annotations that capture meaning the surface text alone cannot convey.
 
 ---
 
@@ -12,12 +31,75 @@
 
 1. [Training Objectives](#training-objectives)
 2. [Prerequisites](#prerequisites)
-3. [Session 1: Introduction (30 minutes)](#session-1-introduction-30-minutes)
-4. [Session 2: Hands-On Review (60 minutes)](#session-2-hands-on-review-60-minutes)
-5. [Session 3: Practice Session (30 minutes)](#session-3-practice-session-30-minutes)
-6. [Post-Training: Independent Review (4 hours)](#post-training-independent-review-4-hours)
-7. [Certification Checklist](#certification-checklist)
-8. [Quick Reference Card](#quick-reference-card)
+3. [Linguistic Framework for Annotation](#linguistic-framework-for-annotation)
+4. [Session 1: Introduction (30 minutes)](#session-1-introduction-30-minutes)
+5. [Session 2: Hands-On Review (60 minutes)](#session-2-hands-on-review-60-minutes)
+6. [Session 3: Practice Session (30 minutes)](#session-3-practice-session-30-minutes)
+7. [Post-Training: Independent Review (4 hours)](#post-training-independent-review-4-hours)
+8. [Certification Checklist](#certification-checklist)
+9. [Quick Reference Card](#quick-reference-card)
+
+---
+
+## Linguistic Framework for Annotation
+
+Before diving into the mechanics, understand the **ontological structure** we're building:
+
+### The Three Layers of Meaning
+
+Every EE2 requirement has three layers—like any natural language utterance:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ LAYER 1: SURFACE FORM (What the text says)                  │
+│ "Jobs should fail with err_chk or err_exit"                 │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ LAYER 2: SEMANTIC CONTENT (What it means)                   │
+│ - Requirement type: error handling                          │
+│ - Modality: should (recommendation, not mandate)            │
+│ - Entities: err_chk, err_exit (specific utilities)          │
+│ - Temporal: immediately upon error                          │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ LAYER 3: PRAGMATIC INTENT (Why it exists)                   │
+│ - Operational context: 6-hour forecast windows              │
+│ - Consequence of violation: cascade failures                │
+│ - SLA requirement: 99% on-time delivery                     │
+│ - Historical motivation: post-mortem from 2019 outage       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Your job as an annotator**: Capture Layers 2 and 3 so AI can "understand" requirements the way you do.
+
+### Semantic Relations (Familiar Territory)
+
+If you've studied linguistics, you'll recognize these relations:
+
+| Semantic Relation | MCP Equivalent | Example |
+|------------------|----------------|---------|
+| **Hyponymy** (is-a-kind-of) | `:category:` | err_chk IS-A error-handling utility |
+| **Meronymy** (part-of) | `:module:` | err_chk PART-OF prod_util |
+| **Synonymy** (same meaning) | `:alternatives:` | err_chk ≈ err_exit (similar purpose) |
+| **Antonymy** (opposite) | `:anti-pattern:` | silent_failure OPPOSITE-OF fail_fast |
+| **Collocation** (co-occurrence) | `:related:`, `:see-also:` | err_chk COLLOCATES-WITH `export err=$?` |
+| **Causation** | `:rationale:` | set -x ENABLES debug logging |
+
+### Modal Logic (Priority/Severity)
+
+EE2 uses RFC 2119 terminology—essentially a **modal logic system**:
+
+| RFC 2119 Term | Modal Logic | Deontic Meaning | MCP `:severity:` |
+|---------------|-------------|-----------------|------------------|
+| MUST | □P (necessarily P) | Obligation | `must` |
+| MUST NOT | □¬P (necessarily not P) | Prohibition | `must_not` |
+| SHOULD | ◇P (possibly P, recommended) | Strong recommendation | `should` |
+| SHOULD NOT | ◇¬P (possibly not P) | Discouraged | `should_not` |
+| MAY | ◇P ∧ ◇¬P (either permissible) | Permission | `may` |
+
+**Linguistic insight**: Notice how "should" in EE2 documents is **normative**, not predictive. Annotating severity captures this **illocutionary force**.
 
 ---
 
@@ -41,6 +123,12 @@ By the end of this training, SMEs will be able to:
 - Familiarity with NCEP production standards (EE2 compliance)
 - Basic understanding of reStructuredText (RST) format
 
+**Especially Valuable (Not Required):**
+- Background in linguistics, translation, or language pedagogy
+- Experience with controlled vocabularies, taxonomies, or ontologies
+- Familiarity with markup languages (XML, HTML, LaTeX)
+- Understanding of technical writing or documentation systems
+
 **Not Required:**
 - AI/ML expertise
 - Programming in Python/JavaScript
@@ -52,6 +140,30 @@ By the end of this training, SMEs will be able to:
 - SME Review Guide (complete reference)
 - Pilot annotation examples (error_handling section)
 - Review feedback template
+
+### RST Syntax in 5 Minutes (For Non-Programmers)
+
+RST (reStructuredText) is a **human-readable markup language**—think of it as a more structured version of Markdown. Here's all you need to know:
+
+```rst
+# This is a comment (invisible in rendered docs)
+.. This is also a comment (RST's native comment syntax)
+
+.. mcp:directive_name:: identifier
+   :attribute: value
+   :another_attribute: another value
+   
+   Body text goes here, indented with 3 spaces.
+   Multiple lines are fine.
+```
+
+**Key rules:**
+1. **Indentation matters** (like Python, use 3 spaces)
+2. **Double colon** `::` introduces a directive
+3. **Attributes** use `:name: value` format
+4. **Blank lines** separate elements
+
+That's it. If you can write a structured email, you can write RST annotations.
 
 ---
 
@@ -96,6 +208,22 @@ Confidence: High (operational rationale provided)
 - **How critical** they are (priority, severity)
 - **What** they prevent or enable (operational impact)
 - **How** they relate to each other (relationships)
+
+**A Linguistic Analogy:**
+
+Think of annotations as **interlinear glosses** in linguistics—the hidden layer between surface text and deep meaning:
+
+```
+Surface:    err_chk   must   be used   after   commands
+           ─────────────────────────────────────────────
+Gloss:      [UTIL]   [OBL]  [PASSIVE] [TEMP]  [ENTITY]
+           prod_util  must   required   immed.  shell_cmd
+           ─────────────────────────────────────────────
+Deep:      For operational reliability, immediately invoke
+           the err_chk utility after any command that might fail
+```
+
+Without annotations, AI sees only the surface. With annotations, AI "reads" all three levels.
 
 **Example (Before Annotation):**
 ```rst
@@ -224,6 +352,16 @@ We'll review each directive type with examples from YOUR domain.
                to prevent cascade failures across 6-hour forecast window
 ```
 
+**Linguistic Note:** The BAD example is **tautological**—it restates the description, adding no semantic content. The GOOD example provides **explanatory adequacy**—it answers "why?" with causal reasoning.
+
+**The Rationale Litmus Test:**
+
+A good `:rationale:` should pass this test: *"If someone asks 'but why?' after reading it, the answer is NOT simply a restatement."*
+
+- "We check errors to catch errors" → FAILS (circular)
+- "We catch errors to prevent downstream failures" → PASSES (causal)
+- "We prevent downstream failures to maintain SLA" → PASSES (teleological)
+
 **Exercise:** Rewrite 2 rationale statements to include operational context.
 
 ---
@@ -237,6 +375,14 @@ We'll review each directive type with examples from YOUR domain.
 - `:rationale:` → Why this level?
 - `:exceptions:` → Documented exceptions
 
+**Linguistic Context:** RFC 2119 creates a **deontic modality system** for technical specifications. These aren't just English words—they're defined terms with precise meanings:
+
+| Term | Linguistic Force | Pragmatic Effect |
+|------|-----------------|------------------|
+| MUST | Obligation | Violation = non-conformance |
+| SHOULD | Strong recommendation | Violation = acceptable with justification |
+| MAY | Permission | Choice with no preference |
+
 **Example:**
 ```rst
 .. mcp:severity:: must
@@ -245,6 +391,8 @@ We'll review each directive type with examples from YOUR domain.
 ```
 
 **Your Review Question:** "Does the text say 'must' but we actually mean 'should'?"
+
+**Watch for Modal Inflation:** Technical writers often use "must" for emphasis when "should" is more accurate. Your job is to calibrate the actual requirement strength.
 
 **Exercise:** Identify 2 cases where severity doesn't match standard language.
 
@@ -326,6 +474,15 @@ We'll review each directive type with examples from YOUR domain.
 
 **Your Review Question:** "Should AI flag code that does the OPPOSITE of this?"
 
+**Linguistic Note on Anti-Patterns:**
+
+Anti-patterns are essentially **negative exemplars**—they define a concept by exclusion. In lexical semantics, we call this **sense disambiguation through contrast**:
+
+- "fast" only makes sense in contrast to "slow"
+- `fail_fast_pattern` only makes sense in contrast to `silent_failure`
+
+By explicitly annotating what NOT to do, we give the AI **contrastive semantics**—the ability to distinguish good from bad by seeing both sides.
+
 **Exercise:** Define 1 anti-pattern AI should detect.
 
 ---
@@ -348,10 +505,21 @@ We'll review each directive type with examples from YOUR domain.
 **Your Review Question:** "Are these items REALLY related? How?"
 
 **Types:**
-- **prerequisite** = Must understand/have this first
-- **reference** = Related concept for more info
-- **alternative** = Different approach to same goal
-- **example** = Concrete usage example
+- **prerequisite** = Must understand/have this first (logical dependence)
+- **reference** = Related concept for more info (topical association)
+- **alternative** = Different approach to same goal (functional equivalence)
+- **example** = Concrete usage example (instantiation)
+
+**Linguistic Framework (Sense Relations):**
+
+The `:type:` attribute captures **semantic relations** you may recognize:
+
+| `:type:` | Semantic Relation | Example |
+|---------|-------------------|---------|
+| prerequisite | Presupposition | `err_chk` PRESUPPOSES `export err=$?` |
+| reference | Topical cohesion | `err_chk` TOPIC-RELATED-TO `error_handling` |
+| alternative | Near-synonymy | `err_chk` ≈ `err_exit` (same domain, different use) |
+| example | Instantiation | `err_chk_usage` INSTANCE-OF `err_chk` |
 
 **Exercise:** Identify 2 missing relationships.
 
@@ -476,6 +644,27 @@ You are certified to perform independent SME reviews when you can:
 6. **P**atterns - Should AI recognize this?
 7. **G**ap Analysis - What's missing?
 
+### Annotation as Translation: A Mental Model
+
+Think of each annotation as translating from **operational knowledge** to **machine-readable semantics**:
+
+```
+SOURCE (Your Expert Knowledge):
+   "We use err_chk because back in 2019 we had a cascade failure
+    that cost us 3 forecast cycles when a data copy failed silently."
+                              ↓
+TARGET (MCP Directive):
+   .. mcp:intent:: rapid_error_detection
+      :description: Detect failures immediately to prevent cascade
+      :rationale: Silent failures can cost 3+ forecast cycles (historical incident)
+      :enforcement: runtime_check
+```
+
+**Translation Strategy:**
+1. Identify the **illocutionary force** (what is the text trying to DO?)
+2. Extract the **propositional content** (what facts are being asserted?)
+3. Capture the **pragmatic context** (why does this matter HERE and NOW?)
+
 ### Priority Decision Tree
 
 ```
@@ -492,35 +681,50 @@ Is violation a production failure risk?
 
 ### Severity Levels (RFC 2119)
 
-- **must** / **must-not** → Absolute requirement
-- **should** / **should-not** → Strong recommendation, exceptions allowed
-- **may** → Optional, discretionary
+- **must** / **must-not** → Absolute requirement (deontic necessity)
+- **should** / **should-not** → Strong recommendation, exceptions allowed (defeasible)
+- **may** → Optional, discretionary (permission)
 
 ### Common Review Flags
 
-🚩 **Circular Reasoning**
+🚩 **Circular Reasoning (Tautology)**
 ```
-❌ "We use err_chk to check errors"
-✅ "99% delivery SLA requires 5-minute error detection"
-```
-
-🚩 **Severity Inflation**
-```
-❌ Everything marked "critical"
-✅ Only production-failure risks are "critical"
+❌ "We use err_chk to check errors"    [Says nothing new]
+✅ "99% delivery SLA requires 5-minute error detection"    [Explains WHY]
 ```
 
-🚩 **Missing Examples**
+🚩 **Severity Inflation (Modal Overstatement)**
 ```
-❌ Only basic usage shown
-✅ Common scenarios covered (loops, pipelines, error recovery)
+❌ Everything marked "critical"    [If everything is critical, nothing is]
+✅ Only production-failure risks are "critical"    [Meaningful differentiation]
 ```
 
-🚩 **Wrong Relationships**
+🚩 **Missing Examples (Underspecification)**
 ```
-❌ err_exit marked as "reference"
-✅ err_exit is "alternative" (different approach)
+❌ Only basic usage shown    [Learner can't generalize]
+✅ Common scenarios covered (loops, pipelines, error recovery)    [Comprehensive]
 ```
+
+🚩 **Wrong Relationships (Semantic Error)**
+```
+❌ err_exit marked as "reference"    [Wrong relation type]
+✅ err_exit is "alternative" (different approach to same goal)    [Correct]
+```
+
+### Glossary for Language-Minded Annotators
+
+| Term | Definition | Linguistic Analogue |
+|------|------------|---------------------|
+| **MCP Directive** | Machine-readable annotation in RST format | Gloss, interlinear annotation |
+| **Intent** | The purpose or goal behind a requirement | Illocutionary force |
+| **Rationale** | Explanation of WHY something is required | Presupposition, pragmatic implicature |
+| **Severity** | Strength of obligation (must/should/may) | Deontic modality |
+| **Priority** | Operational importance (critical/high/medium/low) | Information structure (focus) |
+| **Anti-pattern** | What NOT to do; negative exemplar | Antonymy, contrast |
+| **Context** | Where/when a pattern applies | Register, domain restriction |
+| **Scope** | How broadly a rule applies | Quantifier scope |
+| **Evidence** | Citation proving the requirement exists | Source attribution |
+| **Enforcement** | How compliance is verified | Felicity conditions |
 
 ---
 

@@ -81,9 +81,9 @@ DOCUMENTATION_SOURCES = {
             'url': 'https://nws-hpc-standards.readthedocs.io/en/latest/',
             'type': 'readthedocs',
             'priority': 1,
-            'description': 'NOAA EE2 HPC standards and compliance requirements',
+            'description': 'NOAA EE2 HPC standards - USE LOCAL RST via ingest_ee2_v7.py instead',
             'max_pages': 100,
-            'enabled': True
+            'enabled': False  # Disabled - use local nws-hpc-standards submodule for richer RST parsing
         },
         {
             'name': 'ufs-utils',
@@ -162,11 +162,11 @@ DOCUMENTATION_SOURCES = {
         },
         {
             'name': 'fv3-dynamical-core',
-            'url': 'https://noaa-gfdl.github.io/GFDL_atmos_cubed_sphere/',
-            'type': 'github_pages',
+            'url': 'https://www.gfdl.noaa.gov/fv3/',
+            'type': 'single_page',
             'priority': 3,
-            'description': 'FV3 Dynamical Core - cubed sphere atmospheric dynamics',
-            'max_pages': 50,
+            'description': 'FV3 Dynamical Core - GFDL cubed sphere atmospheric dynamics',
+            'max_pages': 10,
             'enabled': True
         }
     ],

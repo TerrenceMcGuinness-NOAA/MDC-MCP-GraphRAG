@@ -2,8 +2,8 @@
 
 **Authors:** NOAA EMC Global Workflow MCP Team  
 **Affiliation:** NOAA Environmental Modeling Center, Global Workflow Development Team  
-**Date:** November 19, 2025  
-**Version:** 1.0  
+**Date:** December 4, 2025  
+**Version:** 1.1  
 
 ---
 
@@ -12,6 +12,43 @@
 We present the **Spec-Driven Development (SDD) Framework**, a novel methodology for AI-assisted software development that combines structured workflow specifications with hybrid graph-enhanced retrieval-augmented generation (RAG) and supervised Subject Matter Expert (SME) refinement. The framework enables systematic documentation, validation, and execution of complex software development tasks through machine-readable specifications in YAML and Markdown formats. A key innovation is the integration of semantic annotations in reStructuredText (RST) documentation that preserve human-readable content while embedding machine-processable metadata for enhanced AI comprehension. We demonstrate the framework's effectiveness through deployment in the NOAA Global Workflow system, achieving autonomous code analysis, compliance validation, and development task execution. The SME Review Guide mechanism enables domain experts to refine AI knowledge bases through structured annotation reviews, improving retrieval accuracy by 3-5× compared to pure text-based search. This work addresses critical challenges in maintaining large-scale operational software systems where domain expertise is scarce and documentation complexity exceeds human cognitive capacity.
 
 **Keywords:** Spec-Driven Development, Retrieval-Augmented Generation, Knowledge Graphs, Software Development Automation, Subject Matter Expert Refinement, Semantic Annotations, Weather Forecasting Systems
+
+---
+
+## A Note on Terminology (For Interdisciplinary Readers)
+
+This paper bridges **software engineering**, **natural language processing**, and **knowledge representation**. Readers from linguistic or humanistic backgrounds may find the following conceptual mappings helpful:
+
+### Linguistic Parallels
+
+| SDD Framework Concept | Linguistic/Cognitive Analogue |
+|-----------------------|------------------------------|
+| **Semantic annotation** | Interlinear gloss, pragmatic markup |
+| **Intent directive** | Illocutionary force annotation |
+| **Rationale attribute** | Presupposition/implicature |
+| **Severity levels (must/should/may)** | Deontic modality |
+| **Priority levels** | Information structure (focus/topic) |
+| **Anti-pattern** | Negative exemplar, interference |
+| **Knowledge graph** | Semantic network, lexical relations |
+| **Vector embedding** | Distributed semantic representation |
+| **SME refinement** | Native speaker judgment elicitation |
+
+### Core Problem in Plain Language
+
+AI systems process text **literally**—they match words and patterns without understanding *why* requirements exist or *when* they apply. This is analogous to the difference between:
+
+- **L1 speaker**: "We don't say it that way" (implicit knowledge of context/register)
+- **L2 learner**: "The grammar is correct, isn't it?" (surface compliance without pragmatic competence)
+
+The SDD Framework addresses this gap by making **implicit expert knowledge explicit** through structured annotation—essentially creating a "pragmatic dictionary" for the operational domain.
+
+### Translation Metaphor
+
+If you've done translation work, you'll recognize the core challenge:
+
+> A document can be **lexically accurate** but **pragmatically wrong**.
+
+For example, recommending `set -eu` in shell scripts is technically correct (it's valid Bash syntax) but **operationally inappropriate** for NOAA's specific context. Our annotations capture this **domain-specific pragmatics**.
 
 ---
 
@@ -159,20 +196,23 @@ SDD workflows are executed through the following process:
 
 Traditional documentation presents a fundamental challenge for AI systems: text is optimized for human interpretation, not machine processing.
 
+**Linguistic Framing:** This is the **pragmatic gap**—the difference between what text *says* (semantics) and what it *means in context* (pragmatics). Human readers automatically supply pragmatic inference; AI systems do not.
+
 Consider this requirement from NCEP standards:
 
 > "The utilities listed below **must** be used to assist in accomplishing certain tasks for all WCOSS models."
 
 A human reader understands:
-- "must" = mandatory requirement
-- "all WCOSS models" = global scope
-- "assist in accomplishing certain tasks" = these are helper utilities
+- "must" = mandatory requirement (deontic necessity, not epistemic certainty)
+- "all WCOSS models" = global scope (universal quantifier)
+- "assist in accomplishing certain tasks" = these are helper utilities (presupposition: main tasks exist)
 
 An AI text search sees:
 - Keywords: "utilities", "must", "WCOSS models"
 - No structured priority level (critical vs. recommended)
 - No enforcement mechanism (compile-time vs. runtime)
 - No operational rationale (why this requirement exists)
+- No disambiguation of "must" (deontic vs. epistemic reading)
 
 This semantic gap limits AI effectiveness. Text search returns "relevant" documents but cannot distinguish *critical production requirements* from *nice-to-have recommendations*.
 
@@ -336,6 +376,12 @@ This combines "what the code does" (graph) with "why it exists" (annotations).
 ### 4.1 The Expert Refinement Problem
 
 High-quality RAG systems require high-quality knowledge bases. But how do domain experts—who understand *operational intent* but may not know *embedding mathematics*—improve AI retrieval?
+
+**The Linguist's Advantage:** If you have training in linguistics, lexicography, or translation, you already have the core skills:
+- **Sense disambiguation**: Distinguishing meanings of polysemous terms
+- **Relation typing**: Identifying hypernymy, meronymy, synonymy
+- **Pragmatic annotation**: Marking register, context-dependence, implicature
+- **Native speaker intuition**: Knowing what "sounds wrong" even if grammatically valid
 
 The **SME Review Guide** provides a structured methodology for subject matter experts to refine semantic annotations through systematic reviews. This transforms expert knowledge into machine-processable metadata without requiring AI/ML expertise.
 
