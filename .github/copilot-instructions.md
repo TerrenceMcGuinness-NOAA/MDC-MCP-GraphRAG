@@ -291,6 +291,39 @@ get_knowledge_base_status({ detailed: true, include_graph: true, include_vector:
 - Write unit tests for new features
 - Ensure modularity and reusability
 
+### SPOT Directive (Single Point of Truth)
+
+**CRITICAL**: Configuration data MUST have a single authoritative source.
+
+**Documentation URLs**: All documentation source URLs are defined in:
+```
+mcp_server_node/scripts/documentation_sources_config.py
+```
+
+**Rules:**
+1. **NEVER** duplicate URL configurations in ingestion scripts
+2. **ALWAYS** import from `documentation_sources_config.py`
+3. **MODIFY** the SPOT file to add/change/remove sources
+4. Use `python3 documentation_sources_config.py` to validate changes
+
+**Example Import (CORRECT):**
+```python
+from documentation_sources_config import (
+    DOCUMENTATION_SOURCES,
+    VERSION,
+    get_all_sources,
+    get_tier_names
+)
+```
+
+**Anti-pattern (WRONG):**
+```python
+# NEVER DO THIS - duplicates SPOT configuration
+DOCUMENTATION_SOURCES = {
+    'tier1': [{'name': 'foo', 'url': 'https://...'}]  # WRONG!
+}
+```
+
 ### Documentation
 - Use numpy style docstrings for Python functions/classes
 - Document MCP tool usage in planning docs

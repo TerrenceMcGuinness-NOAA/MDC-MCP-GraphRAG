@@ -9,9 +9,14 @@ with consistent naming convention aligned with MCP server references.
 Collection: global-workflow-docs-v7-0-0
 Target: 2000+ documents from all tier documentation sources
 
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  SPOT COMPLIANCE: This script imports from documentation_sources_config.py  ║
+║  DO NOT add inline DOCUMENTATION_SOURCES dict - modify the SPOT config!     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
 Author: NOAA EMC Global Workflow MCP Team
 Version: 7.0.0
-Date: December 3, 2025
+Date: December 4, 2025
 """
 
 import os
@@ -29,88 +34,33 @@ from ingestion_base import (
 )
 
 # ============================================================================
-# V7 CONFIGURATION
+# SPOT IMPORT - Single Point of Truth for Documentation Sources
+# ============================================================================
+# All documentation URLs are defined in documentation_sources_config.py
+# This ensures consistency across all ingestion scripts and listing utilities.
+# ============================================================================
+from documentation_sources_config import (
+    DOCUMENTATION_SOURCES,
+    VERSION,
+    COLLECTION_NAME as DEFAULT_COLLECTION,
+    get_all_sources,
+    get_tier_names,
+    get_total_source_count,
+    validate_sources
+)
+
+# ============================================================================
+# V7 CONFIGURATION (uses SPOT values with optional env overrides)
 # ============================================================================
 
-VERSION = "7.0.0"
-COLLECTION_NAME = os.getenv("DOCS_COLLECTION", "global-workflow-docs-v7-0-0")
+COLLECTION_NAME = os.getenv("DOCS_COLLECTION", DEFAULT_COLLECTION)
 CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
 
-# Documentation sources organized by tier
-DOCUMENTATION_SOURCES = {
-    'tier1_critical': [
-        {
-            'name': 'global-workflow',
-            'url': 'https://global-workflow.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 1,
-            'description': 'Main global-workflow documentation',
-            'max_pages': 100
-        },
-        {
-            'name': 'ee2-standards',
-            'url': 'https://nws-hpc-standards.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 1,
-            'description': 'NOAA EE2 HPC standards and compliance',
-            'max_pages': 100
-        },
-        {
-            'name': 'ufs-utils',
-            'url': 'https://noaa-emcufs-utils.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 1,
-            'description': 'UFS utilities and pre-processing tools',
-            'max_pages': 100
-        }
-    ],
-    'tier2_important': [
-        {
-            'name': 'wxflow',
-            'url': 'https://wxflow.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 2,
-            'description': 'Workflow execution library',
-            'max_pages': 50
-        },
-        {
-            'name': 'spack-stack',
-            'url': 'https://spack-stack.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 2,
-            'description': 'Spack-stack for HPC environments',
-            'max_pages': 50
-        },
-        {
-            'name': 'ufs-weather-model',
-            'url': 'https://ufs-weather-model.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 2,
-            'description': 'UFS Weather Model documentation',
-            'max_pages': 50
-        }
-    ],
-    'tier3_supplementary': [
-        {
-            'name': 'rocoto',
-            'url': 'https://christopherwharrop.github.io/rocoto/',
-            'type': 'github_pages',
-            'priority': 3,
-            'description': 'Rocoto workflow manager',
-            'max_pages': 30
-        },
-        {
-            'name': 'spack',
-            'url': 'https://spack.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 3,
-            'description': 'Spack package manager',
-            'max_pages': 50
-        }
-    ]
-}
 
+# ============================================================================
+# INGESTER CLASS
+# ============================================================================
 
 class DocumentationIngesterV7(BaseIngester):
     """V7 Documentation ingester with consolidated collection naming"""

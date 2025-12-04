@@ -1,5 +1,56 @@
 # MCP Server Changelog
 
+## [7.0.0] - SPOT Configuration & V7 Collection (December 2025)
+
+### Added
+- **SPOT Directive (Single Point of Truth)**:
+  - Established `documentation_sources_config.py` as the authoritative source for all documentation URLs
+  - Added prominent SPOT directive box in header with import instructions
+  - Added validation function `validate_sources()` with comprehensive checks
+  - Added new helper functions: `get_sources_by_priority()`, `get_total_source_count(enabled_only)`
+
+- **V7 Documentation Collection**:
+  - New collection: `global-workflow-docs-v7-0-0` (2,280+ documents)
+  - 17 documentation sources across 5 tiers
+  - Incremental ingestion support via `_load_existing_ids()`
+
+- **New Tier Organization**:
+  - tier1_critical: Core workflow docs (global-workflow, ee2-standards, ufs-utils)
+  - tier2_workflow: Orchestration tools (rocoto, ecflow, wxflow, pyflow)
+  - tier3_models: UFS models and components (ufs-weather-model, jedi-docs, fv3-dynamical-core)
+  - tier4_build: Build systems (spack-stack, spack, hpc-stack)
+  - tier5_standards: Coding style guides (google-shell-style, pep8, numpy-docstrings, fortran-best-practices)
+
+- **New Documentation Sources**:
+  - `spack` - Spack package manager documentation (LLNL)
+  - `fv3-dynamical-core` - FV3 cubed sphere dynamics
+  - `fortran-best-practices` - Fortran-lang best practices
+
+### Changed
+- **documentation_sources_config.py** (SPOT):
+  - Version: 4.2.1 → 7.0.0
+  - Reorganized from 4 tiers to 5 tiers
+  - Added `enabled` field for per-source control
+  - Enhanced docstrings with SPOT compliance requirements
+  - Collection name: `global-workflow-docs-v7-0-0`
+
+- **ingest_documentation_v7.py**:
+  - Now imports from SPOT config instead of inline `DOCUMENTATION_SOURCES`
+  - Added SPOT compliance header comment box
+  - Removed all inline URL configuration
+
+- **.github/copilot-instructions.md**:
+  - Added SPOT Directive section with rules and examples
+  - Documents correct import pattern and anti-patterns
+
+### Technical Notes
+- SPOT ensures all ingestion scripts use the same source definitions
+- Use `python3 documentation_sources_config.py` to validate and view sources
+- Use `python3 list_documentation_sources.py --format detailed` for formatted output
+- All URL changes MUST be made in `documentation_sources_config.py`
+
+---
+
 ## [3.6.3] - Spack Dependency Documentation (December 2025)
 
 ### Added
