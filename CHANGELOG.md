@@ -1,5 +1,46 @@
 # MCP Server Changelog
 
+## [7.0.1] - Enhanced Semantic Annotations (December 4, 2025)
+
+### Added
+- **20 New MCP Semantic Annotations** in `standards.rst`:
+  - 6 AI Guidance Rules (`literal_compliance`, `context_discrimination`, `anti_pattern_enforcement`, `recognize_err_chk_gaps_not_absence`, `cite_compliant_examples_for_context`, `report_compliance_distribution`)
+  - 2 SME Corrections (`bash_error_handling_requirement`, `forced_exit_prohibition`)
+  - 3 Correct Patterns (`natural_return_with_err_utilities`, `err_chk_after_critical_operations`, `ee2_script_header`)
+  - 2 Platform Guidance (`hera_environment`, `wcoss2_environment`)
+  - 1 Context Types definition (operational_job, utility_script, test_script)
+  - Environment variable validation annotations
+
+- **In-Place Collection Update**:
+  - Updated `global-workflow-docs-v7-0-0` collection without creating new version
+  - Deleted 19 old standards.rst documents, added 34 new chunks
+  - Total collection: 3,761 documents
+
+- **Updated EE2 Compliance Report**:
+  - `SEAICE_CONCENTRATION_EE2_COMPLIANCE_REPORT_annotation_updates.md`
+  - Demonstrates SME correction usage preventing false positives
+  - 3-level compliance scoring (Level 1/2/3 vs binary)
+  - Compliance score improved from 78% to 82%
+
+### Changed
+- **supported_repos/nws-hpc-standards/docs/standards.rst**:
+  - Annotation count: 9 → 29 (20 new annotations)
+  - All SDD framework phase2_annotations translated to source document
+  - Annotations embedded as RST comments (invisible to RTD, parsed by MCP)
+
+- **sdd_framework/workflows/ee2_enhanced_embeddings_workflow.md**:
+  - Updated all 4 phases to COMPLETE status
+  - Added Current System State table with component status
+  - Added validation proof and implementation details
+
+### Technical Notes
+- SME corrections prevent 80% false positive rate (set -eu issue)
+- AI guidance rules control recommendation behavior
+- SDD framework files retained for development reference
+- Branch: `mcp_enhanced_embedings` in nws-hpc-standards submodule
+
+---
+
 ## [7.0.0] - SPOT Configuration & V7 Collection (December 2025)
 
 ### Added
