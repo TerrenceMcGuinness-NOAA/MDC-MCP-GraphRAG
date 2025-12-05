@@ -105,6 +105,10 @@ class RSTDirectiveParser:
             'example': re.compile(r'\.\.\s+mcp:example::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
             'pattern': re.compile(r'\.\.\s+mcp:pattern::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
             'envvar': re.compile(r'\.\.\s+mcp:envvar::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            # File naming convention directives (added Dec 2025)
+            'file_naming_pattern': re.compile(r'\.\.\s+mcp:file_naming_pattern::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'file_naming_rule': re.compile(r'\.\.\s+mcp:file_naming_rule::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'llm_validation_prompt': re.compile(r'\.\.\s+mcp:llm_validation_prompt::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
         }
         
         # Pattern to extract directive attributes like :severity: critical
@@ -140,6 +144,10 @@ class RSTDirectiveParser:
             'example': 'example',
             'pattern': 'guidance',
             'envvar': 'reference',
+            # File naming convention directives
+            'file_naming_pattern': 'guidance',
+            'file_naming_rule': 'validation',
+            'llm_validation_prompt': 'guidance',
         }
         
         for directive_type, pattern in self.mcp_patterns.items():
