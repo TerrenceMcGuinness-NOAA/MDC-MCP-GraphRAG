@@ -1,0 +1,10 @@
+01-directories.sh|success|1s
+02-system-deps.sh|success|18s
+03-docker.sh|success|1s
+04-nodejs.sh|success|10s
+05-python-spack.sh|success|153s
+06-chromadb.sh|failure|Exit code 125
+07-mcp-server.sh|success|2s
+08-services.sh|success|55s
+09-desktop-vnc.sh|success|7s
+10-verification.sh|success|1s

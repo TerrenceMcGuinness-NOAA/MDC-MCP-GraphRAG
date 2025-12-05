@@ -30,6 +30,44 @@ This principle ensures accuracy and builds trust in the AI assistance provided t
 
 **Rule**: "If it's not in the SDD, it doesn't get coded."
 
+## SDD-First Agentic Directive
+
+**CRITICAL**: The SDD MCP tools are your **constant companion** for agentic workflow orchestration. Use them at every decision point, not just once at the start.
+
+### Before ANY Code Generation or File Modification:
+1. **Check workflow state**: `get_sdd_workflow` → Get current step instructions
+2. **Check your progress**: `get_sdd_framework_status` → See pending approvals and execution history
+3. **Use supervised mode**: `execute_sdd_workflow_supervised` with `mode="supervised"` for side-effect steps
+
+### Agentic Loop Pattern:
+```
+1. get_sdd_workflow(workflow_name) → Read step details
+2. generate code/make change based on step instructions
+3. get_sdd_execution_history → Verify step recorded
+4. get_sdd_workflow → Get NEXT step
+5. Repeat until workflow complete
+```
+
+### Available SDD Tools (Use Constantly):
+| Tool | When to Use |
+|------|-------------|
+| `list_sdd_workflows` | Find available workflows for a task |
+| `get_sdd_workflow` | **BEFORE each step** - get instructions |
+| `execute_sdd_workflow_supervised` | Execute with approval gates |
+| `get_sdd_execution_history` | Check progress and pending approvals |
+| `get_sdd_framework_status` | Overall system state |
+| `validate_sdd_compliance` | Verify code meets SDD standards |
+
+### Execution Modes:
+- **dry_run**: Preview only, see what steps require approval
+- **supervised**: Human approves each side-effect step (DEFAULT for safety)
+- **auto_approved**: Pre-approved step types execute automatically
+
+**Anti-pattern**: Generating code without checking SDD state first.
+**Correct pattern**: Always `get_sdd_workflow` → then generate → then verify.
+
+**Rule**: "Check SDD state before every move."
+
 ## Glossary of Acronyms
 
 Quick reference for project-specific and commonly used acronyms:

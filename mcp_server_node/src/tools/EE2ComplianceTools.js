@@ -30,7 +30,11 @@
 import { UnifiedDataAccess } from '../data/UnifiedDataAccess.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync, statSync } from 'fs';
+
+// Phase 4C: Code snippet extraction and LLM passthrough
+import { CodeSnippetExtractor } from './CodeSnippetExtractor.js';
+import { generateAnalysisPrompt, getAvailableCategories } from './EE2AnalysisPrompts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -176,7 +180,40 @@ export class EE2ComplianceTools {
       this.scanRepositoryCompliance.bind(this)
     );
 
-    console.error('[OK] Registered 4 EE2 Compliance tools');
+    // Tool 5: Extract Code for LLM Analysis (Phase 4C)
+    server.registerTool(
+      'extract_code_for_analysis',
+      'Extract code snippets from files for EE2 compliance analysis. Returns structured data with LLM prompts for the host LLM to perform detailed analysis.',
+      {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to file or directory to analyze' },
+          categories: {
+            type: 'array',
+            items: { 
+              type: 'string',
+              enum: ['output_file_naming', 'error_handling', 'shebang_compliance', 'env_var_validation']
+            },
+            description: 'Analysis categories to extract patterns for',
+            default: ['output_file_naming', 'error_handling']
+          },
+          file_pattern: {
+            type: 'string',
+            description: 'Regex pattern for files to include (default: \\.(sh|py)$)',
+            default: '\\.(sh|py)$'
+          },
+          max_files: {
+            type: 'number',
+            description: 'Maximum files to scan',
+            default: 50
+          }
+        },
+        required: ['path']
+      },
+      this.extractCodeForAnalysis.bind(this)
+    );
+
+    console.error('[OK] Registered 5 EE2 Compliance tools');
   }
 
   // ============================================================================
@@ -837,6 +874,132 @@ The data above provides counts, file lists, and patterns. You format the final r
       console.error(`[ERROR] Repository scan failed: ${error.message}`);
       return {
         content: [{ type: 'text', text: `Repository scan failed: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Extract code snippets for LLM analysis (Phase 4C)
+   * Returns structured data with LLM prompts for passthrough mode
+   */
+  async extractCodeForAnalysis(args) {
+    const { 
+      path: inputPath, 
+      categories = ['output_file_naming', 'error_handling'],
+      file_pattern = '\\.(sh|py)$',
+      max_files = 50
+    } = args;
+
+    try {
+      console.error(`[EXTRACT] Starting code extraction: ${inputPath}`);
+      
+      // Map category names to extractor categories
+      const extractorCategories = categories.map(c => {
+        if (c === 'output_file_naming') return 'output';
+        if (c === 'shebang_compliance') return 'shebang';
+        if (c === 'env_var_validation') return 'env_vars';
+        return c.replace('_compliance', '');
+      });
+
+      const extractor = new CodeSnippetExtractor();
+      
+      let extracted;
+      const stats = statSync(inputPath);
+      
+      if (stats.isDirectory()) {
+        extracted = await extractor.extractFromDirectory(inputPath, {
+          pattern: new RegExp(file_pattern),
+          categories: extractorCategories,
+          maxFiles: max_files
+        });
+      } else {
+        const result = await extractor.extractFromFile(inputPath, extractorCategories);
+        extracted = {
+          directory: inputPath,
+          filesScanned: 1,
+          filesWithMatches: 1,
+          results: [result]
+        };
+      }
+
+      // Generate LLM prompts for each category
+      const llmPrompts = {};
+      for (const category of categories) {
+        llmPrompts[category] = generateAnalysisPrompt(
+          category,
+          extracted.results || [extracted]
+        );
+      }
+
+      // Format response
+      let output = `# Code Extraction for EE2 Analysis\n\n`;
+      output += `**Path:** ${inputPath}\n`;
+      output += `**Categories:** ${categories.join(', ')}\n`;
+      
+      if (extracted.filesScanned) {
+        output += `**Files Scanned:** ${extracted.filesScanned}\n`;
+        output += `**Files with Matches:** ${extracted.filesWithMatches}\n`;
+      }
+      output += `\n---\n\n`;
+
+      // Include prompts for host LLM
+      output += `## LLM Analysis Instructions\n\n`;
+      output += `The following prompts and code snippets are provided for analysis.\n`;
+      output += `Please analyze each category using the provided context and SME corrections.\n\n`;
+
+      for (const [category, prompt] of Object.entries(llmPrompts)) {
+        if (prompt.error) continue;
+        
+        output += `### ${category.replace(/_/g, ' ').toUpperCase()}\n\n`;
+        output += `**Context:**\n\`\`\`\n${prompt.context}\n\`\`\`\n\n`;
+        output += `**Instruction:**\n${prompt.instruction}\n\n`;
+        output += `**SME Corrections (avoid false positives):**\n`;
+        for (const correction of prompt.sme_corrections) {
+          output += `- ${correction}\n`;
+        }
+        output += `\n`;
+      }
+
+      output += `---\n\n## Extracted Code Snippets\n\n`;
+      
+      // Include actual snippets
+      const results = extracted.results || [extracted];
+      for (const result of results.slice(0, 10)) { // Limit output
+        if (result.error) continue;
+        
+        output += `### ${result.filename}\n`;
+        output += `**Type:** ${result.fileType} | **Lines:** ${result.lineCount}\n\n`;
+        
+        if (result.shebangBlock) {
+          output += `**Shebang:** ${result.shebangBlock.shebang || 'MISSING'}\n`;
+          output += `**set -x:** ${result.shebangBlock.hasSetX ? `Line ${result.shebangBlock.setXLine}` : 'NOT FOUND'}\n\n`;
+        }
+
+        for (const [cat, snippets] of Object.entries(result.snippets)) {
+          if (snippets.length === 0) continue;
+          output += `**${cat} patterns:** ${snippets.length} found\n`;
+          for (const snip of snippets.slice(0, 5)) {
+            output += `- Line ${snip.line}: \`${snip.match.substring(0, 80)}${snip.match.length > 80 ? '...' : ''}\`\n`;
+          }
+          output += `\n`;
+        }
+      }
+
+      if (results.length > 10) {
+        output += `\n*... and ${results.length - 10} more files*\n`;
+      }
+
+      console.error(`[OK] Code extraction complete: ${extracted.filesScanned} files, ${categories.length} categories`);
+
+      return { 
+        content: [{ type: 'text', text: output }]
+      };
+
+    } catch (error) {
+      console.error(`[ERROR] Code extraction failed: ${error.message}`);
+      return {
+        content: [{ type: 'text', text: `Code extraction failed: ${error.message}` }],
         isError: true
       };
     }
