@@ -383,7 +383,37 @@ DOCUMENTATION_SOURCES = {
 
 ## MCP Tool Usage Patterns
 
-Always use MCP tools when asked about any generalities regarding global-workflow as those are always intended to test the MCP system under development in this repository.
+**CRITICAL: MCP-First Policy**
+
+This is an MCP/RAG development repository. The PRIMARY PURPOSE of user requests is often to TEST and VALIDATE the MCP tools we're building. Therefore:
+
+1. **ALWAYS try MCP tools FIRST** before falling back to shell commands (`grep`, `find`, `wc`, etc.)
+2. **This applies to ANY repository analysis** - not just global-workflow queries
+3. **Compliance/audit tasks** → Use `scan_repository_compliance`, `generate_compliance_report`
+4. **Code analysis tasks** → Use `analyze_code_structure`, `find_dependencies`, `trace_execution_path`
+5. **Documentation search** → Use `search_documentation`, `search_ee2_standards`
+
+**When MCP tools appear disabled:**
+- Try calling `get_server_info` to see available tools
+- Check if activation is needed (some tool groups require activation)
+- Only fall back to shell commands if MCP tools are genuinely unavailable
+
+**Anti-pattern to AVOID:**
+```bash
+# DON'T do this first:
+find /path -name "*.sh" | wc -l
+grep -r "pattern" /path
+```
+
+**Correct pattern:**
+```
+# DO this first:
+scan_repository_compliance(repository_path="/path")
+# or
+analyze_code_structure(file_path="path/to/file")
+```
+
+**Why this matters:** Users are testing the MCP system. Using shell commands bypasses the tools we're developing and doesn't validate their functionality.
 
 ### Current Status Check
 Before using RAG-enhanced tools, check system health:
