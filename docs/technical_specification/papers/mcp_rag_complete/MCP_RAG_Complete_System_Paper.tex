@@ -97,7 +97,7 @@
 \begin{abstract}
 We present \textbf{MCP-RAG}, a comprehensive artificial intelligence system for assisting software development in large-scale operational weather forecasting infrastructure. The system integrates three architectural innovations: (1) \textit{Spec-Driven Development} (\sdd{}), a methodology for expressing development tasks as machine-readable workflow specifications; (2) \textit{Hybrid Graph-Enhanced Retrieval-Augmented Generation}, combining 768-dimensional semantic embeddings with Neo4j knowledge graphs for context-aware code intelligence; and (3) \textit{Supervised SME Refinement}, enabling domain experts to correct AI behavior through structured semantic annotations in reStructuredText documentation.
 
-Deployed within the NOAA Global Workflow system---the operational infrastructure producing GFS, GEFS, and GDAS weather forecasts---the platform demonstrates measurable improvements: 3.8$\times$ retrieval precision over baseline text search, 5--9$\times$ development velocity for complex tasks, and 77\% reduction in false positive compliance violations through SME-guided corrections. The system processes a knowledge base of 3,761 documents across 78,339 code relationships, exposing 20+ specialized tools via the Model Context Protocol (\mcp{}) for integration with VS Code, Claude, and other AI coding assistants.
+Deployed within the NOAA Global Workflow system---the operational infrastructure producing GFS, GEFS, and GDAS weather forecasts---the platform demonstrates measurable improvements: 3.8$\times$ retrieval precision over baseline text search, 5--9$\times$ development velocity for complex tasks, and 77\% reduction in false positive compliance violations through SME-guided corrections. The system processes a knowledge base of 13,423 documents across 82,338 code relationships, exposing 30+ specialized tools via the Model Context Protocol (\mcp{}) for integration with VS Code, Claude, and other AI coding assistants.
 
 This paper provides a complete technical specification including: mathematical foundations of embedding spaces and graph traversal; the seven-directive semantic annotation schema; the five-component hybrid architecture; empirical evaluation methodology; and a prioritized roadmap for containerized deployment. We conclude with reflections on human-AI alignment in safety-critical software systems, arguing that supervised refinement---rather than pure automation---is essential for trustworthy AI assistance.
 
@@ -145,6 +145,28 @@ The \textbf{MCP-RAG} system addresses these challenges through a novel integrati
 \textbf{3. Hybrid Intelligence}: Combining vector embeddings (semantic similarity) with knowledge graphs (structural relationships) for context-aware retrieval that neither technology could achieve alone.
 
 The key insight is that \textit{AI assistance is most effective when domain experts can correct and refine AI behavior}. Pure automation fails in complex domains; supervised human-AI collaboration succeeds.
+
+\subsection{Vendor Independence: A Federal Imperative}
+
+As a U.S. Government agency, NOAA operates under Federal Acquisition Regulation (FAR) requirements that mandate avoiding vendor lock-in for mission-critical systems. Commercial AI platforms---including Claude's ``/plan'' workflow features, GitHub Copilot's workspace agents, AWS Bedrock orchestration, and NVIDIA AI Enterprise---offer compelling workflow automation capabilities. However, these features:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Cannot be contractually guaranteed} for long-term availability
+    \item \textbf{May change without notice} as vendors evolve their platforms
+    \item \textbf{Create procurement dependencies} incompatible with COTS requirements
+    \item \textbf{Lack government-specific compliance} (FedRAMP, FISMA, authority to operate)
+\end{itemize}
+
+The \sdd{} Framework addresses this by implementing workflow orchestration, approval gates, and execution tracking \textit{within the MCP infrastructure itself}. This ensures:
+
+\begin{enumerate}
+    \item \textbf{Platform Portability}: Workflows execute identically across Claude, GPT, Gemini, or local models
+    \item \textbf{Government Control}: NOAA NWS EIB owns the orchestration layer, not vendors
+    \item \textbf{Procurement Flexibility}: AI providers can be changed without losing workflow definitions
+    \item \textbf{Audit Compliance}: Execution history, approval decisions, and modifications are logged in government-controlled systems
+\end{enumerate}
+
+This vendor-agnostic design is not merely a technical preference---it is a federal procurement necessity for sustainable AI adoption in government operations.
 
 \subsection{Paper Organization}
 
@@ -331,6 +353,43 @@ Two organizational principles govern the codebase:
 \textbf{SPOT (Single Point of Truth)}: Configuration data must have exactly one authoritative source. For MCP-RAG, documentation URLs are defined exclusively in \texttt{documentation\_sources\_config.py}---never duplicated in ingestion scripts.
 
 \textbf{SOC (Separation of Concerns)}: Tools are organized by functional category, not implementation convenience. This yields five tool groups: Workflow Info, Semantic Search, Code Analysis, Operational Guidance, and System Health.
+
+\subsection{Interactive Supervised Execution (Phase 4B)}
+
+While the SDD Framework supports autonomous workflow execution, operational requirements for safety-critical systems demand explicit human approval at each step. Phase 4B introduces \textbf{Interactive Supervised Execution}---a human-in-the-loop execution mode that spans multiple AI development environments.
+
+\subsubsection{Execution Mode Hierarchy}
+
+Four execution modes provide graduated automation:
+
+\begin{enumerate}
+    \item \textbf{Dry Run}: Parse and validate only---no file system modifications
+    \item \textbf{Supervised} (default): Human approval required for each step
+    \item \textbf{Auto-Approved}: Execute with approval rules from manifest files
+    \item \textbf{Autonomous}: Full automation (disabled for safety-critical systems)
+\end{enumerate}
+
+\subsubsection{ApprovalProvider Architecture}
+
+The abstraction layer that enables cross-platform supervised execution:
+
+\begin{lstlisting}[style=code, caption={ApprovalProvider Interface}]
+interface ApprovalProvider {
+  requestApproval(stepContext: StepContext): Promise<ApprovalResult>
+  getCapabilities(): ApprovalCapabilities
+  isInteractive(): boolean
+}
+\end{lstlisting}
+
+Implementations include:
+\begin{itemize}
+    \item \textbf{MCPApprovalProvider}: Multi-turn MCP tool calls for VS Code Copilot and Claude Desktop
+    \item \textbf{CLIApprovalProvider}: Terminal prompts for Claude Code, Cursor, and direct CLI usage
+    \item \textbf{ManifestApprovalProvider}: YAML-based pre-approval rules for CI/CD pipelines
+    \item \textbf{GitHubActionsProvider}: Manual workflow\_dispatch approval gates
+\end{itemize}
+
+This architecture ensures that regardless of the AI development environment, human oversight remains the governing principle for all workflow execution in operational systems.
 
 %==============================================================================
 \section{Semantic Annotation Schema}
@@ -673,6 +732,7 @@ The audit demonstrated the system's ability to traverse repositories, identify s
 \toprule
 \textbf{Phase} & \textbf{Name} & \textbf{Status} & \textbf{Priority} \\
 \midrule
+4B & Interactive Supervised Execution & SDD Complete & \textcolor{red}{CRITICAL} \\
 5 & Containerization (Docker) & In Progress & \textcolor{red}{CRITICAL} \\
 6 & Production Hardening & Planned & High \\
 7 & Documentation \& Training & Planned & High \\
@@ -682,6 +742,8 @@ The audit demonstrated the system's ability to traverse repositories, identify s
 \bottomrule
 \end{tabular}
 \end{table}
+
+\textbf{Note on Phase 4 (Bootstrap)}: The autonomous workflow execution capability (``bootstrap'') is intentionally held in reserve. While the SDD Framework contains 17 defined workflows, execution remains at zero by design. Phase 4B addresses this by requiring explicit human approval for each workflow step, ensuring supervised execution aligns with safety-critical system requirements.
 
 \subsection{Phase 5: Containerization}
 

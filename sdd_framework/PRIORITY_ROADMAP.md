@@ -1,9 +1,50 @@
 # MCP/RAG System - Priority Roadmap
 
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
-**Last Updated**: December 4, 2025  
+**Last Updated**: December 5, 2025  
 **Lead**: Terrence McGuinness  
 **Status**: Active Development
+
+---
+
+## ⚠️ Bootstrap Capability (Phase 4) - ON HOLD
+
+**Status**: Infrastructure complete, execution **PAUSED**  
+**Reason**: Unsupervised code modification requires additional safeguards  
+**Resume After**: Phase 4B completion (interactive supervised execution)
+
+The SDD Framework includes autonomous self-modification capabilities (`SelfModificationEngine.js`, `WorkflowExecutor.js`, `bootstrap_capability_demo.md`), but these are **intentionally disabled** for unsupervised runs until:
+
+1. ✅ Containerization complete (shareable, reproducible environment)
+2. ✅ Production hardening (reliable rollback, monitoring)
+3. ✅ Human-in-the-loop gates tested in production
+4. ✅ SME review of generated code patterns
+
+**Current Safe Usage**: Interactive, supervised execution with `dry_run: true` preview.
+
+---
+
+## 🟠 Phase 4B: Interactive Supervised Execution (NEW)
+
+**Status**: SDD Complete (`phase4b_interactive_supervised_execution.md`)  
+**Priority**: HIGH - Enables safe workflow execution before full autonomy  
+**Goal**: Human-in-the-loop approval gates for side-effect steps
+
+**Key Features**:
+- **Multi-CLI Support**: Works in VS Code MCP, Claude Code, terminal, GitHub Actions
+- **Approval Providers**: MCPApprovalProvider, CLIApprovalProvider, ManifestApprovalProvider
+- **Execution Modes**: dry_run → supervised → auto_approved → autonomous (graduated trust)
+- **Multi-Turn MCP**: Pause, return pending state, resume on user approval
+
+**Deliverables**:
+- [ ] ApprovalProvider interface and implementations
+- [ ] WorkflowExecutor integration with approval gates
+- [ ] `execute_sdd_workflow_supervised` MCP tool
+- [ ] CLI wrapper for terminal/Claude Code
+- [ ] Approval manifest format for batch/CI
+
+**Estimated Effort**: ~20 hours  
+**Unlocks**: Safe supervised execution without full autonomy risk
 
 ---
 
@@ -21,11 +62,13 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 | Capability | Status | Evidence |
 |------------|--------|----------|
-| Semantic documentation search | ✅ Operational | ChromaDB with 3,761 documents |
-| Code structure analysis | ✅ Operational | Neo4j graph database |
+| Semantic documentation search | ✅ Operational | ChromaDB with 13,423 documents (11 collections) |
+| Code structure analysis | ✅ Operational | Neo4j graph database (82,338 relationships) |
 | EE2 compliance scanning | ✅ Demonstrated | seaice-concentration audit (14 scripts, 72% score) |
-| SME-guided AI corrections | ✅ Implemented | 29 semantic annotations preventing false positives |
-| MCP tool integration | ✅ Working | 20+ tools accessible via VS Code Copilot |
+| SME-guided AI corrections | ✅ Implemented | 56 MCP directives preventing false positives |
+| MCP tool integration | ✅ Working | 30+ tools accessible via VS Code Copilot |
+| SDD Workflow Framework | ✅ Operational | 17 workflows defined, supervised execution |
+| Bootstrap Capability | 🔒 ON HOLD | Infrastructure ready, awaiting Phase 5-6 |
 
 ---
 
