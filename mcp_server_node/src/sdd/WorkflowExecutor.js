@@ -2,8 +2,8 @@
  * SDD Workflow Executor
  * Parses and executes workflows defined in sdd_framework/workflows/
  * 
- * Version: 4.0.0 - Phase 4: Bootstrap Capability
- * Date: December 21, 2024
+ * Version: 5.0.0 - Phase 4B: Interactive Supervised Execution
+ * Date: December 5, 2025
  */
 
 import fs from 'fs';
@@ -12,6 +12,11 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { SelfModificationEngine } from './SelfModificationEngine.js';
 import { SpecificationParser } from './SpecificationParser.js';
+import { 
+  ApprovalResult, 
+  ExecutionMode,
+  SIDE_EFFECT_TYPES 
+} from './approval/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +32,32 @@ export class WorkflowExecutor {
     this.selfModEngine = new SelfModificationEngine(dataAccess);
     this.specParser = new SpecificationParser();
     this.repoRoot = path.resolve(__dirname, '../../..');
+    
+    // Phase 4B: Supervised execution
+    this.approvalProvider = null;
+    this.executionMode = ExecutionMode.DRY_RUN; // Safe default
+  }
+
+  /**
+   * Set approval provider for supervised execution
+   * @param {ApprovalProvider} provider - Approval provider instance
+   */
+  setApprovalProvider(provider) {
+    this.approvalProvider = provider;
+    if (provider) {
+      this.executionMode = provider.executionMode;
+    }
+  }
+
+  /**
+   * Set execution mode
+   * @param {string} mode - ExecutionMode value
+   */
+  setExecutionMode(mode) {
+    this.executionMode = mode;
+    if (this.approvalProvider) {
+      this.approvalProvider.executionMode = mode;
+    }
   }
 
   /**
@@ -76,44 +107,128 @@ export class WorkflowExecutor {
   }
 
   /**
-   * Execute a workflow with health monitoring
+   * Execute a workflow with health monitoring and optional approval
+   * @param {string} workflowName - Name of workflow to execute
+   * @param {Object} params - Execution parameters
+   * @param {Object} resumeState - State to resume from (for multi-turn approval)
    */
-  async executeWorkflow(workflowName, params = {}) {
-    const startTime = Date.now();
-    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async executeWorkflow(workflowName, params = {}, resumeState = null) {
+    const startTime = resumeState?.startTime || Date.now();
+    const executionId = resumeState?.executionId || 
+      `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    console.log(`[WORKFLOW] Starting execution: ${workflowName} (${executionId})`);
+    console.log(`[WORKFLOW] Starting execution: ${workflowName} (${executionId}) mode=${this.executionMode}`);
     
     try {
       // Parse workflow
       const workflow = await this.parseWorkflow(workflowName);
       
-      // Check system health before execution
-      if (this.healthMonitor) {
+      // Check system health before execution (skip if resuming)
+      if (!resumeState && this.healthMonitor) {
         const health = await this.healthMonitor.checkHealth();
         if (health.status === 'unhealthy') {
           throw new Error(`System unhealthy, cannot execute workflow: ${health.message}`);
         }
       }
 
-      // Execute phases/steps
-      const results = {
+      // Initialize or restore results
+      const results = resumeState?.results || {
         executionId,
         workflow: workflowName,
-        status: 'success',
+        executionMode: this.executionMode,
+        status: 'in_progress',
         startTime,
         steps: [],
         params
       };
 
-      for (const step of workflow.steps) {
-        const stepResult = await this.executeStep(step, params);
+      // Determine starting step index
+      const startIndex = resumeState?.currentStepIndex || 0;
+
+      for (let i = startIndex; i < workflow.steps.length; i++) {
+        const step = workflow.steps[i];
+        
+        // Phase 4B: Check if approval required
+        if (this.approvalProvider && this.approvalProvider.requiresApproval(step)) {
+          const preview = this.approvalProvider.generatePreview(step);
+          const approval = await this.approvalProvider.requestApproval(step, preview);
+          
+          // Handle approval result
+          if (approval.result === ApprovalResult.PENDING) {
+            // MCP multi-turn: save state and return for user input
+            results.status = 'awaiting_approval';
+            results.pendingStep = {
+              index: i,
+              name: step.name,
+              type: step.type,
+              preview: approval.preview
+            };
+            results.approvalMessage = approval.message;
+            results.endTime = Date.now();
+            results.duration = results.endTime - startTime;
+            
+            // Save state for resumption
+            const state = {
+              executionId,
+              workflowName,
+              currentStepIndex: i,
+              totalSteps: workflow.steps.length,
+              results,
+              startTime
+            };
+            
+            this.executionHistory.push(results);
+            return { ...results, _resumeState: state };
+          }
+          
+          // Process approval decision
+          switch (approval) {
+            case ApprovalResult.SKIPPED:
+              results.steps.push({
+                name: step.name,
+                status: 'skipped',
+                reason: 'User skipped',
+                duration: 0
+              });
+              continue;
+              
+            case ApprovalResult.QUIT:
+              results.status = 'aborted';
+              results.abortedAt = step.name;
+              results.endTime = Date.now();
+              results.duration = results.endTime - startTime;
+              this.executionHistory.push(results);
+              return results;
+              
+            case ApprovalResult.APPROVE_ALL:
+              // Fall through to execute, provider tracks approvedAll state
+              break;
+              
+            case ApprovalResult.APPROVED:
+              // Fall through to execute
+              break;
+          }
+        }
+        
+        // Execute step (or preview in dry-run mode)
+        let stepResult;
+        if (this.executionMode === ExecutionMode.DRY_RUN) {
+          stepResult = this.generateDryRunResult(step);
+        } else {
+          stepResult = await this.executeStep(step, params);
+        }
+        
         results.steps.push(stepResult);
         
         if (stepResult.status === 'failed' && step.required) {
           results.status = 'failed';
           break;
         }
+      }
+
+      // Mark as completed if we processed all steps
+      if (results.status === 'in_progress') {
+        results.status = 'completed';
       }
 
       results.endTime = Date.now();
@@ -142,6 +257,33 @@ export class WorkflowExecutor {
       this.executionHistory.push(failedResult);
       throw error;
     }
+  }
+
+  /**
+   * Generate dry-run result for a step (preview without execution)
+   * @param {Object} step - Step metadata
+   * @returns {Object} Dry-run result
+   */
+  generateDryRunResult(step) {
+    const hasSideEffects = SIDE_EFFECT_TYPES.includes(step.type);
+    
+    return {
+      name: step.name,
+      status: 'dry_run',
+      type: step.type,
+      hasSideEffects,
+      wouldExecute: hasSideEffects ? 'REQUIRES APPROVAL' : 'AUTO-EXECUTE',
+      preview: {
+        target: step.target || step.file,
+        command: step.command,
+        query: step.query,
+        action: step.action
+      },
+      duration: 0,
+      message: hasSideEffects 
+        ? `[DRY-RUN] Would ${step.type}: ${step.target || step.command || step.name}`
+        : `[DRY-RUN] Would execute read-only: ${step.name}`
+    };
   }
 
   /**

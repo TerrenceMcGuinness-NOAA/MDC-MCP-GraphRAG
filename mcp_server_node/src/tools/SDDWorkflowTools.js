@@ -2,11 +2,18 @@
  * SDD Workflow Tools
  * MCP tools for executing and managing SDD framework workflows
  * 
- * Version: 1.0.0
- * Date: November 14, 2025
+ * Version: 2.0.0 - Phase 4B: Interactive Supervised Execution
+ * Date: December 5, 2025
  */
 
 import { WorkflowExecutor } from '../sdd/WorkflowExecutor.js';
+import { 
+  MCPApprovalProvider 
+} from '../sdd/approval/MCPApprovalProvider.js';
+import { 
+  ExecutionMode,
+  ApprovalResult 
+} from '../sdd/approval/ApprovalProvider.js';
 
 export class SDDWorkflowTools {
   constructor(dataAccess, healthMonitor = null) {
@@ -138,6 +145,48 @@ export class SDDWorkflowTools {
         }
       },
       this.getFrameworkStatus.bind(this)
+    );
+
+    // Tool 7: Execute workflow with supervision (Phase 4B)
+    server.registerTool(
+      'execute_sdd_workflow_supervised',
+      'Execute SDD workflow with human approval gates before side-effect steps. Supports dry-run preview and multi-turn approval flow.',
+      {
+        type: 'object',
+        properties: {
+          workflow_name: {
+            type: 'string',
+            description: 'Name of workflow to execute'
+          },
+          mode: {
+            type: 'string',
+            enum: ['dry_run', 'supervised', 'auto_approved'],
+            description: 'Execution mode: dry_run (preview only), supervised (approve each step), auto_approved (use auto-approve list)',
+            default: 'dry_run'
+          },
+          auto_approve: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Step types to auto-approve (e.g., ["health_check", "validation", "data_query"])'
+          },
+          pending_approval: {
+            type: 'string',
+            enum: ['approved', 'skipped', 'quit', 'approve_all'],
+            description: 'Response to pending approval request'
+          },
+          execution_id: {
+            type: 'string',
+            description: 'Resume execution with this ID (for multi-turn approval)'
+          },
+          params: {
+            type: 'object',
+            description: 'Parameters for workflow execution',
+            default: {}
+          }
+        },
+        required: ['workflow_name']
+      },
+      this.executeWorkflowSupervised.bind(this)
     );
   }
 
@@ -381,29 +430,39 @@ export class SDDWorkflowTools {
       const history = this.executor.getExecutionHistory(100);
       
       let output = '# SDD Framework Status\n\n';
-      output += `**Version**: 4.0 Consolidated\n`;
+      output += `**Version**: 5.0 Phase 4B\n`;
       output += `**Status**: Operational\n`;
-      output += `**Integration Level**: Phase 3A (Workflow Automation)\n\n`;
+      output += `**Integration Level**: Phase 4B (Interactive Supervised Execution)\n\n`;
 
       output += `## Components\n\n`;
       output += `- **Available Workflows**: ${workflows.length}\n`;
       output += `- **Total Executions**: ${history.length}\n`;
-      output += `- **Successful**: ${history.filter(h => h.status === 'success').length}\n`;
-      output += `- **Failed**: ${history.filter(h => h.status === 'failed').length}\n\n`;
+      output += `- **Successful**: ${history.filter(h => h.status === 'success' || h.status === 'completed').length}\n`;
+      output += `- **Failed**: ${history.filter(h => h.status === 'failed').length}\n`;
+      output += `- **Awaiting Approval**: ${history.filter(h => h.status === 'awaiting_approval').length}\n\n`;
 
       if (detailed) {
         output += `## Framework Capabilities\n\n`;
-        output += `- ✅ Workflow parsing and execution\n`;
-        output += `- ✅ Health monitoring integration\n`;
-        output += `- ✅ Execution history tracking\n`;
-        output += `- 🔄 Compliance validation (in progress)\n`;
-        output += `- ⏳ Bootstrap capability (planned)\n\n`;
+        output += `- [OK] Workflow parsing and execution\n`;
+        output += `- [OK] Health monitoring integration\n`;
+        output += `- [OK] Execution history tracking\n`;
+        output += `- [OK] Supervised execution with approval gates (Phase 4B)\n`;
+        output += `- [OK] Dry-run preview mode\n`;
+        output += `- [OK] Multi-turn MCP approval flow\n`;
+        output += `- [..] Bootstrap capability (ON HOLD - safety review)\n\n`;
+
+        output += `## Execution Modes\n\n`;
+        output += `- **dry_run**: Preview only, no side effects\n`;
+        output += `- **supervised**: Human approves each side-effect step\n`;
+        output += `- **auto_approved**: Pre-approved step types execute automatically\n`;
+        output += `- **autonomous**: DISABLED for safety-critical systems\n\n`;
 
         output += `## Recent Activity\n\n`;
         const recent = history.slice(-5);
         for (const exec of recent) {
-          const status = exec.status === 'success' ? '✅' : '❌';
-          output += `- ${status} ${exec.workflow} (${exec.duration}ms)\n`;
+          const status = exec.status === 'success' || exec.status === 'completed' ? '[OK]' : 
+                        exec.status === 'awaiting_approval' ? '[..]' : '[!!]';
+          output += `- ${status} ${exec.workflow} (${exec.duration || 0}ms) - ${exec.status}\n`;
         }
       }
 
@@ -417,5 +476,191 @@ export class SDDWorkflowTools {
         }]
       };
     }
+  }
+
+  /**
+   * Execute workflow with supervision (Phase 4B)
+   * Supports dry-run, supervised approval, and multi-turn approval flow
+   */
+  async executeWorkflowSupervised(args) {
+    const { 
+      workflow_name, 
+      mode = 'dry_run',
+      auto_approve = [],
+      pending_approval,
+      execution_id,
+      params = {}
+    } = args;
+
+    try {
+      // Check for resuming a pending execution
+      if (execution_id && pending_approval) {
+        return await this.resumeExecution(execution_id, pending_approval);
+      }
+
+      // Create approval provider based on mode
+      const executionMode = mode === 'dry_run' ? ExecutionMode.DRY_RUN :
+                           mode === 'supervised' ? ExecutionMode.SUPERVISED :
+                           mode === 'auto_approved' ? ExecutionMode.AUTO_APPROVED :
+                           ExecutionMode.DRY_RUN; // Safe default
+
+      const approvalProvider = new MCPApprovalProvider({
+        mode: executionMode,
+        autoApproveTypes: auto_approve
+      });
+
+      // Create executor with approval provider
+      const executor = new WorkflowExecutor(this.dataAccess, this.healthMonitor);
+      executor.setApprovalProvider(approvalProvider);
+      executor.setExecutionMode(executionMode);
+
+      // Execute workflow
+      const result = await executor.executeWorkflow(workflow_name, params);
+
+      // Format output based on result status
+      return this.formatSupervisedResult(result, mode);
+
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Supervised workflow execution failed: ${error.message}`
+        }]
+      };
+    }
+  }
+
+  /**
+   * Resume a pending execution with user's approval decision
+   */
+  async resumeExecution(executionId, pendingApproval) {
+    try {
+      // Load saved execution state
+      const state = MCPApprovalProvider.loadExecutionState(executionId);
+      
+      if (!state) {
+        return {
+          content: [{
+            type: 'text',
+            text: `[ERROR] Execution ${executionId} not found or expired. Start a new execution.`
+          }]
+        };
+      }
+
+      // Create approval provider with pending decision
+      const approvalProvider = new MCPApprovalProvider({
+        mode: ExecutionMode.SUPERVISED,
+        executionId,
+        pendingApproval
+      });
+
+      // Create executor and resume
+      const executor = new WorkflowExecutor(this.dataAccess, this.healthMonitor);
+      executor.setApprovalProvider(approvalProvider);
+      executor.setExecutionMode(ExecutionMode.SUPERVISED);
+
+      // Resume execution from saved state
+      const result = await executor.executeWorkflow(
+        state.workflowName, 
+        state.results.params || {},
+        state
+      );
+
+      // Clear state if completed
+      if (result.status !== 'awaiting_approval') {
+        MCPApprovalProvider.clearExecutionState(executionId);
+      } else if (result._resumeState) {
+        // Save updated state for next turn
+        MCPApprovalProvider.saveExecutionState(executionId, result._resumeState);
+      }
+
+      return this.formatSupervisedResult(result, 'supervised');
+
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Failed to resume execution: ${error.message}`
+        }]
+      };
+    }
+  }
+
+  /**
+   * Format supervised execution result for MCP response
+   */
+  formatSupervisedResult(result, mode) {
+    let output = `# Workflow Execution: ${result.workflow}\n\n`;
+    output += `**Execution ID**: ${result.executionId}\n`;
+    output += `**Mode**: ${mode}\n`;
+    output += `**Status**: ${result.status}\n`;
+    
+    if (result.duration) {
+      output += `**Duration**: ${result.duration}ms\n`;
+    }
+    output += '\n';
+
+    // Completed steps
+    if (result.steps && result.steps.length > 0) {
+      output += `## Completed Steps (${result.steps.length})\n\n`;
+      for (const step of result.steps) {
+        const icon = step.status === 'success' || step.status === 'dry_run' ? '[OK]' :
+                     step.status === 'skipped' ? '[--]' : '[!!]';
+        output += `${icon} **${step.name}**\n`;
+        output += `   - Type: ${step.type || 'unknown'}\n`;
+        output += `   - Status: ${step.status}\n`;
+        
+        if (step.message) {
+          output += `   - ${step.message}\n`;
+        }
+        if (step.error) {
+          output += `   - Error: ${step.error}\n`;
+        }
+        output += '\n';
+      }
+    }
+
+    // Pending approval
+    if (result.status === 'awaiting_approval' && result.pendingStep) {
+      output += `## Awaiting Approval\n\n`;
+      output += result.approvalMessage || '';
+      output += '\n\n';
+      output += `**To continue**, call this tool again with:\n`;
+      output += `- \`execution_id\`: "${result.executionId}"\n`;
+      output += `- \`pending_approval\`: "approved" | "skipped" | "quit" | "approve_all"\n`;
+    }
+
+    // Aborted
+    if (result.status === 'aborted') {
+      output += `## Workflow Aborted\n\n`;
+      output += `Aborted at step: ${result.abortedAt}\n`;
+    }
+
+    // Completed summary for dry-run
+    if (mode === 'dry_run' && result.status === 'completed') {
+      output += `## Dry-Run Summary\n\n`;
+      const sideEffectSteps = result.steps.filter(s => s.hasSideEffects);
+      const readOnlySteps = result.steps.filter(s => !s.hasSideEffects);
+      
+      output += `- **Read-only steps**: ${readOnlySteps.length} (would auto-execute)\n`;
+      output += `- **Side-effect steps**: ${sideEffectSteps.length} (would require approval)\n\n`;
+      
+      if (sideEffectSteps.length > 0) {
+        output += `### Steps Requiring Approval\n\n`;
+        for (const step of sideEffectSteps) {
+          output += `- **${step.name}** (${step.type})\n`;
+          if (step.preview?.target) {
+            output += `  - Target: ${step.preview.target}\n`;
+          }
+          if (step.preview?.command) {
+            output += `  - Command: ${step.preview.command}\n`;
+          }
+        }
+      }
+      
+      output += `\n**To execute with supervision**, run again with \`mode: "supervised"\`\n`;
+    }
+
+    return { content: [{ type: 'text', text: output }] };
   }
 }
