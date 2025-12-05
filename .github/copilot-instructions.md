@@ -88,10 +88,38 @@ This repository provides an intelligent AI assistant system for the **NOAA Globa
 - **Graph-based analysis** of code dependencies and relationships (Neo4j)
 - **Operational guidance** for HPC deployment across NOAA platforms (Hera, Hercules, Orion, WCOSS2, Gaea)
 - **MCP protocol integration** with VS Code, Claude, and other AI coding assistants
+- **EE2 compliance analysis** for global-workflow, its submodules, and related EMC repositories
 
 **Goal**: Enable AI agents to provide accurate, contextual assistance for global-workflow development, operations, and troubleshooting - supporting the critical infrastructure that produces operational weather forecasts.
 
 **Target Repository**: [ufs-community/global-workflow](https://github.com/ufs-community/global-workflow) - The operational GFS workflow system
+
+### Global Workflow Umbrella Architecture
+
+Global-workflow is an **umbrella repository** that integrates many EMC components as git submodules. The EE2 compliance standards apply uniformly across the entire ecosystem:
+
+```
+global-workflow (umbrella)
+├── sorc/                              # Submodule container
+│   ├── ufs_model.fd/                  # UFS atmospheric model
+│   ├── gsi.fd/                        # GSI data assimilation
+│   ├── ufs_utils.fd/                  # UFS utilities
+│   ├── gfs_wafs.fd/                   # Aviation weather
+│   ├── upp.fd/                        # Unified Post Processor
+│   └── ...                            # 20+ submodules
+├── jobs/                              # J-jobs (JGFS_*, JGDAS_*)
+├── scripts/                           # Ex-scripts (exglobal_*, exgdas_*)
+├── ush/                               # Utility scripts
+└── parm/                              # Configuration files
+```
+
+**EE2 Standards Scope**: The MCP EE2 compliance tools apply to:
+- **global-workflow** itself (primary target)
+- **All submodules** under `sorc/` (same NCO production standards)
+- **Related EMC repositories** (EVS, EMC_verif-global, etc.) that follow EE2
+- **Any repository** destined for WCOSS2 production
+
+This unified approach ensures consistent code quality across the entire operational forecasting infrastructure.
 
 ## System Architecture
 
