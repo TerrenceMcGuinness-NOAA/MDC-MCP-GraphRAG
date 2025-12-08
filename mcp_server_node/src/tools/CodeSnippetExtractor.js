@@ -15,15 +15,25 @@ import fs from 'fs';
 import path from 'path';
 
 // Regex patterns for extraction - based on EE2 standards
+// Updated to match global-workflow conventions (COMOUT_*, COMIN_*, etc.)
 const PATTERNS = {
-  // Output file patterns - $COMOUT assignments, cp/mv to COM
+  // Output file patterns - COM* assignments and file operations
   output: [
-    /\$COMOUT\s*[=\/][^\n]*/g,
-    /COMOUT=\$\{[^}]+\}[^\n]*/g,
-    /cp\s+[^\n]*\$COM[^\n]*/g,
-    /mv\s+[^\n]*\$COM[^\n]*/g,
-    />\s*\$COM[^\n]*/g,
-    /cpreq\s+[^\n]*\$COM[^\n]*/g
+    // Modern suffixed COM variables: ${COMOUT_ATMOS_GRIB_0p25}/...
+    /\$\{COM(?:OUT|IN)_[A-Z0-9_]+\}[^\n]*/g,
+    // Legacy $COMOUT and $COMIN usage
+    /\$COM(?:OUT|IN)\s*[=\/][^\n]*/g,
+    // COM variable assignments
+    /COM(?:OUT|IN)[A-Z_]*=\$\{[^}]+\}[^\n]*/g,
+    // File copy/move to COM directories
+    /cp\s+[^\n]*\$\{?COM[^\n]*/g,
+    /mv\s+[^\n]*\$\{?COM[^\n]*/g,
+    // Redirect to COM directories
+    />\s*["']?\$\{?COM[^\n]*/g,
+    // cpreq utility
+    /cpreq\s+[^\n]*\$\{?COM[^\n]*/g,
+    // COMIN_* usage patterns
+    /\$\{COMIN_[A-Z0-9_]+\}[^\n]*/g
   ],
   
   // Error handling patterns
@@ -43,8 +53,12 @@ const PATTERNS = {
     /export\s+[A-Z_]+=\$\{[^}]+\}/g
   ],
   
-  // Shebang and header
-  shebang: /^#!\/bin\/(bash|sh|ksh)[^\n]*/
+  // Shebang and header patterns (as array for extractPatterns compatibility)
+  shebang: [
+    /^#!(?:\/usr\/bin\/env\s+|\/bin\/)(bash|sh|ksh|python[23]?)[^\n]*/gm,
+    /^\s*set\s+-[xeuo]+[^\n]*/gm,
+    /^\s*export\s+PS4=[^\n]*/gm
+  ]
 };
 
 /**
@@ -128,6 +142,12 @@ export class CodeSnippetExtractor {
    * @returns {string} Shell type
    */
   parseShebang(line) {
+    // Handle env-based shebangs: #!/usr/bin/env bash
+    if (/^#!\/usr\/bin\/env\s+bash/.test(line)) return 'bash';
+    if (/^#!\/usr\/bin\/env\s+sh/.test(line)) return 'sh';
+    if (/^#!\/usr\/bin\/env\s+ksh/.test(line)) return 'ksh';
+    if (/^#!\/usr\/bin\/env\s+python/.test(line)) return 'python';
+    // Handle direct shebangs: #!/bin/bash
     if (/^#!\/bin\/bash/.test(line)) return 'bash';
     if (/^#!\/bin\/sh/.test(line)) return 'sh';
     if (/^#!\/bin\/ksh/.test(line)) return 'ksh';

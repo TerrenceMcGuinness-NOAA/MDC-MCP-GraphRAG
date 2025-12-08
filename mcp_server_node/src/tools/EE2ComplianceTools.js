@@ -515,6 +515,14 @@ export class EE2ComplianceTools {
       output += `**Note:** This is reference material, not a mandated checklist. `;
       output += `Use professional judgment when applying these guidelines to your code.\n`;
 
+      const needsPassthrough = categories.length === 0
+        || categories.includes('file_naming')
+        || categories.includes('environment_variables');
+      if (needsPassthrough) {
+        output += `\n## Passthrough Recommendation (Output Naming / COM)\n\n`;
+        output += `Run extract_code_for_analysis with categories output_file_naming, shebang_compliance, env_var_validation on the target repo path (e.g., scripts/, ush/) to surface COM/COMOUT filename patterns and env validation that the standard scan does not cover automatically.\n`;
+      }
+
       console.error(`[OK] Compliance report generated: ${targetCategories.length} categories`);
       return { content: [{ type: 'text', text: output }] };
       
@@ -867,6 +875,12 @@ Generate a PRAGMATIC report focused ONLY on actionable findings:
 5. Maintain consultative tone throughout
 
 The data above provides counts, file lists, and patterns. You format the final report.`;
+
+      const needsPassthrough = categories.includes('file_naming')
+        || categories.includes('environment_variables');
+      if (needsPassthrough) {
+        scanResult.passthrough_recommendation = 'Run extract_code_for_analysis with categories output_file_naming, shebang_compliance, env_var_validation on the repository paths (e.g., scripts/, ush/) to inspect COM/COMOUT output-file naming and env validation patterns that are not auto-checked in this scan.';
+      }
       
       return { content: [{ type: 'text', text: output }] };
       

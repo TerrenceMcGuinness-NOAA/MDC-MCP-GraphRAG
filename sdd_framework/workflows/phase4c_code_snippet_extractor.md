@@ -26,13 +26,14 @@ Implement the **CodeSnippetExtractor** module and **extract_code_for_analysis** 
 - `CodeSnippetExtractor.js` - Pattern extraction from shell/Python files
 - `extract_code_for_analysis` MCP tool - New tool for EE2ComplianceTools
 - Passthrough LLM mode - Return prompts for host LLM
+- Auto prompt emission on "full" EE2 report requests to run passthrough (`extract_code_for_analysis`) for COM/COMOUT output-file naming, shebang, and env validation
 
 ### OUT OF SCOPE (Future)
 - GitHub/GitLab URL cloning
 - PR/MR file fetching
 - External LLM API calls (Gemini, Claude API, OpenAI)
 - CI/CD integration
-- COM output directory scanning
+- COM output directory scanning (full filesystem crawl) — instead, we emit a passthrough directive to run targeted extraction
 
 ---
 
@@ -614,6 +615,20 @@ server.registerTool(
 
 ---
 
+### Step 6: Add Auto Passthrough Prompt on Full EE2 Reports
+**Type:** code_modification  
+**Files:**
+- mcp_server_node/src/tools/EE2ComplianceTools.js (scan/generate paths)
+
+**Action:**
+- When `scan_repository_compliance` or `generate_compliance_report` is invoked for a "full" report (categories include file_naming or environment_variables), append a short directive telling the host LLM/user to also run `extract_code_for_analysis` with categories `output_file_naming`, `shebang_compliance`, and `env_var_validation` against the target repo paths. This makes the passthrough step discoverable for novices without an explicit prompt.
+
+**Validation:**
+- `node --check` on EE2ComplianceTools.js
+- Manual call of scan/generate with file_naming/env to confirm the directive is present in the returned text.
+
+---
+
 ## 4. Validation Criteria
 
 - [ ] `CodeSnippetExtractor.js` created and syntax valid
@@ -622,6 +637,7 @@ server.registerTool(
 - [ ] Tool accepts path and returns structured snippets + LLM prompts
 - [ ] SME corrections included in all prompts
 - [ ] Test with sample shell script shows extracted patterns
+- [ ] Full-report calls emit passthrough directive to run `extract_code_for_analysis` for COM/COMOUT naming and related checks
 
 ---
 
