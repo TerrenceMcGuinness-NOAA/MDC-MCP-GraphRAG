@@ -399,9 +399,115 @@ docker mcp tools call get_knowledge_base_status '{"detailed": true}'
 
 ---
 
+---
+
+## Phase 11E: KasmVNC Remote Desktop with SSO Integration
+
+### Current State (Workaround)
+KasmVNC is running on port 6080 but requires SSH local port forwarding:
+```bash
+ssh -L 6080:localhost:6080 Terry.McGuinness@3.236.197.228
+# Then access http://localhost:6080
+```
+
+**Problem**: VS Code Dev Tunnels force HTTP→HTTPS redirect (308), breaking the KasmVNC web interface.
+
+### Step 10: Fix VS Code Dev Tunnels HTTPS Protocol Mismatch
+**Type**: configuration
+**Description**: Configure KasmVNC to work with VS Code SSO-authenticated tunnels
+
+**Option A: Enable KasmVNC SSL (Match Tunnel Expectations)**
+```bash
+# Re-enable SSL in KasmVNC config
+cat > ~/.vnc/kasmvnc.yaml << 'EOF'
+network:
+  ssl:
+    require_ssl: true
+  websocket_port: 6080
+EOF
+
+# Restart VNC
+vncserver -kill :1
+sg kasmvnc-cert -c "vncserver :1 -geometry 1920x1080 -depth 24"
+
+# Access via HTTPS tunnel
+# https://lq79bhxl-6080.use.devtunnels.ms
+```
+
+**Option B: Use VS Code Port Forwarding Protocol Override**
+1. In VS Code, open Ports panel
+2. Right-click port 6080
+3. Select "Change Port Protocol" → HTTPS
+4. Accept self-signed certificate warning in browser
+
+**Option C: Configure nginx Reverse Proxy (Production)**
+```nginx
+# /etc/nginx/conf.d/kasmvnc.conf
+server {
+    listen 6080 ssl;
+    ssl_certificate /etc/pki/tls/certs/kasmvnc.pem;
+    ssl_certificate_key /etc/pki/tls/private/kasmvnc.pem;
+    
+    location / {
+        proxy_pass http://localhost:6081;  # KasmVNC internal port
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $websocket_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+### Step 11: Update Provisioning Script for KasmVNC
+**Type**: file_modification
+**Target**: SETUP/provisioning/09-desktop-vnc.sh
+**Description**: Update VNC provisioning to use KasmVNC properly
+
+**Key Fixes**:
+1. Detect existing KasmVNC (don't install tigervnc-server)
+2. Auto-add user to `kasmvnc-cert` group
+3. Configure SSL-enabled by default
+4. Create systemd user service for auto-start
+5. Document SSH tunnel and HTTPS tunnel access methods
+
+### Step 12: KasmVNC Systemd User Service
+**Type**: file_creation
+**Target**: ~/.config/systemd/user/kasmvnc.service
+**Description**: Auto-start KasmVNC on login
+
+```ini
+[Unit]
+Description=KasmVNC Server
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/vncserver :1 -geometry 1920x1080 -depth 24
+ExecStop=/usr/bin/vncserver -kill :1
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+**Enable**:
+```bash
+systemctl --user daemon-reload
+systemctl --user enable kasmvnc
+systemctl --user start kasmvnc
+```
+
+### Validation
+- [ ] KasmVNC accessible via VS Code HTTPS tunnel (no SSH workaround)
+- [ ] Multiple users can connect (Terry.McGuinness, Anna.Smoot)
+- [ ] Auto-start on login via systemd user service
+- [ ] Provisioning script updated for new instances
+
+---
+
 ## References
 
 - [Docker MCP Gateway](https://github.com/docker/mcp-gateway)
 - [MCP Specification](https://spec.modelcontextprotocol.io/)
 - [LangFlow Documentation](https://docs.langflow.org/)
 - [Docker MCP Catalog](https://hub.docker.com/mcp)
+- [KasmVNC Documentation](https://kasmweb.com/kasmvnc)
