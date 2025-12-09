@@ -15,7 +15,8 @@
         "CHROMADB_URL": "http://127.0.0.1:8080",
         "NEO4J_URI": "bolt://localhost:7687",
         "ENABLE_RAG": "true",
-        "ENABLE_GITHUB": "true"
+        "ENABLE_GITHUB": "true",
+        "GITHUB_TOKEN": "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"
       }
     },
     "global-workflow-core": {

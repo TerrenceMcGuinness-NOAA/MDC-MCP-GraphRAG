@@ -132,15 +132,42 @@ class DocumentationIngesterV7(BaseIngester):
         name = source['name']
         url = source['url']
         max_pages = source.get('max_pages', 50)
+        sitemap_url = source.get('sitemap')
+        exclude_patterns = source.get('exclude_url_patterns', [])
         
         print(f"\n  [SOURCE] {name}: {url}")
+        if exclude_patterns:
+            print(f"    [INFO] Using {len(exclude_patterns)} URL exclusion patterns")
         
         try:
-            # Create fresh crawler for each source to avoid visited set pollution
-            crawler = URLCrawler(delay=1.0)
+            # Create fresh crawler with exclusion patterns
+            crawler = URLCrawler(delay=1.0, exclude_url_patterns=exclude_patterns)
             
-            # Crawl pages - returns list of (url, title, soup) tuples
-            pages = crawler.crawl_recursive(url, max_pages=max_pages)
+            pages = []
+            
+            # If sitemap is specified, use it to get URLs (avoids following stale links)
+            if sitemap_url:
+                print(f"    [INFO] Using sitemap: {sitemap_url}")
+                sitemap_urls = crawler.fetch_sitemap(sitemap_url)
+                if sitemap_urls:
+                    # Filter to only URLs under the base path and limit to max_pages
+                    base_path = url.rstrip('/')
+                    filtered_urls = [u for u in sitemap_urls if u.startswith(base_path)][:max_pages]
+                    print(f"    [INFO] Found {len(sitemap_urls)} URLs in sitemap, {len(filtered_urls)} matching base path")
+                    
+                    # Fetch each URL from sitemap
+                    for page_url in filtered_urls:
+                        result = crawler.fetch_page(page_url)
+                        if result:
+                            title, soup = result
+                            pages.append((page_url, title, soup))
+                else:
+                    print(f"    [WARN] Sitemap fetch failed, falling back to recursive crawl")
+                    pages = crawler.crawl_recursive(url, max_pages=max_pages)
+            else:
+                # No sitemap - use recursive crawl (original behavior)
+                pages = crawler.crawl_recursive(url, max_pages=max_pages)
+            
             self.stats['sources_processed'] += 1
             
             for page_url, title, soup in pages:
@@ -221,12 +248,15 @@ def main():
     """Main entry point"""
     import argparse
     
+    # Get valid tier names from the SPOT config
+    valid_tiers = list(DOCUMENTATION_SOURCES.keys())
+    
     parser = argparse.ArgumentParser(description='V7 Documentation Ingestion')
     parser.add_argument('--collection', default=COLLECTION_NAME,
                        help=f'Collection name (default: {COLLECTION_NAME})')
     parser.add_argument('--tiers', nargs='+', 
-                       choices=['tier1_critical', 'tier2_important', 'tier3_supplementary'],
-                       help='Tiers to ingest (default: all)')
+                       choices=valid_tiers,
+                       help=f'Tiers to ingest (default: all). Valid: {", ".join(valid_tiers)}')
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be ingested without actually ingesting')
     

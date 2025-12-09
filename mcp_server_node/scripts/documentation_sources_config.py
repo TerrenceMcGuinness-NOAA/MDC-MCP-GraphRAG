@@ -116,7 +116,19 @@ DOCUMENTATION_SOURCES = {
             'priority': 2,
             'description': 'ecFlow workflow scheduler (ECMWF) - suite definitions',
             'max_pages': 150,
-            'enabled': True
+            'enabled': True,
+            # URL patterns to exclude (ecFlow restructured docs in 2024)
+            # Old flat structure moved to python_api/, ug/, client_api/ subdirs
+            'exclude_url_patterns': [
+                # Old flat structure URLs that now 404
+                r'/en/latest/[A-Z][a-z]+\.html$',  # e.g., /Suite.html, /Defs.html (now in /python_api/)
+                r'/en/latest/user_manual/',        # Moved to /ug/
+                r'/en/latest/ecflow_ui/',          # May have moved
+                r'/en/latest/get_state\.html$',    # Old CLI docs
+                r'/en/latest/complete\.html$',
+                r'/en/latest/password\.html$',
+                r'/en/latest/plug\.html$',
+            ]
         },
         {
             'name': 'wxflow',

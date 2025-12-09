@@ -802,7 +802,7 @@ Environment=MCP_WORKFLOW_ROOT=${GIT_REPO}
 Environment=MCP_KNOWLEDGE_BASE=${MCP_ROOT}/knowledge-base
 Environment=MCP_DATABASE=${MCP_ROOT}/database
 Environment=CHROMADB_URL=http://127.0.0.1:${CHROMADB_PORT}
-Environment=TRANSFORMERS_CACHE=${CACHE_ROOT}/transformers
+Environment=HF_HOME=${CACHE_ROOT}/huggingface
 Environment=NPM_CONFIG_CACHE=${CACHE_ROOT}/npm
 Environment=NODE_PATH=${MCP_ROOT}/node_modules
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:${MCP_ROOT}/node_modules/.bin

@@ -412,10 +412,26 @@ class URLCrawler:
     Merged from v4.0 and v4.1.
     """
     
-    def __init__(self, delay=DEFAULT_REQUEST_DELAY, user_agent=None):
+    def __init__(self, delay=DEFAULT_REQUEST_DELAY, user_agent=None, exclude_url_patterns=None):
         self.delay = delay
         self.user_agent = user_agent or 'NOAA-EMC-MCP-Crawler/4.2.0'
         self.visited = set()
+        # Compile exclude patterns for efficient matching
+        self.exclude_patterns = []
+        if exclude_url_patterns:
+            import re
+            for pattern in exclude_url_patterns:
+                try:
+                    self.exclude_patterns.append(re.compile(pattern))
+                except re.error as e:
+                    print(f"[WARN] Invalid exclude pattern '{pattern}': {e}")
+    
+    def _should_exclude_url(self, url: str) -> bool:
+        """Check if URL matches any exclude pattern"""
+        for pattern in self.exclude_patterns:
+            if pattern.search(url):
+                return True
+        return False
         
     def fetch_sitemap(self, sitemap_url: str) -> List[str]:
         """Fetch URLs from sitemap.xml"""
@@ -457,11 +473,18 @@ class URLCrawler:
         """
         to_visit = {base_url}
         pages = []
+        skipped_by_pattern = 0
         
         while to_visit and len(self.visited) < max_pages:
             url = to_visit.pop()
             
             if url in self.visited:
+                continue
+            
+            # Check exclude patterns before fetching
+            if self._should_exclude_url(url):
+                skipped_by_pattern += 1
+                self.visited.add(url)  # Mark as visited to avoid re-checking
                 continue
             
             result = self.fetch_page(url)
@@ -477,6 +500,9 @@ class URLCrawler:
                         to_visit.add(link)
                 
                 time.sleep(self.delay)
+        
+        if skipped_by_pattern > 0:
+            print(f"[INFO] Skipped {skipped_by_pattern} URLs matching exclude patterns")
         
         return pages
     
