@@ -1,6 +1,6 @@
 # EVS Repository EE2 Compliance Report
 
-**Date:** January 2025  
+**Date:** December 9, 2025  
 **Repository:** NOAA-EMC/EVS (Ensemble Verification System)  
 **Branch:** develop  
 **Analyzer:** MCP RAG Server v3.6.2 with EE2 Standards v7.0.0
@@ -278,7 +278,7 @@ fi
 
 | Field | Value |
 |-------|-------|
-| Report Generated | January 2025 |
+| Report Generated | December 9, 2025 |
 | MCP Server Version | 3.6.2 |
 | EE2 Standards Version | v7.0.0 (unified collection) |
 | ChromaDB Documents | 14,854 |

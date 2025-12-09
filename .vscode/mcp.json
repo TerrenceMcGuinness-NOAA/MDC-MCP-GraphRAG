@@ -16,7 +16,7 @@
         "NEO4J_URI": "bolt://localhost:7687",
         "ENABLE_RAG": "true",
         "ENABLE_GITHUB": "true",
-        "GITHUB_TOKEN": "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"
+        "GITHUB_TOKEN": "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"
       }
     },
     "global-workflow-core": {
