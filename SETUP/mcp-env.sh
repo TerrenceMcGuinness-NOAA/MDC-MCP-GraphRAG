@@ -35,10 +35,10 @@ export MCP_LOGS="${MCP_ROOT}/logs"
 
 # Cache directories
 export CACHE_ROOT="${PERSISTENT_ROOT}/cache"
-export TRANSFORMERS_CACHE="${CACHE_ROOT}/transformers"
+export HF_HOME="${CACHE_ROOT}/huggingface"                # Hugging Face cache (transformers v5+)
+export TRANSFORMERS_CACHE="${HF_HOME}"                    # Deprecated in transformers v5, use HF_HOME
 export NPM_CONFIG_CACHE="${CACHE_ROOT}/npm"
 export PIP_CACHE_DIR="${CACHE_ROOT}/pip"
-export HF_HOME="${CACHE_ROOT}/huggingface"
 
 # Node.js configuration
 export NODE_ENV=production
@@ -82,8 +82,12 @@ if command -v module >/dev/null 2>&1 && ! module list 2>&1 | grep -q python; the
         ml py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
         # Sentence-transformers dependencies
         ml py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
-        # Web scraping / HTML parsing for documentation ingestion
-        ml py-beautifulsoup4 py-lxml 2>/dev/null || true
+        # TODO: py-beautifulsoup4 and py-lxml have gcc-runtime hash conflicts with py-pydantic
+        # The spack builds use gcc-runtime/11.5.0-qa4ruhy but pydantic uses gcc-runtime/11.5.0-kfpu42e
+        # Loading py-lxml causes Lmod to swap gcc-runtime versions, breaking pydantic imports.
+        # WORKAROUND: Install via pip instead (see PIP-ONLY section below)
+        # FUTURE FIX: Rebuild py-lxml and py-beautifulsoup4 with same gcc-runtime as py-pydantic
+        # ml py-beautifulsoup4 py-lxml 2>/dev/null || true  # DISABLED - conflicts
     else
         module load gcc/11.5.0 2>/dev/null || true
         module load python/3.11 py-pip 2>/dev/null || true
@@ -93,25 +97,30 @@ if command -v module >/dev/null 2>&1 && ! module list 2>&1 | grep -q python; the
         module load py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
         # Sentence-transformers dependencies
         module load py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
-        # Web scraping / HTML parsing for documentation ingestion
-        module load py-beautifulsoup4 py-lxml 2>/dev/null || true
+        # NOTE: py-beautifulsoup4 and py-lxml have gcc-runtime conflicts with py-pydantic
+        # They are installed via pip --user instead (see PIP-ONLY section below)
+        # module load py-beautifulsoup4 py-lxml 2>/dev/null || true  # DISABLED - conflicts with pydantic
     fi
 fi
 
 ################################################################################
-# PIP-ONLY DEPENDENCIES (Not available in Spack)
+# PIP-ONLY DEPENDENCIES (Not available in Spack or have conflicts)
 # These packages MUST be installed via: python3 -m pip install --user <package>
 #
 # Required pip --user packages:
-#   - chromadb           : Vector database client (connects to Docker container)
-#   - sentence-transformers : Embedding model library (requires torch)
+#   - chromadb             : Vector database client (connects to Docker container)
+#   - sentence-transformers: Embedding model library (requires torch)
+#   - lxml                 : XML/HTML parser (gcc-runtime conflict with py-pydantic in spack)
+#   - beautifulsoup4       : HTML parsing library (depends on lxml)
 #
 # Installation command:
-#   python3 -m pip install --user chromadb sentence-transformers
+#   python3 -m pip install --user chromadb sentence-transformers lxml beautifulsoup4
 #
 # Why pip --user?
 #   - chromadb: Not packaged in Spack, client for Docker-based ChromaDB server
 #   - sentence-transformers: Not in Spack, complex ML library with torch dependency
+#   - lxml/beautifulsoup4: Spack modules have gcc-runtime hash mismatch with py-pydantic
+#                          causing module conflicts that break chromadb imports
 #
 # All other dependencies should be loaded via Spack modules above.
 ################################################################################
@@ -147,7 +156,7 @@ if [ "${1:-}" != "--quiet" ]; then
     echo "  Database:             ${MCP_DATABASE}"
     echo ""
     echo "Cache:"
-    echo "  Transformers:         ${TRANSFORMERS_CACHE}"
+    echo "  HF_HOME:              ${HF_HOME}"
     echo "  NPM:                  ${NPM_CONFIG_CACHE}"
     echo "  pip:                  ${PIP_CACHE_DIR}"
     echo ""
