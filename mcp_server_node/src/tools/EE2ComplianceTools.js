@@ -854,8 +854,15 @@ export class EE2ComplianceTools {
         analysis_categories: Object.keys(categoriesWithIssues)  // Only report on issues found
       };
       
+      // Add passthrough recommendation BEFORE building output string
+      const needsPassthrough = categories.includes('file_naming')
+        || categories.includes('environment_variables');
+      if (needsPassthrough) {
+        scanResult.passthrough_recommendation = 'Run extract_code_for_analysis with categories output_file_naming, shebang_compliance, env_var_validation on the repository paths (e.g., scripts/, ush/) to inspect COM/COMOUT output-file naming and env validation patterns that are not auto-checked in this scan.';
+      }
+
       // Format as pragmatic action items, not descriptive report
-      const output = `# EE2 Compliance Scan - Action Items
+      let output = `# EE2 Compliance Scan - Action Items
 
 \`\`\`json
 ${JSON.stringify(scanResult, null, 2)}
@@ -876,10 +883,18 @@ Generate a PRAGMATIC report focused ONLY on actionable findings:
 
 The data above provides counts, file lists, and patterns. You format the final report.`;
 
-      const needsPassthrough = categories.includes('file_naming')
-        || categories.includes('environment_variables');
+      // Add explicit passthrough section to output for LLM visibility
       if (needsPassthrough) {
-        scanResult.passthrough_recommendation = 'Run extract_code_for_analysis with categories output_file_naming, shebang_compliance, env_var_validation on the repository paths (e.g., scripts/, ush/) to inspect COM/COMOUT output-file naming and env validation patterns that are not auto-checked in this scan.';
+        output += `\n\n## IMPORTANT: Additional Analysis Required\n\n`;
+        output += `**Passthrough Recommendation:** The standard scan does NOT automatically check output file naming patterns (COM/COMOUT paths). `;
+        output += `To complete a full EE2 compliance report, the LLM should:\n\n`;
+        output += `1. Run \`extract_code_for_analysis\` with categories: \`output_file_naming\`, \`shebang_compliance\`, \`env_var_validation\`\n`;
+        output += `2. Target paths: \`scripts/\`, \`ush/\`, \`jobs/\`\n`;
+        output += `3. Or manually inspect COMOUT file patterns in the repository\n\n`;
+        output += `This ensures the report covers EE2 Section B (File Naming Conventions) which requires:\n`;
+        output += `- Period separators between categories\n`;
+        output += `- Resolution notation: 0p25 not 0.25\n`;
+        output += `- Forecast hour padding: f006 not f6\n`;
       }
       
       return { content: [{ type: 'text', text: output }] };
