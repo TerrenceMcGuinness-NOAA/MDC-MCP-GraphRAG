@@ -66,6 +66,21 @@ PACKAGES=(
     bind-utils
 )
 
+# GitHub CLI requires separate repo setup on RHEL/Rocky
+log_subsection "Installing GitHub CLI (gh)"
+if command -v gh &>/dev/null; then
+    log_info "GitHub CLI already installed: $(gh --version | head -1)"
+else
+    log_info "Adding GitHub CLI repository..."
+    dnf install -y 'dnf-command(config-manager)' &>/dev/null || true
+    dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo &>/dev/null || true
+    if dnf install -y gh &>/dev/null; then
+        log_success "GitHub CLI installed: $(gh --version | head -1)"
+    else
+        log_warning "Failed to install GitHub CLI - manual install may be required"
+    fi
+fi
+
 log_info "Installing essential packages..."
 for pkg in "${PACKAGES[@]}"; do
     if rpm -q "${pkg}" &>/dev/null; then
