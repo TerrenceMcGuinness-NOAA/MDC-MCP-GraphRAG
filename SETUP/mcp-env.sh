@@ -10,9 +10,10 @@
 
 # Core persistent storage paths
 export PERSISTENT_ROOT="/mcp_rag_eib"
-export SETUP="${PERSISTENT_ROOT}/eib-mcp-rag-server/SETUP"
-export MCP_ROOT="${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
-export GIT_REPO="${PERSISTENT_ROOT}/eib-mcp-rag-server/supported_repos/global-workflow"
+export EIB_REPO="${PERSISTENT_ROOT}/eib-mcp-rag-server"
+export SETUP="${EIB_REPO}/SETUP"
+export MCP_ROOT="${EIB_REPO}/mcp_server_node"
+export GW_REPO="${EIB_REPO}/supported_repos/global-workflow"
 export GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
 # ChromaDB configuration
@@ -28,8 +29,8 @@ export CHROMADB_PORT=8080
 export GITHUB_TOKEN="${GITHUB_TOKEN:-}" # Set via: export GITHUB_TOKEN="ghp_your_token_here"
 
 # MCP infrastructure paths
-export MCP_WORKFLOW_ROOT="${GIT_REPO}"
-export MCP_SOURCE="${PERSISTENT_ROOT}/eib-mcp-rag-server/mcp_server_node"
+export MCP_WORKFLOW_ROOT="${GW_REPO}"
+export MCP_SOURCE="${EIB_REPO}/mcp_server_node"
 export MCP_KNOWLEDGE_BASE="${MCP_ROOT}/knowledge-base"
 export MCP_DATABASE="${MCP_ROOT}/database"
 export MCP_LOGS="${MCP_ROOT}/logs"
@@ -141,8 +142,9 @@ if [ "${1:-}" != "--quiet" ]; then
     echo ""
     echo "Core Paths:"
     echo "  PERSISTENT_ROOT:      ${PERSISTENT_ROOT}"
+    echo "  EIB_REPO:             ${EIB_REPO}"
     echo "  MCP_ROOT:             ${MCP_ROOT}"
-    echo "  GIT_REPO:             ${GIT_REPO}"
+    echo "  GW_REPO:              ${GW_REPO}"
     echo ""
     echo "Services:"
     echo "  ChromaDB:             ${CHROMADB_URL}"

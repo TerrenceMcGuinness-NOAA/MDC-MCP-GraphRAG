@@ -16,8 +16,9 @@ echo "MCP RAG Bootstrap Environment"
 echo "=========================================="
 echo "SETUP:           ${SETUP}"
 echo "PERSISTENT_ROOT: ${PERSISTENT_ROOT}"
+echo "EIB_REPO:        ${EIB_REPO}"
 echo "MCP_ROOT:        ${MCP_ROOT}"
-echo "GIT_REPO:        ${GIT_REPO}"
+echo "GW_REPO:         ${GW_REPO}"
 echo "=========================================="
 
 # Copy shell configuration files
@@ -67,8 +68,8 @@ else
     echo "✅ Spack already installed"
 fi
 
-# Run MCP server provisioning script
+# Run modular provisioning scripts
 echo "=========================================="
 echo "Running MCP Server Provisioning..."
 echo "=========================================="
-sudo "${SETUP}/provision_mcp_rag_persistent.sh"
+sudo "${SETUP}/provisioning/provision.sh"

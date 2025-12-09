@@ -17,7 +17,7 @@ sudo ./provision_mcp_rag_persistent.sh
 ### 2. Setup Spack Environment (v3.0.8+)
 ```bash
 # Load Spack modules for ChromaDB
-source /mcp_rag_eib/mcp_server_node/setup-spack-chromadb.sh
+source /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/setup-spack-chromadb.sh
 
 # Install ChromaDB (if not already installed)
 pip3 install --user chromadb
@@ -225,8 +225,8 @@ source /mcp_rag_eib/SETUP/mcp_env.sh
 - `PERSISTENT_ROOT` - `/mcp_rag_eib`
 - `CHROMADB_URL` - `http://127.0.0.1:8080`
 - `CHROMADB_PORT` - `8080`
-- `MCP_ROOT` - `/mcp_rag_eib/mcp_server_node`
-- `GIT_REPO` - `/mcp_rag_eib/global-workflow_MCP_node.js-RAG`
+- `MCP_ROOT` - `/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node`
+- `GW_REPO` - `/mcp_rag_eib/global-workflow_MCP_node.js-RAG`
 
 ---
 

@@ -7,7 +7,7 @@ Documentation=https://docs.trychroma.com/
 Type=simple
 User=Terry.McGuinness
 Group=Terry.McGuinness
-WorkingDirectory=/mcp_rag_eib/mcp_server_node
+WorkingDirectory=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
 
 # Environment variables
 Environment="PERSIST_DIRECTORY=/mcp_rag_eib/data/chromadb"

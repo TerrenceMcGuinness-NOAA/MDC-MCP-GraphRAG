@@ -8,22 +8,22 @@ Wants=chromadb-persistent.service
 Type=simple
 User=Terry.McGuinness
 Group=Terry.McGuinness
-WorkingDirectory=/mcp_rag_eib/mcp_server_node
+WorkingDirectory=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
 
 # Environment variables
 Environment="NODE_ENV=production"
 Environment="CHROMADB_URL=http://127.0.0.1:8080"
 Environment="PERSISTENT_ROOT=/mcp_rag_eib"
-Environment="MCP_ROOT=/mcp_rag_eib/mcp_server_node"
-Environment="GIT_REPO=/mcp_rag_eib/global-workflow_forked"
-Environment="WORKFLOW_ROOT=/mcp_rag_eib/global-workflow_forked"
-Environment="MCP_KNOWLEDGE_BASE=/mcp_rag_eib/mcp_server_node/knowledge-base"
-Environment="MCP_DATABASE=/mcp_rag_eib/mcp_server_node/database"
-Environment="NODE_PATH=/mcp_rag_eib/mcp_server_node/node_modules"
+Environment="EIB_REPO=/mcp_rag_eib/eib-mcp-rag-server"
+Environment="MCP_ROOT=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node"
+Environment="GW_REPO=/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
+Environment="MCP_KNOWLEDGE_BASE=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/knowledge-base"
+Environment="MCP_DATABASE=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/database"
+Environment="NODE_PATH=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/node_modules"
 Environment="MCP_PORT=3000"
 
 # Use the REST API wrapper for systemd service
-ExecStart=/usr/bin/node /mcp_rag_eib/mcp_server_node/src/MCPServerREST.js
+ExecStart=/usr/bin/node /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js full
 
 # Restart policy
 Restart=on-failure
@@ -39,9 +39,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/mcp_rag_eib/mcp_server_node/database
-ReadWritePaths=/mcp_rag_eib/mcp_server_node/knowledge-base
-ReadWritePaths=/mcp_rag_eib/mcp_server_node/logs
+ReadWritePaths=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/database
+ReadWritePaths=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/knowledge-base
+ReadWritePaths=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/logs
 ReadWritePaths=/mcp_rag_eib/data/chromadb
 ReadWritePaths=/mcp_rag_eib/cache
 

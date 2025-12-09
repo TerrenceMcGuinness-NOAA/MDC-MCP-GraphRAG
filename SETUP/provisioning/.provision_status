@@ -3,8 +3,8 @@
 03-docker.sh|skipped|Not in --only list
 04-nodejs.sh|skipped|Not in --only list
 05-python-spack.sh|skipped|Not in --only list
-06-chromadb.sh|success|0s
+06-chromadb.sh|skipped|Not in --only list
 07-mcp-server.sh|skipped|Not in --only list
 08-services.sh|skipped|Not in --only list
-09-desktop-vnc.sh|skipped|Not in --only list
+09-desktop-vnc.sh|success|26s
 10-verification.sh|skipped|Not in --only list

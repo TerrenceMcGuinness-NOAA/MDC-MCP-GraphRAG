@@ -31,12 +31,13 @@ export NC='\033[0m' # No Color
 # Environment Variables
 ################################################################################
 export PERSISTENT_ROOT="${PERSISTENT_ROOT:-/mcp_rag_eib}"
-export MCP_ROOT="${PERSISTENT_ROOT}/mcp_server_node"
+export EIB_REPO="${PERSISTENT_ROOT}/eib-mcp-rag-server"
+export GW_REPO="${EIB_REPO}/supported_repos/global-workflow"
+export MCP_ROOT="${EIB_REPO}/mcp_server_node"
 export CACHE_ROOT="${PERSISTENT_ROOT}/cache"
 export DATA_ROOT="${PERSISTENT_ROOT}/data"
 export ETC_ROOT="${PERSISTENT_ROOT}/etc"
-export SETUP_DIR="${PERSISTENT_ROOT}/eib-mcp-rag-server/SETUP"
-export GIT_REPO="${PERSISTENT_ROOT}/eib-mcp-rag-server"
+export SETUP_DIR="${EIB_REPO}/SETUP"
 
 # ChromaDB Configuration
 export CHROMADB_PORT="${CHROMADB_PORT:-8080}"

@@ -80,6 +80,7 @@ GLOBAL_PACKAGES=(
     typescript
     ts-node
     @anthropic-ai/sdk
+    @anthropic-ai/claude-code
 )
 
 for pkg in "${GLOBAL_PACKAGES[@]}"; do
