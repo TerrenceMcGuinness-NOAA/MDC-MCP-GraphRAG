@@ -15,7 +15,7 @@ log_subsection "ChromaDB Docker Setup"
 
 USER_NAME=$(get_actual_user)
 CHROMADB_DATA="${DATA_ROOT}/chromadb"
-CHROMADB_CONTAINER="chromadb-server"
+CHROMADB_CONTAINER="chromadb"
 
 # Ensure data directory exists
 mkdir -p "${CHROMADB_DATA}"
@@ -48,7 +48,7 @@ fi
 
 # Wait for ChromaDB to be ready
 log_info "Waiting for ChromaDB to be ready..."
-if wait_for_service "${CHROMADB_URL}/api/v1/heartbeat" 60; then
+if wait_for_service "${CHROMADB_URL}/api/v2/heartbeat" 60; then
     log_success "ChromaDB is ready at ${CHROMADB_URL}"
 else
     log_error "ChromaDB failed to start within 60 seconds"
@@ -100,14 +100,14 @@ log_success "ChromaDB systemd service configured"
 # Verify
 log_subsection "Verifying ChromaDB"
 
-HEARTBEAT=$(curl -s "${CHROMADB_URL}/api/v1/heartbeat" | jq -r '.["nanosecond heartbeat"]' 2>/dev/null || echo "error")
+HEARTBEAT=$(curl -s "${CHROMADB_URL}/api/v2/heartbeat" | jq -r '.["nanosecond heartbeat"]' 2>/dev/null || echo "error")
 if [[ "${HEARTBEAT}" != "error" ]] && [[ "${HEARTBEAT}" != "null" ]]; then
     log_success "ChromaDB heartbeat: ${HEARTBEAT}"
 else
     log_warning "ChromaDB heartbeat check failed"
 fi
 
-COLLECTIONS=$(curl -s "${CHROMADB_URL}/api/v1/collections" | jq 'length' 2>/dev/null || echo "0")
+COLLECTIONS=$(curl -s "${CHROMADB_URL}/api/v2/collections" | jq 'length' 2>/dev/null || echo "0")
 log_info "ChromaDB collections: ${COLLECTIONS}"
 
 log_success "ChromaDB setup complete"

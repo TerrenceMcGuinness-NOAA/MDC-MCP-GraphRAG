@@ -63,6 +63,7 @@ build/
 .vscode/settings.json     # Commit if project-standard
 .vscode/*.code-workspace  # User workspaces - ignore
 .vscode/launch.json       # Commit if project-standard
+.vscode/mcp.json          # MCP server config - user-specific, contains local paths
 
 # PyCharm
 .idea/workspace.xml

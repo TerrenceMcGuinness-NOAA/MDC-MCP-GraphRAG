@@ -259,6 +259,28 @@ This unified approach ensures consistent code quality across the entire operatio
   - Target: `global-workflow-docs-v2-0-0` (Week 3 re-ingestion)
 - **Status**: Operational, needs duplicate cleanup
 
+**CRITICAL: ChromaDB API Version**
+
+The ChromaDB Docker image (`chromadb/chroma:latest`) has **deprecated the v1 API**. All code MUST use the **v2 API**.
+
+| Endpoint | Deprecated (DO NOT USE) | Correct (USE THIS) |
+|----------|-------------------------|---------------------|
+| Heartbeat | `/api/v1/heartbeat` | `/api/v2/heartbeat` |
+| Collections | `/api/v1/collections` | `/api/v2/collections` |
+| All endpoints | `/api/v1/*` | `/api/v2/*` |
+
+**Anti-pattern (WRONG):**
+```bash
+curl http://localhost:8080/api/v1/heartbeat  # Returns error!
+```
+
+**Correct pattern:**
+```bash
+curl http://localhost:8080/api/v2/heartbeat  # Returns JSON heartbeat
+```
+
+**Why this matters**: The v1 API returns HTTP error responses, causing health checks and provisioning scripts to fail silently or with confusing errors.
+
 **Neo4j** (Graph Database)
 - **Location**: bolt://localhost:7687
 - **Purpose**: Code structure, dependencies, call chains
