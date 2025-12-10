@@ -24,7 +24,7 @@ ExecStart=/usr/bin/docker run --name chromadb \
     -e IS_PERSISTENT=TRUE \
     -e PERSIST_DIRECTORY=/data \
     -e ANONYMIZED_TELEMETRY=FALSE \
-    chromadb/chroma:latest
+    registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/chromadb:latest
 
 # Stop container on service stop
 ExecStop=/usr/bin/docker stop chromadb

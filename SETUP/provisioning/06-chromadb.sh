@@ -21,6 +21,19 @@ CHROMADB_CONTAINER="chromadb"
 mkdir -p "${CHROMADB_DATA}"
 chown -R "${USER_NAME}:${USER_NAME}" "${CHROMADB_DATA}"
 
+# Pull ChromaDB image from GitLab registry
+log_info "Pulling ChromaDB image from GitLab registry..."
+if ! docker pull "${IMAGE_CHROMADB}" 2>/dev/null; then
+    log_warning "GitLab registry pull failed - ensure you are logged in:"
+    log_warning "  docker login ${GITLAB_REGISTRY}"
+    log_info "Falling back to Docker Hub..."
+    CHROMADB_IMAGE="chromadb/chroma:latest"
+    docker pull "${CHROMADB_IMAGE}"
+else
+    CHROMADB_IMAGE="${IMAGE_CHROMADB}"
+    log_success "Using GitLab registry image: ${CHROMADB_IMAGE}"
+fi
+
 # Check if container already exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${CHROMADB_CONTAINER}$"; then
     log_info "ChromaDB container already exists"
@@ -34,14 +47,16 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CHROMADB_CONTAINER}$"; then
 else
     log_info "Creating ChromaDB container..."
     
+    # NOTE: ChromaDB latest uses /data as default persist path (not /chroma/chroma)
     docker run -d \
         --name "${CHROMADB_CONTAINER}" \
         --restart unless-stopped \
         -p "${CHROMADB_PORT}:8000" \
-        -v "${CHROMADB_DATA}:/chroma/chroma" \
+        -v "${CHROMADB_DATA}:/data:Z" \
         -e IS_PERSISTENT=TRUE \
+        -e PERSIST_DIRECTORY=/data \
         -e ANONYMIZED_TELEMETRY=FALSE \
-        chromadb/chroma:latest
+        "${CHROMADB_IMAGE}"
     
     log_success "ChromaDB container created"
 fi
@@ -79,10 +94,11 @@ ExecStartPre=-/usr/bin/docker rm ${CHROMADB_CONTAINER}
 ExecStart=/usr/bin/docker run --rm \\
     --name ${CHROMADB_CONTAINER} \\
     -p ${CHROMADB_PORT}:8000 \\
-    -v ${CHROMADB_DATA}:/chroma/chroma \\
+    -v ${CHROMADB_DATA}:/data:Z \\
     -e IS_PERSISTENT=TRUE \\
+    -e PERSIST_DIRECTORY=/data \\
     -e ANONYMIZED_TELEMETRY=FALSE \\
-    chromadb/chroma:latest
+    ${IMAGE_CHROMADB}
 ExecStop=/usr/bin/docker stop ${CHROMADB_CONTAINER}
 
 [Install]

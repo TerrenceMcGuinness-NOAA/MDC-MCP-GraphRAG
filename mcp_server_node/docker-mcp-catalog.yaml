@@ -1,0 +1,206 @@
+# Docker MCP Catalog Entry for EIB MCP RAG Server
+# Phase 11: Docker MCP Gateway Integration
+#
+# Used by: docker mcp catalog import ./docker-mcp-catalog.yaml
+#
+# This catalog defines the MCP server metadata, environment variables,
+# secrets, and tool capabilities for Docker MCP Gateway discovery.
+
+apiVersion: mcp.docker.com/v1alpha1
+kind: MCPCatalog
+metadata:
+  name: eib-mcp-rag-catalog
+  version: 1.0.0
+
+servers:
+  eib-mcp-rag:
+    description: "EIB MCP RAG Server - Global Workflow AI Assistant with semantic search, EE2 compliance analysis, and code structure analysis"
+
+    # Container image
+    image: eib-mcp-rag:latest
+
+    # Build configuration (alternative to pre-built image)
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Environment variables
+    environment:
+      - MCP_SCENARIO
+      - CHROMA_SERVER_URL
+      - CHROMADB_URL
+      - NEO4J_URI
+      - NEO4J_USER
+      - NEO4J_PASSWORD
+      - MCP_WORKFLOW_ROOT
+      - MCP_WORKSPACE_ROOT
+      - SDD_FRAMEWORK_ROOT
+      - ENABLE_RAG
+      - ENABLE_GITHUB
+      - GITHUB_TOKEN
+
+    # Secrets (sensitive values)
+    secrets:
+      - GITHUB_TOKEN
+      - NEO4J_PASSWORD
+
+    # MCP capabilities
+    capabilities:
+      transport: stdio
+      version: "2024-11-05"
+
+    # Tool definitions (32 tools across 7 categories)
+    tools:
+      # Workflow Info Tools (3 tools)
+      - name: get_workflow_structure
+        description: "Get comprehensive Global Workflow system architecture and component overview"
+        category: workflow-info
+
+      - name: get_system_configs
+        description: "Get HPC platform-specific configurations (hera, hercules, orion, wcoss2, gaea)"
+        category: workflow-info
+
+      - name: describe_component
+        description: "Quick component file system description using static analysis"
+        category: workflow-info
+
+      # Semantic Search Tools (8 tools)
+      - name: search_documentation
+        description: "Hybrid semantic + graph search across workflow documentation and code"
+        category: semantic-search
+
+      - name: search_ee2_standards
+        description: "Search EE2 compliance standards and documentation"
+        category: semantic-search
+
+      - name: find_related_files
+        description: "Find files with similar dependencies and import relationships"
+        category: semantic-search
+
+      - name: explain_with_context
+        description: "Provide comprehensive explanations using hybrid search"
+        category: semantic-search
+
+      - name: analyze_ee2_compliance
+        description: "Analyze code or documentation for EE2 compliance"
+        category: ee2-compliance
+
+      - name: generate_compliance_report
+        description: "Generate comprehensive EE2 compliance report"
+        category: ee2-compliance
+
+      - name: scan_repository_compliance
+        description: "Scan entire repository for EE2 compliance issues"
+        category: ee2-compliance
+
+      - name: extract_code_for_analysis
+        description: "Extract code snippets for compliance analysis"
+        category: ee2-compliance
+
+      - name: get_knowledge_base_status
+        description: "Get comprehensive knowledge base statistics (vector + graph DB)"
+        category: system-health
+
+      # Code Analysis Tools (4 tools)
+      - name: analyze_code_structure
+        description: "Analyze code structure, relationships, and dependencies for a specific file"
+        category: code-analysis
+
+      - name: find_dependencies
+        description: "Find all dependencies (imports) and dependents (importers) for a file or module"
+        category: code-analysis
+
+      - name: trace_execution_path
+        description: "Trace the execution path from a starting function through call chains"
+        category: code-analysis
+
+      - name: find_callers_callees
+        description: "Find all functions that call a target function (callers) and functions it calls (callees)"
+        category: code-analysis
+
+      # Operational Tools (3 tools)
+      - name: get_operational_guidance
+        description: "Get operational guidance and best practices for HPC operations"
+        category: operational
+
+      - name: explain_workflow_component
+        description: "Get detailed explanation of a workflow component with graph context"
+        category: operational
+
+      - name: list_job_scripts
+        description: "List and categorize job scripts in the workflow"
+        category: operational
+
+      # SDD Workflow Tools (7 tools)
+      - name: list_sdd_workflows
+        description: "List all available SDD workflows"
+        category: sdd-framework
+
+      - name: get_sdd_workflow
+        description: "Get detailed workflow definition with steps"
+        category: sdd-framework
+
+      - name: execute_sdd_workflow_supervised
+        description: "Execute SDD workflow with human-in-the-loop approval gates"
+        category: sdd-framework
+
+      - name: get_sdd_execution_history
+        description: "Get execution history and pending approvals for a workflow"
+        category: sdd-framework
+
+      - name: get_sdd_framework_status
+        description: "Get overall SDD framework system state"
+        category: sdd-framework
+
+      - name: validate_sdd_compliance
+        description: "Validate code against SDD standards and patterns"
+        category: sdd-framework
+
+      - name: get_sdd_step_details
+        description: "Get detailed information about a specific workflow step"
+        category: sdd-framework
+
+      # GitHub Tools (3 tools)
+      - name: search_issues
+        description: "Search GitHub issues in the Global Workflow repository"
+        category: github
+
+      - name: get_pull_requests
+        description: "Get pull requests from the Global Workflow repository"
+        category: github
+
+      - name: get_repository_info
+        description: "Get repository information and statistics"
+        category: github
+
+      # System Health Tools (2 tools)
+      - name: mcp_health_check
+        description: "Complete system health check (all components)"
+        category: system-health
+
+      - name: get_server_info
+        description: "Get MCP server information and capabilities"
+        category: system-health
+
+    # Tool categories
+    categories:
+      - workflow-info
+      - semantic-search
+      - ee2-compliance
+      - code-analysis
+      - operational
+      - sdd-framework
+      - github
+      - system-health
+
+    # Resource requirements
+    resources:
+      memory: "2Gi"
+      cpu: "1000m"
+
+    # Labels for organization
+    labels:
+      maintainer: "NOAA EMC Global Workflow Team"
+      project: "global-workflow-mcp-rag"
+      phase: "phase-11-docker-gateway"
+      version: "3.0.0"

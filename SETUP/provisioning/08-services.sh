@@ -1,7 +1,10 @@
 #!/bin/bash
 ################################################################################
 # 08-services.sh - Docker Compose services (Neo4j, LangFlow) and systemd
-# Part of modular provisioning system v4.0.0
+# Part of modular provisioning system v4.1.0
+# 
+# Images are pulled from NOAA VLab GitLab Container Registry:
+#   registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server
 ################################################################################
 
 set -euo pipefail
@@ -25,6 +28,33 @@ fi
 cd "${SETUP_DIR}"
 
 ################################################################################
+# Pull Images from GitLab Registry
+################################################################################
+
+log_subsection "Pull Docker Images from GitLab Registry"
+
+log_info "Registry: ${GITLAB_REGISTRY}"
+log_info "Project: ${GITLAB_PROJECT}"
+
+# Pull Neo4j from GitLab registry
+log_info "Pulling Neo4j image..."
+if docker pull "${IMAGE_NEO4J}" 2>/dev/null; then
+    log_success "Pulled: ${IMAGE_NEO4J}"
+else
+    log_warning "GitLab pull failed - ensure you are logged in:"
+    log_warning "  docker login ${GITLAB_REGISTRY}"
+    log_info "Will use cached image or Docker Hub fallback"
+fi
+
+# Pull LangFlow from GitLab registry
+log_info "Pulling LangFlow image..."
+if docker pull "${IMAGE_LANGFLOW}" 2>/dev/null; then
+    log_success "Pulled: ${IMAGE_LANGFLOW}"
+else
+    log_warning "GitLab pull failed - LangFlow will need to be built locally"
+fi
+
+################################################################################
 # Neo4j Setup
 ################################################################################
 
@@ -36,11 +66,15 @@ NEO4J_DATA="${DATA_ROOT}/neo4j"
 mkdir -p "${NEO4J_DATA}"/{data,logs,import,plugins}
 chown -R "${USER_NAME}:${USER_NAME}" "${NEO4J_DATA}"
 
+# Export image variables for docker-compose
+export IMAGE_NEO4J="${IMAGE_NEO4J}"
+export IMAGE_LANGFLOW="${IMAGE_LANGFLOW}"
+
 # Start Neo4j
 log_info "Starting Neo4j container..."
 docker compose up -d neo4j || {
-    log_warning "Neo4j start failed, trying to build first..."
-    docker compose build neo4j
+    log_warning "Neo4j start failed with GitLab image, trying Docker Hub fallback..."
+    export IMAGE_NEO4J="neo4j:5.15.0"
     docker compose up -d neo4j
 }
 
@@ -60,8 +94,11 @@ log_subsection "LangFlow (Optional)"
 
 # Check if LangFlow is defined in docker-compose
 if docker compose config --services 2>/dev/null | grep -q "langflow"; then
-    log_info "Starting LangFlow container..."
-    docker compose up -d langflow || log_warning "LangFlow start failed"
+    log_info "Starting LangFlow container from GitLab registry..."
+    docker compose up -d langflow || {
+        log_warning "LangFlow start failed with GitLab image"
+        log_warning "You may need to build locally: docker compose build langflow"
+    }
     
     if wait_for_service "http://localhost:7860/api/v1/health" 60; then
         log_success "LangFlow is ready at http://localhost:7860"

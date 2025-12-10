@@ -1,5 +1,87 @@
 # MCP Server Changelog
 
+## [8.0.0] - Phase 11 Docker MCP Gateway Integration (December 9, 2025)
+
+### Added
+- **Docker Container for MCP Server**:
+  - Production Dockerfile (`mcp_server_node/Dockerfile`)
+  - Image based on Node.js 20-slim (1.66GB)
+  - All 32 MCP tools functional in containerized environment
+  - Health checks and proper environment configuration
+  - Automatic EE2 compliance config loading
+
+- **Docker Compose Configurations**:
+  - `docker-compose.mcp.yaml` - Full stack with Neo4j
+  - `docker-compose.mcp-standalone.yaml` - MCP server only (recommended)
+  - Proper volume mounts for workspace access
+  - Network integration with existing services
+  - Support for host.docker.internal ChromaDB access
+
+- **MCP Server Catalog**:
+  - `docker-mcp-catalog.yaml` - Gateway catalog entry
+  - Complete tool definitions (32 tools across 7 categories)
+  - Environment variable and secrets configuration
+  - Resource requirements and labels
+
+- **Documentation**:
+  - `DOCKER_MCP_SETUP.md` - Comprehensive setup guide
+  - `DOCKER_MCP_QUICKSTART.md` - Quick reference commands
+  - Architecture diagrams and troubleshooting guides
+  - Alternative deployment strategies
+
+- **Docker MCP CLI Plugin**:
+  - Built from source (github.com/docker/mcp-gateway)
+  - Binary installed to ~/.docker/cli-plugins/docker-mcp
+  - Documented Docker Desktop dependency
+
+### Changed
+- MCP server can now run in isolated Docker container
+- Database connections support both host and container deployments
+- ChromaDB connection via host.docker.internal for systemd service
+- Neo4j connection via Docker network for container service
+
+### Technical Details
+- **Container Status**: Running and healthy
+- **ChromaDB**: Connected via host.docker.internal:8080 (systemd service)
+- **Neo4j**: Connected via global-workflow-neo4j:7687 (Docker container)
+- **Network**: global-workflow-mcp-rag (bridge)
+- **MCP Protocol**: stdio transport via docker exec
+- **Tools Available**: 32 across 7 categories (all functional)
+
+### Known Limitations
+- Docker MCP Gateway requires Docker Desktop with MCP Toolkit feature
+- Not available in server/cloud environments without Docker Desktop
+- Workarounds documented for stdio access and HTTP wrapper implementation
+- LangFlow integration requires HTTP/SSE wrapper (future work)
+
+### Deployment Architecture
+
+```
+Host System
+├── ChromaDB (systemd: port 8080)
+├── LangFlow (Docker: port 7860)
+└── Docker Network: global-workflow-mcp-rag
+    ├── eib-mcp-rag (MCP Server)
+    └── Neo4j (port 7687, 7474)
+```
+
+### Files Created
+- mcp_server_node/Dockerfile
+- mcp_server_node/.dockerignore
+- mcp_server_node/docker-mcp-catalog.yaml
+- docker-compose.mcp.yaml
+- docker-compose.mcp-standalone.yaml
+- DOCKER_MCP_SETUP.md
+- DOCKER_MCP_QUICKSTART.md
+
+### Next Steps
+- HTTP/SSE wrapper implementation for multi-client access
+- LangFlow integration testing (HTTP-based)
+- Provisioning script updates for automated Docker deployment
+- Docker Desktop workstation testing for full Gateway functionality
+
+---
+
 ## [7.0.4] - Phase 4B Interactive Supervised Execution & Paper Updates (January 14, 2025)
 
 ### Added

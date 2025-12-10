@@ -20,6 +20,13 @@ echo "EIB_REPO:        ${EIB_REPO}"
 echo "MCP_ROOT:        ${MCP_ROOT}"
 echo "GW_REPO:         ${GW_REPO}"
 echo "=========================================="
+echo ""
+echo "GitLab Container Registry:"
+echo "  Registry: registry.gitlab-licensed.vlab.noaa.gov"
+echo "  Project:  nws/operations/ncep/emc/eib/eib-mcp-rag-server"
+echo ""
+echo "If not logged in, run: ${SETUP}/gitlab-registry-login.sh"
+echo "=========================================="
 
 # Copy shell configuration files
 echo "Configuring shell environment..."

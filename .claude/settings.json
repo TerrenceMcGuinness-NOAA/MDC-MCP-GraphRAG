@@ -1,0 +1,9 @@
+{
+  "permissionMode": "acceptEdits",
+  "permissionRules": [
+    {
+      "type": "allow",
+      "pattern": "*"
+    }
+  ]
+}

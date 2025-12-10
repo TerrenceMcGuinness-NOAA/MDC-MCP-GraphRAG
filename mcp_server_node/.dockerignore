@@ -1,0 +1,70 @@
+# Docker build context exclusions
+# Exclude development and runtime data from Docker image
+
+# Node modules (will be installed in container)
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# ChromaDB data (mounted as volume)
+chromadb_data/
+
+# Knowledge base cache (mounted as volume)
+knowledge-base/
+
+# Test files
+test/
+tests/
+__tests__/
+test-results/
+*.test.js
+*.spec.js
+
+# Development files
+.git/
+.gitignore
+*.md
+README*
+docs/
+
+# Runtime scripts (not needed in container)
+*.sh
+deploy-to-runtime.sh
+provision_mcp_server.sh
+start-*.sh
+
+# Archive and backup files
+archive/
+*.bak
+*.swp
+*.swo
+
+# Demo files
+demo/
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Environment files (use docker-compose env instead)
+.env
+.env.*
+mcp-config.env
+mcp-env.sh
+
+# Build artifacts
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# MCP config (use docker-compose instead)
+.mcp.json
+.claude/
+.claude-instructions

@@ -48,8 +48,20 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7474}"
 export NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-7687}"
 export NEO4J_PASSWORD="${NEO4J_PASSWORD:-gfsworkflow2025}"
 
+# GitLab Container Registry
+# Images are pulled from NOAA VLab GitLab registry instead of Docker Hub
+export GITLAB_REGISTRY="registry.gitlab-licensed.vlab.noaa.gov"
+export GITLAB_PROJECT="nws/operations/ncep/emc/eib/eib-mcp-rag-server"
+export GITLAB_REGISTRY_BASE="${GITLAB_REGISTRY}/${GITLAB_PROJECT}"
+
+# Container image references (GitLab registry)
+export IMAGE_CHROMADB="${GITLAB_REGISTRY_BASE}/chromadb:latest"
+export IMAGE_NEO4J="${GITLAB_REGISTRY_BASE}/neo4j:5.15.0"
+export IMAGE_LANGFLOW="${GITLAB_REGISTRY_BASE}/langflow:latest"
+export IMAGE_MCP_SERVER="${GITLAB_REGISTRY_BASE}:latest"
+
 # Version
-export PROVISION_VERSION="4.0.0"
+export PROVISION_VERSION="4.1.0"
 
 ################################################################################
 # Logging Functions

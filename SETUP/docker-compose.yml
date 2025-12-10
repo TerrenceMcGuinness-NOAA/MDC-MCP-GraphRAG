@@ -39,8 +39,9 @@ services:
   # Neo4j Graph Database - Graph RAG for GFS structural relationships
   # Web UI: http://localhost:7474
   # Bolt: bolt://localhost:7687
+  # Image pulled from NOAA VLab GitLab Container Registry
   neo4j:
-    image: neo4j:5.15.0
+    image: ${IMAGE_NEO4J:-registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/neo4j:5.15.0}
     container_name: global-workflow-neo4j
     hostname: neo4j
     ports:
@@ -72,10 +73,13 @@ services:
       - mcp-rag-network
 
   # LangFlow RAG Pipeline Visualizer
+  # Image pulled from NOAA VLab GitLab Container Registry
   langflow:
-    build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile.langflow
+    image: ${IMAGE_LANGFLOW:-registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/langflow:latest}
+    # Build locally only if GitLab image not available:
+    # build:
+    #   context: .
+    #   dockerfile: dockerfiles/Dockerfile.langflow
     container_name: global-workflow-langflow
     hostname: langflow
     ports:
