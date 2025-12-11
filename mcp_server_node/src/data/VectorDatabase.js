@@ -5,18 +5,20 @@
  * Handles semantic search, document storage, and embedding generation.
  * 
  * Features:
+ * - Environment-aware configuration (MCP_ENV)
  * - Collection management (create, list, delete)
  * - Document ingestion with automatic embeddings
  * - Semantic search with filters
  * - Batch operations for performance
  * - Health checks and metrics
  * 
- * @version 1.0.0
+ * @version 1.1.0 - Added MCP_ENV environment support
  * @author NOAA EMC Global Workflow Team
  */
 
 import { ChromaClient } from 'chromadb';
 import { pipeline } from '@xenova/transformers';
+import { getChromaConfig, MCP_ENV } from '../config/environment.js';
 
 // Singleton embedding model instance (shared across all VectorDatabase instances)
 let sharedEmbedder = null;
@@ -25,11 +27,14 @@ let embeddingModelPromise = null;
 
 export class VectorDatabase {
   constructor(config = {}) {
+    // Get environment-aware defaults
+    const envConfig = getChromaConfig();
+    
     this.config = {
-      host: config.host || process.env.CHROMADB_HOST || '127.0.0.1',
-      port: config.port || process.env.CHROMADB_PORT || 8080,
+      host: config.host || envConfig.host || '127.0.0.1',
+      port: config.port || envConfig.port || 8080,
       path: config.path || process.env.CHROMADB_PATH || '/api/v2',  // Updated to v2 API
-      embeddingModel: config.embeddingModel || 'Xenova/all-mpnet-base-v2',  // 768-dim embeddings (upgraded from MiniLM 384-dim)
+      embeddingModel: config.embeddingModel || 'Xenova/all-mpnet-base-v2',  // 768-dim embeddings
       batchSize: config.batchSize || 100,
       ...config
     };
@@ -45,6 +50,9 @@ export class VectorDatabase {
       avgQueryTime: 0,
       lastQueryTime: null
     };
+    
+    // Log environment for debugging
+    console.error(`[INIT] VectorDatabase: MCP_ENV=${MCP_ENV}, host=${this.config.host}:${this.config.port}`);
   }
 
   /**

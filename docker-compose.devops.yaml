@@ -1,0 +1,92 @@
+# docker-compose.devops.yaml
+# Environment: env/dev-ops branch
+# Purpose: Container integration testing and CI/CD validation
+#
+# Usage:
+#   docker compose -f docker-compose.devops.yaml up -d
+#   docker compose -f docker-compose.devops.yaml down
+#
+# MCP_ENV: devops
+
+services:
+  # ============================================================================
+  # ChromaDB Vector Database (Dev-Ops)
+  # Uses custom 1.3.4-compat image for version compatibility
+  # ============================================================================
+  chromadb:
+    image: ${CI_REGISTRY:-registry.gitlab-licensed.vlab.noaa.gov}/nws/operations/ncep/emc/eib/eib-mcp-rag-server/chromadb:1.3.4-compat
+    container_name: chromadb-devops
+    ports:
+      - "8080:8000"
+    volumes:
+      - chromadb-devops-data:/chroma/chroma
+    environment:
+      - CHROMA_HOST=0.0.0.0
+      - CHROMA_PORT=8000
+      - ANONYMIZED_TELEMETRY=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # Neo4j Graph Database (Dev-Ops)
+  # ============================================================================
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j-devops
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j-devops-data:/data
+      - neo4j-devops-logs:/logs
+    environment:
+      - NEO4J_AUTH=neo4j/devops_password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # MCP RAG Server (Dev-Ops)
+  # ============================================================================
+  mcp-server:
+    image: ${CI_REGISTRY:-registry.gitlab-licensed.vlab.noaa.gov}/nws/operations/ncep/emc/eib/eib-mcp-rag-server/mcp-server:env-dev-ops
+    container_name: mcp-server-devops
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      - MCP_ENV=devops
+      - MCP_SCENARIO=full
+      - ENABLE_RAG=true
+      - CHROMA_SERVER_URL=http://chromadb:8000
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_AUTH=neo4j/devops_password
+    volumes:
+      - mcp-server-devops-logs:/app/logs
+    restart: unless-stopped
+
+volumes:
+  chromadb-devops-data:
+    name: chromadb-devops-data
+  neo4j-devops-data:
+    name: neo4j-devops-data
+  neo4j-devops-logs:
+    name: neo4j-devops-logs
+  mcp-server-devops-logs:
+    name: mcp-server-devops-logs
+
+networks:
+  default:
+    name: mcp-devops-network

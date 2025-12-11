@@ -37,10 +37,14 @@ import { OperationalTools } from './tools/OperationalTools.js';
 import { GitHubTools } from './tools/GitHubTools.js';
 import { SDDWorkflowTools } from './tools/SDDWorkflowTools.js';
 import { UnifiedDataAccess } from './data/UnifiedDataAccess.js';
+import { logEnvironment, MCP_ENV } from './config/environment.js';
 import path from 'path';
 
 class UnifiedMCPServer {
   constructor(options = {}) {
+    // Log environment configuration at startup
+    logEnvironment();
+    
     this.options = {
       enableRAG: options.enableRAG !== false,
       enableGitHub: options.enableGitHub !== false,

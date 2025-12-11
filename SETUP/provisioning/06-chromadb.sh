@@ -38,8 +38,9 @@ else
         --name "${CHROMADB_CONTAINER}" \
         --restart unless-stopped \
         -p "${CHROMADB_PORT}:8000" \
-        -v "${CHROMADB_DATA}:/chroma/chroma" \
+        -v "${CHROMADB_DATA}:/data:Z" \
         -e IS_PERSISTENT=TRUE \
+        -e PERSIST_DIRECTORY=/data \
         -e ANONYMIZED_TELEMETRY=FALSE \
         chromadb/chroma:latest
     
@@ -79,8 +80,9 @@ ExecStartPre=-/usr/bin/docker rm ${CHROMADB_CONTAINER}
 ExecStart=/usr/bin/docker run --rm \\
     --name ${CHROMADB_CONTAINER} \\
     -p ${CHROMADB_PORT}:8000 \\
-    -v ${CHROMADB_DATA}:/chroma/chroma \\
+    -v ${CHROMADB_DATA}:/data:Z \\
     -e IS_PERSISTENT=TRUE \\
+    -e PERSIST_DIRECTORY=/data \\
     -e ANONYMIZED_TELEMETRY=FALSE \\
     chromadb/chroma:latest
 ExecStop=/usr/bin/docker stop ${CHROMADB_CONTAINER}
