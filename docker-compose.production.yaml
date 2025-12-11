@@ -13,7 +13,7 @@ services:
   # ChromaDB Vector Database (Production)
   # ============================================================================
   chromadb:
-    image: ${CI_REGISTRY:-registry.gitlab-licensed.vlab.noaa.gov}/nws/operations/ncep/emc/eib/eib-mcp-rag-server/chromadb:1.3.4-compat
+    image: ${CI_REGISTRY:-registry.gitlab-licensed.vlab.noaa.gov}/nws/operations/ncep/emc/eib/eib-mcp-rag-server/chromadb:1.3.4_compat
     container_name: chromadb-production
     ports:
       - "8080:8000"
