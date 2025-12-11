@@ -1,9 +1,40 @@
 # MCP/RAG System - Priority Roadmap
 
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
-**Last Updated**: December 5, 2025  
+**Last Updated**: December 11, 2025  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development
+**Status**: Active Development - Phase 12 Complete
+
+---
+
+## 🟢 Current System Status (December 2025)
+
+| Component | Status | Metrics |
+|-----------|--------|---------|
+| **MCP Server** | ✅ Operational | v3.0.0, 16 tools registered |
+| **ChromaDB** | ✅ Healthy | 12 collections, 14,854 documents |
+| **Neo4j** | ✅ Healthy | 2,730 files, 1,481 functions, 85,894 relationships |
+| **GitLab Registry** | ✅ Ready | `chromadb:v134clean` image pushed |
+| **GitFlow Branches** | ✅ Created | develop, env/dev-ops, env/staging, env/production |
+| **Environment Isolation** | ✅ Implemented | MCP_ENV config for all environments |
+
+---
+
+## ✅ Phase 12: DevOps GitFlow & Containerization (COMPLETE)
+
+**Status**: COMPLETE (December 11, 2025)  
+**SDD**: `phase12_devops_gitflow_containerization.md`
+
+**Accomplishments**:
+- [x] Root cause analysis: ChromaDB version mismatch (1.3.4 vs 1.3.7.dev9)
+- [x] Custom `chromadb:v134clean` image built and pushed to GitLab Registry
+- [x] GitFlow branches created (develop, env/dev-ops, env/staging, env/production)
+- [x] Environment-aware configuration (Python + Node.js)
+- [x] Docker-compose files for devops, staging, production
+- [x] MCP_ENV isolation strategy documented
+
+**Key Finding**: BuildKit attestations caused "Invalid tag: missing manifest digest" in GitLab.  
+**Solution**: Build with `--provenance=false --sbom=false` flags.
 
 ---
 
@@ -16,15 +47,15 @@
 The SDD Framework includes autonomous self-modification capabilities (`SelfModificationEngine.js`, `WorkflowExecutor.js`, `bootstrap_capability_demo.md`), but these are **intentionally disabled** for unsupervised runs until:
 
 1. ✅ Containerization complete (shareable, reproducible environment)
-2. ✅ Production hardening (reliable rollback, monitoring)
-3. ✅ Human-in-the-loop gates tested in production
-4. ✅ SME review of generated code patterns
+2. ⏳ Production hardening (reliable rollback, monitoring)
+3. ⏳ Human-in-the-loop gates tested in production
+4. ⏳ SME review of generated code patterns
 
 **Current Safe Usage**: Interactive, supervised execution with `dry_run: true` preview.
 
 ---
 
-## 🟠 Phase 4B: Interactive Supervised Execution (NEW)
+## 🟠 Phase 4B: Interactive Supervised Execution
 
 **Status**: SDD Complete (`phase4b_interactive_supervised_execution.md`)  
 **Priority**: HIGH - Enables safe workflow execution before full autonomy  
@@ -62,29 +93,44 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 | Capability | Status | Evidence |
 |------------|--------|----------|
-| Semantic documentation search | ✅ Operational | ChromaDB with 13,423 documents (11 collections) |
-| Code structure analysis | ✅ Operational | Neo4j graph database (82,338 relationships) |
-| EE2 compliance scanning | ✅ Demonstrated | seaice-concentration audit (14 scripts, 72% score) |
+| Semantic documentation search | ✅ Operational | ChromaDB with 14,854 documents (12 collections) |
+| Code structure analysis | ✅ Operational | Neo4j graph database (85,894 relationships) |
+| EE2 compliance scanning | ✅ Demonstrated | seaice-concentration, EVS audits complete |
 | SME-guided AI corrections | ✅ Implemented | 56 MCP directives preventing false positives |
-| MCP tool integration | ✅ Working | 30+ tools accessible via VS Code Copilot |
-| SDD Workflow Framework | ✅ Operational | 17 workflows defined, supervised execution |
-| Bootstrap Capability | 🔒 ON HOLD | Infrastructure ready, awaiting Phase 5-6 |
+| MCP tool integration | ✅ Working | 16 tools accessible via VS Code Copilot |
+| SDD Workflow Framework | ✅ Operational | 24 workflows defined, supervised execution |
+| Container Registry | ✅ Ready | GitLab Registry with custom chromadb image |
+| GitFlow DevOps | ✅ Complete | 4 environment branches configured |
+| Bootstrap Capability | 🔒 ON HOLD | Infrastructure ready, awaiting Phase 4B |
 
 ---
 
 ## Priority Phases
 
-### 🔴 Phase 5: Containerization & Deployment (CRITICAL PATH)
-**Goal**: Package system for distribution to stakeholders  
-**Why First**: Leadership needs hands-on demonstration; can't share dev environment  
+### ✅ Phase 12: DevOps GitFlow & Containerization (COMPLETE)
+**Goal**: Establish complete DevOps pipeline  
+**Status**: COMPLETE - December 11, 2025  
 **Deliverables**:
-- [ ] Docker container with MCP server + ChromaDB + Neo4j
-- [ ] docker-compose.yml for one-command startup
-- [ ] README with 5-minute quickstart
-- [ ] Pre-loaded knowledge base (no ingestion required for demo)
+- [x] Custom ChromaDB 1.3.4 Docker image
+- [x] GitLab Container Registry integration
+- [x] GitFlow branches (develop, env/*)
+- [x] Environment-aware configuration (MCP_ENV)
+- [x] Docker-compose for all environments
+
+---
+
+### 🔴 Phase 13: GitLab CI/CD Pipeline (NEXT)
+**Goal**: Automated build, test, and deploy pipeline  
+**Why Next**: Automates what we built in Phase 12  
+**Deliverables**:
+- [ ] .gitlab-ci.yml with lint/test/build/deploy stages
+- [ ] GitLab Runner on Parallel Works
+- [ ] Automated container builds on env/* branches
+- [ ] Security scanning (Trivy)
+- [ ] Health check verification post-deploy
 
 **Timeline**: 1-2 weeks  
-**Blocks**: All stakeholder demos
+**Blocks**: Automated deployments
 
 ---
 
@@ -96,7 +142,7 @@ An AI-assisted development platform for NOAA operational weather systems that:
 - [ ] Log aggregation and search
 - [ ] Backup/restore procedures
 
-**Timeline**: 1 week after Phase 5
+**Timeline**: 1 week after Phase 13
 
 ---
 
@@ -133,15 +179,22 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ---
 
+### ⚪ Phase 11: Docker MCP Gateway & LangFlow
+**Goal**: Multi-client MCP access via gateway  
+**Status**: SDD exists  
+**Timeline**: After Phase 13
+
+---
+
 ## Technical Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Docker Container                          │
+│                    Production Stack                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ MCP Server  │  │  ChromaDB   │  │   Neo4j     │          │
-│  │ (Node.js)   │  │  (Vectors)  │  │  (Graph)    │          │
-│  │  20+ Tools  │  │ 3,761 docs  │  │ Code rels   │          │
+│  │ (Node.js)   │  │ v134clean   │  │   5.15.0    │          │
+│  │  16 Tools   │  │ 14,854 docs │  │ 85K+ rels   │          │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
 │         └────────────────┼────────────────┘                  │
 │                          │                                   │
@@ -157,14 +210,37 @@ An AI-assisted development platform for NOAA operational weather systems that:
               └─────────────────────────┘
 ```
 
+### Environment Isolation
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  MCP_ENV=development (feature/*, develop)                   │
+│  → PersistentClient (direct SQLite)                         │
+│  → Local experimentation, can break things                  │
+├─────────────────────────────────────────────────────────────┤
+│  MCP_ENV=devops (env/dev-ops)                               │
+│  → HttpClient → Docker containers                           │
+│  → CI/CD validates container compatibility                  │
+├─────────────────────────────────────────────────────────────┤
+│  MCP_ENV=staging (env/staging)                              │
+│  → HttpClient → Staging containers                          │
+│  → Read-only validation, pre-production                     │
+├─────────────────────────────────────────────────────────────┤
+│  MCP_ENV=production (env/production)                        │
+│  → CI/CD pipeline only, no manual access                    │
+│  → Audit logged, authentication required                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Value Proposition for Leadership
 
-### Immediate Benefits (Phase 5 delivery)
+### Immediate Benefits (Delivered)
 - **Demo-ready**: Show executives AI-powered code compliance in action
-- **Shareable**: Any developer with Docker can run it
-- **Evidence-based**: Actual seaice-concentration audit shows 8 critical, 12 major issues
+- **Shareable**: Container images in GitLab Registry
+- **Evidence-based**: Actual seaice-concentration, EVS audits show real findings
+- **DevOps Foundation**: GitFlow and environment isolation established
 
 ### Near-Term Benefits (Phases 6-7)
 - **Self-service**: Teams adopt without hand-holding
@@ -180,12 +256,13 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ## Resource Requirements
 
-| Resource | Current | Needed |
+| Resource | Current | Status |
 |----------|---------|--------|
-| Developer time | 1 person (Terrence) | Same for prototype |
-| Compute (ParallelWorks) | ✅ Available | Sufficient |
-| Docker registry | ❓ Need access | For sharing containers |
-| GitHub Enterprise | ✅ NOAA-EMC | For code repos |
+| Developer time | 1 person (Terrence) | ✅ Sufficient for prototype |
+| Compute (ParallelWorks) | Available | ✅ Sufficient |
+| Docker registry | GitLab Registry | ✅ Configured |
+| GitHub Enterprise | NOAA-EMC | ✅ Available |
+| GitLab CI/CD Runners | Needed | ⏳ Phase 13 |
 
 ---
 
@@ -193,19 +270,36 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 | Risk | Mitigation |
 |------|------------|
-| Leadership doesn't see value | Demo with real code (seaice), show actual findings |
+| Leadership doesn't see value | Demo with real code (seaice, EVS), show actual findings |
 | Developers resist AI tools | Start with search/docs, not code generation |
 | Security concerns | Container runs locally, no cloud dependency |
 | Hallucination/false positives | SME annotations correct AI behavior |
+| Version drift | Pinned container versions, environment isolation |
 
 ---
 
 ## Next Actions
 
-1. **This Week**: Complete Docker containerization (Phase 5 Step 4-5)
-2. **Next Week**: Test container on clean machine, iterate
-3. **Week 3**: First stakeholder demo
-4. **Ongoing**: Gather feedback, prioritize Phase 6-7 based on needs
+1. **Immediate**: Set up GitLab Runners for CI/CD (Phase 13)
+2. **This Week**: Test container deployments with docker-compose files
+3. **Next Week**: First automated pipeline runs
+4. **Ongoing**: Document runbooks, gather user feedback
+
+---
+
+## SDD Workflow Inventory (24 Workflows)
+
+| Workflow | Status | Purpose |
+|----------|--------|---------|
+| phase12_devops_gitflow_containerization | ✅ Complete | GitFlow + containers |
+| phase4b_interactive_supervised_execution | 📋 SDD Ready | Approval gates |
+| phase10_fortran_call_tree_ingestion | 📋 SDD Ready | Fortran analysis |
+| phase11_docker_mcp_gateway_langflow | 📋 SDD Ready | Multi-client gateway |
+| phase8_multimodal_embeddings_workflow | 📋 SDD Ready | Image/diagram ingestion |
+| phase9_metrics_comparative_analysis | 📋 SDD Ready | Productivity metrics |
+| ee2_enhanced_embeddings_workflow | ✅ Complete | EE2 standards ingestion |
+| v7_collection_upgrade_workflow | ✅ Complete | v7 collection migration |
+| *...and 16 more* | Various | See sdd_framework/workflows/ |
 
 ---
 
