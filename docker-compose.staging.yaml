@@ -14,7 +14,7 @@ services:
   # ChromaDB Vector Database (Staging)
   # ============================================================================
   chromadb:
-    image: ${CI_REGISTRY:-registry.gitlab-licensed.vlab.noaa.gov}/nws/operations/ncep/emc/eib/eib-mcp-rag-server/chromadb:1.3.4_compat
+    image: ${CI_REGISTRY:-registry.gitlab-licensed.vlab.noaa.gov}/nws/operations/ncep/emc/eib/eib-mcp-rag-server/chromadb:v134clean
     container_name: chromadb-staging
     ports:
       - "8080:8000"
