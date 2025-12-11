@@ -1,40 +1,44 @@
 # Global Workflow MCP RAG - Complete Stack
-# Orchestrates LangFlow and future MCP Server containers
-# ChromaDB runs as systemd service on host (port 8080)
+# Orchestrates ChromaDB, Neo4j, LangFlow and MCP Server containers
 #
 # Usage: 
 #   source ${SETUP}/mcp_env.sh  # or source bootstrap.sh
 #   cd ${SETUP}
 #   docker compose up -d
 #
+# Services:
+#   - ChromaDB: Vector database for semantic search (port 8080)
+#   - Neo4j: Graph database for code relationships (port 7474, 7687)
+#   - LangFlow: RAG pipeline visualizer (port 7860)
+#   - ecFlow: Workflow orchestration (port 3141)
 
 services:
-  # ChromaDB Vector Database - DISABLED (Running as systemd service on host)
-  # Service: chromadb-persistent.service
-  # Port: 8080 on host
-  # Data: /mcp_rag_eib/data/chromadb
-  # chromadb:
-  #   image: chromadb/chroma:latest
-  #   container_name: global-workflow-chromadb
-  #   hostname: chromadb
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - chromadb-data:/chroma/chroma
-  #   environment:
-  #     - CHROMA_SERVER_HTTP_PORT=8000
-  #     - CHROMA_SERVER_HOST=0.0.0.0
-  #     - PERSIST_DIRECTORY=/chroma/chroma
-  #     - TELEMETRY_DISABLED=1
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 40s
-  #   networks:
-  #     - mcp-rag-network
+  # ChromaDB Vector Database - Semantic search and embeddings
+  # API: http://localhost:8080/api/v2
+  # Data: /mcp_rag_eib/data/chromadb (persistent)
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    hostname: chromadb
+    ports:
+      - "8080:8000"
+    volumes:
+      # CRITICAL: Mount to /data (ChromaDB default persist_path)
+      # Previous bug: mounted to /chroma/chroma but config uses /data
+      - ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/chromadb:/data:Z
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+    healthcheck:
+      # Use v2 API (v1 is deprecated)
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mcp-rag-network
 
   # Neo4j Graph Database - Graph RAG for GFS structural relationships
   # Web UI: http://localhost:7474

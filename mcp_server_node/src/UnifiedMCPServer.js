@@ -64,7 +64,7 @@ class UnifiedMCPServer {
     // Initialize unified data access layer (shared across all RAG-enabled tools)
     this.dataAccess = new UnifiedDataAccess();
 
-    // Initialize tool modules (Week 2 consolidated architecture)
+    // Initialize tool modules (SOC architecture)
     this.workflowInfoTools = new WorkflowInfoTools();
     this.codeAnalysisTools = new CodeAnalysisTools();
     
@@ -91,7 +91,7 @@ class UnifiedMCPServer {
    * Register all tool modules with the server
    */
   registerAllTools() {
-    console.error('[MCP] Registering tool modules (Week 2 consolidated architecture)...');
+    console.error('[MCP] Registering tool modules...');
 
     // Always register core static workflow info tools (3 tools)
     this.workflowInfoTools.registerWith(this.server);
@@ -206,7 +206,16 @@ class UnifiedMCPServer {
     const stats = this.server.getStats();
     
     let info = `# ${stats.name} v${stats.version}\n\n`;
-    info += `**Architecture**: Week 2 Consolidated + v3.6.0 SOC Refactor (7 modules)\n`;
+    const moduleCount = [
+      this.workflowInfoTools,
+      this.codeAnalysisTools,
+      this.semanticSearchTools,
+      this.ee2ComplianceTools,
+      this.operationalTools,
+      this.githubTools,
+      this.sddWorkflowTools
+    ].filter(m => m !== undefined).length;
+    info += `**Architecture**: SOC (Separation of Concerns) with ${moduleCount} modules\n`;
     info += `**Total Tools**: ${stats.toolCount}\n\n`;
     
     info += `## Tool Categories\n\n`;
@@ -269,16 +278,16 @@ class UnifiedMCPServer {
       info += `- **Workflow Root**: ${this.options.workflowRoot || 'Auto-detected'}\n`;
       info += `- **Knowledge Base**: ${this.options.knowledgeBasePath || 'Default'}\n\n`;
       
-      info += `## Week 2 Consolidation Benefits\n`;
-      info += `- [OK] Eliminated 8 duplicate tools\n`;
-      info += `- [OK] Unified data access via Week 1 layer\n`;
+      info += `## Architecture Benefits\n`;
+      info += `- [OK] No duplicate tools\n`;
+      info += `- [OK] Unified data access layer\n`;
       info += `- [OK] Clear separation of concerns\n`;
       info += `- [OK] Improved maintainability\n`;
       info += `- [OK] Consistent error handling\n\n`;
     }
 
     info += `## Usage\n`;
-    info += `This unified server provides comprehensive workflow analysis with Week 2 architecture.\n`;
+    info += `This unified server provides comprehensive workflow analysis.\n`;
     info += `Use static tools for fast queries, graph tools for code analysis, `;
     info += `and semantic tools for context-aware search.\n`;
 
@@ -497,12 +506,25 @@ class UnifiedMCPServer {
         }
       }
       
-      status += `\n## Week 2 Architecture\n\n`;
-      status += `This server uses the consolidated Week 2 architecture with:\n`;
-      status += `- Unified data access layer (Week 1)\n`;
-      status += `- Modular tool organization (5 modules)\n`;
-      status += `- No duplicate tools (21 unique tools)\n`;
-      status += `- **Empirical health validation (v3.5.1+)**\n`;
+      status += `\n## Architecture\n\n`;
+      
+      // Dynamically derive architecture info from actual server state
+      const stats = this.server.getStats();
+      const moduleCount = [
+        this.workflowInfoTools,
+        this.codeAnalysisTools,
+        this.semanticSearchTools,
+        this.ee2ComplianceTools,
+        this.operationalTools,
+        this.githubTools,
+        this.sddWorkflowTools
+      ].filter(m => m !== undefined).length;
+      
+      status += `This server uses v${stats.version} SOC (Separation of Concerns) architecture with:\n`;
+      status += `- Unified data access layer\n`;
+      status += `- Modular tool organization (${moduleCount} modules)\n`;
+      status += `- ${stats.toolCount} registered tools\n`;
+      status += `- **Empirical health validation**\n`;
     }
 
     return status;
@@ -512,7 +534,8 @@ class UnifiedMCPServer {
    * Start the unified server
    */
   async start() {
-    console.error('[MCP] Starting Unified MCP Server (Week 2 architecture)...');
+    const stats = this.server.getStats();
+    console.error(`[MCP] Starting Unified MCP Server v${stats.version}...`);
     
     // Initialize RAG components BEFORE starting server
     if (this.options.enableRAG) {
@@ -540,7 +563,8 @@ class UnifiedMCPServer {
     }
 
     await this.server.start();
-    console.error('[MCP] Unified MCP Server ready (Week 2 consolidation complete)');
+    const finalStats = this.server.getStats();
+    console.error(`[MCP] Unified MCP Server ready (${finalStats.toolCount} tools registered)`);
   }
 
   /**

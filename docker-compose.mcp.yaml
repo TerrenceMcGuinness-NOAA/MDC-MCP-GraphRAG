@@ -2,7 +2,7 @@
 # Phase 11: Dockerized MCP Server with Gateway Integration
 #
 # This compose file sets up the MCP RAG server for Docker MCP Gateway access.
-# It connects to existing services (ChromaDB on host, Neo4j container).
+# It includes ChromaDB, Neo4j, and the MCP server.
 #
 # Usage:
 #   docker compose -f docker-compose.mcp.yaml up -d
@@ -12,13 +12,35 @@
 #
 # Access:
 #   - MCP Tools: via Docker MCP Gateway (stdio)
-#   - LangFlow SSE: http://localhost:8090/sse
+#   - ChromaDB API: http://localhost:8080/api/v2
 #   - Neo4j Browser: http://localhost:7474
-#   - ChromaDB: http://localhost:8080 (host systemd service)
 
 version: '3.8'
 
 services:
+  # ChromaDB Vector Database
+  # CRITICAL: Mount to /data (ChromaDB default persist_path in container config)
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    hostname: chromadb
+    ports:
+      - "8080:8000"
+    volumes:
+      - ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/chromadb:/data:Z
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - global-workflow-mcp-rag
+
   # MCP RAG Server - Exposed to Docker MCP Gateway
   # Image pulled from NOAA VLab GitLab Container Registry
   mcp-rag-server:
@@ -32,9 +54,9 @@ services:
       - MCP_SCENARIO=${MCP_SCENARIO:-full}
       - NODE_ENV=production
 
-      # ChromaDB connection (systemd service on host)
-      - CHROMA_SERVER_URL=http://host.docker.internal:8080
-      - CHROMADB_URL=http://host.docker.internal:8080
+      # ChromaDB connection (Docker container in same network)
+      - CHROMA_SERVER_URL=http://chromadb:8000
+      - CHROMADB_URL=http://chromadb:8000
 
       # Neo4j connection (Docker container)
       - NEO4J_URI=bolt://neo4j:7687
@@ -57,7 +79,7 @@ services:
     volumes:
       - ${MCP_WORKSPACE_ROOT:-/mcp_rag_eib/eib-mcp-rag-server}:/mcp_rag_eib/eib-mcp-rag-server:ro
 
-    # Connect to host for ChromaDB access
+    # Connect to host for ChromaDB access (fallback if not using container)
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -69,8 +91,9 @@ services:
     # stdin_open: true  # Uncomment for interactive debugging
     # tty: true         # Uncomment for interactive debugging
 
-    # Wait for Neo4j to be ready
+    # Wait for ChromaDB and Neo4j to be ready
     depends_on:
+      - chromadb
       - neo4j
 
     restart: unless-stopped
