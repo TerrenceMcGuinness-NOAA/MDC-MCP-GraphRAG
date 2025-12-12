@@ -631,7 +631,7 @@ verify:health:
 ### 4.3 GitLab Runner Configuration
 
 ```toml
-# /etc/gitlab-runner/config.toml (on Parallel Works)
+# /etc/gitlab-runner/config.toml (on self-hosted VM runner)
 
 [[runners]]
   name = "mcp-rag-runner"
@@ -657,6 +657,18 @@ verify:health:
     privileged = true
     volumes = ["/cache", "/var/run/docker.sock:/var/run/docker.sock"]
 ```
+
+### 4.4 Modular Provisioning as a Pipeline Entry Point
+
+The host bootstrap/provisioning system is intentionally modular (`SETUP/provisioning/provision.sh`) and is suitable to be driven by GitLab CI jobs on self-hosted VM runners.
+
+Recommended patterns:
+- Full bootstrap job: run `sudo SETUP/bootstrap.sh`.
+- Iteration jobs: run targeted steps via `sudo SETUP/provisioning/provision.sh --only <step>`.
+- Verification job: run `sudo SETUP/provisioning/provision.sh --only 10`.
+
+Implementation details and the first containerized MCP smoke-test workflow are captured in Phase 14:
+- `sdd_framework/workflows/phase14_gitlab_pipelines_self_hosted_runners_and_container_mcp_testing.md`
 
 ---
 

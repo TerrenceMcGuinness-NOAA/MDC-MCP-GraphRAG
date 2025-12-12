@@ -25,6 +25,7 @@ sudo ./provision.sh --list           # List available scripts
 | Script | Description | Dependencies |
 |--------|-------------|--------------|
 | `01-directories.sh` | Create directory structure | None |
+| `00-users.sh` | Create Linux user accounts | None |
 | `02-system-deps.sh` | Install system packages | None |
 | `03-docker.sh` | Docker installation | 02 |
 | `04-nodejs.sh` | Node.js environment | 02 |
@@ -41,6 +42,8 @@ sudo ./provision.sh --list           # List available scripts
 provisioning/
 ├── provision.sh          # Master orchestrator
 ├── common.sh             # Shared functions and variables
+├── user_config.sh         # Provisioned users + defaults (SPOT)
+├── 00-users.sh            # Linux user provisioning
 ├── 01-directories.sh     # Directory structure
 ├── 02-system-deps.sh     # System dependencies
 ├── 03-docker.sh          # Docker setup

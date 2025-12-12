@@ -22,9 +22,154 @@ require_root
 
 log_subsection "Remote Desktop (KasmVNC/VNC) Setup"
 
-USER_NAME=$(get_actual_user)
-USER_HOME="/home/${USER_NAME}"
-VNC_DIR="${USER_HOME}/.vnc"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/user_config.sh"
+
+configure_user_vnc_files() {
+    local username="$1"
+    local user_home="/home/${username}"
+    local vnc_dir="${user_home}/.vnc"
+
+    # Create VNC directory
+    mkdir -p "${vnc_dir}"
+    chown "${username}:${username}" "${vnc_dir}"
+    chmod 700 "${vnc_dir}"
+
+    # Create VNC xstartup script for MATE
+    cat > "${vnc_dir}/xstartup" << 'EOFVNC'
+#!/bin/bash
+# KasmVNC Desktop Startup Script - MATE Desktop
+
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=MATE
+export XDG_SESSION_DESKTOP=mate
+
+eval $(/usr/bin/dbus-launch --sh-syntax --exit-with-session)
+export DBUS_SESSION_BUS_ADDRESS
+
+exec /usr/bin/mate-session
+EOFVNC
+    chmod +x "${vnc_dir}/xstartup"
+    chown "${username}:${username}" "${vnc_dir}/xstartup"
+
+    # Create VNC config file
+    cat > "${vnc_dir}/config" << EOFCONFIG
+geometry=${KASMVNC_GEOMETRY}
+depth=${KASMVNC_DEPTH}
+EOFCONFIG
+    chown "${username}:${username}" "${vnc_dir}/config"
+    chmod 644 "${vnc_dir}/config"
+
+    # Create KasmVNC configuration (only used by KasmVNC builds)
+    cat > "${vnc_dir}/kasmvnc.yaml" << 'EOFKASM'
+# KasmVNC Configuration for MCP RAG Development Environment
+
+logging:
+  log_writer_name: all
+  log_dest: logfile
+  level: 30
+
+network:
+  ssl:
+    pem_certificate: /etc/pki/tls/private/kasmvnc.pem
+    pem_key: /etc/pki/tls/private/kasmvnc.pem
+    require_ssl: true
+
+desktop:
+  allow_resize: true
+
+pointer:
+  enabled: true
+EOFKASM
+    chown "${username}:${username}" "${vnc_dir}/kasmvnc.yaml"
+    chmod 644 "${vnc_dir}/kasmvnc.yaml"
+}
+
+install_kasmvnc_systemd_template() {
+    log_subsection "Installing KasmVNC systemd template"
+
+    mkdir -p /etc/kasmvnc
+
+    cat > /etc/systemd/system/kasmvnc@.service << 'EOF'
+[Unit]
+Description=KasmVNC (TigerVNC) Server for user %i
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+WorkingDirectory=/home/%i
+
+# Defaults (override in /etc/kasmvnc/%i.conf)
+Environment=VNCDISPLAY=:1
+Environment=GEOMETRY=1920x1080
+Environment=DEPTH=24
+
+EnvironmentFile=-/etc/kasmvnc/%i.conf
+
+ExecStartPre=-/usr/bin/vncserver -kill ${VNCDISPLAY}
+ExecStart=/usr/bin/vncserver ${VNCDISPLAY} -geometry ${GEOMETRY} -depth ${DEPTH} -fg
+ExecStop=/usr/bin/vncserver -kill ${VNCDISPLAY}
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    log_success "Installed /etc/systemd/system/kasmvnc@.service"
+}
+
+write_per_user_kasmvnc_configs() {
+    local display_num=${KASMVNC_DISPLAY_START}
+
+    for username in "${PROVISION_USERS[@]}"; do
+        if ! id "${username}" &>/dev/null; then
+            log_warning "User ${username} does not exist; skipping VNC config"
+            display_num=$((display_num + 1))
+            continue
+        fi
+
+        configure_user_vnc_files "${username}"
+
+        cat > "/etc/kasmvnc/${username}.conf" << EOF
+VNCDISPLAY=:${display_num}
+GEOMETRY=${KASMVNC_GEOMETRY}
+DEPTH=${KASMVNC_DEPTH}
+EOF
+
+        log_info "Configured KasmVNC for ${username} on :${display_num}"
+        display_num=$((display_num + 1))
+    done
+}
+
+enable_autostart_users() {
+    for username in "${KASMVNC_AUTOSTART_USERS[@]}"; do
+        if id "${username}" &>/dev/null; then
+            systemctl enable "kasmvnc@${username}.service" 2>/dev/null || true
+            log_info "Enabled kasmvnc@${username}.service"
+        fi
+    done
+}
+
+prevent_legacy_vnc_conflicts() {
+    # If an old TigerVNC unit is present/enabled it can kill the Kasm session.
+    if systemctl list-unit-files | grep -q '^vncserver@1\.service'; then
+        systemctl stop vncserver@1.service 2>/dev/null || true
+        systemctl disable vncserver@1.service 2>/dev/null || true
+        systemctl mask vncserver@1.service 2>/dev/null || true
+        systemctl reset-failed vncserver@1.service 2>/dev/null || true
+        log_info "Disabled/masked legacy vncserver@1.service to prevent display conflicts"
+    fi
+}
 
 ################################################################################
 # Detect VNC Type
@@ -81,92 +226,23 @@ dnf install -y mate-desktop mate-session-manager mate-panel mate-terminal caja \
 
 if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
     log_subsection "Configuring KasmVNC"
-    
-    # Add user to kasmvnc-cert group for SSL certificate access
-    if getent group kasmvnc-cert &>/dev/null; then
-        usermod -a -G kasmvnc-cert "${USER_NAME}"
-        log_info "Added ${USER_NAME} to kasmvnc-cert group"
-    fi
-    
-    # Create VNC directory
-    su - "${USER_NAME}" -c "mkdir -p ${VNC_DIR}"
-    
-    # Create KasmVNC configuration
-    log_info "Creating KasmVNC configuration..."
-    cat > "${VNC_DIR}/kasmvnc.yaml" << 'EOFKASM'
-# KasmVNC Configuration for MCP RAG Development Environment
-# 
-# Start: sg kasmvnc-cert -c "vncserver :1 -geometry 1920x1080 -depth 24"
-# Stop:  vncserver -kill :1
-# Access: https://localhost:8444 (port 8443 + display number)
 
-logging:
-  log_writer_name: all
-  log_dest: logfile
-  level: 30
+        # Add all provisioned users to kasmvnc-cert group (if it exists)
+        if getent group kasmvnc-cert &>/dev/null; then
+                for username in "${PROVISION_USERS[@]}"; do
+                        if id "${username}" &>/dev/null; then
+                                usermod -a -G kasmvnc-cert "${username}" || true
+                        fi
+                done
+                log_info "Added provisioned users to kasmvnc-cert group"
+        fi
 
-network:
-  ssl:
-    pem_certificate: /etc/pki/tls/private/kasmvnc.pem
-    pem_key: /etc/pki/tls/private/kasmvnc.pem
-    require_ssl: true
+        install_kasmvnc_systemd_template
+        write_per_user_kasmvnc_configs
+        enable_autostart_users
+        prevent_legacy_vnc_conflicts
 
-desktop:
-  resolution:
-    width: 1920
-    height: 1080
-  allow_resize: true
-
-keyboard:
-  remap_keys:
-  ignore_numlock: false
-
-pointer:
-  enabled: true
-EOFKASM
-    chown "${USER_NAME}:${USER_NAME}" "${VNC_DIR}/kasmvnc.yaml"
-    chmod 644 "${VNC_DIR}/kasmvnc.yaml"
-    
-    # Create VNC xstartup script for MATE
-    log_info "Creating VNC xstartup script (MATE desktop)..."
-    cat > "${VNC_DIR}/xstartup" << 'EOFVNC'
-#!/bin/bash
-# KasmVNC Desktop Startup Script - MATE Desktop
-# Part of MCP RAG Development Environment
-
-# Clean PATH to avoid conda/miniforge/spack conflicts
-export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-
-# Clean up environment
-unset SESSION_MANAGER
-unset DBUS_SESSION_BUS_ADDRESS
-
-# Set XDG variables for MATE
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-export XDG_SESSION_TYPE=x11
-export XDG_CURRENT_DESKTOP=MATE
-export XDG_SESSION_DESKTOP=mate
-
-# Start D-Bus session bus
-eval $(/usr/bin/dbus-launch --sh-syntax --exit-with-session)
-export DBUS_SESSION_BUS_ADDRESS
-
-# Start MATE desktop
-exec /usr/bin/mate-session
-EOFVNC
-    chmod +x "${VNC_DIR}/xstartup"
-    chown "${USER_NAME}:${USER_NAME}" "${VNC_DIR}/xstartup"
-    
-    # Create VNC config file
-    cat > "${VNC_DIR}/config" << 'EOFCONFIG'
-# KasmVNC display configuration
-geometry=1920x1080
-depth=24
-EOFCONFIG
-    chown "${USER_NAME}:${USER_NAME}" "${VNC_DIR}/config"
-    chmod 644 "${VNC_DIR}/config"
-    
-    log_success "KasmVNC configuration complete"
+        log_success "KasmVNC multi-user configuration complete"
 
 ################################################################################
 # TigerVNC Configuration (fallback)

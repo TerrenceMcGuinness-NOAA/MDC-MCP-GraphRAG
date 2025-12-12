@@ -29,6 +29,7 @@ source "${SCRIPT_DIR}/common.sh"
 
 # Ordered list of provisioning scripts
 declare -a SCRIPTS=(
+    "00-users.sh:User Accounts"
     "01-directories.sh:Directory Structure"
     "02-system-deps.sh:System Dependencies"
     "03-docker.sh:Docker Installation"

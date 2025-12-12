@@ -10,9 +10,14 @@
 set -e  # Exit on error
 set -u  # Exit on undefined variable
 
-# Configuration
-USERS=("Anna.Smoot" "Brian.Curtis" "Georgios.Britzolakis")
-SCRATCH_ROOT="/mcp_rag_eib/SCRATCH_SPACE"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Shared provisioning configuration (single source of truth)
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/../provisioning/user_config.sh"
+
+# Derived configuration
+USERS=("${PROVISION_USERS[@]}")
 CODE_TUNNEL_SCRIPT="/mcp_rag_eib/eib-mcp-rag-server/SETUP/bin/code.sh"
 
 # Colors for output
@@ -324,6 +329,12 @@ add_to_groups() {
         usermod -aG docker "$username"
         log_info "Added $username to docker group"
     fi
+
+    # Add to kasmvnc-cert group if it exists (required for SSL certificate access)
+    if getent group kasmvnc-cert > /dev/null 2>&1; then
+        usermod -aG kasmvnc-cert "$username"
+        log_info "Added $username to kasmvnc-cert group"
+    fi
     
     # Add to wheel group if it exists (for potential sudo access - commented out by default)
     # Uncomment if users need sudo access
@@ -439,4 +450,6 @@ main() {
 }
 
 # Run main function
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
