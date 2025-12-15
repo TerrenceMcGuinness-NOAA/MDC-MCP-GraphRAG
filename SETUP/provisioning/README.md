@@ -24,8 +24,8 @@ sudo ./provision.sh --list           # List available scripts
 
 | Script | Description | Dependencies |
 |--------|-------------|--------------|
-| `01-directories.sh` | Create directory structure | None |
 | `00-users.sh` | Create Linux user accounts | None |
+| `01-directories.sh` | Create directory structure | None |
 | `02-system-deps.sh` | Install system packages | None |
 | `03-docker.sh` | Docker installation | 02 |
 | `04-nodejs.sh` | Node.js environment | 02 |
@@ -35,6 +35,7 @@ sudo ./provision.sh --list           # List available scripts
 | `08-services.sh` | Neo4j, LangFlow, systemd | 03, 06 |
 | `09-desktop-vnc.sh` | VNC/noVNC remote desktop | 02 |
 | `10-verification.sh` | Final verification | All |
+| `11-docker-mcp-gateway.sh` | Docker MCP Gateway plugin | 03, 07 |
 
 ## Architecture
 
@@ -54,6 +55,7 @@ provisioning/
 ├── 08-services.sh        # Docker Compose services
 ├── 09-desktop-vnc.sh     # VNC remote desktop
 ├── 10-verification.sh    # Verification
+├── 11-docker-mcp-gateway.sh  # Docker MCP Gateway plugin
 └── README.md             # This file
 ```
 

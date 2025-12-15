@@ -40,6 +40,7 @@ declare -a SCRIPTS=(
     "08-services.sh:Docker Compose Services"
     "09-desktop-vnc.sh:Remote Desktop (VNC)"
     "10-verification.sh:Final Verification"
+    "11-docker-mcp-gateway.sh:Docker MCP Gateway"
 )
 
 ################################################################################
