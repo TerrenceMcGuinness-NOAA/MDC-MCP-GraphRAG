@@ -10,7 +10,41 @@ This repo's runtime host uses a **systemd template unit** to run one KasmVNC/Tig
 - The desktop startup script is the standard `~/.vnc/xstartup`.
 - Web login users/permissions are stored in `~/.kasmpasswd`.
 
+## Access (prototype cohort): SSH local port forwarding
+
+Until devtunnels/SSO/TLS choices are reviewed by security, the recommended prototype-cohort access path is basic SSH port forwarding.
+
+See `docs/KASMVNC_SSH_PORT_FORWARDING_RUNBOOK.md`.
+
 ## Add a new user session
+
+You can add a user session either manually (edit `/etc/kasmvnc/<username>.conf`) or via the repo provisioning script (recommended).
+
+### Recommended (on-demand) path
+
+Configure a user on demand (auto-allocates a free display):
+
+```bash
+sudo /mcp_rag_eib/eib-mcp-rag-server/SETUP/provisioning/09-desktop-vnc.sh --user <username>
+```
+
+Configure and also start it immediately:
+
+```bash
+sudo /mcp_rag_eib/eib-mcp-rag-server/SETUP/provisioning/09-desktop-vnc.sh --user <username> --enable-now
+```
+
+Force a specific display (only valid for a single user):
+
+```bash
+sudo /mcp_rag_eib/eib-mcp-rag-server/SETUP/provisioning/09-desktop-vnc.sh --user <username> --display 2
+```
+
+Show current config + unit status (read-only):
+
+```bash
+sudo /mcp_rag_eib/eib-mcp-rag-server/SETUP/provisioning/09-desktop-vnc.sh --status
+```
 
 ### 1) Pick a unique display number
 

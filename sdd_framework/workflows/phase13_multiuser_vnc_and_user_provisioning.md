@@ -19,9 +19,8 @@ Key outcomes:
   - display mapping policy (start at `:1`, increment per user)
   - optional list of users to auto-enable at boot
 
-### Step 2: Make the existing user provisioning script reusable by modular provisioning
-- Refactor `SETUP/bin/provision_users.sh` so it can be sourced without executing `main`.
-- Make it read the user list from the shared config file.
+### Step 2: Implement user provisioning as a modular step
+- Implement user provisioning directly in `SETUP/provisioning/00-users.sh`.
 
 ### Step 3: Add a new modular provisioning step for user accounts
 - Add a new provisioning script in `SETUP/provisioning/` (e.g., `00-users.sh`).
