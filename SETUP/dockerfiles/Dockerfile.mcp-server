@@ -32,10 +32,11 @@ COPY phase2_anti_patterns.json ./
 # Environment configuration
 ENV NODE_ENV=production
 ENV MCP_SCENARIO=full
-ENV CHROMA_SERVER_URL=http://chromadb:8000
+ENV CHROMADB_HOST=chromadb
+ENV CHROMADB_PORT=8000
 ENV NEO4J_URI=bolt://neo4j:7687
 ENV NEO4J_USER=neo4j
-ENV NEO4J_PASSWORD=password
+ENV NEO4J_PASSWORD=gfsworkflow2025
 ENV ENABLE_RAG=true
 ENV ENABLE_GITHUB=true
 
