@@ -1,0 +1,127 @@
+# docker-compose.mcp-standalone.yaml
+# Standalone MCP Server stack for local development and testing
+#
+# This compose file sets up:
+# - ChromaDB vector database
+# - Neo4j graph database  
+# - MCP RAG Server with Docker MCP Gateway support
+#
+# Usage:
+#   docker compose -f docker-compose.mcp-standalone.yaml up -d --build
+#   docker compose -f docker-compose.mcp-standalone.yaml down
+#
+# Gateway Testing:
+#   docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run --verbose
+#
+# Version: 1.0.0
+# Updated: 2025-12-15
+
+services:
+  # ============================================================================
+  # ChromaDB Vector Database
+  # ============================================================================
+  chromadb:
+    image: chromadb/chroma:1.0.12
+    container_name: chromadb
+    ports:
+      - "8080:8000"
+    volumes:
+      - chromadb-data:/chroma/chroma
+    environment:
+      - CHROMA_HOST=0.0.0.0
+      - CHROMA_PORT=8000
+      - ANONYMIZED_TELEMETRY=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+  # ============================================================================
+  # Neo4j Graph Database
+  # ============================================================================
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j
+    ports:
+      - "7474:7474"  # HTTP Browser
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+  # ============================================================================
+  # MCP RAG Server with Docker MCP Gateway Support
+  # ============================================================================
+  eib-mcp-rag:
+    build:
+      context: ./mcp_server_node
+      dockerfile: ../SETUP/dockerfiles/Dockerfile.mcp-server
+    image: eib-mcp-rag:latest
+    container_name: eib-mcp-rag
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - MCP_SCENARIO=full
+      - CHROMA_SERVER_URL=http://chromadb:8000
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+      - ENABLE_RAG=true
+      - ENABLE_GITHUB=true
+    volumes:
+      - mcp-logs:/app/logs
+    # Labels for Docker MCP Gateway integration
+    labels:
+      # Primary Docker MCP Gateway metadata (JSON format for reliable parsing)
+      io.docker.server.metadata: '{"name":"eib-mcp-rag","title":"EIB MCP RAG Server","description":"AI-powered Model Context Protocol server with RAG capabilities for NOAA Global Workflow development. Provides semantic search, code analysis, EE2 compliance checking, and operational guidance.","type":"image","image":"eib-mcp-rag:latest","longLived":false}'
+      # Additional MCP labels for discovery
+      mcp.name: "eib-mcp-rag"
+      mcp.version: "3.0.0"
+      mcp.server: "true"
+      mcp.server.type: "full"
+      mcp.transport: "stdio"
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  chromadb-data:
+    name: mcp-chromadb-data
+  neo4j-data:
+    name: mcp-neo4j-data
+  neo4j-logs:
+    name: mcp-neo4j-logs
+  mcp-logs:
+    name: mcp-server-logs
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  mcp-network:
+    name: mcp-standalone-network
+    driver: bridge

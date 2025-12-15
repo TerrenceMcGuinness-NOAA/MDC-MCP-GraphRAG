@@ -1,0 +1,59 @@
+# Dockerfile.mcp-server
+# MCP RAG Server with Docker MCP Gateway support
+# 
+# Build:
+#   docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node
+#
+# Run:
+#   docker run --rm eib-mcp-rag:latest
+#
+# Gateway Usage:
+#   docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run
+
+FROM node:20-slim
+
+# Install required tools for node-gyp (needed for some npm packages)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --only=production
+
+# Copy source code and utilities
+COPY src/ ./src/
+COPY utils/ ./utils/
+COPY phase2_anti_patterns.json ./
+
+# Environment configuration
+ENV NODE_ENV=production
+ENV MCP_SCENARIO=full
+ENV CHROMA_SERVER_URL=http://chromadb:8000
+ENV NEO4J_URI=bolt://neo4j:7687
+ENV NEO4J_USER=neo4j
+ENV NEO4J_PASSWORD=password
+ENV ENABLE_RAG=true
+ENV ENABLE_GITHUB=true
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "process.exit(0)"
+
+# Docker MCP Gateway metadata label (JSON/YAML format)
+# This label enables the container to be used with docker mcp gateway
+# Uses JSON format for reliable parsing
+LABEL io.docker.server.metadata='{"name":"eib-mcp-rag","title":"EIB MCP RAG Server","description":"AI-powered Model Context Protocol server with RAG capabilities for NOAA Global Workflow development","type":"image","image":"eib-mcp-rag:latest"}'
+
+# MCP-specific labels for discovery
+LABEL mcp.name="eib-mcp-rag"
+LABEL mcp.version="3.0.0"
+LABEL mcp.server="true"
+LABEL mcp.server.type="full"
+LABEL mcp.transport="stdio"
+
+# Default command to start MCP server
+CMD ["node", "src/UnifiedMCPServer.js", "full"]

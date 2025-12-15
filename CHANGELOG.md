@@ -1,5 +1,38 @@
 # MCP Server Changelog
 
+## [7.0.5] - Phase 11 Docker MCP Gateway Integration (December 15, 2025)
+
+### Added
+- **Docker MCP Gateway Support**:
+  - `Dockerfile.mcp-server` - Production Dockerfile with gateway metadata labels
+  - `docker-compose.mcp-standalone.yaml` - Standalone MCP stack compose file
+  - `io.docker.server.metadata` label enables `docker mcp gateway` discovery
+  - JSON format metadata label for reliable cross-platform parsing
+
+- **Gateway Integration**:
+  - Rebuilt `docker-mcp` plugin v0.34.0 from source (includes Docker CE fix PR #301)
+  - Gateway successfully discovers 32 MCP tools from containerized server
+  - Supports stdio transport for MCP protocol communication
+  - Enables multi-client access via gateway (LangFlow, Claude Desktop, VS Code)
+
+### Changed
+- **Container Architecture**:
+  - MCP server container uses stdio transport (no HTTP ports exposed by design)
+  - Gateway acts as protocol bridge for HTTP/SSE clients
+  - Container labels follow Docker MCP Gateway specification
+
+### Technical Details
+- Gateway CLI: `docker mcp gateway run --servers docker://eib-mcp-rag:latest`
+- Plugin location: `~/.docker/cli-plugins/docker-mcp`
+- Image: `eib-mcp-rag:latest` with 32 tools available
+- Build: `docker compose -f docker-compose.mcp-standalone.yaml build`
+
+### References
+- Phase 11 SDD: `sdd_framework/workflows/phase11_docker_mcp_gateway_integration.md`
+- mcp-gateway repo: `supported_repos/mcp-gateway/` (cloned for plugin build)
+
+---
+
 ## [7.0.4] - Phase 4B Interactive Supervised Execution & Paper Updates (January 14, 2025)
 
 ### Added
