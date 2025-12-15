@@ -511,3 +511,88 @@ systemctl --user start kasmvnc
 - [LangFlow Documentation](https://docs.langflow.org/)
 - [Docker MCP Catalog](https://hub.docker.com/mcp)
 - [KasmVNC Documentation](https://kasmweb.com/kasmvnc)
+---
+
+## Implementation Status
+
+**Last Updated**: December 15, 2025
+
+### Phase 11A: Dockerize MCP RAG Server ✅ COMPLETE
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Create Dockerfile | ✅ Complete | `SETUP/dockerfiles/Dockerfile.mcp-server` |
+| Create Docker Compose | ✅ Complete | `docker-compose.mcp-standalone.yaml` |
+| Add Gateway metadata label | ✅ Complete | `io.docker.server.metadata` JSON label |
+| Build and test image | ✅ Complete | `eib-mcp-rag:latest` with 32 tools |
+
+**Implementation Details**:
+- Dockerfile location: `SETUP/dockerfiles/Dockerfile.mcp-server`
+- Compose file: `docker-compose.mcp-standalone.yaml`
+- Environment variables: `CHROMADB_HOST`, `CHROMADB_PORT`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`
+- Gateway label format: JSON (not YAML) for reliable parsing
+
+### Phase 11B: Docker MCP Gateway Plugin ✅ COMPLETE
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Clone mcp-gateway repo | ✅ Complete | `supported_repos/mcp-gateway/` |
+| Build docker-mcp plugin | ✅ Complete | Go 1.25.3, v0.34.0 |
+| Install plugin | ✅ Complete | `~/.docker/cli-plugins/docker-mcp` |
+| Test gateway discovery | ✅ Complete | 32 tools discovered |
+
+**Key Finding**: Docker CE requires PR #301 fix (merged Dec 12, 2025). We rebuilt from source to include this fix.
+
+**Working Commands**:
+```bash
+# Build image
+docker compose -f docker-compose.mcp-standalone.yaml build eib-mcp-rag
+
+# Test gateway discovery (dry-run)
+docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run --verbose
+
+# Start gateway with auth token
+export MCP_GATEWAY_AUTH_TOKEN="your-token"
+docker mcp gateway run --servers docker://eib-mcp-rag:latest --port 8888 --transport streamable-http
+```
+
+### Phase 11C: Container Network Integration ✅ COMPLETE
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Connect to DB network | ✅ Complete | `global-workflow-mcp-rag` network |
+| Test ChromaDB connection | ✅ Complete | 12 collections, 14,854 documents |
+| Test Neo4j connection | ✅ Complete | 85,894 relationships |
+| Test MCP tools | ✅ Complete | `get_knowledge_base_status`, `search_documentation` |
+
+**Network Architecture**:
+- The Docker MCP Gateway runs containers in isolation (security feature)
+- For RAG-enabled servers requiring DB access, run container directly on shared network
+- ChromaDB connected to both `bridge` and `global-workflow-mcp-rag` networks
+
+**Working Container Command**:
+```bash
+docker run -d --name eib-mcp-standalone \
+  --network global-workflow-mcp-rag \
+  -e CHROMADB_HOST=chromadb \
+  -e CHROMADB_PORT=8000 \
+  -e NEO4J_URI=bolt://neo4j:7687 \
+  -e NEO4J_USER=neo4j \
+  -e NEO4J_PASSWORD=gfsworkflow2025 \
+  eib-mcp-rag:latest
+```
+
+### Phase 11D: LangFlow Integration 🔄 PENDING
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Configure LangFlow MCP | 🔄 Pending | Need to configure MCP component |
+| Create test workflow | 🔄 Pending | Visual tool chain testing |
+| Document integration | 🔄 Pending | Add to runbook |
+
+### Commits
+
+| Commit | Description |
+|--------|-------------|
+| `678fd69` | feat(Phase 11): Docker MCP Gateway integration |
+| `1a6641b` | fix: Update MCP server container config for DB connectivity |

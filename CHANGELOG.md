@@ -1,5 +1,24 @@
 # MCP Server Changelog
 
+## [7.0.6] - Phase 11 Container DB Connectivity Fix (December 15, 2025)
+
+### Fixed
+- **Container Environment Variables**:
+  - Changed `CHROMA_SERVER_URL` to `CHROMADB_HOST` + `CHROMADB_PORT` (matches VectorDatabase.js)
+  - Updated Neo4j password from `password` to `gfsworkflow2025` (matches running container)
+
+### Validated
+- **Container Testing**:
+  - ChromaDB connectivity: 12 collections, 14,854 documents
+  - Neo4j connectivity: 85,894 relationships, 2,730 files, 1,481 functions
+  - MCP tools tested: `get_knowledge_base_status`, `search_documentation`
+
+### Technical Details
+- Container must be on `global-workflow-mcp-rag` network to reach DBs
+- Gateway runs containers in isolation (security feature) - direct network needed for RAG
+
+---
+
 ## [7.0.5] - Phase 11 Docker MCP Gateway Integration (December 15, 2025)
 
 ### Added
