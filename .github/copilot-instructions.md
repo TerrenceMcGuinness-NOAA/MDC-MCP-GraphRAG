@@ -115,9 +115,9 @@ python3 -m pip install --user chromadb sentence-transformers
 - Install without loading gcc module first
 - Add undocumented dependencies
 
-## Docker MCP Gateway Integration (EXPERIMENTAL)
+## Docker MCP Gateway Integration ✅ COMPLETE
 
-**Status**: Phase 11 - Needs Testing  
+**Status**: Phase 11 - Complete (December 17, 2025)  
 **Reference**: [phase11_docker_mcp_gateway_langflow.md](sdd_framework/workflows/phase11_docker_mcp_gateway_langflow.md)
 
 ### Architecture
@@ -126,15 +126,36 @@ AI Clients (LangFlow, VS Code, Claude Desktop)
               │
               ▼
      Docker MCP Gateway (docker-mcp plugin)
+         Port 8888 (SSE transport)
               │
               ▼
      MCP Server Container (eib-mcp-rag:latest)
+         32 tools available
               │
     ┌─────────┴─────────┐
     ▼                   ▼
 ChromaDB            Neo4j
 (vectors)           (graph)
 ```
+
+### Quick Start - Gateway + LangFlow
+```bash
+# Start gateway with SSE transport (required for LangFlow)
+SETUP/bin/start-mcp-gateway.sh --background
+
+# Or manually:
+docker mcp gateway run --servers eib-mcp-rag --transport sse --port 8888 --long-lived --verbose
+
+# Gateway outputs:
+# > Gateway URL: http://localhost:8888/sse
+# > Use Bearer token: Authorization: Bearer <generated-token>
+```
+
+### LangFlow Connection
+1. Gateway URL: `http://host.docker.internal:8888/sse`
+2. Transport: SSE
+3. Authorization header: `Bearer <token-from-gateway-startup>`
+4. Select `eib-mcp-rag` server in MCP Tools component
 
 ### Gateway Commands
 ```bash
@@ -144,23 +165,36 @@ docker compose -f docker-compose.mcp-standalone.yaml build
 # Test gateway discovery (dry-run)
 docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run --verbose
 
-# Run gateway with MCP server
-docker mcp gateway run --servers docker://eib-mcp-rag:latest
+# List available tools
+docker mcp tools ls
 
 # Check container labels (gateway uses these for discovery)
 docker inspect eib-mcp-rag --format '{{json .Config.Labels}}' | jq
 ```
 
-### Container Requirements
-- Container must include `io.docker.server.metadata` label
-- MCP server uses stdio transport (no HTTP ports exposed)
-- Container must be on `global-workflow-mcp-rag` network for DB access
+### MCP Catalog Configuration
+Location: `~/.docker/mcp/catalogs/eib-local.yaml`
+```yaml
+version: 3
+name: eib-local
+registry:
+  eib-mcp-rag:
+    title: EIB MCP RAG Server
+    type: server
+    image: eib-mcp-rag:latest
+    env:
+      - name: CHROMADB_HOST
+        value: chromadb
+      - name: NEO4J_URI
+        value: bolt://global-workflow-neo4j:7687
+```
 
-### Testing Checklist (TODO)
-- [ ] Gateway discovers all 32 tools
-- [ ] LangFlow can connect via gateway
-- [ ] ChromaDB queries work through container
-- [ ] Neo4j queries work through container
+### Verified Working (December 17, 2025)
+- [x] Gateway discovers all 32 tools
+- [x] LangFlow connects via SSE transport
+- [x] ChromaDB queries work through container
+- [x] Neo4j queries work through container
+- [x] Bearer token authentication working
 
 ## MCP Tool Categories
 

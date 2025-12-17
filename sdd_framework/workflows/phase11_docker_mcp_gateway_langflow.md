@@ -515,7 +515,7 @@ systemctl --user start kasmvnc
 
 ## Implementation Status
 
-**Last Updated**: December 15, 2025
+**Last Updated**: December 17, 2025
 
 ### Phase 11A: Dockerize MCP RAG Server ✅ COMPLETE
 
@@ -551,9 +551,8 @@ docker compose -f docker-compose.mcp-standalone.yaml build eib-mcp-rag
 # Test gateway discovery (dry-run)
 docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run --verbose
 
-# Start gateway with auth token
-export MCP_GATEWAY_AUTH_TOKEN="your-token"
-docker mcp gateway run --servers docker://eib-mcp-rag:latest --port 8888 --transport streamable-http
+# Start gateway with SSE transport for LangFlow
+docker mcp gateway run --servers eib-mcp-rag --transport sse --port 8888 --long-lived --verbose
 ```
 
 ### Phase 11C: Container Network Integration ✅ COMPLETE
@@ -561,7 +560,7 @@ docker mcp gateway run --servers docker://eib-mcp-rag:latest --port 8888 --trans
 | Step | Status | Notes |
 |------|--------|-------|
 | Connect to DB network | ✅ Complete | `global-workflow-mcp-rag` network |
-| Test ChromaDB connection | ✅ Complete | 12 collections, 14,854 documents |
+| Test ChromaDB connection | ✅ Complete | 12 collections, 14,856 documents |
 | Test Neo4j connection | ✅ Complete | 85,894 relationships |
 | Test MCP tools | ✅ Complete | `get_knowledge_base_status`, `search_documentation` |
 
@@ -582,13 +581,78 @@ docker run -d --name eib-mcp-standalone \
   eib-mcp-rag:latest
 ```
 
-### Phase 11D: LangFlow Integration 🔄 PENDING
+### Phase 11D: LangFlow Integration ✅ COMPLETE
 
 | Step | Status | Notes |
 |------|--------|-------|
-| Configure LangFlow MCP | 🔄 Pending | Need to configure MCP component |
-| Create test workflow | 🔄 Pending | Visual tool chain testing |
-| Document integration | 🔄 Pending | Add to runbook |
+| Configure Docker MCP catalog | ✅ Complete | `~/.docker/mcp/catalogs/eib-local.yaml` |
+| Configure Docker MCP registry | ✅ Complete | `~/.docker/mcp/registry.yaml` |
+| Start gateway with SSE transport | ✅ Complete | Port 8888, 32 tools available |
+| Register server in LangFlow | ✅ Complete | `/api/v2/mcp/servers/eib-mcp-rag` |
+| Connect LangFlow to gateway | ✅ Complete | SSE transport, bearer token auth |
+| Test tool invocation | ✅ Complete | Tools accessible from LangFlow UI |
+
+**LangFlow Configuration (December 17, 2025)**:
+
+1. **Docker MCP Catalog** (`~/.docker/mcp/catalogs/eib-local.yaml`):
+```yaml
+version: 3
+name: eib-local
+displayName: EIB Local MCP Catalog
+registry:
+  eib-mcp-rag:
+    title: EIB MCP RAG Server
+    description: AI-powered code analysis and EE2 compliance checking for NOAA Global Workflow
+    type: server
+    image: eib-mcp-rag:latest
+    env:
+      - name: CHROMADB_HOST
+        value: chromadb
+      - name: CHROMADB_PORT
+        value: "8000"
+      - name: NEO4J_URI
+        value: bolt://global-workflow-neo4j:7687
+      - name: NEO4J_USER
+        value: neo4j
+      - name: NEO4J_PASSWORD
+        value: gfsworkflow2025
+      - name: MCP_SCENARIO
+        value: full
+    metadata:
+      category: devops
+```
+
+2. **Start Gateway**:
+```bash
+# Start with SSE transport (required for LangFlow)
+docker mcp gateway run --servers eib-mcp-rag --transport sse --port 8888 --long-lived --verbose
+
+# Output includes bearer token for authentication:
+# > Gateway URL: http://localhost:8888/sse
+# > Use Bearer token: Authorization: Bearer <generated-token>
+```
+
+3. **Register in LangFlow** (via API):
+```bash
+curl -X POST "http://localhost:7860/api/v2/mcp/servers/eib-mcp-rag" \
+  -H "Authorization: Bearer <langflow-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transport": "sse",
+    "url": "http://host.docker.internal:8888/sse",
+    "headers": {
+      "Authorization": "Bearer <gateway-token>"
+    }
+  }'
+```
+
+4. **LangFlow UI**: Select `eib-mcp-rag` in MCP Tools component → 32 tools available
+
+**Key Learnings**:
+- Use `--transport sse` (not `streamable-http`) for LangFlow compatibility
+- Use `http://host.docker.internal:8888/sse` from LangFlow container
+- Gateway generates new bearer token on each restart
+- `--long-lived` flag maintains stateful connections for database access
 
 ### Commits
 
@@ -596,3 +660,8 @@ docker run -d --name eib-mcp-standalone \
 |--------|-------------|
 | `678fd69` | feat(Phase 11): Docker MCP Gateway integration |
 | `1a6641b` | fix: Update MCP server container config for DB connectivity |
+| `TBD` | feat(Phase 11D): Complete LangFlow integration |
+
+### Provisioning Script
+
+See `SETUP/bin/start-mcp-gateway.sh` for automated gateway startup with LangFlow integration
