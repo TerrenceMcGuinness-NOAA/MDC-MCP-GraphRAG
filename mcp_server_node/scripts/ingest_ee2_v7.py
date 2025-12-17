@@ -93,6 +93,7 @@ class RSTDirectiveParser:
         }
         
         # MCP custom directives - capture directive name and full content block
+        # Phase 2 Core Directives (per PHASE_2_HYBRID_ARCHITECTURE_SPECIFICATION.md)
         self.mcp_patterns = {
             'sme_correction': re.compile(r'\.\.\s+mcp:sme_correction::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
             'anti_pattern': re.compile(r'\.\.\s+mcp:anti_pattern::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
@@ -109,6 +110,12 @@ class RSTDirectiveParser:
             'file_naming_pattern': re.compile(r'\.\.\s+mcp:file_naming_pattern::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
             'file_naming_rule': re.compile(r'\.\.\s+mcp:file_naming_rule::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
             'llm_validation_prompt': re.compile(r'\.\.\s+mcp:llm_validation_prompt::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            # Missing directives from nws-hpc-standards/docs/standards.rst (added Dec 17, 2025)
+            'context_types': re.compile(r'\.\.\s+mcp:context_types::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'guidance': re.compile(r'\.\.\s+mcp:guidance::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'sme_guidance': re.compile(r'\.\.\s+mcp:sme_guidance::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'sme_validation': re.compile(r'\.\.\s+mcp:sme_validation::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
+            'validation': re.compile(r'\.\.\s+mcp:validation::\s*(\w*)\s*\n((?:\s{3,}.*\n)*)', re.MULTILINE),
         }
         
         # Pattern to extract directive attributes like :severity: critical
@@ -148,6 +155,12 @@ class RSTDirectiveParser:
             'file_naming_pattern': 'guidance',
             'file_naming_rule': 'validation',
             'llm_validation_prompt': 'guidance',
+            # New directives from nws-hpc-standards (Dec 17, 2025)
+            'context_types': 'reference',       # Defines context discrimination rules
+            'guidance': 'guidance',             # Platform-specific guidance (hera, wcoss2)
+            'sme_guidance': 'guidance',         # Subject Matter Expert guidance annotations
+            'sme_validation': 'validation',     # SME validation criteria
+            'validation': 'validation',         # Test/validation criteria
         }
         
         for directive_type, pattern in self.mcp_patterns.items():

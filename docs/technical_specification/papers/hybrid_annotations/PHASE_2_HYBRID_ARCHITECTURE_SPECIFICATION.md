@@ -196,6 +196,17 @@ The term "hybrid" refers to the combination of two architectural patterns:
 | `mcp:anti_pattern` | Negative constraint | "Do not say..." usage note |
 | `mcp:correct_pattern` | Positive exemplar | Model sentence |
 | `mcp:ai_guidance_rule` | Metalinguistic instruction | Register/style guidance |
+| `mcp:compliance` | Requirement scope | Domain constraint |
+| `mcp:intent` | Purpose declaration | Pragmatic annotation |
+| `mcp:guidance` | Platform-specific advice | Contextual usage note |
+| `mcp:sme_guidance` | Expert recommendation | Expert commentary |
+| `mcp:sme_validation` | Validation criteria | Test specification |
+| `mcp:validation` | Test/check criteria | Verification rule |
+| `mcp:context_types` | Context discrimination | Register classification |
+| `mcp:utility` | Tool reference | Technical term entry |
+| `mcp:file_naming_pattern` | Naming convention | Morphological rule |
+| `mcp:file_naming_rule` | Naming constraint | Formation rule |
+| `mcp:llm_validation_prompt` | AI instruction | Metalinguistic guidance |
 
 **File Structure**:
 ```
