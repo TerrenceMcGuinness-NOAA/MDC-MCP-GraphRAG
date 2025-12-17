@@ -24,7 +24,7 @@ export class SubmoduleGraphIngester {
   constructor(neo4jClient, options = {}) {
     this.client = neo4jClient;
     this.options = {
-      rootPath: options.rootPath || process.env.GIT_REPO || '/mcp_rag_eib/global-workflow_MCP_node.js-RAG',
+      rootPath: options.rootPath || process.env.MCP_WORKFLOW_ROOT || process.env.GW_REPO || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow',
       maxDepth: options.maxDepth || 10,
       extractLanguageInfo: options.extractLanguageInfo !== false,
       extractLOC: options.extractLOC !== false,

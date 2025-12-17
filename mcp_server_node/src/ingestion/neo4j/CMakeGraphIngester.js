@@ -55,7 +55,7 @@ export class CMakeGraphIngester {
    */
   constructor(neo4jClient, options = {}) {
     this.neo4jClient = neo4jClient;
-    this.rootDir = options.rootDir || '/mcp_rag_eib/global-workflow_MCP_node.js-RAG';
+    this.rootDir = options.rootDir || process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
     this.verbose = options.verbose || false;
     
     // Statistics tracking

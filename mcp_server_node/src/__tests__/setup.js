@@ -6,7 +6,7 @@
 import { beforeAll, afterAll, vi } from 'vitest';
 
 // Mock environment variables for testing
-process.env.MCP_WORKFLOW_ROOT = process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/global-workflow_MCP_node.js-RAG';
+process.env.MCP_WORKFLOW_ROOT = process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
 process.env.CHROMA_SERVER_URL = process.env.CHROMA_SERVER_URL || 'http://localhost:8080';
 process.env.NEO4J_URI = process.env.NEO4J_URI || 'bolt://localhost:7687';
 process.env.NEO4J_USER = process.env.NEO4J_USER || 'neo4j';

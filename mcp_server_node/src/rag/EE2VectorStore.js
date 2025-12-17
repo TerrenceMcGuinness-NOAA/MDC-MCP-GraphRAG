@@ -166,7 +166,7 @@ export class EE2VectorStore {
   async findEE2Documents() {
     const ee2Docs = [];
     const searchPaths = [
-      '/home/tmcguinness/COPILOT/GITHUB/NOAA/global-workflow_MCP_node.js-RAG',
+      process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow',
       this.options.knowledgeBasePath
     ];
 

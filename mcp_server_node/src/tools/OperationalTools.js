@@ -26,7 +26,7 @@ export class OperationalTools {
   constructor(dataAccess = null) {
     this.dataAccess = dataAccess;  // Accept injected dependency for testing
     this.isInitialized = !!dataAccess;  // Already initialized if dataAccess provided
-    this.workflowRoot = process.env.HOMEgfs || '/mcp_rag_eib/global-workflow_MCP_node.js-RAG';
+    this.workflowRoot = process.env.MCP_WORKFLOW_ROOT || process.env.HOMEgfs || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
   }
 
   async initialize() {
@@ -245,14 +245,28 @@ export class OperationalTools {
     const { category, format = 'summary' } = args || {};
 
     try {
-      const jobsDir = path.join(this.workflowRoot, 'jobs');
+      // Try multiple possible job directory locations
+      const possibleJobDirs = [
+        path.join(this.workflowRoot, 'jobs'),
+        path.join(this.workflowRoot, 'dev', 'jobs'),
+      ];
       
-      let files;
-      try {
-        files = await fs.readdir(jobsDir);
-      } catch (error) {
+      let jobsDir = null;
+      let files = [];
+      
+      for (const dir of possibleJobDirs) {
+        try {
+          files = await fs.readdir(dir);
+          jobsDir = dir;
+          break;
+        } catch {
+          continue;
+        }
+      }
+      
+      if (!jobsDir) {
         return {
-          content: [{ type: 'text', text: `Jobs directory not found: ${jobsDir}` }],
+          content: [{ type: 'text', text: `Jobs directory not found. Searched: ${possibleJobDirs.join(', ')}` }],
           isError: true
         };
       }

@@ -26,7 +26,7 @@ import path from 'path';
 
 export class WorkflowInfoTools {
   constructor() {
-    this.workflowRoot = process.env.HOMEgfs || '/mcp_rag_eib/global-workflow_MCP_node.js-RAG';
+    this.workflowRoot = process.env.MCP_WORKFLOW_ROOT || process.env.HOMEgfs || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
   }
 
   registerWith(server) {
