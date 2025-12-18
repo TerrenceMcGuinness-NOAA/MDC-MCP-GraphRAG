@@ -63,9 +63,10 @@ class RAGEnhancedMCPServer {
         console.error('✓ Embedding model initialized successfully');
 
         // Try to initialize ChromaDB collection (graceful fallback if not available)
+        // Use v7.0.0 as the most current collection
         try {
           const collectionPromise = this.chromaClient.getOrCreateCollection({
-            name: 'global-workflow-docs-v5-0-0-consolidated'
+            name: 'global-workflow-docs-v7-0-0'
           });
           const dbTimeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('ChromaDB timeout')), 5000)

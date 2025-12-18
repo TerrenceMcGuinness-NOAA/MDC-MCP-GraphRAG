@@ -279,8 +279,8 @@ export class UnifiedDataAccess {
     }
 
     const {
-      // v7.0.0: Consistent collection naming scheme
-      collections = ['global-workflow-docs-v7-0-0', 'ee2-standards-v7-0-0'],
+      // v7.0.0 for docs, v5.0.0 for EE2 (until ee2-standards-v7-0-0 is ingested)
+      collections = ['global-workflow-docs-v7-0-0', 'ee2-standards-v5-0-0-enhanced'],
       nResults = 10,
       enrichWithGraph = true
     } = options;

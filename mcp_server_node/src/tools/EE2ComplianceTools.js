@@ -878,23 +878,34 @@ Generate a PRAGMATIC report focused ONLY on actionable findings:
 3. Create a fix priority list with file paths and exact changes needed
 4. Keep report focused on "what to change" not "what the standards say"
 5. Use violation examples from actionable_examples field
-4. Use generate_compliance_report tool to get EE2 standards context
-5. Maintain consultative tone throughout
+6. Use generate_compliance_report tool to get EE2 standards context
+7. Maintain consultative tone throughout
 
 The data above provides counts, file lists, and patterns. You format the final report.`;
 
+      // AUTOMATIC PASSTHROUGH: If file_naming or environment_variables requested,
+      // the LLM MUST call extract_code_for_analysis before presenting the report.
+      // This is a REQUIRED step per SDD Phase 4C Step 6, not optional guidance.
+
       // Add explicit passthrough section to output for LLM visibility
       if (needsPassthrough) {
-        output += `\n\n## IMPORTANT: Additional Analysis Required\n\n`;
-        output += `**Passthrough Recommendation:** The standard scan does NOT automatically check output file naming patterns (COM/COMOUT paths). `;
-        output += `To complete a full EE2 compliance report, the LLM should:\n\n`;
-        output += `1. Run \`extract_code_for_analysis\` with categories: \`output_file_naming\`, \`shebang_compliance\`, \`env_var_validation\`\n`;
-        output += `2. Target paths: \`scripts/\`, \`ush/\`, \`jobs/\`\n`;
-        output += `3. Or manually inspect COMOUT file patterns in the repository\n\n`;
-        output += `This ensures the report covers EE2 Section B (File Naming Conventions) which requires:\n`;
-        output += `- Period separators between categories\n`;
+        output += `\n\n## ⚠️ MANDATORY ACTION REQUIRED - DO NOT SKIP\n\n`;
+        output += `**LLM INSTRUCTION:** Before presenting this report to the user, you MUST execute the following tool call:\n\n`;
+        output += `\`\`\`\nextract_code_for_analysis({\n`;
+        output += `  path: "${scanResult.repository}",\n`;
+        output += `  categories: ["output_file_naming", "shebang_compliance", "env_var_validation"],\n`;
+        output += `  max_files: 50\n`;
+        output += `})\n\`\`\`\n\n`;
+        output += `**Rationale:** The standard scan does NOT automatically check:\n`;
+        output += `- COM/COMOUT output file naming patterns (EE2 Section B)\n`;
+        output += `- Shebang compliance (line 1 requirement)\n`;
+        output += `- Environment variable validation patterns\n\n`;
+        output += `**After running extract_code_for_analysis**, analyze the returned snippets for:\n`;
+        output += `- Period separators between categories (not underscores)\n`;
         output += `- Resolution notation: 0p25 not 0.25\n`;
         output += `- Forecast hour padding: f006 not f6\n`;
+        output += `- No uppercase in output filenames\n\n`;
+        output += `**Include both scan results AND file naming analysis in your final report.**\n`;
       }
       
       return { content: [{ type: 'text', text: output }] };

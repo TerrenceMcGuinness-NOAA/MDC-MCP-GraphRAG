@@ -521,7 +521,7 @@ export class WorkflowExecutor {
         scripts.push({
           name: 'ingest_ee2',
           script: 'ingest_ee2_v7.py',
-          collection: 'ee2-standards-v7-0-0'
+          collection: 'ee2-standards-v5-0-0-enhanced'  // Use existing collection (run ingest_ee2_v7.py to upgrade to v7)
         });
       }
 

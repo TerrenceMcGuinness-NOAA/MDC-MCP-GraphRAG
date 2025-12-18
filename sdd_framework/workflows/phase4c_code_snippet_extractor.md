@@ -1,11 +1,32 @@
 # SDD: Phase 4C - Code Snippet Extractor with LLM Passthrough
 
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Created:** 2025-12-05  
+**Updated:** 2025-12-18  
 **Author:** AI Assistant + Terry McGuinness  
-**Status:** READY FOR IMPLEMENTATION  
+**Status:** ✅ IMPLEMENTED  
 **Priority:** HIGH  
 **Prerequisite:** Phase 4B (Interactive Supervised Execution) ✅ COMPLETE
+
+---
+
+## Implementation Status
+
+| Step | Description | Status |
+|------|-------------|--------|
+| Step 1 | CodeSnippetExtractor.js module | ✅ Complete |
+| Step 2 | EE2AnalysisPrompts.js | ✅ Complete |
+| Step 3 | Register extract_code_for_analysis tool | ✅ Complete |
+| Step 4 | Integration with EE2ComplianceTools | ✅ Complete |
+| Step 5 | Syntax validation | ✅ Complete |
+| Step 6 | Auto passthrough on full reports | ✅ Complete (2025-12-18) |
+
+### Step 6 Implementation Notes (2025-12-18)
+- Updated `scan_repository_compliance` to emit **MANDATORY ACTION** directive
+- LLM instructions now explicitly require calling `extract_code_for_analysis`
+- Provides exact tool call syntax with repository path pre-filled
+- Includes checklist of file naming patterns to verify
+- Tested with EVS repository scan - passthrough mechanism works correctly
 
 ---
 
@@ -34,6 +55,23 @@ Implement the **CodeSnippetExtractor** module and **extract_code_for_analysis** 
 - External LLM API calls (Gemini, Claude API, OpenAI)
 - CI/CD integration
 - COM output directory scanning (full filesystem crawl) — instead, we emit a passthrough directive to run targeted extraction
+
+### PLANNED ENHANCEMENT: COM Output Path Direct Analysis
+**Status:** Not yet implemented  
+**Target:** Phase 4D or later
+
+When a COM output directory is available (e.g., `/lfs/h2/emc/ptmp/User.Name/com/evs/v1.0/`), enable direct file pattern and name analysis:
+
+1. **Input Option:** Accept `com_output_path` parameter in scan tools
+2. **Direct Crawl:** List actual output files in COM directory structure
+3. **Pattern Validation:** Compare actual filenames against EE2 naming rules:
+   - Period separators between categories
+   - Resolution notation (0p25 not 0.25)
+   - Forecast hour padding (f006 not f6)
+   - No uppercase characters
+4. **Advantage:** No code parsing needed - analyze actual production output
+
+This bypasses the passthrough mechanism when real output is available, providing definitive compliance verification.
 
 ---
 
@@ -615,7 +653,7 @@ server.registerTool(
 
 ---
 
-### Step 6: Add Auto Passthrough Prompt on Full EE2 Reports
+### Step 6: Add Auto Passthrough Prompt on Full EE2 Reports ✅ COMPLETE
 **Type:** code_modification  
 **Files:**
 - mcp_server_node/src/tools/EE2ComplianceTools.js (scan/generate paths)
@@ -623,21 +661,28 @@ server.registerTool(
 **Action:**
 - When `scan_repository_compliance` or `generate_compliance_report` is invoked for a "full" report (categories include file_naming or environment_variables), append a short directive telling the host LLM/user to also run `extract_code_for_analysis` with categories `output_file_naming`, `shebang_compliance`, and `env_var_validation` against the target repo paths. This makes the passthrough step discoverable for novices without an explicit prompt.
 
+**Implementation (2025-12-18):**
+- Changed "IMPORTANT: Additional Analysis Required" to "⚠️ MANDATORY ACTION REQUIRED - DO NOT SKIP"
+- Added explicit tool call syntax with pre-filled repository path
+- Changed language from "LLM should" to "LLM MUST execute"
+- Added checklist of file naming patterns to verify in analysis
+- Tested with EVS repository - passthrough correctly triggered
+
 **Validation:**
-- `node --check` on EE2ComplianceTools.js
-- Manual call of scan/generate with file_naming/env to confirm the directive is present in the returned text.
+- ✅ `node --check` on EE2ComplianceTools.js passes
+- ✅ Manual call of scan with file_naming category confirms MANDATORY directive present
 
 ---
 
 ## 4. Validation Criteria
 
-- [ ] `CodeSnippetExtractor.js` created and syntax valid
-- [ ] `EE2AnalysisPrompts.js` created with 4 category prompts
-- [ ] `extract_code_for_analysis` tool registered in EE2ComplianceTools
-- [ ] Tool accepts path and returns structured snippets + LLM prompts
-- [ ] SME corrections included in all prompts
-- [ ] Test with sample shell script shows extracted patterns
-- [ ] Full-report calls emit passthrough directive to run `extract_code_for_analysis` for COM/COMOUT naming and related checks
+- [x] `CodeSnippetExtractor.js` created and syntax valid
+- [x] `EE2AnalysisPrompts.js` created with 4 category prompts
+- [x] `extract_code_for_analysis` tool registered in EE2ComplianceTools
+- [x] Tool accepts path and returns structured snippets + LLM prompts
+- [x] SME corrections included in all prompts
+- [x] Test with sample shell script shows extracted patterns
+- [x] Full-report calls emit passthrough directive to run `extract_code_for_analysis` for COM/COMOUT naming and related checks ✅ (2025-12-18)
 
 ---
 
