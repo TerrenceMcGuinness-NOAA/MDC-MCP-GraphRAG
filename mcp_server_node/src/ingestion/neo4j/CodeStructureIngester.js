@@ -16,6 +16,7 @@
 
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import { generateNodeId } from './GraphSchema.js';
 
@@ -222,9 +223,11 @@ export class CodeStructureIngester {
    * @returns {Promise<Object[]>} - Parse results
    */
   async parsePythonFiles(files) {
-    // Script is at: dev/ci/scripts/utils/Copilot/mcp_server_node/scripts/parse-python-ast.py
-    // This file is at: dev/ci/scripts/utils/Copilot/mcp_server_node/src/ingestion/neo4j/CodeStructureIngester.js
-    const scriptPath = path.join(this.rootDir, 'dev/ci/scripts/utils/Copilot/mcp_server_node/scripts/parse-python-ast.py');
+    // Script location: check environment variable first, then use path relative to this module
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const scriptPath = process.env.PYTHON_AST_SCRIPT || 
+      path.resolve(__dirname, '../../../scripts/parse-python-ast.py');
     
     return new Promise((resolve, reject) => {
       const args = files;

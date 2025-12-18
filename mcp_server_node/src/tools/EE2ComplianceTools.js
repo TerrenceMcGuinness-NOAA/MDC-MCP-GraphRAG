@@ -36,6 +36,9 @@ import { readFileSync, existsSync, statSync } from 'fs';
 import { CodeSnippetExtractor } from './CodeSnippetExtractor.js';
 import { generateAnalysisPrompt, getAvailableCategories } from './EE2AnalysisPrompts.js';
 
+// Phase 19: Content Abstraction Layer for remote MCP support
+import { ContentResolver } from '../utils/ContentResolver.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -147,26 +150,42 @@ export class EE2ComplianceTools {
       this.generateComplianceReport.bind(this)
     );
 
-    // Tool 4: Repository-Wide Compliance Scan
+    // Tool 4: Repository-Wide Compliance Scan (Phase 19 Content Abstraction)
     server.registerTool(
       'scan_repository_compliance',
-      'Scan entire repository for EE2 compliance and return structured analysis data',
+      'Scan repository for EE2 compliance. Supports direct file content (remote MCP) or filesystem path (local mode).',
       {
         type: 'object',
         properties: {
-          repository_path: { type: 'string', description: 'Absolute path to repository root' },
+          files: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Filename' },
+                path: { type: 'string', description: 'Relative path for context' },
+                content: { type: 'string', description: 'File content' }
+              },
+              required: ['name', 'content']
+            },
+            description: 'Files with content for batch analysis (preferred for remote MCP)'
+          },
+          repository_path: { 
+            type: 'string', 
+            description: 'Absolute path to repository root (local mode only - use files for remote)' 
+          },
           file_patterns: { 
             type: 'array', 
             items: { type: 'string' },
             default: ['**/*.sh', '**/*.py', '**/JEVS_*', '**/exglobal_*', '**/*.config'],
-            description: 'Glob patterns for files to analyze'
+            description: 'Glob patterns for files to analyze (repository_path mode only)'
           },
           sample_size: { 
             type: 'number', 
             default: 10000, 
             minimum: 10, 
             maximum: 10000,
-            description: 'Maximum files to analyze (set >= total files for full scan, default analyzes all)'
+            description: 'Maximum files to analyze (repository_path mode only)'
           },
           categories: {
             type: 'array',
@@ -174,20 +193,46 @@ export class EE2ComplianceTools {
             default: ['error_handling', 'environment_variables', 'file_naming'],
             description: 'Compliance categories to analyze'
           }
-        },
-        required: ['repository_path']
+        }
+        // Note: No required fields - ContentResolver validates at runtime
       },
       this.scanRepositoryCompliance.bind(this)
     );
 
-    // Tool 5: Extract Code for LLM Analysis (Phase 4C)
+    // Tool 5: Extract Code for LLM Analysis (Phase 4C + Phase 19 Content Abstraction)
     server.registerTool(
       'extract_code_for_analysis',
-      'Extract code snippets from files for EE2 compliance analysis. Returns structured data with LLM prompts for the host LLM to perform detailed analysis.',
+      'Extract code snippets from files for EE2 compliance analysis. Returns structured data with LLM prompts. Supports direct content (remote MCP) or file paths (local mode).',
       {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Path to file or directory to analyze' },
+          content: { 
+            type: 'string', 
+            description: 'Code content to analyze directly (preferred for remote MCP access)' 
+          },
+          files: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Filename for context' },
+                path: { type: 'string', description: 'Relative path for context' },
+                content: { type: 'string', description: 'File content' }
+              },
+              required: ['name', 'content']
+            },
+            description: 'Multiple files with content for batch analysis'
+          },
+          path: { 
+            type: 'string', 
+            description: 'Path to file or directory to analyze (local mode only - use content for remote)' 
+          },
+          content_type: {
+            type: 'string',
+            enum: ['bash', 'python', 'auto'],
+            description: 'Content type hint for parser selection',
+            default: 'auto'
+          },
           categories: {
             type: 'array',
             items: { 
@@ -199,16 +244,16 @@ export class EE2ComplianceTools {
           },
           file_pattern: {
             type: 'string',
-            description: 'Regex pattern for files to include (default: \\.(sh|py)$)',
+            description: 'Regex pattern for files to include (path mode only)',
             default: '\\.(sh|py)$'
           },
           max_files: {
             type: 'number',
-            description: 'Maximum files to scan',
+            description: 'Maximum files to scan (path mode only)',
             default: 50
           }
-        },
-        required: ['path']
+        }
+        // Note: No required fields - ContentResolver will validate at runtime
       },
       this.extractCodeForAnalysis.bind(this)
     );
@@ -920,19 +965,37 @@ The data above provides counts, file lists, and patterns. You format the final r
   }
 
   /**
-   * Extract code snippets for LLM analysis (Phase 4C)
+   * Extract code snippets for LLM analysis (Phase 4C + Phase 19 Content Abstraction)
    * Returns structured data with LLM prompts for passthrough mode
+   * Supports: direct content, file arrays, or filesystem paths
    */
   async extractCodeForAnalysis(args) {
     const { 
-      path: inputPath, 
       categories = ['output_file_naming', 'error_handling'],
       file_pattern = '\\.(sh|py)$',
-      max_files = 50
+      max_files = 50,
+      content_type = 'auto'
     } = args;
 
     try {
-      console.error(`[EXTRACT] Starting code extraction: ${inputPath}`);
+      // Phase 19: Use ContentResolver for unified content access
+      const resolver = new ContentResolver({ throwOnPathError: false });
+      const resolved = await resolver.resolve(args);
+      
+      // Handle resolution errors gracefully
+      if (resolved.type === 'error') {
+        return {
+          content: [{
+            type: 'text',
+            text: `[ERROR] ${resolved.metadata.error}\n\n` +
+                  `**Suggestion**: ${resolved.metadata.suggestion}\n\n` +
+                  `For remote MCP access, use the 'content' or 'files' parameter:\n` +
+                  `\`\`\`\nextract_code_for_analysis({ content: "your code here", categories: ["error_handling"] })\n\`\`\``
+          }]
+        };
+      }
+
+      console.error(`[EXTRACT] Starting code extraction (source: ${resolved.source})`);
       
       // Map category names to extractor categories
       const extractorCategories = categories.map(c => {
@@ -943,20 +1006,70 @@ The data above provides counts, file lists, and patterns. You format the final r
       });
 
       const extractor = new CodeSnippetExtractor();
-      
       let extracted;
-      const stats = statSync(inputPath);
       
-      if (stats.isDirectory()) {
-        extracted = await extractor.extractFromDirectory(inputPath, {
-          pattern: new RegExp(file_pattern),
-          categories: extractorCategories,
-          maxFiles: max_files
-        });
-      } else {
-        const result = await extractor.extractFromFile(inputPath, extractorCategories);
+      // Handle different resolution types
+      if (resolved.source === 'direct') {
+        // Direct content provided - extract from string
+        const result = extractor.extractFromContent(
+          resolved.content, 
+          resolved.contentType || content_type,
+          extractorCategories
+        );
         extracted = {
-          directory: inputPath,
+          source: 'direct',
+          filesScanned: 1,
+          filesWithMatches: 1,
+          results: [result]
+        };
+      } else if (resolved.type === 'multi') {
+        // Multiple files provided via files array
+        const results = [];
+        for (const file of resolved.files) {
+          const result = extractor.extractFromContent(
+            file.content,
+            file.contentType || content_type,
+            extractorCategories
+          );
+          result.filename = file.name;
+          result.path = file.path;
+          results.push(result);
+        }
+        extracted = {
+          source: 'files_array',
+          filesScanned: resolved.files.length,
+          filesWithMatches: results.filter(r => !r.error).length,
+          results
+        };
+      } else if (resolved.source === 'local_fs') {
+        // Filesystem path - use original directory/file logic
+        const inputPath = resolved.metadata.originalPath;
+        const stats = statSync(inputPath);
+        
+        if (stats.isDirectory()) {
+          extracted = await extractor.extractFromDirectory(inputPath, {
+            pattern: new RegExp(file_pattern),
+            categories: extractorCategories,
+            maxFiles: max_files
+          });
+        } else {
+          const result = await extractor.extractFromFile(inputPath, extractorCategories);
+          extracted = {
+            directory: inputPath,
+            filesScanned: 1,
+            filesWithMatches: 1,
+            results: [result]
+          };
+        }
+      } else {
+        // Single content from path fallback
+        const result = extractor.extractFromContent(
+          resolved.content,
+          resolved.contentType || content_type,
+          extractorCategories
+        );
+        extracted = {
+          source: resolved.source,
           filesScanned: 1,
           filesWithMatches: 1,
           results: [result]
@@ -974,9 +1087,13 @@ The data above provides counts, file lists, and patterns. You format the final r
 
       // Format response
       let output = `# Code Extraction for EE2 Analysis\n\n`;
-      output += `**Path:** ${inputPath}\n`;
+      output += `**Source:** ${resolved.source}\n`;
+      output += `**Content Type:** ${resolved.contentType}\n`;
       output += `**Categories:** ${categories.join(', ')}\n`;
       
+      if (resolved.metadata?.originalPath) {
+        output += `**Path:** ${resolved.metadata.originalPath}\n`;
+      }
       if (extracted.filesScanned) {
         output += `**Files Scanned:** ${extracted.filesScanned}\n`;
         output += `**Files with Matches:** ${extracted.filesWithMatches}\n`;

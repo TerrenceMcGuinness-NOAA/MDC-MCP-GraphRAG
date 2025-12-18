@@ -192,6 +192,12 @@ log_success "MCP catalog created: ${MCP_CONFIG_DIR}/catalogs/eib-mcp-rag.yaml"
 
 log_subsection "Building MCP RAG Container Image"
 
+# Option 1: Pull pre-built image from GitLab registry (faster)
+# docker login registry.gitlab-licensed.vlab.noaa.gov
+# docker pull registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/mcp-server:stable
+# docker tag registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/mcp-server:stable eib-mcp-rag:latest
+
+# Option 2: Build locally (current behavior)
 COMPOSE_FILE="${EIB_REPO}/docker-compose.mcp-standalone.yaml"
 DOCKERFILE="${SETUP_DIR}/dockerfiles/Dockerfile.mcp-server"
 

@@ -14,6 +14,7 @@ import {
   ExecutionMode,
   ApprovalResult 
 } from '../sdd/approval/ApprovalProvider.js';
+import { ContentResolver } from '../utils/ContentResolver.js';
 
 export class SDDWorkflowTools {
   constructor(dataAccess, healthMonitor = null) {
@@ -108,24 +109,33 @@ export class SDDWorkflowTools {
       this.getExecutionHistory.bind(this)
     );
 
-    // Tool 5: Validate SDD compliance
+    // Tool 5: Validate SDD compliance (Phase 19A: Content Abstraction)
     server.registerTool(
       'validate_sdd_compliance',
-      'Validate code or documentation against SDD framework standards',
+      'Validate code or documentation against SDD framework standards. Supports both direct content and file paths.',
       {
         type: 'object',
         properties: {
+          content: {
+            type: 'string',
+            description: 'Code/text content to validate directly (preferred for remote MCP access)'
+          },
           target: {
             type: 'string',
-            description: 'File path or code to validate'
+            description: 'File path to validate (local mode only - use content for remote)'
           },
           framework_version: {
             type: 'string',
             description: 'SDD framework version',
             default: '4.0'
+          },
+          content_type: {
+            type: 'string',
+            enum: ['bash', 'python', 'yaml', 'json', 'markdown', 'auto'],
+            description: 'Content type hint for parser selection',
+            default: 'auto'
           }
-        },
-        required: ['target']
+        }
       },
       this.validateCompliance.bind(this)
     );
@@ -397,26 +407,146 @@ export class SDDWorkflowTools {
   }
 
   /**
-   * Validate SDD compliance
+   * Validate SDD compliance (Phase 19A: Content Abstraction Layer)
+   * Supports both direct content and file path input
    */
   async validateCompliance(args) {
-    const { target, framework_version = '4.0' } = args;
-
-    // Placeholder for compliance validation logic
+    const { framework_version = '4.0' } = args;
+    
+    // Use ContentResolver for unified content access
+    const resolver = new ContentResolver({ throwOnPathError: false });
+    let resolved;
+    
+    try {
+      resolved = await resolver.resolve(args);
+    } catch (err) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Content resolution failed: ${err.message}\n\n` +
+                `**Tip**: For remote MCP access, use the 'content' parameter instead of 'target'.\n` +
+                `Example: validate_sdd_compliance({ content: "your code here" })`
+        }]
+      };
+    }
+    
+    // Handle resolution errors gracefully
+    if (resolved.type === 'error') {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] ${resolved.metadata.error}\n\n` +
+                `**Suggestion**: ${resolved.metadata.suggestion}`
+        }]
+      };
+    }
+    
+    // Build output
     let output = '# SDD Compliance Validation\n\n';
-    output += `**Target**: ${target}\n`;
     output += `**Framework Version**: ${framework_version}\n`;
-    output += `**Status**: Analysis complete\n\n`;
+    output += `**Content Type**: ${resolved.contentType}\n`;
+    output += `**Source**: ${resolved.source}\n`;
     
-    output += `## Validation Results\n\n`;
-    output += `- ✅ Structure compliance: PASSED\n`;
-    output += `- ✅ Naming conventions: PASSED\n`;
-    output += `- ✅ Documentation: PASSED\n`;
-    output += `- ⚠️ Health monitoring: PARTIAL (some endpoints missing)\n\n`;
+    if (resolved.metadata.originalPath) {
+      output += `**Path**: ${resolved.metadata.originalPath}\n`;
+    }
+    if (resolved.metadata.lineCount) {
+      output += `**Lines**: ${resolved.metadata.lineCount}\n`;
+    }
+    if (resolved.metadata.fileCount) {
+      output += `**Files**: ${resolved.metadata.fileCount}\n`;
+    }
     
-    output += `*Note: Full compliance validation implementation in progress*\n`;
-
+    output += `\n## Validation Results\n\n`;
+    
+    // Perform basic SDD compliance checks
+    const content = ContentResolver.getAllContent(resolved);
+    const checks = this.performSDDChecks(content, resolved.contentType);
+    
+    for (const check of checks) {
+      const icon = check.status === 'pass' ? '[OK]' : 
+                   check.status === 'warn' ? '[WARN]' : '[ERROR]';
+      output += `- ${icon} **${check.name}**: ${check.message}\n`;
+    }
+    
+    output += `\n## Summary\n\n`;
+    const passed = checks.filter(c => c.status === 'pass').length;
+    const warnings = checks.filter(c => c.status === 'warn').length;
+    const failed = checks.filter(c => c.status === 'fail').length;
+    output += `- Passed: ${passed}\n`;
+    output += `- Warnings: ${warnings}\n`;
+    output += `- Failed: ${failed}\n`;
+    
     return { content: [{ type: 'text', text: output }] };
+  }
+  
+  /**
+   * Perform SDD compliance checks on content
+   */
+  performSDDChecks(content, contentType) {
+    const checks = [];
+    
+    // Check 1: Has documentation/comments
+    const hasComments = content.includes('#') || content.includes('//') || 
+                        content.includes('"""') || content.includes('/*');
+    checks.push({
+      name: 'Documentation',
+      status: hasComments ? 'pass' : 'warn',
+      message: hasComments ? 'Code contains comments/documentation' : 'Consider adding documentation'
+    });
+    
+    // Check 2: Error handling (bash-specific)
+    if (contentType === 'bash') {
+      const hasSetE = content.includes('set -e') || content.includes('set -o errexit');
+      const hasErrChk = content.includes('err_chk') || content.includes('$?');
+      checks.push({
+        name: 'Error Handling',
+        status: (hasSetE || hasErrChk) ? 'pass' : 'warn',
+        message: (hasSetE || hasErrChk) ? 'Error handling detected' : 'Consider adding error handling (set -e or err_chk)'
+      });
+      
+      const hasShebang = content.startsWith('#!/');
+      checks.push({
+        name: 'Shebang',
+        status: hasShebang ? 'pass' : 'fail',
+        message: hasShebang ? 'Valid shebang present' : 'Missing shebang (#!/bin/bash)'
+      });
+    }
+    
+    // Check 3: Python-specific
+    if (contentType === 'python') {
+      const hasIfMain = content.includes('if __name__');
+      checks.push({
+        name: 'Entry Point',
+        status: hasIfMain ? 'pass' : 'warn',
+        message: hasIfMain ? 'Has if __name__ guard' : 'Consider adding if __name__ == "__main__" guard'
+      });
+      
+      const hasTypeHints = /def \w+\([^)]*:/.test(content);
+      checks.push({
+        name: 'Type Hints',
+        status: hasTypeHints ? 'pass' : 'warn',
+        message: hasTypeHints ? 'Type hints detected' : 'Consider adding type hints'
+      });
+    }
+    
+    // Check 4: Naming conventions
+    const hasUppercaseVars = /[A-Z]{2,}_[A-Z]+/.test(content);
+    checks.push({
+      name: 'Naming Conventions',
+      status: 'pass',
+      message: hasUppercaseVars ? 'Uses UPPER_CASE for constants (NCO style)' : 'Standard naming detected'
+    });
+    
+    // Check 5: No hardcoded paths (common issue)
+    const hasHardcodedPaths = /(\/gpfs\/|\/scratch\/|\/home\/[a-z]+\/)/.test(content);
+    checks.push({
+      name: 'Path Abstraction',
+      status: hasHardcodedPaths ? 'fail' : 'pass',
+      message: hasHardcodedPaths ? 'Contains hardcoded paths - use environment variables' : 'No hardcoded paths detected'
+    });
+    
+    return checks;
   }
 
   /**

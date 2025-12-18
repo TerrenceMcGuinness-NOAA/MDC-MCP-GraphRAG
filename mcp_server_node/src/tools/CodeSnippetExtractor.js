@@ -117,6 +117,57 @@ export class CodeSnippetExtractor {
   }
 
   /**
+   * Extract patterns from content string (Phase 19: Content Abstraction)
+   * Same logic as extractFromFile but works with direct content
+   * @param {string} content - Code content string
+   * @param {string} contentType - Content type (bash, python, auto)
+   * @param {string[]} categories - Categories to extract
+   * @returns {Object} Extracted snippets with line numbers
+   */
+  extractFromContent(content, contentType = 'auto', categories = ['output', 'error_handling']) {
+    const lines = content.split('\n');
+    
+    // Detect file type from content if auto
+    let fileType = contentType;
+    if (contentType === 'auto') {
+      if (content.startsWith('#!/bin/bash') || content.startsWith('#!/usr/bin/env bash')) {
+        fileType = 'bash';
+      } else if (content.startsWith('#!/usr/bin/env python') || content.startsWith('#!/usr/bin/python')) {
+        fileType = 'python';
+      } else if (/^\s*import\s+/.test(content) || /^\s*def\s+/.test(content)) {
+        fileType = 'python';
+      } else if (/^\s*set\s+-/.test(content) || /^\s*export\s+/.test(content)) {
+        fileType = 'bash';
+      }
+    }
+    
+    const result = {
+      filename: 'direct_content',
+      fileType: fileType === 'bash' ? 'shell' : fileType,
+      lineCount: lines.length,
+      snippets: {},
+      source: 'direct'
+    };
+
+    // Extract shebang block (first N lines)
+    result.shebangBlock = this.extractShebangBlock(lines);
+
+    // Extract patterns by category
+    for (const category of categories) {
+      if (PATTERNS[category]) {
+        result.snippets[category] = this.extractPatterns(
+          content, 
+          lines, 
+          PATTERNS[category],
+          category
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Extract shebang and header block
    * @param {string[]} lines - File lines
    * @returns {Object} Shebang block analysis

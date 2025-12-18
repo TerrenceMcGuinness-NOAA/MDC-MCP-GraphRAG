@@ -71,6 +71,36 @@ else
     log_warning "Docker Compose plugin not available"
 fi
 
+################################################################################
+# GitLab Container Registry - Pre-built Images
+################################################################################
+# 
+# Pre-built container images are available from the GitLab registry.
+# This avoids lengthy build times on new machines.
+#
+# Registry: registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server
+#
+# Available images:
+#   mcp-server:stable    - MCP RAG Server (Phase 19 Content Abstraction)
+#   mcp-server:clean     - Same as stable, alternate tag
+#   chromadb:v134clean   - ChromaDB with v2 API compatibility
+#   langflow:latest      - LangFlow AI workflow builder
+#
+# Pull commands (requires GitLab authentication):
+#   docker login registry.gitlab-licensed.vlab.noaa.gov
+#   docker pull registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/mcp-server:stable
+#   docker pull registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/chromadb:v134clean
+#
+# Tag for local use:
+#   docker tag registry.gitlab-licensed.vlab.noaa.gov/nws/operations/ncep/emc/eib/eib-mcp-rag-server/mcp-server:stable eib-mcp-rag:latest
+#
+# Build note: When building locally, disable BuildKit attestations to avoid
+# manifest issues with GitLab registry:
+#   docker build --provenance=false --sbom=false -t eib-mcp-rag:latest ...
+#
+# TODO: Add automatic pull option in provisioning (Phase 20+)
+################################################################################
+
 log_success "Docker setup complete"
 
 exit 0
