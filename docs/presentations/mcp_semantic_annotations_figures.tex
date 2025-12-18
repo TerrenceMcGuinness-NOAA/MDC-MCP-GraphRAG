@@ -11,11 +11,12 @@
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
 \usepackage{xcolor}
 \usepackage{pgfplots}
-\pgfplotsset{compat=1.18}
+\pgfplotsset{compat=1.16}
 \usepackage{booktabs}
 \usepackage{float}
 \usepackage{caption}
 \usepackage{subcaption}
+\usepackage{amssymb}  % For \checkmark
 
 % NOAA-inspired color palette
 \definecolor{noaablue}{RGB}{0, 84, 164}
@@ -59,30 +60,36 @@
 \node[font=\Large\bfseries, noaadarkblue] at (0, 6) {v7.0.0 Single Source of Truth Architecture};
 
 % Components
-\node[component, minimum width=10cm, minimum height=1.5cm, fill=noaaorange!30] (source) at (0, 4) {
+\node[component, minimum width=10cm, minimum height=1.5cm, fill=noaaorange!30, align=center] (source) at (0, 4) {
     \textbf{Authoritative Source}\\
     \texttt{standards.rst} + MCP Directives (63)
 };
 
-\node[component, minimum width=10cm, minimum height=1.5cm] (ingest) at (0, 1.5) {
+\node[component, minimum width=10cm, minimum height=1.5cm, align=center] (ingest) at (0, 1.5) {
     \textbf{Ingestion Pipeline}\\
-    \texttt{ingest\_ee2\_v7.py} → RST Parser → Embedding Generator
+    \texttt{ingest\_ee2\_v7.py} $\rightarrow$ RST Parser $\rightarrow$ Embedding Generator
 };
 
-\node[data, minimum width=3cm] (chromadb) at (-3.5, -1.5) {ChromaDB\\v7.0.0};
-\node[data, minimum width=3cm] (neo4j) at (3.5, -1.5) {Neo4j\\Graph};
+\node[data, text width=1.4cm, minimum height=1.5cm, align=center, font=\small] (chromadb) at (-2.5, -2.2) {Chroma\\v7.0.0};
+\node[data, text width=1.4cm, minimum height=1.5cm, align=center, font=\small] (neo4j) at (2.5, -2.2) {Neo4j\\Graph};
 
-\node[component, minimum width=10cm, minimum height=1.5cm, fill=noaagreen!30] (tools) at (0, -4.5) {
+\node[component, minimum width=10cm, minimum height=1.5cm, fill=noaagreen!30, align=center] (tools) at (0, -5) {
     \textbf{MCP Compliance Tools}\\
-    32 tools | scan | analyze | report
+    32 tools $|$ scan $|$ analyze $|$ report
 };
 
-% Arrows
+% Arrows - clean paths to top of DB icons (pointing DOWN)
 \draw[arrow] (source) -- (ingest);
-\draw[arrow] (ingest) -- (-3.5, 0) -- (chromadb);
-\draw[arrow] (ingest) -- (3.5, 0) -- (neo4j);
-\draw[arrow] (chromadb) -- (-3.5, -3) -- (0, -3) -- (tools);
-\draw[arrow] (neo4j) -- (3.5, -3) -- (0, -3);
+% Left path: down from ingest, out to left, then arrow down into Chroma top
+\draw[thick, noaablue] (ingest.south) -- ++(0, -0.3) -- ++(-2.5, 0);
+\draw[arrow] (-2.5, 0.2) -- (-2.5, -1.2);
+% Right path: down from ingest, out to right, then arrow down into Neo4j top
+\draw[thick, noaablue] (ingest.south) -- ++(0, -0.3) -- ++(2.5, 0);
+\draw[arrow] (2.5, 0.2) -- (2.5, -1.2);
+% Bottom: from DBs down and merge to tools
+\draw[thick, noaablue] (chromadb.south) -- ++(0, -0.5) -- ++(2.5, 0);
+\draw[thick, noaablue] (neo4j.south) -- ++(0, -0.5) -- ++(-2.5, 0);
+\draw[arrow] (0, -3.7) -- (tools);
 
 % Annotations
 \node[font=\small, noaagray, right] at (5.5, 4) {EE2 Standards};
@@ -108,47 +115,47 @@
 \node[font=\Large\bfseries, noaadarkblue] at (0, 8) {Embedding Convolution Pipeline};
 
 % Stage 1: Source Document
-\node[component, minimum width=4cm, fill=noaaorange!20] (rst) at (-5, 5.5) {
+\node[component, minimum width=4cm, fill=noaaorange!20, align=center] (rst) at (-5, 5.5) {
     \textbf{RST Source}\\
     \texttt{standards.rst}
 };
 
 % Stage 2: Parser
-\node[process, minimum width=3cm] (parser) at (-5, 3.5) {RST Parser};
+\node[process, minimum width=3cm, align=center] (parser) at (-5, 3.5) {RST Parser};
 
 % Stage 3: Extracted Components
-\node[component, minimum width=2cm, minimum height=0.7cm, fill=noaalightblue!40] (text) at (-7, 1.5) {Text};
+\node[component, minimum width=2cm, minimum height=0.7cm, fill=noaalightblue!40] (text) at (-7.5, 1.5) {Text};
 \node[component, minimum width=2cm, minimum height=0.7cm, fill=noaagreen!40] (meta) at (-5, 1.5) {Metadata};
-\node[component, minimum width=2cm, minimum height=0.7cm, fill=noaaorange!40] (dir) at (-3, 1.5) {Directives};
+\node[component, minimum width=2cm, minimum height=0.7cm, fill=noaaorange!40] (dir) at (-2.5, 1.5) {Directives};
 
 % Stage 4: Processing
-\node[process, minimum width=2.5cm] (chunk) at (-7, -0.5) {Chunker\\(500 tokens)};
-\node[process, minimum width=2.5cm] (enrich) at (-5, -0.5) {Metadata\\Enrichment};
-\node[process, minimum width=2.5cm] (parse) at (-3, -0.5) {Directive\\Parser};
+\node[process, minimum width=2.2cm, align=center] (chunk) at (-7.5, -0.5) {Chunker\\(500 tokens)};
+\node[process, minimum width=2.2cm, align=center] (enrich) at (-5, -0.5) {Metadata\\Enrichment};
+\node[process, minimum width=2.2cm, align=center] (parse) at (-2.5, -0.5) {Directive\\Parser};
 
 % Stage 5: Convolution
-\node[component, minimum width=8cm, minimum height=1.8cm, fill=noaablue!30] (convolve) at (-5, -3) {
+\node[component, minimum width=8cm, minimum height=1.8cm, fill=noaablue!30, align=center] (convolve) at (-5, -3.5) {
     \textbf{Embedding Convolution}\\
     \texttt{sentence-transformers/all-MiniLM-L6-v2}\\
     Text $\otimes$ Context $\otimes$ Directive Tags
 };
 
 % Stage 6: Vector Output
-\node[component, minimum width=3cm, fill=noaagreen!30] (vector) at (-5, -5.5) {
+\node[component, minimum width=3cm, fill=noaagreen!30, align=center] (vector) at (-5, -6.2) {
     \textbf{384-dim Vector}\\
     + Metadata JSON
 };
 
 % Stage 7: Storage
-\node[data, minimum width=2.5cm] (db) at (-5, -7.5) {ChromaDB};
+\node[data, text width=1.4cm, minimum height=1.2cm, align=center, font=\small] (db) at (-5, -9.2) {ChromaDB};
 
 % Arrows Stage 1-2
 \draw[arrow] (rst) -- (parser);
 
 % Arrows Stage 2-3
-\draw[arrow] (parser) -- (-7, 2.5) -- (text);
+\draw[arrow] (parser) -- (-7.5, 2.5) -- (text);
 \draw[arrow] (parser) -- (meta);
-\draw[arrow] (parser) -- (-3, 2.5) -- (dir);
+\draw[arrow] (parser) -- (-2.5, 2.5) -- (dir);
 
 % Arrows Stage 3-4
 \draw[arrow] (text) -- (chunk);
@@ -156,27 +163,27 @@
 \draw[arrow] (dir) -- (parse);
 
 % Arrows Stage 4-5
-\draw[arrow] (chunk) -- (-7, -1.8) -- (-5, -1.8) -- (convolve);
+\draw[arrow] (chunk) -- (-7.5, -2.3) -- (-5, -2.3) -- (convolve);
 \draw[arrow] (enrich) -- (convolve);
-\draw[arrow] (parse) -- (-3, -1.8) -- (-5, -1.8);
+\draw[arrow] (parse) -- (-2.5, -2.3) -- (-5, -2.3);
 
 % Arrows Stage 5-6-7
 \draw[arrow] (convolve) -- (vector);
-\draw[arrow] (vector) -- (db);
+\draw[arrow] (vector) -- (-5, -8.2);
 
 % Right side: Query Path
 \node[font=\bfseries, noaadarkblue] at (4, 5.5) {Query Path};
 
-\node[component, minimum width=3.5cm, fill=noaalightblue!30] (query) at (4, 3.5) {
+\node[component, minimum width=3.5cm, fill=noaalightblue!30, align=center] (query) at (4, 3.5) {
     User Query\\
     ``error handling''
 };
 
-\node[process, minimum width=3cm] (qembed) at (4, 1.5) {Query\\Embedding};
+\node[process, minimum width=3cm, align=center] (qembed) at (4, 1.5) {Query\\Embedding};
 
-\node[process, minimum width=3cm] (search) at (4, -0.5) {Vector Search\\+ Metadata Filter};
+\node[process, minimum width=3cm, align=center] (search) at (4, -1) {Vector Search\\+ Metadata Filter};
 
-\node[component, minimum width=3.5cm, fill=noaagreen!30] (results) at (4, -3) {
+\node[component, minimum width=3.5cm, fill=noaagreen!30, align=center] (results) at (4, -3.5) {
     Top-K Results\\
     + Context
 };
@@ -184,13 +191,13 @@
 % Query arrows
 \draw[arrow] (query) -- (qembed);
 \draw[arrow] (qembed) -- (search);
-\draw[dashedarrow] (db) -- (1, -7.5) -- (1, -0.5) -- (search);
+\draw[dashedarrow] (db) -- (1, -9.2) -- (1, -1) -- (search);
 \draw[arrow] (search) -- (results);
 
 % Labels
 \node[font=\scriptsize, noaagray] at (-7, 4.5) {Input};
 \node[font=\scriptsize, noaagray] at (-7, 0.5) {Process};
-\node[font=\scriptsize, noaagray] at (-7, -4) {Output};
+\node[font=\scriptsize, noaagray] at (-7, -4.8) {Output};
 
 \end{tikzpicture}
 \caption{Embedding Convolution: How RST Directives Become Searchable Vectors}
@@ -257,17 +264,7 @@
     ylabel={Directive Type},
     xmin=0,
     xmax=20,
-    symbolic y coords={
-        llm\_validation\_prompt,
-        context\_types,
-        utility,
-        ai\_guidance\_rule,
-        sme\_correction,
-        anti\_pattern,
-        correct\_pattern,
-        intent,
-        compliance
-    },
+    symbolic y coords={llm\_validation\_prompt,context\_types,utility,ai\_guidance\_rule,sme\_correction,anti\_pattern,correct\_pattern,intent,compliance},
     ytick=data,
     nodes near coords,
     nodes near coords align={horizontal},
@@ -275,15 +272,15 @@
     title style={font=\Large},
 ]
 \addplot[fill=noaablue!70, draw=noaablue] coordinates {
-    (15, compliance)
-    (12, intent)
-    (10, correct\_pattern)
-    (8, anti\_pattern)
-    (6, sme\_correction)
-    (5, ai\_guidance\_rule)
-    (3, utility)
-    (2, context\_types)
-    (2, llm\_validation\_prompt)
+    (15,compliance)
+    (12,intent)
+    (10,correct\_pattern)
+    (8,anti\_pattern)
+    (6,sme\_correction)
+    (5,ai\_guidance\_rule)
+    (3,utility)
+    (2,context\_types)
+    (2,llm\_validation\_prompt)
 };
 \end{axis}
 \end{tikzpicture}
@@ -299,25 +296,35 @@
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
-\pie[
-    text=legend,
-    radius=4,
-    color={noaablue!70, noaagreen!70, noaaorange!70, noaared!50, 
-           noaalightblue!70, noaagray!50, noaablue!30, noaagreen!30},
-    explode={0.1, 0, 0, 0, 0, 0, 0, 0}
-]{
-    24/Error Handling (15),
-    19/Environment Variables (12),
-    16/File Naming (10),
-    13/Production Utilities (8),
-    10/Workflow Structure (6),
-    8/Code Standards (5),
-    6/Directory Structure (4),
-    5/Logging (3)
-}
-\node[font=\Large\bfseries] at (0, 5) {EE2 Compliance Categories};
+\begin{axis}[
+    xbar,
+    width=12cm,
+    height=10cm,
+    bar width=0.5cm,
+    xlabel={Percentage of Annotations},
+    ylabel={EE2 Category},
+    xmin=0,
+    xmax=30,
+    symbolic y coords={Logging,Directory Structure,Code Standards,Workflow Structure,Production Utilities,File Naming,Environment Variables,Error Handling},
+    ytick=data,
+    nodes near coords,
+    nodes near coords align={horizontal},
+    title={\textbf{EE2 Compliance Category Distribution}},
+    title style={font=\Large},
+]
+\addplot[fill=noaablue!70, draw=noaablue] coordinates {
+    (5,Logging)
+    (6,Directory Structure)
+    (8,Code Standards)
+    (10,Workflow Structure)
+    (13,Production Utilities)
+    (16,File Naming)
+    (19,Environment Variables)
+    (24,Error Handling)
+};
+\end{axis}
 \end{tikzpicture}
-\caption{Distribution of Annotations Across EE2 Compliance Categories}
+\caption{Distribution of Annotations Across EE2 Compliance Categories (63 total directives)}
 \label{fig:categories}
 \end{figure}
 
@@ -342,18 +349,18 @@
 \node[font=\bfseries, noaaorange!80!black] at (-5, -2) {Consumers};
 
 % Source layer
-\node[component, minimum width=4cm] (standards) at (-3, 5.5) {standards.rst\\(63 directives)};
-\node[component, minimum width=4cm] (gwdocs) at (3, 5.5) {global-workflow\\documentation};
+\node[component, minimum width=4cm, align=center] (standards) at (-3, 5.5) {standards.rst\\(63 directives)};
+\node[component, minimum width=4cm, align=center] (gwdocs) at (3, 5.5) {global-workflow\\documentation};
 
 % Knowledge layer
-\node[data, minimum width=2.5cm] (chromadb) at (-3, 1.5) {ChromaDB\\14,856 docs};
-\node[data, minimum width=2.5cm] (neo4j) at (3, 1.5) {Neo4j\\Code Graph};
+\node[data, minimum width=2.5cm, align=center] (chromadb) at (-3, 1.5) {ChromaDB\\14,856 docs};
+\node[data, minimum width=2.5cm, align=center] (neo4j) at (3, 1.5) {Neo4j\\Code Graph};
 \node[process, minimum width=2cm] (embedder) at (0, 2.8) {Embedder};
 
 % Consumer layer
-\node[component, minimum width=3cm, fill=noaablue!30] (mcp) at (-3, -3) {MCP Server\\32 tools};
-\node[component, minimum width=3cm, fill=noaagreen!30] (vscode) at (0, -3) {VS Code\\Copilot};
-\node[component, minimum width=3cm, fill=noaaorange!30] (gateway) at (3, -3) {Docker\\Gateway};
+\node[component, minimum width=3cm, fill=noaablue!30, align=center] (mcp) at (-3, -3) {MCP Server\\32 tools};
+\node[component, minimum width=3cm, fill=noaagreen!30, align=center] (vscode) at (0, -3) {VS Code\\Copilot};
+\node[component, minimum width=3cm, fill=noaaorange!30, align=center] (gateway) at (3, -3) {Docker\\Gateway};
 
 % Arrows
 \draw[arrow] (standards) -- (-3, 4) -- (-3, 2.8) -- (embedder);
@@ -404,22 +411,22 @@
 \node[font=\small, noaagray] at (5.5, 4.3) {5 min};
 
 % Details
-\node[component, minimum width=3.5cm, minimum height=2cm, font=\small] (d1) at (-5, 2) {
+\node[component, minimum width=3.5cm, minimum height=2cm, font=\small, align=center] (d1) at (-5, 2) {
     Add directive:\\
     \texttt{mcp:anti\_pattern}\\
     to \texttt{standards.rst}
 };
-\node[component, minimum width=3.5cm, minimum height=2cm, font=\small] (d2) at (-1.5, 2) {
+\node[component, minimum width=3.5cm, minimum height=2cm, font=\small, align=center] (d2) at (-1.5, 2) {
     Run:\\
     \texttt{python3}\\
     \texttt{ingest\_ee2\_v7.py}
 };
-\node[component, minimum width=3.5cm, minimum height=2cm, font=\small] (d3) at (2, 2) {
+\node[component, minimum width=3.5cm, minimum height=2cm, font=\small, align=center] (d3) at (2, 2) {
     MCP Server\\
     reloads\\
     configuration
 };
-\node[component, minimum width=3.5cm, minimum height=2cm, font=\small] (d4) at (5.5, 2) {
+\node[component, minimum width=3.5cm, minimum height=2cm, font=\small, align=center] (d4) at (5.5, 2) {
     New rule\\
     enforced in\\
     all scans
