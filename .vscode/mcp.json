@@ -25,15 +25,15 @@
       "type": "http",
       "url": "http://localhost:8888/mcp",
       "headers": {
-        "Authorization": "Bearer 9dh8ybsivcuav1dp4u7lqgq5ct6bgx47cfqd6dlxqqls17ovuu"
+        "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
       }
     },
     // Direct remote access (replace YOUR_REMOTE_IP with actual IP)
     "eib-mcp-gateway-direct": {
       "type": "http",
-      "url": "http://YOUR_REMOTE_IP:8888/mcp",
+      "url": "http://3.238.80.83:8888/mcp",
       "headers": {
-        "Authorization": "Bearer 9dh8ybsivcuav1dp4u7lqgq5ct6bgx47cfqd6dlxqqls17ovuu"
+        "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
       }
     },
     "global-workflow-core": {

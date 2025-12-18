@@ -83,6 +83,7 @@ services:
     environment:
       - NODE_ENV=production
       - MCP_SCENARIO=full
+      - MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow
       - CHROMADB_HOST=chromadb
       - CHROMADB_PORT=8000
       - NEO4J_URI=bolt://neo4j:7687
@@ -92,6 +93,8 @@ services:
       - ENABLE_GITHUB=true
     volumes:
       - mcp-logs:/app/logs
+      # Mount supported_repos for job script access
+      - ../supported_repos:/app/supported_repos:ro
     # Labels for Docker MCP Gateway integration
     labels:
       # Primary Docker MCP Gateway metadata (JSON format for reliable parsing)

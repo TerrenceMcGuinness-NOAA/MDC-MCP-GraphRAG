@@ -266,7 +266,7 @@ export class OperationalTools {
       
       if (!jobsDir) {
         return {
-          content: [{ type: 'text', text: `Jobs directory not found. Searched: ${possibleJobDirs.join(', ')}` }],
+          content: [{ type: 'text', text: `Jobs directory not found: ${this.workflowRoot}/jobs\n\n**Searched paths:**\n${possibleJobDirs.map(p => `- ${p}`).join('\n')}\n\n**Hint:** Set MCP_WORKFLOW_ROOT environment variable to the global-workflow repository root.\nExpected structure: \$MCP_WORKFLOW_ROOT/dev/jobs/ or \$MCP_WORKFLOW_ROOT/jobs/` }],
           isError: true
         };
       }
