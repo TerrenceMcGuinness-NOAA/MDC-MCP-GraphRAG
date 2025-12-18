@@ -665,3 +665,129 @@ curl -X POST "http://localhost:7860/api/v2/mcp/servers/eib-mcp-rag" \
 ### Provisioning Script
 
 See `SETUP/bin/start-mcp-gateway.sh` for automated gateway startup with LangFlow integration
+
+---
+
+## Phase 11E: n8n Workflow Automation (Alternative to LangFlow)
+
+**Status**: 🔄 IN PROGRESS  
+**Start Date**: December 17, 2025
+
+### Rationale
+
+LangFlow v1.6.9 has critical bugs in its MCP client implementation:
+1. **Dictionary race condition** (line 637): `for session_id, session_info in sessions.items()` - dict modified during iteration
+2. **asyncio scoping bug** (line 1388): `import asyncio` inside try block goes out of scope in except block
+
+While we applied patches to fix these issues, they are lost on container restart and require re-application. n8n provides a more stable, production-ready alternative for workflow automation.
+
+### n8n Overview
+
+- **License**: Fair-code (source-available, free for self-hosting)
+- **Repository**: https://github.com/n8n-io/n8n (45k+ stars)
+- **Docker**: `n8nio/n8n:latest`
+- **Maturity**: 5+ years in production
+
+### n8n vs LangFlow Comparison
+
+| Feature | n8n | LangFlow |
+|---------|-----|----------|
+| **Stability** | Very mature, production-ready | Newer, has bugs |
+| **MCP Support** | Via HTTP Request node | Native but buggy |
+| **Docker** | Official well-tested image | Works but fragile |
+| **AI/LLM** | Good integrations | AI-first design |
+| **Workflows** | Event-driven, robust | AI agent focused |
+| **Community** | Large, active | Growing |
+
+### Step 1: n8n Docker Deployment
+
+**Target**: docker-compose.devops.yaml (add n8n service)
+
+```yaml
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: global-workflow-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=eib-n8n-2025
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - global-workflow-mcp-rag
+```
+
+### Step 2: MCP Gateway Connection via HTTP Request Node
+
+n8n connects to MCP Gateway using its HTTP Request node:
+
+1. **Gateway Endpoint**: `http://host.docker.internal:8888/sse`
+2. **Transport**: Server-Sent Events (SSE)
+3. **Authentication**: Bearer token header
+4. **Method**: POST for tool invocation
+
+Example HTTP Request node configuration:
+```json
+{
+  "method": "POST",
+  "url": "http://host.docker.internal:8888/sse",
+  "headers": {
+    "Authorization": "Bearer eib-mcp-token-2025",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "search_documentation",
+      "arguments": {
+        "query": "EE2 compliance",
+        "max_results": 5
+      }
+    },
+    "id": 1
+  }
+}
+```
+
+### Step 3: Example n8n Workflows
+
+#### Workflow 1: EE2 Compliance Check
+```
+Trigger (Manual/Webhook)
+    → HTTP Request: search_documentation (EE2 standards)
+    → HTTP Request: scan_repository_compliance
+    → HTTP Request: generate_compliance_report
+    → Send Email/Slack notification
+```
+
+#### Workflow 2: Code Analysis Pipeline
+```
+GitHub Webhook (PR opened)
+    → HTTP Request: analyze_code_structure
+    → HTTP Request: find_dependencies
+    → IF compliance issues
+        → HTTP Request: explain_with_context
+        → Post PR comment
+```
+
+### Verification Checklist
+
+- [ ] n8n container running on port 5678
+- [ ] HTTP Request node connects to MCP Gateway
+- [ ] Bearer token authentication working
+- [ ] Tool invocation returns valid JSON-RPC response
+- [ ] Sample workflow executes successfully
+
+### Reference
+
+- n8n Documentation: https://docs.n8n.io/
+- n8n Docker Setup: https://docs.n8n.io/hosting/installation/docker/
+- MCP JSON-RPC Spec: https://spec.modelcontextprotocol.io/

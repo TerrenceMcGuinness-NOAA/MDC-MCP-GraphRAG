@@ -1,5 +1,6 @@
 {
   "servers": {
+    // Local stdio server (original - for direct local use)
     "eib-mcp-rag-full": {
       "command": "node",
       "args": [
@@ -17,6 +18,22 @@
         "ENABLE_RAG": "true",
         "ENABLE_GITHUB": "true",
         "GITHUB_TOKEN": "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"
+      }
+    },
+    // Remote gateway via SSH port forward (use after: ssh -L 8888:localhost:8888 remote-host)
+    "eib-mcp-gateway-remote": {
+      "type": "http",
+      "url": "http://localhost:8888/mcp",
+      "headers": {
+        "Authorization": "Bearer 9dh8ybsivcuav1dp4u7lqgq5ct6bgx47cfqd6dlxqqls17ovuu"
+      }
+    },
+    // Direct remote access (replace YOUR_REMOTE_IP with actual IP)
+    "eib-mcp-gateway-direct": {
+      "type": "http",
+      "url": "http://YOUR_REMOTE_IP:8888/mcp",
+      "headers": {
+        "Authorization": "Bearer 9dh8ybsivcuav1dp4u7lqgq5ct6bgx47cfqd6dlxqqls17ovuu"
       }
     },
     "global-workflow-core": {
