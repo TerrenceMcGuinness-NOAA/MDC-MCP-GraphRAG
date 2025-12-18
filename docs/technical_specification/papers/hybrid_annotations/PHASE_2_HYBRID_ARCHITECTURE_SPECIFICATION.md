@@ -1,9 +1,9 @@
 # Phase 2 Hybrid Architecture Technical Specification
 
-**Document Version**: 1.1  
-**Date**: December 4, 2025  
-**Status**: Production Implementation  
-**Author**: AI Coding Agent (Claude Sonnet 4.5)  
+**Document Version**: 2.0  
+**Date**: December 18, 2025  
+**Status**: Production Implementation (v7.0.0)  
+**Author**: AI Coding Agent (Claude Opus 4.5)  
 **Supervisor**: Terry McGuinness, NOAA/EMC/EIB  
 
 ---
@@ -96,68 +96,101 @@ The Phase 2 architecture must satisfy:
 
 ### 2.1 System Components
 
-The Hybrid Architecture consists of five components arranged in a unidirectional data flow:
+The Hybrid Architecture consists of four components arranged in a unidirectional data flow:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Component 1: EE2 Standards Documentation                        │
-│ - Format: ReStructuredText (.rst)                               │
-│ - Location: supported_repos/nws-hpc-standards/                  │
-│ - Role: Primary authority for compliance requirements           │
+│ Component 1: EE2 Standards Documentation with INLINE MCP        │
+│ - Format: ReStructuredText (.rst) with embedded MCP directives  │
+│ - Location: supported_repos/nws-hpc-standards/docs/standards.rst│
+│ - Role: SINGLE SOURCE OF TRUTH for compliance requirements      │
+│ - Content: EE2 standards + MCP semantic annotations inline      │
+│ - Key: Annotations ARE in the authoritative document            │
+│                                                                 │
+│   Example inline annotations in standards.rst:                  │
+│   .. mcp:compliance:: error_handling                            │
+│   .. mcp:sme_correction:: forced_exit_prohibition               │
+│   .. mcp:anti_pattern:: explicit_exit_statements                │
+│   .. mcp:correct_pattern:: err_chk_after_critical_operations    │
+│   .. mcp:ai_guidance_rule:: literal_compliance                  │
 └────────────────────────┬────────────────────────────────────────┘
                          │
-                         ▼
+                         ▼ (Ingestion: ingest_ee2_v7.py)
 ┌─────────────────────────────────────────────────────────────────┐
-│ Component 2: Phase 2 Semantic Annotations                       │
-│ - Format: RST with MCP directives (mcp:anti_pattern, etc.)      │
-│ - Location: sdd_framework/phase2_annotations/                   │
-│ - Role: SME corrections with evidence chain                     │
-│ - Content: False positive corrections, correct patterns         │
+│ Component 2: Semantic Knowledge Base (ChromaDB v7.0.0)          │
+│ - Primary Collection: global-workflow-docs-v7-0-0               │
+│ - Legacy EE2 Collection: ee2-standards-v5-0-0-enhanced          │
+│ - Storage: Vector embeddings + MCP directive metadata           │
+│ - Role: Semantic search with directive-aware retrieval          │
+│ - Content: 94 EE2 chunks, 63 MCP directives parsed              │
+│ - Key: EE2 content now in MAIN collection (consolidated)        │
 └────────────────────────┬────────────────────────────────────────┘
                          │
-                         ▼ (Ingestion: ingest_ee2_enhanced_v5.py)
+                         ▼ (Build-time: generatePhase2Config.js)
 ┌─────────────────────────────────────────────────────────────────┐
-│ Component 3: Semantic Knowledge Base (ChromaDB)                 │
-│ - Collection: ee2-standards-v6-0-0-corrected                    │
-│ - Storage: Vector embeddings + metadata                         │
-│ - Role: Semantic search and query endpoint                      │
-│ - Content: 16 documents, 19 Phase 2 directives                  │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼ (ONE-TIME: generatePhase2Config.js)
-┌─────────────────────────────────────────────────────────────────┐
-│ Component 4: Generated Configuration (JSON)                     │
+│ Component 3: Generated Configuration (JSON)                     │
 │ - File: mcp_server_node/phase2_anti_patterns.json               │
 │ - Format: Structured JSON with traceability metadata            │
-│ - Role: Static runtime configuration                            │
+│ - Role: Static runtime configuration for scan tool              │
 │ - Content: Anti-patterns, correct patterns, guidance rules      │
-│ - Generation: Extracted from ChromaDB collection                │
+│ - Generation: Extracted from ChromaDB collection at build time  │
 └────────────────────────┬────────────────────────────────────────┘
                          │
-                         ▼ (Runtime: load at initialization)
+                         ▼ (Runtime: load at MCP server start)
 ┌─────────────────────────────────────────────────────────────────┐
-│ Component 5: Scan Tool Validation Logic                         │
-│ - Module: SemanticSearchTools.js                                │
-│ - Method: scanRepositoryCompliance()                            │
+│ Component 4: EE2 Compliance Tools                               │
+│ - Module: EE2ComplianceTools.js (primary)                       │
+│ - Methods: scan_repository_compliance, analyze_ee2_compliance,  │
+│            extract_code_for_analysis, generate_compliance_report│
 │ - Role: File-by-file validation with Phase 2 corrections        │
 │ - Performance: No database queries, static config lookup        │
+│ - Key: Mandatory passthrough for detailed file naming analysis  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**Architecture Evolution (v7.0.0)**:
+
+The key advancement from v6 to v7 is **annotation consolidation**: MCP directives are now embedded directly in `standards.rst` rather than in separate annotation files. This achieves true single-source-of-truth:
+
+| Aspect | v6.0.0 (Previous) | v7.0.0 (Current) |
+|--------|-------------------|------------------|
+| Annotation Location | `sdd_framework/phase2_annotations/*.rst` | Inline in `standards.rst` |
+| Collection | `ee2-standards-v6-0-0-corrected` | `global-workflow-docs-v7-0-0` (consolidated) |
+| Ingestion Script | `ingest_ee2_enhanced_v5.py` | `ingest_ee2_v7.py` |
+| MCP Directives | 19 directives | 63+ directives |
+| Scan Tool Module | `SemanticSearchTools.js` | `EE2ComplianceTools.js` |
 
 ### 2.2 Data Flow Semantics
 
 **Unidirectional Flow**: Changes propagate only forward through the pipeline
 
 ```
-Update RST Annotation
+Update standards.rst (MCP annotations inline in authoritative doc)
     ↓
-Re-ingest to ChromaDB (python3 ingest_ee2_enhanced_v5.py)
+Re-ingest to ChromaDB (python3 scripts/ingest_ee2_v7.py)
     ↓
-Regenerate JSON Config (node generatePhase2Config.js)
+Regenerate JSON Config (node scripts/generatePhase2Config.js)  [Optional]
     ↓
 Restart MCP Server (auto-loads new config)
     ↓
 Updated Validation Rules Active
+```
+
+**v7.0.0 Simplified Workflow**:
+
+With inline annotations, the update process is streamlined:
+
+```bash
+# 1. Edit standards.rst directly (SME updates in authoritative doc)
+cd supported_repos/nws-hpc-standards/docs
+vim standards.rst  # Add/modify mcp: directives
+
+# 2. Re-ingest (parses directives, generates embeddings)
+cd /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+python3 scripts/ingest_ee2_v7.py
+
+# 3. Verify ingestion
+# Output: 5 files, 94 chunks, 63 MCP directives
 ```
 
 **Critical Property**: No reverse flow. Validation logic cannot modify knowledge base.
@@ -208,12 +241,23 @@ The term "hybrid" refers to the combination of two architectural patterns:
 | `mcp:file_naming_rule` | Naming constraint | Formation rule |
 | `mcp:llm_validation_prompt` | AI instruction | Metalinguistic guidance |
 
-**File Structure**:
+**File Structure (v7.0.0 - Inline Annotations)**:
+
+Primary source (MCP directives embedded inline):
+```
+supported_repos/nws-hpc-standards/docs/
+└── standards.rst                              (Authoritative + MCP annotations)
+```
+
+Supplemental SME corrections (for complex multi-paragraph annotations):
 ```
 sdd_framework/phase2_annotations/
-├── ee2_error_handling_sme_corrections.rst    (Primary annotation file)
-└── [future category annotations]             (Extensible structure)
+├── ee2_error_handling_sme_corrections.rst    (Extended SME corrections)
+├── err_chk_pattern_recognition.rst           (err_chk gap detection patterns)
+└── environment_variables.rst                 (Variable validation rules)
 ```
+
+**Note**: Most MCP directives are now in `standards.rst` itself. The `phase2_annotations/` directory contains supplemental detail that would be too verbose for inline placement.
 
 **MCP Directive Types**:
 
@@ -280,11 +324,15 @@ Every directive MUST include evidence from EE2 standards with specific line numb
 
 This ensures traceability and prevents disputes about SME corrections.
 
-### 3.2 Configuration Generation (Component 4)
+### 3.2 Configuration Generation (Component 3)
 
 **Script**: `mcp_server_node/scripts/generatePhase2Config.js`
 
 **Execution Context**: Build-time or on-demand (not runtime)
+
+**v7.0.0 Note**: The config generator can query either:
+- `global-workflow-docs-v7-0-0` (consolidated collection with EE2 content)
+- `ee2-standards-v5-0-0-enhanced` (legacy EE2-specific collection)
 
 **Algorithm**:
 
@@ -292,7 +340,7 @@ This ensures traceability and prevents disputes about SME corrections.
 // Phase 1: Connect to ChromaDB
 const client = new ChromaClient({ path: 'http://localhost:8080' });
 const collection = await client.getCollection({ 
-  name: 'ee2-standards-v6-0-0-corrected' 
+  name: 'ee2-standards-v5-0-0-enhanced'  // Or global-workflow-docs-v7-0-0
 });
 
 // Phase 2: Fetch all documents
@@ -344,11 +392,11 @@ fs.writeFileSync(OUTPUT_FILE, JSON.stringify(config, null, 2));
 
 ```json
 {
-  "version": "6.0.0",
+  "version": "7.0.0",
   "phase": 2,
-  "generated": "2025-11-19T21:34:30.512Z",
-  "source_collection": "ee2-standards-v6-0-0-corrected",
-  "total_documents": 16,
+  "generated": "2025-12-18T00:00:00.000Z",
+  "source_collection": "global-workflow-docs-v7-0-0",
+  "total_documents": 94,
   "anti_patterns": {
     "error_handling": [
       {
@@ -402,9 +450,10 @@ fs.writeFileSync(OUTPUT_FILE, JSON.stringify(config, null, 2));
 - No embedding computation required (uses stored embeddings)
 - Output size: ~15KB JSON
 
-### 3.3 Scan Tool Integration (Component 5)
+### 3.3 Scan Tool Integration (Component 4)
 
-**Module**: `mcp_server_node/src/tools/SemanticSearchTools.js`
+**Primary Module**: `mcp_server_node/src/tools/EE2ComplianceTools.js`  
+**Supporting Module**: `mcp_server_node/src/tools/SemanticSearchTools.js` (deprecated for EE2)
 
 **Initialization**:
 
@@ -630,7 +679,51 @@ Time: ~12 seconds total
 
 **Scenario**: SME identifies new false positive pattern
 
-**Procedure**:
+**v7.0.0 Procedure** (Inline Annotations):
+
+1. **Update standards.rst Directly**
+   ```bash
+   cd /mcp_rag_eib/eib-mcp-rag-server/supported_repos/nws-hpc-standards/docs
+   vim standards.rst
+   # Add new mcp:anti_pattern directive inline with evidence
+   # Example: Add near the relevant EE2 section
+   ```
+
+2. **Re-ingest to ChromaDB (v7)**
+   ```bash
+   cd /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+   python3 scripts/ingest_ee2_v7.py
+   # Output: 5 files, 94 chunks, 63 MCP directives
+   # Verify: Collection global-workflow-docs-v7-0-0 updated
+   ```
+
+3. **Regenerate Configuration** (Optional - for static config approach)
+   ```bash
+   node scripts/generatePhase2Config.js
+   # Output: phase2_anti_patterns.json updated
+   # Verify: Anti-pattern count reflects new directive
+   ```
+
+4. **Restart MCP Server**
+   ```bash
+   # VS Code typically auto-restarts, or manual:
+   pkill -f UnifiedMCPServer.js
+   node src/UnifiedMCPServer.js full
+   ```
+
+5. **Validate**
+   ```bash
+   # Check logs for config load confirmation
+   grep "Loaded Phase 2 config" logs/mcp-server.log
+   
+   # Run test scan via MCP tool
+   # scan_repository_compliance({ 
+   #   repository_path: "/path/to/test/repo",
+   #   sample_size: 50 
+   # })
+   ```
+
+**Legacy Procedure** (Separate annotation files, v5/v6):
 
 1. **Update RST Annotation**
    ```bash
@@ -639,38 +732,11 @@ Time: ~12 seconds total
    # Add new mcp:anti_pattern directive with evidence
    ```
 
-2. **Re-ingest to ChromaDB**
+2. **Re-ingest to ChromaDB (v5)**
    ```bash
    cd /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
    python3 scripts/ingest_ee2_enhanced_v5.py ../../sdd_framework/phase2_annotations/
-   # Verify: Collection updated with new directive
-   ```
-
-3. **Regenerate Configuration**
-   ```bash
-   node scripts/generatePhase2Config.js
-   # Output: phase2_anti_patterns.json updated
-   # Verify: Anti-pattern count increased
-   ```
-
-4. **Restart MCP Server**
-   ```bash
-   pkill -f UnifiedMCPServer.js
-   # VS Code will auto-restart server
-   # Or manual: node src/UnifiedMCPServer.js
-   ```
-
-5. **Validate**
-   ```bash
-   # Check logs for config load confirmation
-   grep "Loaded Phase 2 config" logs/mcp-server.log
-   
-   # Run test scan
-   scan_repository_compliance({ 
-     repository_path: "/path/to/test/repo",
-     sample_size: 50 
-   })
-   # Verify: New anti-pattern applied
+   # Verify: Collection ee2-standards-v5-0-0-enhanced updated
    ```
 
 **Time Required**: ~5 minutes end-to-end
@@ -732,17 +798,21 @@ scan_repository_compliance({
 ```bash
 # Option 1: Git revert config
 git checkout HEAD~1 -- mcp_server_node/phase2_anti_patterns.json
-systemctl restart mcp-server
+# Restart MCP server
 
-# Option 2: Regenerate from previous collection
+# Option 2: Regenerate from legacy v5 collection
 cd mcp_server_node
 node scripts/generatePhase2Config.js --collection ee2-standards-v5-0-0-enhanced
-systemctl restart mcp-server
+# Restart MCP server
 
-# Option 3: Disable Phase 2 config
+# Option 3: Regenerate from v7 consolidated collection
+cd mcp_server_node
+node scripts/generatePhase2Config.js --collection global-workflow-docs-v7-0-0
+# Restart MCP server
+
+# Option 4: Disable Phase 2 config (fallback mode)
 mv phase2_anti_patterns.json phase2_anti_patterns.json.backup
-systemctl restart mcp-server
-# Scan tool will use fallback validation
+# Restart MCP server - scan tool will use fallback validation
 ```
 
 ---
@@ -798,7 +868,8 @@ System remains functional if components fail:
 ### 6.2 Scalability Analysis
 
 **Annotation Scalability**:
-- Current: 10 Phase 2 directives (2 anti-patterns, 2 correct patterns, 5 guidance rules)
+- v6.0.0: 19 Phase 2 directives (2 anti-patterns, 2 correct patterns, 5 guidance rules)
+- v7.0.0: 63 MCP directives (inline in standards.rst)
 - Tested: Up to 100 directives in test scenarios
 - Theoretical limit: 10,000+ directives (limited by ChromaDB collection size)
 - **Code changes required**: 0 for any number of annotations ✅
@@ -847,11 +918,12 @@ Architecture minimizes dependency on scarce programming skills.
 Every generated config includes version metadata:
 ```json
 {
-  "version": "6.0.0",
+  "version": "7.0.0",
   "phase": 2,
-  "generated": "2025-11-19T21:34:30.512Z",
-  "source_collection": "ee2-standards-v6-0-0-corrected",
-  "total_documents": 16
+  "generated": "2025-12-18T00:00:00.000Z",
+  "source_collection": "global-workflow-docs-v7-0-0",
+  "total_documents": 94,
+  "mcp_directives_parsed": 63
 }
 ```
 
@@ -890,19 +962,18 @@ Complete traceability from validation output to authoritative source.
 
 ## 7. Future Enhancements
 
-### 7.1 Planned Improvements (Phase 3)
+### 7.1 Completed Improvements (v7.0.0)
 
-**1. Multi-Category Expansion**
+**1. Multi-Category Expansion** ✅
 
-Current implementation focuses on `error_handling` category. Extend to:
+Implementation now covers all major EE2 categories:
+- `error_handling`: err_chk/err_exit patterns, set -x requirement
 - `environment_variables`: Variable quoting, path standards
 - `file_naming`: J-job, ex-script, ush utility naming conventions
 - `workflow_structure`: Rocoto integration, ecFlow compatibility
 - `production_utilities`: err_chk, err_exit, postmsg usage
 
-**Implementation**: Add new RST annotation files, regenerate config (no code changes).
-
-**2. Context-Aware Validation**
+**2. Context-Aware Validation** ✅ (Partial)
 
 Different rules for different script types:
 - **Operational jobs** (jobs/JXXXXX): Strict EE2 compliance required
@@ -1246,17 +1317,27 @@ The system is production-ready with the following operational characteristics:
 
 ## Appendix B: References
 
-**Primary Documentation**:
-- EE2 Standards: `supported_repos/nws-hpc-standards/standards.rst`
-- Phase 2 Annotations: `sdd_framework/phase2_annotations/ee2_error_handling_sme_corrections.rst`
+**Primary Documentation (v7.0.0)**:
+- EE2 Standards with MCP Annotations: `supported_repos/nws-hpc-standards/docs/standards.rst`
+- EE2 v7 Ingester: `mcp_server_node/scripts/ingest_ee2_v7.py`
 - Configuration Generator: `mcp_server_node/scripts/generatePhase2Config.js`
-- Scan Tool Implementation: `mcp_server_node/src/tools/SemanticSearchTools.js`
+- EE2 Compliance Tools: `mcp_server_node/src/tools/EE2ComplianceTools.js`
+- Unified Data Access: `mcp_server_node/src/data/UnifiedDataAccess.js`
+- Vector Database: `mcp_server_node/src/data/VectorDatabase.js`
+
+**Supplemental Annotation Files**:
+- Error Handling SME Corrections: `sdd_framework/phase2_annotations/ee2_error_handling_sme_corrections.rst`
+- err_chk Pattern Recognition: `sdd_framework/phase2_annotations/err_chk_pattern_recognition.rst`
+- Environment Variables: `sdd_framework/phase2_annotations/environment_variables.rst`
+
+**Legacy Documentation (v5/v6)**:
+- Legacy EE2 Ingester: `mcp_server_node/scripts/ingest_ee2_enhanced_v5.py`
+- Scan Tool (deprecated for EE2): `mcp_server_node/src/tools/SemanticSearchTools.js`
 
 **Supporting Documentation**:
-- Debug Analysis: `docs/development/PHASE_2_DEBUG_ROUND_1.md`
-- Implementation Report: `docs/development/PHASE_2_HYBRID_IMPLEMENTATION_COMPLETE.md`
-- Annotation Tracker: `docs/development/PHASE_2_ANNOTATION_TRACKER.md`
-- Testing Protocol: `docs/development/PHASE_2_TESTING_PROTOCOL.md`
+- SDD Phase 4C (Code Snippet Extractor): `sdd_framework/workflows/phase4c_code_snippet_extractor.md`
+- v7 Collection Upgrade Workflow: `sdd_framework/workflows/v7_collection_upgrade_workflow.md`
+- EE2 Enhanced Embeddings Workflow: `sdd_framework/workflows/ee2_enhanced_embeddings_workflow.md`
 
 **External Standards**:
 - NCEP WCOSS Implementation Standards (EE2): Internal NOAA documentation
@@ -1265,8 +1346,16 @@ The system is production-ready with the following operational characteristics:
 
 ---
 
-**Document Status**: Complete  
-**Review Status**: Pending SME review  
-**Next Update**: After Phase 2 SME sign-off (target: November 22, 2025)  
+**Document Status**: Complete (v2.0.0 - v7 Architecture Update)  
+**Review Status**: Verified December 2025  
+**Last Update**: December 18, 2025 - Updated for v7.0.0 consolidated architecture
+
+**Key Changes in v2.0.0**:
+- MCP directives now inline in `standards.rst` (true single source of truth)
+- Ingestion script updated to `ingest_ee2_v7.py`
+- Primary collection is now `global-workflow-docs-v7-0-0` (consolidated)
+- EE2 compliance tools in dedicated `EE2ComplianceTools.js` module
+- 63 MCP directives parsed (up from 19 in v6)
+- Mandatory passthrough implemented for file naming analysis
 
 **Contact**: Terry McGuinness (terry.mcguinness@noaa.gov), NOAA/EMC/EIB
