@@ -486,29 +486,17 @@ export class SemanticSearchTools {
         console.error('ChromaDB query error:', err.message);
       }
 
-      // Also load the SPOT documentation sources config for reference
-      const spotConfigPath = path.join(__dirname, '../../scripts/documentation_sources_config.py');
+      // Also load the documentation sources config for reference (JSON format)
+      const configPath = path.join(__dirname, '../../config/documentation_sources.json');
       let spotSources = [];
       
       try {
-        const spotContent = await fs.readFile(spotConfigPath, 'utf-8');
-        const urlMatches = spotContent.matchAll(/'url':\s*'([^']+)'/g);
-        const nameMatches = spotContent.matchAll(/'name':\s*'([^']+)'/g);
-        const enabledMatches = spotContent.matchAll(/'enabled':\s*(True|False)/g);
-        
-        const urls = [...urlMatches].map(m => m[1]);
-        const names = [...nameMatches].map(m => m[1]);
-        const enabled = [...enabledMatches].map(m => m[1] === 'True');
-        
-        for (let i = 0; i < names.length && i < urls.length; i++) {
-          spotSources.push({
-            name: names[i],
-            url: urls[i],
-            enabled: enabled[i] !== false
-          });
-        }
+        const configContent = await fs.readFile(configPath, 'utf-8');
+        const config = JSON.parse(configContent);
+        spotSources = config.sources || [];
       } catch (err) {
-        // Config may not be readable
+        // Config may not be readable - continue without SPOT data
+        console.error('[WARN] Could not read documentation_sources.json:', err.message);
       }
 
       let response = `# RAG Knowledge Base Ingested URLs\n\n`;
@@ -587,38 +575,20 @@ export class SemanticSearchTools {
   /**
    * Get a simple array of all ingested URLs for programmatic access
    * Migrated from Week 1 EnhancedRAGTools.js
+   * Updated: Uses JSON config baked into container (security: no external file access)
    */
   async getIngestedURLsArray(args) {
     await this.ensureInitialized();
     const { include_failed = false } = args;
 
     try {
-      const knowledgeBasePath = process.env.MCP_KNOWLEDGE_BASE_PATH || 
-        path.join(__dirname, '../../knowledge-base');
-
-      // Load SPOT documentation sources
-      const spotConfigPath = path.join(__dirname, '../../scripts/documentation_sources_config.py');
-      const spotContent = await fs.readFile(spotConfigPath, 'utf-8');
+      // Load documentation sources from baked-in JSON config
+      const configPath = path.join(__dirname, '../../config/documentation_sources.json');
+      const configContent = await fs.readFile(configPath, 'utf-8');
+      const config = JSON.parse(configContent);
       
-      // Parse the Python config
-      const urlMatches = spotContent.matchAll(/'url':\s*'([^']+)'/g);
-      const nameMatches = spotContent.matchAll(/'name':\s*'([^']+)'/g);
-      const enabledMatches = spotContent.matchAll(/'enabled':\s*(True|False)/g);
-      const tierMatches = spotContent.matchAll(/'(tier\d+_\w+)':\s*\[/g);
-      
-      const urls = [...urlMatches].map(m => m[1]);
-      const names = [...nameMatches].map(m => m[1]);
-      const enabled = [...enabledMatches].map(m => m[1] === 'True');
-      const tiers = [...tierMatches].map(m => m[1]);
-
-      const sources = [];
-      for (let i = 0; i < names.length && i < urls.length; i++) {
-        sources.push({
-          name: names[i],
-          url: urls[i],
-          enabled: enabled[i] !== false
-        });
-      }
+      const sources = config.sources || [];
+      const version = config.version || '7.0.0';
 
       const enabledSources = sources.filter(s => s.enabled);
       const disabledSources = sources.filter(s => !s.enabled);

@@ -1,5 +1,5 @@
  #!/bin/bash
- set -e
+set -e
 ################################################################################
 # VS Code Tunnel Startup Script
 # 
@@ -8,6 +8,10 @@
 #
 # If no rndtag provided, generates a random 6-character alphanumeric string
 # Example: For user Anna.Smoot, server name is pw_Anna_<rndtag>
+#
+# VS Code CLI Downloads (auto-updates to latest stable):
+#   https://code.visualstudio.com/#alt-downloads
+#   Direct link: https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64
 ################################################################################
 
 # Get the first name from the current username (e.g., Anna.Smoot -> Anna)
@@ -16,11 +20,71 @@ get_first_name() {
     echo "${username%%.*}"
 }
 
-# Download and extract VS Code if not already present
-# Note: Update the URL to the latest stable version as needed
-if [[ ! -e "${PWD}/code-stable-x64-1765353460.tar.gz" ]]; then
-  wget https://vscode.download.prss.microsoft.com/dbazure/download/stable/618725e67565b290ba4da6fe2d29f8fa1d4e3622/code-stable-x64-1765353460.tar.gz
-  tar -xvf code-stable-x64-1765353460.tar.gz
+# Find existing code CLI executable
+find_code_cli() {
+    # Check if 'code' is in PATH and supports tunnel command
+    if command -v code &>/dev/null; then
+        if code tunnel --help &>/dev/null 2>&1; then
+            echo "code"
+            return 0
+        fi
+    fi
+    
+    # Check ~/bin/code
+    if [[ -x "${HOME}/bin/code" ]]; then
+        echo "${HOME}/bin/code"
+        return 0
+    fi
+    
+    # Check local ./code CLI binary
+    if [[ -x "${PWD}/code" ]]; then
+        echo "${PWD}/code"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Download VS Code CLI if not found
+download_code_cli() {
+    local install_dir="${1:-${PWD}}"
+    
+    echo "[INFO] Downloading VS Code CLI..." >&2
+    
+    # Official stable CLI download URL (auto-redirects to latest version)
+    # Alpine build is statically linked and works on all Linux distros
+    # For manual updates, check: https://code.visualstudio.com/#alt-downloads
+    local download_url="https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64"
+    local tarball="vscode_cli.tar.gz"
+    
+    curl -Lk "${download_url}" --output "${install_dir}/${tarball}"
+    tar -xf "${install_dir}/${tarball}" -C "${install_dir}"
+    rm -f "${install_dir}/${tarball}"
+    
+    # The CLI extracts as just 'code' binary
+    if [[ -x "${install_dir}/code" ]]; then
+        echo "[OK] VS Code CLI installed to ${install_dir}/code" >&2
+        echo "${install_dir}/code"
+        return 0
+    fi
+    
+    echo "[ERROR] Failed to install VS Code CLI" >&2
+    return 1
+}
+
+# Main: Find or download code CLI
+CODE_CLI=""
+if CODE_CLI=$(find_code_cli); then
+    echo "[OK] Found existing VS Code CLI: ${CODE_CLI}" >&2
+else
+    echo "[INFO] VS Code CLI not found in PATH, ~/bin, or current directory" >&2
+    CODE_CLI=$(download_code_cli "${PWD}")
+fi
+
+# Verify we have a working CLI
+if [[ -z "${CODE_CLI}" ]] || [[ ! -x "${CODE_CLI}" ]]; then
+    echo "[ERROR] Could not find or install VS Code CLI" >&2
+    exit 1
 fi
 
 
@@ -44,12 +108,13 @@ echo "=========================================="
 echo "Server Name: ${server_name}"
 echo "Output File: ${OUTPUT_FILE}"
 echo "User: ${USER}"
+echo "Code CLI: ${CODE_CLI}"
 echo "=========================================="
 echo ""
 echo "Starting tunnel in background..."
 
 # Start VS Code tunnel in background
-nohup VSCode-linux-x64/bin/code  tunnel --name "${server_name}" --accept-server-license-terms > "${OUTPUT_FILE}" 2>&1 &
+nohup "${CODE_CLI}" tunnel --name "${server_name}" --accept-server-license-terms > "${OUTPUT_FILE}" 2>&1 &
 
 TUNNEL_PID=$!
 

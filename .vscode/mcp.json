@@ -22,14 +22,13 @@
       }
     },
     // Remote gateway via SSH port forward (use after: ssh -L 8888:localhost:8888 remote-host)
-    // DISABLED - uncomment when gateway is running
-    // "eib-mcp-gateway-remote": {
-    //   "type": "http",
-    //   "url": "http://localhost:8888/mcp",
-    //   "headers": {
-    //     "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
-    //   }
-    // },
+    "eib-mcp-gateway": {
+      "type": "sse",
+      "url": "http://localhost:8888/sse",
+      "headers": {
+        "Authorization": "Bearer jc1ha4k1wlei3xfosuj3lm4ext16vsv0bwh9lotmiztrmj7pwl"
+      }
+    },
     // Direct remote access (replace YOUR_REMOTE_IP with actual IP)
     // DISABLED - uncomment when gateway is running
     // "eib-mcp-gateway-direct": {

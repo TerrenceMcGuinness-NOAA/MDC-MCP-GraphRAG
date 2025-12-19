@@ -27,6 +27,7 @@ RUN npm ci --only=production
 # Copy source code and utilities
 COPY src/ ./src/
 COPY utils/ ./utils/
+COPY config/ ./config/
 COPY phase2_anti_patterns.json ./
 
 # Environment configuration

@@ -41,6 +41,10 @@ export class WorkflowInfoTools {
             type: 'string',
             enum: ['jobs', 'scripts', 'parm', 'ush', 'sorc', 'docs', 'env'],
             description: 'Optional specific component to focus on'
+          },
+          structure_data: {
+            type: 'object',
+            description: 'Pre-computed structure data (for remote MCP access - bypasses filesystem)'
           }
         }
       },
@@ -63,6 +67,10 @@ export class WorkflowInfoTools {
             type: 'string',
             enum: ['modules', 'resources', 'paths', 'all'],
             description: 'Type of configuration'
+          },
+          content: {
+            type: 'string',
+            description: 'Environment file content (for remote MCP access - bypasses filesystem)'
           }
         }
       },
@@ -77,7 +85,9 @@ export class WorkflowInfoTools {
         type: 'object',
         properties: {
           component: { type: 'string', description: 'Component name or path' },
-          show_content: { type: 'boolean', default: false, description: 'Include file content preview' }
+          show_content: { type: 'boolean', default: false, description: 'Include file content preview' },
+          content: { type: 'string', description: 'File content to analyze directly (for remote MCP access - bypasses filesystem)' },
+          file_type: { type: 'string', enum: ['file', 'directory'], description: 'Type hint when providing content directly' }
         },
         required: ['component']
       },
@@ -88,13 +98,14 @@ export class WorkflowInfoTools {
   }
 
   async getWorkflowStructure(args) {
-    const { component } = args || {};
+    const { component, structure_data } = args || {};
 
     try {
       let output = `# Global Workflow Structure\n\n`;
       output += `**Root:** ${this.workflowRoot}\n\n`;
 
-      const structure = {
+      // Use provided structure data if available (container-compatible mode)
+      const structure = structure_data || {
         jobs: {
           desc: 'Production Job Control Language (JCL) scripts',
           pattern: 'J*',
@@ -167,10 +178,11 @@ export class WorkflowInfoTools {
   }
 
   async getSystemConfigs(args) {
-    const { platform, config_type } = args || {};
+    const { platform, config_type, content } = args || {};
 
     try {
       let output = `# System Configurations\n\n`;
+      const envDir = path.join(this.workflowRoot, 'env');
 
       if (platform) {
         output += `**Platform:** ${platform.toUpperCase()}\n`;
@@ -180,17 +192,22 @@ export class WorkflowInfoTools {
       }
       output += `\n`;
 
-      // Try to read env files
-      const envDir = path.join(this.workflowRoot, 'env');
-      
-      if (platform && platform !== 'all') {
+      // Priority: content parameter > filesystem read
+      if (content) {
+        // Content provided directly (remote MCP access)
+        output += `## ${platform ? platform.toUpperCase() : 'Provided'} Environment\n\n`;
+        output += `*Source: content parameter (remote access)*\n\n`;
+        output += `\`\`\`bash\n${content.slice(0, 2000)}\n\`\`\`\n\n`;
+      } else if (platform && platform !== 'all') {
+        // Try to read env files from filesystem
         const envFile = path.join(envDir, `${platform.toUpperCase()}.env`);
         try {
-          const content = await fs.readFile(envFile, 'utf-8');
+          const fileContent = await fs.readFile(envFile, 'utf-8');
           output += `## ${platform.toUpperCase()} Environment\n\n`;
-          output += `\`\`\`bash\n${content.slice(0, 2000)}\n\`\`\`\n\n`;
+          output += `\`\`\`bash\n${fileContent.slice(0, 2000)}\n\`\`\`\n\n`;
         } catch {
           output += `Environment file not found: ${envFile}\n\n`;
+          output += `**Hint:** Use 'content' parameter to provide env file content directly for remote access.\n\n`;
         }
       } else {
         // List all platforms
@@ -243,12 +260,47 @@ export class WorkflowInfoTools {
   }
 
   async describeComponent(args) {
-    const { component, show_content = false } = args;
+    const { component, show_content = false, content, file_type } = args;
 
     try {
       let output = `# Component: ${component}\n\n`;
 
-      // Try to find the file/directory
+      // Priority 1: Use provided content directly (container-compatible mode)
+      if (content) {
+        output += `**Source:** Content provided via parameter (container-compatible mode)\n`;
+        output += `**Type:** ${file_type || 'File (inferred)'}\n`;
+        
+        const lines = content.split('\n');
+        output += `**Lines:** ${lines.length}\n`;
+        output += `**Size:** ${content.length} bytes\n\n`;
+
+        // Analyze content for common patterns
+        const hasShebang = lines[0]?.startsWith('#!');
+        const hasPython = lines[0]?.includes('python') || content.includes('import ');
+        const hasBash = lines[0]?.includes('bash') || content.includes('#!/bin/sh');
+        
+        if (hasShebang) {
+          output += `**Shebang:** ${lines[0]}\n`;
+        }
+        output += `**Language:** ${hasPython ? 'Python' : hasBash ? 'Bash/Shell' : 'Unknown'}\n\n`;
+
+        // Extract description/purpose if present
+        const descLine = lines.find(l => l.includes('Description') || l.includes('PURPOSE') || l.includes('Synopsis'));
+        if (descLine) {
+          output += `## Purpose\n\n${descLine.trim()}\n\n`;
+        }
+
+        if (show_content) {
+          output += `## Content Preview\n\n`;
+          output += `\`\`\`\n${lines.slice(0, 50).join('\n')}\n`;
+          if (lines.length > 50) output += `\n... (${lines.length - 50} more lines)\n`;
+          output += `\`\`\`\n`;
+        }
+
+        return { content: [{ type: 'text', text: output }] };
+      }
+
+      // Priority 2: Filesystem-based lookup (local mode only)
       const searchPaths = [
         path.join(this.workflowRoot, 'jobs', component),
         path.join(this.workflowRoot, 'scripts', component),
@@ -309,6 +361,7 @@ export class WorkflowInfoTools {
         for (const p of searchPaths) {
           output += `- ${p}\n`;
         }
+        output += `\n**Hint:** Use the 'content' parameter to provide file content directly for remote/container access.\n`;
       }
 
       return { content: [{ type: 'text', text: output }] };

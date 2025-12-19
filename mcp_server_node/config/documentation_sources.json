@@ -1,0 +1,108 @@
+{
+  "version": "7.0.0",
+  "description": "Documentation sources for MCP RAG ingestion - baked into container image",
+  "sources": [
+    {
+      "name": "global-workflow",
+      "url": "https://global-workflow.readthedocs.io/en/latest/",
+      "tier": "tier1_critical",
+      "enabled": true
+    },
+    {
+      "name": "ufs-utils",
+      "url": "https://noaa-emcufs-utils.readthedocs.io/en/latest/",
+      "tier": "tier1_critical",
+      "enabled": true
+    },
+    {
+      "name": "rocoto",
+      "url": "https://christopherwharrop.github.io/rocoto/",
+      "tier": "tier2_workflow",
+      "enabled": true
+    },
+    {
+      "name": "ecflow",
+      "url": "https://ecflow.readthedocs.io/en/latest/",
+      "tier": "tier2_workflow",
+      "enabled": true
+    },
+    {
+      "name": "wxflow",
+      "url": "https://wxflow.readthedocs.io/en/latest/",
+      "tier": "tier2_workflow",
+      "enabled": true
+    },
+    {
+      "name": "pyflow",
+      "url": "https://pyflow-workflow-generator.readthedocs.io/en/latest/",
+      "tier": "tier2_workflow",
+      "enabled": true
+    },
+    {
+      "name": "ufs-weather-model",
+      "url": "https://ufs-weather-model.readthedocs.io/en/latest/",
+      "tier": "tier3_models",
+      "enabled": true
+    },
+    {
+      "name": "jedi-docs",
+      "url": "https://jointcenterforsatellitedataassimilation-jedi-docs.readthedocs-hosted.com/en/latest/",
+      "tier": "tier3_models",
+      "enabled": true
+    },
+    {
+      "name": "fv3-dynamical-core",
+      "url": "https://www.gfdl.noaa.gov/fv3/",
+      "tier": "tier3_models",
+      "enabled": true
+    },
+    {
+      "name": "spack-stack",
+      "url": "https://spack-stack.readthedocs.io/en/latest/",
+      "tier": "tier4_build",
+      "enabled": true
+    },
+    {
+      "name": "spack",
+      "url": "https://spack.readthedocs.io/en/latest/",
+      "tier": "tier4_build",
+      "enabled": true
+    },
+    {
+      "name": "hpc-stack",
+      "url": "https://hpc-stack.readthedocs.io/en/latest/",
+      "tier": "tier4_build",
+      "enabled": true
+    },
+    {
+      "name": "google-shell-style",
+      "url": "https://google.github.io/styleguide/shellguide.html",
+      "tier": "tier5_standards",
+      "enabled": true
+    },
+    {
+      "name": "pep8",
+      "url": "https://peps.python.org/pep-0008/",
+      "tier": "tier5_standards",
+      "enabled": true
+    },
+    {
+      "name": "numpy-docstrings",
+      "url": "https://numpydoc.readthedocs.io/en/latest/format.html",
+      "tier": "tier5_standards",
+      "enabled": true
+    },
+    {
+      "name": "fortran-best-practices",
+      "url": "https://fortran-lang.org/learn/best_practices/",
+      "tier": "tier5_standards",
+      "enabled": true
+    },
+    {
+      "name": "ee2-standards",
+      "url": "https://nws-hpc-standards.readthedocs.io/en/latest/",
+      "tier": "tier1_critical",
+      "enabled": false
+    }
+  ]
+}

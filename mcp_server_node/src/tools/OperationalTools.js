@@ -105,6 +105,22 @@ export class OperationalTools {
             enum: ['summary', 'detailed', 'json'],
             default: 'summary',
             description: 'Output format'
+          },
+          job_list: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'List of job script names (for remote MCP access - bypasses filesystem)'
+          },
+          files: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Job script filename' },
+                content: { type: 'string', description: 'Job script content' }
+              }
+            },
+            description: 'Job files with content (for detailed remote analysis)'
           }
         }
       },
@@ -242,37 +258,57 @@ export class OperationalTools {
   }
 
   async listJobScripts(args) {
-    const { category, format = 'summary' } = args || {};
+    const { category, format = 'summary', job_list, files: providedFiles } = args || {};
 
     try {
-      // Try multiple possible job directory locations
-      const possibleJobDirs = [
-        path.join(this.workflowRoot, 'jobs'),
-        path.join(this.workflowRoot, 'dev', 'jobs'),
-      ];
-      
+      let jobFiles = [];
       let jobsDir = null;
-      let files = [];
-      
-      for (const dir of possibleJobDirs) {
-        try {
-          files = await fs.readdir(dir);
-          jobsDir = dir;
-          break;
-        } catch {
-          continue;
-        }
-      }
-      
-      if (!jobsDir) {
-        return {
-          content: [{ type: 'text', text: `Jobs directory not found: ${this.workflowRoot}/jobs\n\n**Searched paths:**\n${possibleJobDirs.map(p => `- ${p}`).join('\n')}\n\n**Hint:** Set MCP_WORKFLOW_ROOT environment variable to the global-workflow repository root.\nExpected structure: \$MCP_WORKFLOW_ROOT/dev/jobs/ or \$MCP_WORKFLOW_ROOT/jobs/` }],
-          isError: true
-        };
-      }
+      let contentMap = {};  // For detailed format with provided content
+      let sourceNote = '';
 
-      // Filter for job files (J* pattern)
-      const jobFiles = files.filter(f => f.startsWith('J'));
+      // Priority: job_list > files > filesystem
+      if (job_list && job_list.length > 0) {
+        // Job list provided directly (remote MCP access)
+        jobFiles = job_list.filter(f => f.startsWith('J'));
+        sourceNote = '*Source: job_list parameter (remote access)*\n\n';
+      } else if (providedFiles && providedFiles.length > 0) {
+        // Files with content provided (remote MCP access with details)
+        jobFiles = providedFiles.filter(f => f.name && f.name.startsWith('J')).map(f => f.name);
+        for (const f of providedFiles) {
+          if (f.name && f.content) {
+            contentMap[f.name] = f.content;
+          }
+        }
+        sourceNote = '*Source: files parameter (remote access with content)*\n\n';
+      } else {
+        // Try multiple possible job directory locations (local filesystem)
+        const possibleJobDirs = [
+          path.join(this.workflowRoot, 'jobs'),
+          path.join(this.workflowRoot, 'dev', 'jobs'),
+        ];
+        
+        let files = [];
+        
+        for (const dir of possibleJobDirs) {
+          try {
+            files = await fs.readdir(dir);
+            jobsDir = dir;
+            break;
+          } catch {
+            continue;
+          }
+        }
+        
+        if (!jobsDir) {
+          return {
+            content: [{ type: 'text', text: `Jobs directory not found: ${this.workflowRoot}/jobs\n\n**Searched paths:**\n${possibleJobDirs.map(p => `- ${p}`).join('\n')}\n\n**Hint:** Use 'job_list' parameter to provide job names directly for remote access.\nOr use 'files' parameter with [{name, content}] for detailed analysis.\nOr set MCP_WORKFLOW_ROOT environment variable to the global-workflow repository root.` }],
+            isError: true
+          };
+        }
+
+        // Filter for job files (J* pattern)
+        jobFiles = files.filter(f => f.startsWith('J'));
+      }
 
       // Categorize jobs
       const categories = {
@@ -296,19 +332,37 @@ export class OperationalTools {
         };
       }
 
+      // Add source note if using provided content
+      if (job_list || providedFiles) {
+        output += `**Source:** Content provided via parameter (container-compatible mode)\n\n`;
+      }
+
       if (format === 'detailed') {
         for (const job of jobList.sort()) {
           output += `## ${job}\n`;
-          const filePath = path.join(jobsDir, job);
-          try {
-            const content = await fs.readFile(filePath, 'utf-8');
+          // Use contentMap if available, otherwise try filesystem
+          if (contentMap[job]) {
+            const content = contentMap[job];
             const lines = content.split('\n');
             const descLine = lines.find(l => l.includes('Description') || l.includes('PURPOSE'));
             if (descLine) {
               output += `${descLine.trim()}\n`;
+            } else {
+              output += `Job control script (content provided)\n`;
             }
-          } catch {
-            output += `Job control script\n`;
+          } else {
+            // Fallback to filesystem for local mode
+            const filePath = path.join(jobsDir, job);
+            try {
+              const content = await fs.readFile(filePath, 'utf-8');
+              const lines = content.split('\n');
+              const descLine = lines.find(l => l.includes('Description') || l.includes('PURPOSE'));
+              if (descLine) {
+                output += `${descLine.trim()}\n`;
+              }
+            } catch {
+              output += `Job control script\n`;
+            }
           }
           output += `\n`;
         }

@@ -184,17 +184,51 @@ registry:
     image: eib-mcp-rag:latest
     env:
       - name: CHROMADB_HOST
-        value: chromadb
+        value: "172.17.0.1"
       - name: NEO4J_URI
-        value: bolt://global-workflow-neo4j:7687
+        value: bolt://172.17.0.1:7687
+      - name: MCP_WORKFLOW_ROOT
+        value: /app/supported_repos/global-workflow
+    volumes:
+      - /mcp_rag_eib/eib-mcp-rag-server/supported_repos:/app/supported_repos:ro
+      - /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/scripts:/app/scripts:ro
+      - /mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:ro
 ```
 
-### Verified Working (December 17, 2025)
-- [x] Gateway discovers all 32 tools
+### Volume Mounts (Phase 19 - December 2025)
+The gateway container mounts two directories for functionality (security-hardened):
+- **supported_repos**: Full Global Workflow source code including all submodules (GSI, UFS, etc.)
+- **sdd_framework**: SDD workflow definitions for development orchestration
+
+**Security Note**: The `scripts/` directory is NOT mounted - documentation sources config is baked into the container image at build time (`config/documentation_sources.json`) to prevent external LLMs from accessing or modifying tool internals.
+
+### Verified Working (December 17-19, 2025)
+- [x] Gateway discovers all 34 tools
 - [x] LangFlow connects via SSE transport
 - [x] ChromaDB queries work through container
 - [x] Neo4j queries work through container
 - [x] Bearer token authentication working
+- [x] Full source code access via volume mounts
+- [x] list_job_scripts reads from container filesystem
+- [x] get_ingested_urls_array reads from baked-in JSON config
+
+### MCP Catalog Security Configuration
+Location: `~/.docker/mcp/catalogs/eib-local.yaml`
+
+**Selective Volume Mounts** (minimal exposure):
+```yaml
+volumes:
+  # Full GFS/GEFS/SFS codebase with submodules (GSI, UFS, etc.)
+  - /path/to/supported_repos/global-workflow:/app/supported_repos/global-workflow:ro
+  # EE2 compliance standards document only (not full repo)
+  - /path/to/supported_repos/nws-hpc-standards/docs/standards.rst:/app/supported_repos/nws-hpc-standards/docs/standards.rst:ro
+  # SDD workflow definitions
+  - /path/to/sdd_framework:/app/sdd_framework:ro
+```
+
+**What's NOT mounted** (security):
+- `scripts/` - Tool internals (baked into image instead)
+- Other supported_repos - EVS, n8n, mcp-gateway, rocoto_dryrun, etc.
 
 ## MCP Tool Categories
 
@@ -240,3 +274,8 @@ grep "tools registered" mcp_server_node/logs/mcp-server.log
 - ❌ Duplicating config (violates SPOT principle)
 - ❌ Installing packages without Spack/provisioning updates
 - ❌ Using pip install without `--user` flag
+
+## Important Notes
+
+### MCP Tool "Disabled by user" Error
+When an MCP tool returns "Tool is currently disabled by the user", this typically means **the tool errored** - not that the user actually disabled it. This is a VS Code/Copilot quirk. Retry the tool call or check MCP server logs for the actual error.
