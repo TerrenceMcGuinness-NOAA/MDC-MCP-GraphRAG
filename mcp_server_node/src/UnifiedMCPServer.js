@@ -105,7 +105,7 @@ class UnifiedMCPServer {
     this.codeAnalysisTools.registerWith(this.server);
     console.error('[MCP] Code analysis tools registered');
 
-    // Conditionally register semantic search tools (4 tools - SOC: EE2 tools moved to EE2ComplianceTools)
+    // Conditionally register semantic search tools (6 tools - SOC: EE2 tools moved to EE2ComplianceTools)
     if (this.options.enableRAG && this.semanticSearchTools) {
       try {
         this.semanticSearchTools.registerWith(this.server);
@@ -227,11 +227,13 @@ class UnifiedMCPServer {
     info += `- find_callers_callees - Relationship analysis\n\n`;
 
     if (this.options.enableRAG) {
-      info += `### Semantic Search Tools (4 tools - vector + graph hybrid)\n`;
+      info += `### Semantic Search Tools (6 tools - vector + graph hybrid)\n`;
       info += `- search_documentation - Hybrid semantic search\n`;
       info += `- find_related_files - Dependency relationship search\n`;
       info += `- explain_with_context - Multi-source RAG explanations\n`;
-      info += `- get_knowledge_base_status - Vector + graph DB statistics\n\n`;
+      info += `- get_knowledge_base_status - Vector + graph DB statistics\n`;
+      info += `- list_ingested_urls - List all ingested documentation URLs\n`;
+      info += `- get_ingested_urls_array - Get URLs as structured array\n\n`;
 
       info += `### EE2 Compliance Tools (4 tools - vector + Phase 2 patterns)\n`;
       info += `- search_ee2_standards - EE2 documentation search\n`;
@@ -249,8 +251,8 @@ class UnifiedMCPServer {
       info += `### GitHub Integration Tools (4 tools)\n`;
       info += `- search_issues - Issue search\n`;
       info += `- get_pull_requests - PR information\n`;
-      info += `- get_ingested_urls_array - URL tracking\n`;
-      info += `- list_ingested_urls - Ingestion status\n\n`;
+      info += `- analyze_workflow_dependencies - Cross-repo dependency analysis\n`;
+      info += `- analyze_repository_structure - Multi-repo structure analysis\n\n`;
     }
 
     info += `### SDD Workflow Tools (6 tools - Phase 3A)\n`;

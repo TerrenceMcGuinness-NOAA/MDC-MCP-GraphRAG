@@ -95,7 +95,7 @@
 \node[font=\small, noaagray, right] at (5.5, 4) {EE2 Standards};
 \node[font=\small, noaagray, right] at (5.5, 3.5) {+ 63 MCP Annotations};
 \node[font=\small, noaagray, right] at (5.5, 1.5) {94 chunks};
-\node[font=\small, noaagray, right] at (5.5, 1) {384-dim embeddings};
+\node[font=\small, noaagray, right] at (5.5, 1) {768-dim embeddings};
 
 \end{tikzpicture}
 \caption{MCP Semantic Annotation Architecture (v7.0.0)}
@@ -136,7 +136,7 @@
 % Stage 5: Convolution
 \node[component, minimum width=8cm, minimum height=1.8cm, fill=noaablue!30, align=center] (convolve) at (-5, -3.5) {
     \textbf{Embedding Convolution}\\
-    \texttt{sentence-transformers/all-MiniLM-L6-v2}\\
+    \texttt{sentence-transformers/all-mpnet-base-v2}\\
     Text $\otimes$ Context $\otimes$ Directive Tags
 };
 
@@ -516,7 +516,7 @@ ChromaDB Collections & 12 & v7.0.0 architecture \\
 Total Documents & 14,856 & Across all collections \\
 EE2 Chunks & 94 & standards.rst content \\
 MCP Directives & 63 & Inline in standards.rst \\
-Embedding Dimensions & 384 & MiniLM-L6-v2 model \\
+Embedding Dimensions & 768 & all-mpnet-base-v2 model \\
 \midrule
 \multicolumn{3}{l}{\textit{Compliance Impact}} \\
 False Positive Reduction & 85\% & 328 → 48 violations \\

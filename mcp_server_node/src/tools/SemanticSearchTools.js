@@ -27,6 +27,12 @@
  */
 
 import { UnifiedDataAccess } from '../data/UnifiedDataAccess.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export class SemanticSearchTools {
   constructor(dataAccess = null) {
@@ -122,7 +128,46 @@ export class SemanticSearchTools {
       this.getKnowledgeBaseStatus.bind(this)
     );
 
-    console.error('[OK] Registered 4 Semantic Search tools');
+    // Tool 5: List Ingested URLs (migrated from Week 1 EnhancedRAGTools)
+    server.registerTool(
+      'list_ingested_urls',
+      'List all URLs that have been ingested into the RAG knowledge base',
+      {
+        type: 'object',
+        properties: {
+          format: { 
+            type: 'string', 
+            enum: ['detailed', 'summary', 'urls_only'],
+            default: 'detailed',
+            description: 'Output format: detailed (full report), summary (stats only), urls_only (just URLs)'
+          },
+          source_filter: { 
+            type: 'string', 
+            description: 'Filter by source name (e.g., "global-workflow", "spack")'
+          }
+        }
+      },
+      this.listIngestedURLs.bind(this)
+    );
+
+    // Tool 6: Get Ingested URLs Array (migrated from Week 1 EnhancedRAGTools)
+    server.registerTool(
+      'get_ingested_urls_array',
+      'Get a structured array of all ingested URLs for programmatic access',
+      {
+        type: 'object',
+        properties: {
+          include_failed: { 
+            type: 'boolean', 
+            default: false,
+            description: 'Include failed/errored URLs in the response'
+          }
+        }
+      },
+      this.getIngestedURLsArray.bind(this)
+    );
+
+    console.error('[OK] Registered 6 Semantic Search tools');
   }
 
   async searchDocumentation(args) {
@@ -361,6 +406,262 @@ export class SemanticSearchTools {
     } catch (error) {
       return {
         content: [{ type: 'text', text: `Error getting status: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * List all URLs that have been ingested as embeddings
+   * Migrated from Week 1 EnhancedRAGTools.js
+   * Enhanced to query ChromaDB directly for accurate ingestion status
+   */
+  async listIngestedURLs(args) {
+    await this.ensureInitialized();
+    const { format = 'detailed', source_filter = null } = args;
+
+    try {
+      // Get knowledge base path
+      const knowledgeBasePath = process.env.MCP_KNOWLEDGE_BASE_PATH || 
+        path.join(__dirname, '../../knowledge-base');
+
+      // Query ChromaDB directly for actual ingestion data via dataAccess layer
+      let chromaStats = null;
+      
+      try {
+        // Use the already-initialized dataAccess to query ChromaDB
+        if (this.dataAccess && this.dataAccess.vectorDB) {
+          const stats = await this.dataAccess.getStatistics();
+          
+          if (stats.vector && stats.vector.collections) {
+            // Get the v7 collection document count
+            const v7Count = stats.vector.collections['global-workflow-docs-v7-0-0'] || 0;
+            
+            // Query the collection for source breakdown
+            const chromaUrl = process.env.CHROMADB_URL || process.env.CHROMA_SERVER_URL || 'http://localhost:8080';
+            const baseUrl = `${chromaUrl}/api/v2`;
+            const tenant = 'default_tenant';
+            const database = 'default_database';
+            
+            // Get collections to find v7 ID
+            const collsResp = await fetch(`${baseUrl}/tenants/${tenant}/databases/${database}/collections`);
+            if (collsResp.ok) {
+              const collections = await collsResp.json();
+              const v7Coll = collections.find(c => c.name === 'global-workflow-docs-v7-0-0');
+              
+              if (v7Coll) {
+                // Sample documents to get source breakdown
+                const sampleResp = await fetch(
+                  `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${v7Coll.id}/get`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ limit: 4000, include: ['metadatas'] })
+                  }
+                );
+                
+                if (sampleResp.ok) {
+                  const sampleData = await sampleResp.json();
+                  const sourceCounter = {};
+                  
+                  for (const meta of sampleData.metadatas || []) {
+                    if (meta) {
+                      const source = meta.source || 'unknown';
+                      sourceCounter[source] = (sourceCounter[source] || 0) + 1;
+                    }
+                  }
+                  
+                  chromaStats = {
+                    collectionName: 'global-workflow-docs-v7-0-0',
+                    totalDocuments: v7Count,
+                    sampledDocuments: sampleData.metadatas?.length || 0,
+                    sourceBreakdown: sourceCounter
+                  };
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('ChromaDB query error:', err.message);
+      }
+
+      // Also load the SPOT documentation sources config for reference
+      const spotConfigPath = path.join(__dirname, '../../scripts/documentation_sources_config.py');
+      let spotSources = [];
+      
+      try {
+        const spotContent = await fs.readFile(spotConfigPath, 'utf-8');
+        const urlMatches = spotContent.matchAll(/'url':\s*'([^']+)'/g);
+        const nameMatches = spotContent.matchAll(/'name':\s*'([^']+)'/g);
+        const enabledMatches = spotContent.matchAll(/'enabled':\s*(True|False)/g);
+        
+        const urls = [...urlMatches].map(m => m[1]);
+        const names = [...nameMatches].map(m => m[1]);
+        const enabled = [...enabledMatches].map(m => m[1] === 'True');
+        
+        for (let i = 0; i < names.length && i < urls.length; i++) {
+          spotSources.push({
+            name: names[i],
+            url: urls[i],
+            enabled: enabled[i] !== false
+          });
+        }
+      } catch (err) {
+        // Config may not be readable
+      }
+
+      let response = `# RAG Knowledge Base Ingested URLs\n\n`;
+      response += `**Generated**: ${new Date().toISOString()}\n\n`;
+
+      // Report actual ChromaDB ingestion status (PRIMARY SOURCE OF TRUTH)
+      if (chromaStats) {
+        response += `## Actual Ingestion Status (from ChromaDB)\n\n`;
+        response += `**Collection**: ${chromaStats.collectionName}\n`;
+        response += `**Total Documents**: ${chromaStats.totalDocuments.toLocaleString()}\n\n`;
+        
+        response += `### Sources by Document Count\n\n`;
+        response += `| Source | Documents | % of Total |\n`;
+        response += `|--------|-----------|------------|\n`;
+        
+        const sortedSources = Object.entries(chromaStats.sourceBreakdown)
+          .sort(([,a], [,b]) => b - a);
+        
+        for (const [source, count] of sortedSources) {
+          if (source_filter && !source.includes(source_filter)) continue;
+          const pct = ((count / chromaStats.totalDocuments) * 100).toFixed(1);
+          response += `| ${source} | ${count.toLocaleString()} | ${pct}% |\n`;
+        }
+        response += `\n`;
+        
+        // Cross-reference with SPOT config
+        const ingestedSources = new Set(Object.keys(chromaStats.sourceBreakdown));
+        const spotSourceNames = new Set(spotSources.map(s => s.name));
+        
+        response += `### SPOT Compliance\n\n`;
+        let allPresent = true;
+        for (const spot of spotSources.filter(s => s.enabled)) {
+          const isIngested = ingestedSources.has(spot.name);
+          const status = isIngested ? '✅' : '❌';
+          const count = chromaStats.sourceBreakdown[spot.name] || 0;
+          if (!isIngested) allPresent = false;
+          response += `- ${status} **${spot.name}**: ${count} docs\n`;
+        }
+        response += `\n**All SPOT sources ingested**: ${allPresent ? '✅ Yes' : '❌ No'}\n\n`;
+      }
+
+      // Report on SPOT configuration sources
+      if (spotSources.length > 0) {
+        response += `## Configured Documentation Sources (SPOT v7.0.0)\n\n`;
+        response += `| Source | URL | Status |\n`;
+        response += `|--------|-----|--------|\n`;
+        
+        for (const source of spotSources) {
+          if (source_filter && !source.name.includes(source_filter)) continue;
+          const status = source.enabled ? '✅ Enabled' : '❌ Disabled';
+          response += `| ${source.name} | ${source.url} | ${status} |\n`;
+        }
+        response += `\n`;
+        
+        const enabledCount = spotSources.filter(s => s.enabled).length;
+        response += `**Total Sources**: ${spotSources.length} (${enabledCount} enabled)\n\n`;
+      }
+
+      if (format === 'urls_only') {
+        const urls = spotSources
+          .filter(s => s.enabled && (!source_filter || s.name.includes(source_filter)))
+          .map(s => s.url);
+        response = urls.join('\n');
+      }
+
+      return { content: [{ type: 'text', text: response }] };
+
+    } catch (error) {
+      return {
+        content: [{ type: 'text', text: `Error listing ingested URLs: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Get a simple array of all ingested URLs for programmatic access
+   * Migrated from Week 1 EnhancedRAGTools.js
+   */
+  async getIngestedURLsArray(args) {
+    await this.ensureInitialized();
+    const { include_failed = false } = args;
+
+    try {
+      const knowledgeBasePath = process.env.MCP_KNOWLEDGE_BASE_PATH || 
+        path.join(__dirname, '../../knowledge-base');
+
+      // Load SPOT documentation sources
+      const spotConfigPath = path.join(__dirname, '../../scripts/documentation_sources_config.py');
+      const spotContent = await fs.readFile(spotConfigPath, 'utf-8');
+      
+      // Parse the Python config
+      const urlMatches = spotContent.matchAll(/'url':\s*'([^']+)'/g);
+      const nameMatches = spotContent.matchAll(/'name':\s*'([^']+)'/g);
+      const enabledMatches = spotContent.matchAll(/'enabled':\s*(True|False)/g);
+      const tierMatches = spotContent.matchAll(/'(tier\d+_\w+)':\s*\[/g);
+      
+      const urls = [...urlMatches].map(m => m[1]);
+      const names = [...nameMatches].map(m => m[1]);
+      const enabled = [...enabledMatches].map(m => m[1] === 'True');
+      const tiers = [...tierMatches].map(m => m[1]);
+
+      const sources = [];
+      for (let i = 0; i < names.length && i < urls.length; i++) {
+        sources.push({
+          name: names[i],
+          url: urls[i],
+          enabled: enabled[i] !== false
+        });
+      }
+
+      const enabledSources = sources.filter(s => s.enabled);
+      const disabledSources = sources.filter(s => !s.enabled);
+
+      const result = {
+        version: '7.0.0',
+        generatedAt: new Date().toISOString(),
+        totalSources: sources.length,
+        enabledCount: enabledSources.length,
+        disabledCount: disabledSources.length,
+        enabledUrls: enabledSources.map(s => s.url),
+        sources: enabledSources.map(s => ({ name: s.name, url: s.url }))
+      };
+
+      if (include_failed) {
+        result.disabledUrls = disabledSources.map(s => s.url);
+        result.disabledSources = disabledSources.map(s => ({ name: s.name, url: s.url }));
+      }
+
+      // Format as markdown for MCP response
+      let output = `# Ingested URLs Array\n\n`;
+      output += `**Version**: ${result.version}\n`;
+      output += `**Generated**: ${result.generatedAt}\n`;
+      output += `**Total Sources**: ${result.totalSources}\n`;
+      output += `**Enabled**: ${result.enabledCount}\n`;
+      output += `**Disabled**: ${result.disabledCount}\n\n`;
+      
+      output += `## Enabled URLs (${result.enabledUrls.length})\n\n`;
+      output += `\`\`\`json\n${JSON.stringify(result.enabledUrls, null, 2)}\n\`\`\`\n\n`;
+      
+      output += `## Source Details\n\n`;
+      output += `\`\`\`json\n${JSON.stringify(result.sources, null, 2)}\n\`\`\`\n`;
+
+      if (include_failed && result.disabledUrls?.length > 0) {
+        output += `\n## Disabled URLs (${result.disabledUrls.length})\n\n`;
+        output += `\`\`\`json\n${JSON.stringify(result.disabledUrls, null, 2)}\n\`\`\`\n`;
+      }
+
+      return { content: [{ type: 'text', text: output }] };
+
+    } catch (error) {
+      return {
+        content: [{ type: 'text', text: `Error getting URLs array: ${error.message}` }],
         isError: true
       };
     }

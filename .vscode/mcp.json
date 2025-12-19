@@ -22,21 +22,23 @@
       }
     },
     // Remote gateway via SSH port forward (use after: ssh -L 8888:localhost:8888 remote-host)
-    "eib-mcp-gateway-remote": {
-      "type": "http",
-      "url": "http://localhost:8888/mcp",
-      "headers": {
-        "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
-      }
-    },
+    // DISABLED - uncomment when gateway is running
+    // "eib-mcp-gateway-remote": {
+    //   "type": "http",
+    //   "url": "http://localhost:8888/mcp",
+    //   "headers": {
+    //     "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
+    //   }
+    // },
     // Direct remote access (replace YOUR_REMOTE_IP with actual IP)
-    "eib-mcp-gateway-direct": {
-      "type": "http",
-      "url": "http://3.238.80.83:8888/mcp",
-      "headers": {
-        "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
-      }
-    },
+    // DISABLED - uncomment when gateway is running
+    // "eib-mcp-gateway-direct": {
+    //   "type": "http",
+    //   "url": "http://3.238.80.83:8888/mcp",
+    //   "headers": {
+    //     "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
+    //   }
+    // },
     "global-workflow-core": {
       "command": "node",
       "args": [
