@@ -8,10 +8,11 @@ A comprehensive Model Context Protocol (MCP) and Retrieval-Augmented Generation 
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **MCP Server** | ✅ Operational | v3.0.0, 16 tools registered |
-| **ChromaDB** | ✅ Healthy | 12 collections, 14,854 documents |
+| **MCP Server** | ✅ Operational | v3.6.2, 34 tools registered |
+| **Docker MCP Gateway** | ✅ Complete | Phase 11, SSE transport on port 8888 |
+| **ChromaDB** | ✅ Healthy | 12 collections, 14,856 documents |
 | **Neo4j** | ✅ Healthy | 2,730 files, 1,481 functions, 85,894 relationships |
-| **GitLab Registry** | ✅ Ready | `chromadb:v134clean` pushed |
+| **GitLab Registry** | ✅ Ready | `chromadb:v134clean`, `eib-mcp-rag:latest` |
 | **GitFlow Branches** | ✅ Created | develop, env/dev-ops, env/staging, env/production |
 
 ## Overview
@@ -25,13 +26,15 @@ This framework provides AI-assisted development capabilities for complex systems
 
 ## Architecture
 
+### System Overview
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    MCP-RAG System                           │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ MCP Server  │  │  ChromaDB   │  │   Neo4j     │          │
 │  │ (Node.js)   │  │  (Vectors)  │  │  (Graph)    │          │
-│  │  16+ Tools  │  │ 14,854 docs │  │ 85K+ rels   │          │
+│  │  34 Tools   │  │ 14,856 docs │  │ 85K+ rels   │          │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
 │         └────────────────┼────────────────┘                 │
 │                          │                                  │
@@ -46,6 +49,94 @@ This framework provides AI-assisted development capabilities for complex systems
               │   (Developer Interface) │
               └─────────────────────────┘
 ```
+
+### Docker MCP Gateway Architecture (Phase 11)
+
+The system supports multi-client AI access via Docker MCP Gateway, enabling integration with VS Code Copilot, LangFlow, Claude Desktop, and other MCP-compatible clients:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                     AI Clients                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │ LangFlow │  │ VS Code  │  │  Claude  │  │  Cursor  │        │
+│  │          │  │ Copilot  │  │ Desktop  │  │          │        │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
+│       │             │             │             │              │
+│       └─────────────┴──────┬──────┴─────────────┘              │
+│                            │                                   │
+│                   ┌────────▼────────┐                          │
+│                   │  Docker MCP     │                          │
+│                   │    Gateway      │ Port 8888 (SSE)          │
+│                   │  (docker-mcp)   │                          │
+│                   └────────┬────────┘                          │
+│                            │ stdio                             │
+│           ┌────────────────┼────────────────┐                  │
+│           │                │                │                  │
+│   ┌───────▼───────┐ ┌──────▼──────┐ ┌──────▼──────┐            │
+│   │ EIB-MCP-RAG   │ │  GitHub     │ │  Future     │            │
+│   │ Server        │ │  MCP Server │ │  Servers    │            │
+│   │ (34 tools)    │ │             │ │             │            │
+│   └───────┬───────┘ └─────────────┘ └─────────────┘            │
+│           │                                                    │
+│   ┌───────┴────────────────────┐                               │
+│   │                            │                               │
+│   ▼                            ▼                               │
+│ ┌──────────────┐       ┌──────────────┐                        │
+│ │   ChromaDB   │       │    Neo4j     │                        │
+│ │  (Vectors)   │       │   (Graph)    │                        │
+│ │  Port 8080   │       │  Port 7687   │                        │
+│ └──────────────┘       └──────────────┘                        │
+└────────────────────────────────────────────────────────────────┘
+```
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│                    CURRENT ARCHITECTURE (Phase 11)                    │
+│                                                                       │
+│  Your VM Server (3.236.197.228)                                       │
+│  ═══════════════════════════════                                      │
+│  ├── Spack Environment (gcc, python, py-* modules)                    │
+│  ├── Node.js (system or spack)                                        │
+│  ├── /mcp_rag_eib/ (persistent data root)                             │
+│  │                                                                    │
+│  │   Docker Containers (depend on host mounts):                       │
+│  │   ┌─────────────────────────────────────────────────────────┐      │
+│  │   │  eib-mcp-rag:latest                                     │      │
+│  │   │  • Volume: /mcp_rag_eib/supported_repos → /app/:ro      │      │
+│  │   │  • Volume: /mcp_rag_eib/sdd_framework → /app/:ro        │      │
+│  │   │  • Network: connects to chromadb, neo4j containers      │      │
+│  │   └─────────────────────────────────────────────────────────┘      │
+│  │   ┌──────────────┐  ┌──────────────┐                               │
+│  │   │  ChromaDB    │  │   Neo4j      │  ← Separate containers        │
+│  │   │  (8080)      │  │  (7474/7687) │    with volume mounts         │
+│  │   └──────────────┘  └──────────────┘                               │
+│  │                                                                    │
+│  └── Docker MCP Gateway (8888) ← Bridges to AI clients                │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+
+
+**Key Benefits:**
+- **Multi-Client Support**: Single MCP server serves VS Code, LangFlow, Claude Desktop, and Cursor simultaneously
+- **SSE Transport**: Server-Sent Events enable real-time streaming responses to AI clients
+- **Tool Composition**: LangFlow enables visual debugging of tool chains and intermediate response inspection
+- **Container Isolation**: Gateway provides security boundary between AI clients and backend services
+
+**Quick Start with Gateway:**
+```bash
+# Start infrastructure
+docker compose -f docker-compose.devops.yaml up -d
+
+# Start MCP Gateway (SSE transport for multi-client support)
+docker mcp gateway run --servers eib-mcp-rag --transport sse --port 8888 --long-lived
+
+# Gateway outputs bearer token for client authentication
+# Connect LangFlow to: http://localhost:8888/sse
+```
+
+For detailed gateway configuration, see [Phase 11 SDD](sdd_framework/workflows/phase11_docker_mcp_gateway_langflow.md).
 
 ## Repository Structure
 
