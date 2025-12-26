@@ -22,11 +22,15 @@
       }
     },
     // Remote gateway via SSH port forward (use after: ssh -L 8888:localhost:8888 remote-host)
-    // Start gateway with: SETUP/bin/start-mcp-gateway.sh --background
-    // Uses fixed token (set MCP_GATEWAY_AUTH_TOKEN env var to override)
+    // Start gateway with: sudo systemctl start mcp-gateway
+    // Uses fixed token (MCP_GATEWAY_AUTH_TOKEN environment variable)
+    // 
+    // Uses Streamable HTTP transport (MCP spec 2025-06-18)
+    // VS Code 1.102+ supports "type": "http" - tries Streamable HTTP first, falls back to SSE
+    // Gateway runs with --transport streaming which exposes /mcp endpoint
     "eib-mcp-gateway": {
-      "type": "sse",
-      "url": "http://localhost:8888/sse",
+      "type": "http",
+      "url": "http://localhost:8888/mcp",
       "headers": {
         "Authorization": "Bearer eib-mcp-gateway-token-2025"
       }
