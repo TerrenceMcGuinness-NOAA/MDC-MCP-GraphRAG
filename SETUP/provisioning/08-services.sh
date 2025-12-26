@@ -14,6 +14,8 @@ require_root
 log_subsection "Docker Compose Services"
 
 USER_NAME=$(get_actual_user)
+USER_OWNERSHIP=$(get_ownership "${USER_NAME}")
+USER_GROUP=$(get_user_group "${USER_NAME}")
 COMPOSE_FILE="${SETUP_DIR}/docker-compose.yml"
 
 # Check if docker-compose.yml exists
@@ -34,7 +36,7 @@ NEO4J_DATA="${DATA_ROOT}/neo4j"
 
 # Ensure Neo4j directories exist
 mkdir -p "${NEO4J_DATA}"/{data,logs,import,plugins}
-chown -R "${USER_NAME}:${USER_NAME}" "${NEO4J_DATA}"
+chown -R "${USER_OWNERSHIP}" "${NEO4J_DATA}"
 
 # Start Neo4j
 log_info "Starting Neo4j container..."
@@ -89,7 +91,7 @@ Wants=chromadb-persistent.service
 [Service]
 Type=simple
 User=${USER_NAME}
-Group=${USER_NAME}
+Group=${USER_GROUP}
 WorkingDirectory=${MCP_ROOT}
 Environment=NODE_ENV=production
 Environment=CHROMADB_URL=${CHROMADB_URL}

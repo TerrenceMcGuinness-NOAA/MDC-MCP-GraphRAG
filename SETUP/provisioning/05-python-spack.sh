@@ -14,6 +14,7 @@ require_root
 log_subsection "Python Environment Setup"
 
 USER_NAME=$(get_actual_user)
+USER_OWNERSHIP=$(get_ownership "${USER_NAME}")
 
 # Ensure Python 3.11 is available
 if command_exists python3.11; then
@@ -57,7 +58,7 @@ else
 fi
 
 # Set ownership
-chown -R "${USER_NAME}:${USER_NAME}" "${SPACK_ROOT}"
+chown -R "${USER_OWNERSHIP}" "${SPACK_ROOT}"
 
 # Source Spack
 source "${SPACK_ROOT}/share/spack/setup-env.sh"

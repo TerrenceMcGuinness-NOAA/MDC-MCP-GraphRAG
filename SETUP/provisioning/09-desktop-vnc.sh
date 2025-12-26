@@ -160,10 +160,12 @@ configure_user_vnc_files() {
     local username="$1"
     local user_home="/home/${username}"
     local vnc_dir="${user_home}/.vnc"
+    local user_group
+    user_group=$(get_user_group "${username}")
 
     # Create VNC directory
     mkdir -p "${vnc_dir}"
-    chown "${username}:${username}" "${vnc_dir}"
+    chown "${username}:${user_group}" "${vnc_dir}"
     chmod 700 "${vnc_dir}"
 
     # Create VNC xstartup script for MATE
@@ -186,14 +188,14 @@ export DBUS_SESSION_BUS_ADDRESS
 exec /usr/bin/mate-session
 EOFVNC
     chmod +x "${vnc_dir}/xstartup"
-    chown "${username}:${username}" "${vnc_dir}/xstartup"
+    chown "${username}:${user_group}" "${vnc_dir}/xstartup"
 
     # Create VNC config file
     cat > "${vnc_dir}/config" << EOFCONFIG
 geometry=${KASMVNC_GEOMETRY}
 depth=${KASMVNC_DEPTH}
 EOFCONFIG
-    chown "${username}:${username}" "${vnc_dir}/config"
+    chown "${username}:${user_group}" "${vnc_dir}/config"
     chmod 644 "${vnc_dir}/config"
 
     # Create KasmVNC configuration (only used by KasmVNC builds)
@@ -216,7 +218,7 @@ desktop:
 pointer:
     enabled: true
 EOFKASM
-    chown "${username}:${username}" "${vnc_dir}/kasmvnc.yaml"
+    chown "${username}:${user_group}" "${vnc_dir}/kasmvnc.yaml"
     chmod 644 "${vnc_dir}/kasmvnc.yaml"
 }
 
@@ -540,6 +542,7 @@ elif [[ "${VNC_TYPE}" == "tigervnc" ]]; then
     log_subsection "Configuring TigerVNC"
 
     USER_NAME=$(get_actual_user)
+    USER_GROUP=$(get_user_group "${USER_NAME}")
     USER_HOME="/home/${USER_NAME}"
     VNC_DIR="${USER_HOME}/.vnc"
     
@@ -551,7 +554,7 @@ elif [[ "${VNC_TYPE}" == "tigervnc" ]]; then
         log_info "Setting default VNC password..."
         su - "${USER_NAME}" -c "echo 'mcp2025vnc' | vncpasswd -f > ${VNC_DIR}/passwd"
         chmod 600 "${VNC_DIR}/passwd"
-        chown "${USER_NAME}:${USER_NAME}" "${VNC_DIR}/passwd"
+        chown "${USER_NAME}:${USER_GROUP}" "${VNC_DIR}/passwd"
         log_warning "Default VNC password set to 'mcp2025vnc' - please change with: vncpasswd"
     fi
     
@@ -584,7 +587,7 @@ else
 fi
 EOFVNC
     chmod +x "${VNC_DIR}/xstartup"
-    chown "${USER_NAME}:${USER_NAME}" "${VNC_DIR}/xstartup"
+    chown "${USER_NAME}:${USER_GROUP}" "${VNC_DIR}/xstartup"
     
     # Create VNC config
     cat > "${VNC_DIR}/config" << 'EOFCONFIG'
@@ -592,7 +595,7 @@ geometry=1920x1080
 depth=24
 localhost=no
 EOFCONFIG
-    chown "${USER_NAME}:${USER_NAME}" "${VNC_DIR}/config"
+    chown "${USER_NAME}:${USER_GROUP}" "${VNC_DIR}/config"
     
     # SSL Certificate for noVNC
     CERT_PATH="${USER_HOME}/novnc.pem"
@@ -601,7 +604,7 @@ EOFCONFIG
         /usr/bin/openssl req -x509 -nodes -newkey rsa:2048 \
             -keyout "${CERT_PATH}" -out "${CERT_PATH}" \
             -days 365 -subj "/CN=localhost" 2>/dev/null || log_warning "Certificate generation failed"
-        chown "${USER_NAME}:${USER_NAME}" "${CERT_PATH}"
+        chown "${USER_NAME}:${USER_GROUP}" "${CERT_PATH}"
     fi
     
     # Create TigerVNC systemd services
@@ -615,7 +618,7 @@ After=syslog.target network.target
 [Service]
 Type=simple
 User=${USER_NAME}
-Group=${USER_NAME}
+Group=${USER_GROUP}
 WorkingDirectory=${USER_HOME}
 
 ExecStartPre=-/bin/sh -c '/usr/bin/vncserver -kill :%i > /dev/null 2>&1 || :'
@@ -639,7 +642,7 @@ Wants=vncserver@1.service
 [Service]
 Type=simple
 User=${USER_NAME}
-Group=${USER_NAME}
+Group=${USER_GROUP}
 ExecStart=/usr/bin/websockify --web=/usr/share/novnc/ --cert=${CERT_PATH} 6080 localhost:5901
 Restart=always
 RestartSec=5
@@ -660,6 +663,7 @@ fi
 log_subsection "Creating VNC Helper Script"
 
 USER_NAME=$(get_actual_user)
+USER_GROUP=$(get_user_group "${USER_NAME}")
 USER_HOME="/home/${USER_NAME}"
 
 mkdir -p "${USER_HOME}/bin"
@@ -733,7 +737,7 @@ fi
 EOFHELPER
 
 chmod +x "${USER_HOME}/bin/vnc-start.sh"
-chown -R "${USER_NAME}:${USER_NAME}" "${USER_HOME}/bin"
+chown -R "$(get_ownership "${USER_NAME}")" "${USER_HOME}/bin"
 
 ################################################################################
 # Install Google Chrome (for web development/testing)

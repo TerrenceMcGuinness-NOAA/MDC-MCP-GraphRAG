@@ -33,9 +33,13 @@ COPY phase2_anti_patterns.json ./
 # Environment configuration
 ENV NODE_ENV=production
 ENV MCP_SCENARIO=full
-ENV CHROMADB_HOST=chromadb
-ENV CHROMADB_PORT=8000
-ENV NEO4J_URI=bolt://neo4j:7687
+# Use host.docker.internal for gateway container to reach host databases
+# On Linux, this requires: --add-host=host.docker.internal:host-gateway
+# Alternative: use 172.17.0.1 (Docker bridge gateway IP)
+ENV CHROMADB_HOST=172.17.0.1
+ENV CHROMADB_PORT=8080
+ENV CHROMADB_URL=http://172.17.0.1:8080
+ENV NEO4J_URI=bolt://172.17.0.1:7687
 ENV NEO4J_USER=neo4j
 ENV NEO4J_PASSWORD=gfsworkflow2025
 ENV ENABLE_RAG=true

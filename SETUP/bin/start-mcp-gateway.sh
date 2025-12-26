@@ -32,6 +32,10 @@ TRANSPORT="${TRANSPORT:-sse}"
 BACKGROUND=false
 SERVER_NAME="eib-mcp-rag"
 
+# Fixed token for VS Code mcp.json (avoids token changing on each restart)
+# Set MCP_GATEWAY_AUTH_TOKEN env var to override this default
+export MCP_GATEWAY_AUTH_TOKEN="${MCP_GATEWAY_AUTH_TOKEN:-eib-mcp-gateway-token-2025}"
+
 # Colors for output (ASCII only - no emoji)
 RED='\033[0;31m'
 GREEN='\033[0;32m'

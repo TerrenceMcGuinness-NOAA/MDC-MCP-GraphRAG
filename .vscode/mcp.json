@@ -22,11 +22,13 @@
       }
     },
     // Remote gateway via SSH port forward (use after: ssh -L 8888:localhost:8888 remote-host)
+    // Start gateway with: SETUP/bin/start-mcp-gateway.sh --background
+    // Uses fixed token (set MCP_GATEWAY_AUTH_TOKEN env var to override)
     "eib-mcp-gateway": {
       "type": "sse",
       "url": "http://localhost:8888/sse",
       "headers": {
-        "Authorization": "Bearer jc1ha4k1wlei3xfosuj3lm4ext16vsv0bwh9lotmiztrmj7pwl"
+        "Authorization": "Bearer eib-mcp-gateway-token-2025"
       }
     },
     // Direct remote access (replace YOUR_REMOTE_IP with actual IP)

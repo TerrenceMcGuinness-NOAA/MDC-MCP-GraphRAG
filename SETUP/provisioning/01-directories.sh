@@ -15,6 +15,7 @@ require_root
 log_subsection "Creating Directory Structure"
 
 USER_NAME=$(get_actual_user)
+USER_OWNERSHIP=$(get_ownership "${USER_NAME}")
 
 # Core directories
 DIRS=(
@@ -49,8 +50,8 @@ for dir in "${DIRS[@]}"; do
 done
 
 # Set ownership
-log_info "Setting ownership to ${USER_NAME}..."
-chown -R "${USER_NAME}:${USER_NAME}" "${PERSISTENT_ROOT}"
+log_info "Setting ownership to ${USER_OWNERSHIP}..."
+chown -R "${USER_OWNERSHIP}" "${PERSISTENT_ROOT}"
 
 # Verify
 log_success "Directory structure created"

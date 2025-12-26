@@ -14,6 +14,7 @@ require_root
 log_subsection "MCP Server Setup"
 
 USER_NAME=$(get_actual_user)
+USER_OWNERSHIP=$(get_ownership "${USER_NAME}")
 MCP_SOURCE="${EIB_REPO}/mcp_server_node"
 
 # Verify source exists
@@ -38,7 +39,7 @@ else
 fi
 
 # Set ownership
-chown -R "${USER_NAME}:${USER_NAME}" "${MCP_ROOT}"
+chown -R "${USER_OWNERSHIP}" "${MCP_ROOT}"
 
 ################################################################################
 # Install npm dependencies

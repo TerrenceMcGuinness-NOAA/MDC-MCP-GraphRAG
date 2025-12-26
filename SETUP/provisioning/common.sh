@@ -162,19 +162,67 @@ get_actual_user() {
     echo "${SUDO_USER:-${USER:-$(whoami)}}"
 }
 
+# Get the primary group of a user (handles case where group name != username)
+# Usage: get_user_group "username"
+# Returns: primary group name (e.g., "pwuser" for Terry.McGuinness)
+get_user_group() {
+    local user="${1:-$(get_actual_user)}"
+    # Get the primary GID, then resolve to group name
+    local gid
+    gid=$(id -g "${user}" 2>/dev/null)
+    if [[ -n "${gid}" ]]; then
+        # Try to get group name from GID
+        local group_name
+        group_name=$(getent group "${gid}" 2>/dev/null | cut -d: -f1)
+        if [[ -n "${group_name}" ]]; then
+            echo "${group_name}"
+        else
+            # Fallback: return GID if no group name exists
+            echo "${gid}"
+        fi
+    else
+        # Fallback: assume group matches username
+        echo "${user}"
+    fi
+}
+
+# Get user:group ownership string for chown commands
+# Usage: get_ownership "username"
+# Returns: "username:primary_group" (e.g., "Terry.McGuinness:pwuser")
+get_ownership() {
+    local user="${1:-$(get_actual_user)}"
+    local group
+    group=$(get_user_group "${user}")
+    echo "${user}:${group}"
+}
+
 # Run command as actual user (not root)
+# Usage: run_as_user "command"           - uses get_actual_user()
+#        run_as_user "username" "command" - uses specified username
 run_as_user() {
-    local user=$(get_actual_user)
-    su - "${user}" -c "$*"
+    local user
+    local cmd
+    if [[ $# -eq 1 ]]; then
+        # Single argument: command only, use actual user
+        user=$(get_actual_user)
+        cmd="$1"
+    else
+        # Two arguments: username and command
+        user="$1"
+        cmd="$2"
+    fi
+    su - "${user}" -c "${cmd}"
 }
 
 # Create directory with proper ownership
 create_dir_as_user() {
     local dir="$1"
     local user=$(get_actual_user)
+    local ownership
+    ownership=$(get_ownership "${user}")
     
     mkdir -p "${dir}"
-    chown -R "${user}:${user}" "${dir}"
+    chown -R "${ownership}" "${dir}"
 }
 
 # Source Spack environment if available
@@ -304,7 +352,7 @@ print_summary_report() {
 export -f log_info log_success log_warning log_error log_section log_subsection
 export -f record_result clear_status_file read_all_results
 export -f require_root command_exists service_running wait_for_service
-export -f get_actual_user run_as_user create_dir_as_user
+export -f get_actual_user get_user_group get_ownership run_as_user create_dir_as_user
 export -f load_spack_env load_modules
 export -f run_subscript print_summary_report
 

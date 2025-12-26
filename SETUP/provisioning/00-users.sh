@@ -91,11 +91,13 @@ setup_ssh() {
   local home_dir
   home_dir=$(eval echo ~"${username}")
   local ssh_dir="${home_dir}/.ssh"
+  local user_group
+  user_group=$(get_user_group "${username}")
 
   log_info "Setting up SSH for ${username}"
 
   mkdir -p "${ssh_dir}"
-  chown "${username}:${username}" "${ssh_dir}"
+  chown "${username}:${user_group}" "${ssh_dir}"
   chmod 700 "${ssh_dir}"
 
   if [[ ! -f "${ssh_dir}/id_rsa" ]]; then
@@ -108,18 +110,20 @@ setup_ssh() {
 
   touch "${ssh_dir}/authorized_keys"
   chmod 600 "${ssh_dir}/authorized_keys"
-  chown "${username}:${username}" "${ssh_dir}/authorized_keys"
-  chown -R "${username}:${username}" "${ssh_dir}"
+  chown "${username}:${user_group}" "${ssh_dir}/authorized_keys"
+  chown -R "${username}:${user_group}" "${ssh_dir}"
 }
 
 create_scratch_space() {
   local username="$1"
   local workspace_dir="${SCRATCH_ROOT}/${username}"
+  local user_group
+  user_group=$(get_user_group "${username}")
 
   log_info "Creating scratch space for ${username}: ${workspace_dir}"
   mkdir -p "${SCRATCH_ROOT}"
   mkdir -p "${workspace_dir}"
-  chown -R "${username}:${username}" "${workspace_dir}"
+  chown -R "${username}:${user_group}" "${workspace_dir}"
   chmod 755 "${workspace_dir}"
 }
 
@@ -130,6 +134,8 @@ setup_bin_directory() {
   local bin_dir="${home_dir}/bin"
   local user_code_script="${bin_dir}/code.sh"
   local code_tunnel_script="${SETUP_DIR}/bin/code.sh"
+  local user_group
+  user_group=$(get_user_group "${username}")
 
   log_info "Setting up bin directory for ${username}"
   mkdir -p "${bin_dir}"
@@ -137,7 +143,7 @@ setup_bin_directory() {
   if [[ -f "${code_tunnel_script}" ]]; then
     cp "${code_tunnel_script}" "${user_code_script}"
     chmod 755 "${user_code_script}"
-    chown "${username}:${username}" "${user_code_script}"
+    chown "${username}:${user_group}" "${user_code_script}"
   else
     log_warning "code.sh not found at ${code_tunnel_script}; skipping"
   fi
@@ -189,7 +195,9 @@ fi
 
 EOF
 
-  chown "${username}:${username}" "${bashrc}" "${bash_profile}" 2>/dev/null || true
+  local user_group
+  user_group=$(get_user_group "${username}")
+  chown "${username}:${user_group}" "${bashrc}" "${bash_profile}" 2>/dev/null || true
 }
 
 create_workspace_readme() {
@@ -217,7 +225,9 @@ Default tunnel name: pw_${first_name}
 
 EOF
 
-  chown "${username}:${username}" "${readme}" 2>/dev/null || true
+  local user_group
+  user_group=$(get_user_group "${username}")
+  chown "${username}:${user_group}" "${readme}" 2>/dev/null || true
 }
 
 add_to_groups() {

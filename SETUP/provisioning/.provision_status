@@ -1,10 +1,12 @@
-01-directories.sh|skipped|Not in --only list
-02-system-deps.sh|skipped|Not in --only list
-03-docker.sh|skipped|Not in --only list
-04-nodejs.sh|skipped|Not in --only list
-05-python-spack.sh|skipped|Not in --only list
-06-chromadb.sh|skipped|Not in --only list
-07-mcp-server.sh|skipped|Not in --only list
-08-services.sh|skipped|Not in --only list
-09-desktop-vnc.sh|success|26s
-10-verification.sh|skipped|Not in --only list
+00-users.sh|success|1s
+01-directories.sh|success|1s
+02-system-deps.sh|success|5s
+03-docker.sh|success|1s
+04-nodejs.sh|success|7s
+05-python-spack.sh|success|12s
+06-chromadb.sh|success|0s
+07-mcp-server.sh|success|1s
+08-services.sh|success|183s
+09-desktop-vnc.sh|success|4s
+10-verification.sh|success|0s
+11-docker-mcp-gateway.sh|success|14s

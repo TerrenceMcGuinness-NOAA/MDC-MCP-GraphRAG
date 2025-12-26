@@ -138,7 +138,7 @@ run_as_user "${USER_NAME}" "mkdir -p ${DOCKER_CLI_PLUGINS}"
 # Install plugin
 cp "${MCP_GATEWAY_REPO}/docker-mcp" "${DOCKER_CLI_PLUGINS}/docker-mcp"
 chmod +x "${DOCKER_CLI_PLUGINS}/docker-mcp"
-chown "${USER_NAME}:${USER_NAME}" "${DOCKER_CLI_PLUGINS}/docker-mcp"
+chown "$(get_ownership "${USER_NAME}")" "${DOCKER_CLI_PLUGINS}/docker-mcp"
 
 # Verify installation
 if run_as_user "${USER_NAME}" "docker mcp --version" &>/dev/null; then
@@ -157,9 +157,11 @@ MCP_CONFIG_DIR="${USER_HOME}/.docker/mcp"
 run_as_user "${USER_NAME}" "mkdir -p ${MCP_CONFIG_DIR}/catalogs"
 
 # Create EIB MCP RAG catalog entry
+# Note: Uses 172.17.0.1 (Docker bridge gateway) for container-to-host DB access
 cat > "${MCP_CONFIG_DIR}/catalogs/eib-mcp-rag.yaml" << 'EOF'
 # EIB MCP RAG Server Catalog Entry
-# Used by: docker mcp gateway run --catalog ~/.docker/mcp/catalogs/eib-mcp-rag.yaml
+# Used by: docker mcp gateway run --servers eib-mcp-rag
+# Updated: Uses host IP (172.17.0.1) for DB access from gateway containers
 
 servers:
   eib-mcp-rag:
@@ -171,18 +173,20 @@ servers:
     longLived: false
     env:
       - name: CHROMADB_HOST
-        value: chromadb
+        value: "172.17.0.1"
       - name: CHROMADB_PORT
-        value: "8000"
+        value: "8080"
+      - name: CHROMADB_URL
+        value: "http://172.17.0.1:8080"
       - name: NEO4J_URI
-        value: bolt://neo4j:7687
+        value: "bolt://172.17.0.1:7687"
       - name: NEO4J_USER
         value: neo4j
       - name: NEO4J_PASSWORD
         value: gfsworkflow2025
 EOF
 
-chown -R "${USER_NAME}:${USER_NAME}" "${MCP_CONFIG_DIR}"
+chown -R "$(get_ownership "${USER_NAME}")" "${MCP_CONFIG_DIR}"
 
 log_success "MCP catalog created: ${MCP_CONFIG_DIR}/catalogs/eib-mcp-rag.yaml"
 
@@ -250,19 +254,18 @@ log_success "  Container image: eib-mcp-rag:latest"
 
 log_info ""
 log_info "Usage:"
+log_info "  # Start gateway with fixed token (for VS Code mcp.json)"
+log_info "  export MCP_GATEWAY_AUTH_TOKEN=\"eib-mcp-gateway-token-2025\""
+log_info "  docker mcp gateway run --servers docker://eib-mcp-rag:latest --transport sse --port 8888 --long-lived --verbose"
+log_info ""
+log_info "  # Or use the helper script:"
+log_info "  SETUP/bin/start-mcp-gateway.sh --background"
+log_info ""
 log_info "  # Test gateway discovery (dry-run)"
 log_info "  docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run --verbose"
 log_info ""
-log_info "  # Start gateway with HTTP transport"
-log_info "  export MCP_GATEWAY_AUTH_TOKEN=\"your-secret-token\""
-log_info "  docker mcp gateway run --servers docker://eib-mcp-rag:latest --port 8888 --transport streamable-http"
-log_info ""
-log_info "  # Run container directly with DB network (for RAG features)"
-log_info "  docker run -d --name eib-mcp-standalone \\"
-log_info "    --network global-workflow-mcp-rag \\"
-log_info "    -e CHROMADB_HOST=chromadb -e CHROMADB_PORT=8000 \\"
-log_info "    -e NEO4J_URI=bolt://neo4j:7687 \\"
-log_info "    -e NEO4J_USER=neo4j -e NEO4J_PASSWORD=gfsworkflow2025 \\"
-log_info "    eib-mcp-rag:latest"
+log_info "Remote Access (from client machine):"
+log_info "  1. SSH tunnel: ssh -L 8888:localhost:8888 user@server -N"
+log_info "  2. VS Code mcp.json uses: Bearer eib-mcp-gateway-token-2025"
 
 exit 0

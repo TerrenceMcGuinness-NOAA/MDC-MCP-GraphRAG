@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Edit(*)",
+      "Read(*)",
+      "Write(*)",
+      "mcp__eib-mcp-rag-full(*)",
+      "mcp__global-workflow-core(*)",
+      "Accept Edits",
+      "Bash(docker compose:*)",
+      "Bash(ss:*)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(timeout 5 docker run:*)",
+      "Bash(docker network:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker mcp --help:*)",
+      "Bash(go version:*)",
+      "Bash(make docker-mcp:*)",
+      "Bash(docker mcp:*)",
+      "Bash(~/.docker/cli-plugins/docker-mcp --help)",
+      "Bash(find:*)"
+    ],
+    "deny": []
+  }
+}

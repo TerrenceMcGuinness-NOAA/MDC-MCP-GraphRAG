@@ -14,12 +14,13 @@ require_root
 log_subsection "ChromaDB Docker Setup"
 
 USER_NAME=$(get_actual_user)
+USER_OWNERSHIP=$(get_ownership "${USER_NAME}")
 CHROMADB_DATA="${DATA_ROOT}/chromadb"
 CHROMADB_CONTAINER="chromadb"
 
 # Ensure data directory exists
 mkdir -p "${CHROMADB_DATA}"
-chown -R "${USER_NAME}:${USER_NAME}" "${CHROMADB_DATA}"
+chown -R "${USER_OWNERSHIP}" "${CHROMADB_DATA}"
 
 # Check if container already exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${CHROMADB_CONTAINER}$"; then
