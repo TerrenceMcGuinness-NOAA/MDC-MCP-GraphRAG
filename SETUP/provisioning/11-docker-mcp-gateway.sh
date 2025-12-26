@@ -241,6 +241,47 @@ else
 fi
 
 ################################################################################
+# Create Systemd Service for MCP Gateway
+################################################################################
+
+log_subsection "MCP Gateway Systemd Service"
+
+GATEWAY_SERVICE="/etc/systemd/system/mcp-gateway.service"
+
+cat > "${GATEWAY_SERVICE}" << EOF
+[Unit]
+Description=Docker MCP Gateway (SSE transport)
+After=network.target docker.service chromadb-persistent.service
+Requires=docker.service
+Wants=chromadb-persistent.service
+
+[Service]
+Type=simple
+User=${USER_NAME}
+Group=$(get_user_group "${USER_NAME}")
+Environment=MCP_GATEWAY_AUTH_TOKEN=eib-mcp-gateway-token-2025
+Environment=PATH=/usr/local/go/bin:/usr/bin:/bin:${USER_HOME}/.docker/cli-plugins
+WorkingDirectory=${USER_HOME}
+
+ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --servers docker://eib-mcp-rag:latest --transport sse --port 8888 --long-lived
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+log_info "Created systemd service: mcp-gateway.service"
+
+# Reload systemd and enable service
+systemctl daemon-reload
+systemctl enable mcp-gateway.service
+
+log_success "MCP Gateway systemd service configured"
+log_info "  Start with: sudo systemctl start mcp-gateway"
+log_info "  Status: sudo systemctl status mcp-gateway"
+
+################################################################################
 # Summary
 ################################################################################
 
@@ -251,18 +292,16 @@ log_success "  Go compiler: $(go version | awk '{print $3}')"
 log_success "  docker-mcp plugin: ${DOCKER_CLI_PLUGINS}/docker-mcp"
 log_success "  MCP catalog: ${MCP_CONFIG_DIR}/catalogs/eib-mcp-rag.yaml"
 log_success "  Container image: eib-mcp-rag:latest"
+log_success "  Systemd service: mcp-gateway.service"
 
 log_info ""
-log_info "Usage:"
-log_info "  # Start gateway with fixed token (for VS Code mcp.json)"
+log_info "Start the gateway service:"
+log_info "  sudo systemctl start mcp-gateway"
+log_info "  sudo systemctl status mcp-gateway"
+log_info ""
+log_info "Or run manually:"
 log_info "  export MCP_GATEWAY_AUTH_TOKEN=\"eib-mcp-gateway-token-2025\""
 log_info "  docker mcp gateway run --servers docker://eib-mcp-rag:latest --transport sse --port 8888 --long-lived --verbose"
-log_info ""
-log_info "  # Or use the helper script:"
-log_info "  SETUP/bin/start-mcp-gateway.sh --background"
-log_info ""
-log_info "  # Test gateway discovery (dry-run)"
-log_info "  docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run --verbose"
 log_info ""
 log_info "Remote Access (from client machine):"
 log_info "  1. SSH tunnel: ssh -L 8888:localhost:8888 user@server -N"
