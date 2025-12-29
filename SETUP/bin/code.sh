@@ -1,131 +1,105 @@
- #!/bin/bash
-set -e
+#!/bin/bash
 ################################################################################
-# VS Code Tunnel Startup Script
+# VS Code Tunnel Startup Script 
 # 
 # Purpose: Start VS Code tunnel with user-specific default name
-# Usage: code.sh [rndtag]
+# Usage: code.sh [server_name_suffix]
 #
-# If no rndtag provided, generates a random 6-character alphanumeric string
-# Example: For user Anna.Smoot, server name is pw_Anna_<rndtag>
+# Server name format: pw_<FirstName>_[<hostname>_]<suffix>
+# Hostname included only if <= 10 characters
+# If no suffix provided, generates a random 6-character alphanumeric string
 #
-# VS Code CLI Downloads (auto-updates to latest stable):
-#   https://code.visualstudio.com/#alt-downloads
-#   Direct link: https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64
+# Prerequisites: VS Code with tunnel support (code --version >= 1.80)
+#   - System install: /usr/bin/code (preferred)
+#   - Or standalone CLI: https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64
 ################################################################################
+set -e
 
-# Get the first name from the current username (e.g., Anna.Smoot -> Anna)
-get_first_name() {
-    local username="$USER"
-    echo "${username%%.*}"
-}
+# Get the first name from username (e.g., Anna.Smoot -> Anna)
+FIRST_NAME="${USER%%.*}"
 
-# Find existing code CLI executable
-find_code_cli() {
-    # Check if 'code' is in PATH and supports tunnel command
-    if command -v code &>/dev/null; then
-        if code tunnel --help &>/dev/null 2>&1; then
-            echo "code"
-            return 0
-        fi
-    fi
-    
-    # Check ~/bin/code
-    if [[ -x "${HOME}/bin/code" ]]; then
-        echo "${HOME}/bin/code"
-        return 0
-    fi
-    
-    # Check local ./code CLI binary
-    if [[ -x "${PWD}/code" ]]; then
-        echo "${PWD}/code"
-        return 0
-    fi
-    
-    return 1
-}
+# Get short hostname (first part before any dots) - only use if <= 10 chars
+SHORT_HOST="${HOSTNAME%%.*}"
+if [[ ${#SHORT_HOST} -gt 10 ]]; then
+    SHORT_HOST=""
+fi
 
-# Download VS Code CLI if not found
-download_code_cli() {
-    local install_dir="${1:-${PWD}}"
-    
-    echo "[INFO] Downloading VS Code CLI..." >&2
-    
-    # Official stable CLI download URL (auto-redirects to latest version)
-    # Alpine build is statically linked and works on all Linux distros
-    # For manual updates, check: https://code.visualstudio.com/#alt-downloads
-    local download_url="https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64"
-    local tarball="vscode_cli.tar.gz"
-    
-    curl -Lk "${download_url}" --output "${install_dir}/${tarball}"
-    tar -xf "${install_dir}/${tarball}" -C "${install_dir}"
-    rm -f "${install_dir}/${tarball}"
-    
-    # The CLI extracts as just 'code' binary
-    if [[ -x "${install_dir}/code" ]]; then
-        echo "[OK] VS Code CLI installed to ${install_dir}/code" >&2
-        echo "${install_dir}/code"
-        return 0
-    fi
-    
-    echo "[ERROR] Failed to install VS Code CLI" >&2
-    return 1
-}
-
-# Main: Find or download code CLI
-CODE_CLI=""
-if CODE_CLI=$(find_code_cli); then
-    echo "[OK] Found existing VS Code CLI: ${CODE_CLI}" >&2
+# Generate server name: pw_<FirstName>_[<hostname>_]<suffix>
+SUFFIX="${1:-$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)}"
+if [[ -n "${SHORT_HOST}" ]]; then
+    SERVER_NAME="pw_${FIRST_NAME}_${SHORT_HOST}_${SUFFIX}"
 else
-    echo "[INFO] VS Code CLI not found in PATH, ~/bin, or current directory" >&2
-    CODE_CLI=$(download_code_cli "${PWD}")
+    SERVER_NAME="pw_${FIRST_NAME}_${SUFFIX}"
 fi
 
-# Verify we have a working CLI
-if [[ -z "${CODE_CLI}" ]] || [[ ! -x "${CODE_CLI}" ]]; then
-    echo "[ERROR] Could not find or install VS Code CLI" >&2
+# Output file for tunnel logs
+OUTPUT_FILE="${HOME}/${SERVER_NAME}.out"
+
+# Find VS Code CLI - prefer system install, fallback to local
+find_code() {
+    # System VS Code with tunnel support (installed via RPM/DEB)
+    if command -v code &>/dev/null && code tunnel --help &>/dev/null 2>&1; then
+        command -v code
+        return 0
+    fi
+    # Local standalone CLI
+    for path in "${HOME}/bin/code" "${PWD}/code"; do
+        [[ -x "$path" ]] && echo "$path" && return 0
+    done
+    return 1
+}
+
+# Find or fail
+CODE_CLI=$(find_code) || {
+    echo "[ERROR] VS Code CLI not found. Install via:" >&2
+    echo "  sudo dnf install code  # RHEL/Rocky" >&2
+    echo "  # Or download standalone CLI:" >&2
+    echo "  curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' | tar xz -C ~/bin" >&2
     exit 1
+}
+
+# Check for existing running tunnel
+TUNNEL_STATUS=$("${CODE_CLI}" tunnel status 2>/dev/null) || true
+if echo "${TUNNEL_STATUS}" | grep -qi "connected\|running\|started_at"; then
+    # Parse JSON status for clean output
+    TUNNEL_STATE=$(echo "${TUNNEL_STATUS}" | grep -oP '"tunnel"\s*:\s*"\K[^"]+' || echo "unknown")
+    STARTED_AT=$(echo "${TUNNEL_STATUS}" | grep -oP '"started_at"\s*:\s*"\K[^"]+' | cut -d'T' -f1,2 | tr 'T' ' ' | cut -d'.' -f1 || echo "unknown")
+    TUNNEL_NAME=$(echo "${TUNNEL_STATUS}" | grep -oP '"name"\s*:\s*"\K[^"]+' || echo "none")
+    
+    echo "[INFO] Tunnel process detected"
+    echo "  Status:  ${TUNNEL_STATE}"
+    echo "  Name:    ${TUNNEL_NAME}"
+    echo "  Started: ${STARTED_AT}"
+    echo ""
+    echo "To stop:   code tunnel kill"
+    echo "To restart: code tunnel kill && $0"
+    exit 0
 fi
 
-
-# Default server name: pw_<FirstName>_<rndtag>
-FIRST_NAME=$(get_first_name)
-rndtag=${1:-$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)}
-DEFAULT_SERVER_NAME="pw_${FIRST_NAME}_${rndtag}"
-
-# Use generated server name
-server_name="$DEFAULT_SERVER_NAME"
-
-# Output file location
-OUTPUT_FILE="${HOME}/${server_name}.out"
-
-# Remove old output file
+# Clean up old output
 rm -f "${OUTPUT_FILE}"
 
-echo "=========================================="
-echo "  Starting VS Code Tunnel"
-echo "=========================================="
-echo "Server Name: ${server_name}"
-echo "Output File: ${OUTPUT_FILE}"
-echo "User: ${USER}"
-echo "Code CLI: ${CODE_CLI}"
-echo "=========================================="
-echo ""
-echo "Starting tunnel in background..."
+# Display startup info
+cat <<EOF
+==========================================
+  VS Code Tunnel
+==========================================
+Server Name: ${SERVER_NAME}
+VS Code CLI: ${CODE_CLI}
+Output File: ${OUTPUT_FILE}
+------------------------------------------
+EOF
 
-# Start VS Code tunnel in background
-nohup "${CODE_CLI}" tunnel --name "${server_name}" --accept-server-license-terms > "${OUTPUT_FILE}" 2>&1 &
-
+# Start tunnel in background
+nohup "${CODE_CLI}" tunnel --name "${SERVER_NAME}" --accept-server-license-terms > "${OUTPUT_FILE}" 2>&1 &
 TUNNEL_PID=$!
 
-echo "Tunnel started with PID: ${TUNNEL_PID}"
-echo ""
-echo "To check status:"
-echo "  cat ${OUTPUT_FILE}"
-echo ""
-echo "To stop tunnel:"
-echo "  pkill -f 'code tunnel'"
-echo ""
-echo "To view tunnel URL:"
-echo "  sleep 5 && tail -20 ${OUTPUT_FILE}"
-echo ""
+cat <<EOF
+Tunnel started with PID: ${TUNNEL_PID}
+
+Commands:
+  cat ${OUTPUT_FILE}              # View logs
+  code tunnel status              # Check status
+  code tunnel kill                # Stop tunnel
+  sleep 3 && grep -oE 'https://[^[:space:]]+' ${OUTPUT_FILE}  # Get URL
+EOF
