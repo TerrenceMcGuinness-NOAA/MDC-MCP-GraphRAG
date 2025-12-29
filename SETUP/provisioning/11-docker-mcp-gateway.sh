@@ -281,7 +281,8 @@ WorkingDirectory=${USER_HOME}
 
 # Use streaming transport (Streamable HTTP - MCP spec 2025-06-18)
 # Uses catalog file for proper server configuration including env vars and volumes
-ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --catalog eib-mcp-rag.yaml --servers eib-mcp-rag --transport streaming --port 8888 --long-lived
+# Note: Port 18888 to avoid conflicts with common services on HPC systems
+ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --catalog eib-mcp-rag.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived
 
 Restart=on-failure
 RestartSec=10
@@ -320,11 +321,11 @@ log_info "  sudo systemctl status mcp-gateway"
 log_info ""
 log_info "Or run manually:"
 log_info "  export MCP_GATEWAY_AUTH_TOKEN=\"eib-mcp-gateway-token-2025\""
-log_info "  docker mcp gateway run --catalog eib-mcp-rag.yaml --servers eib-mcp-rag --transport streaming --port 8888 --long-lived --verbose"
+log_info "  docker mcp gateway run --catalog eib-mcp-rag.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose"
 log_info ""
 log_info "Remote Access (from client machine):"
-log_info "  1. SSH tunnel: ssh -L 8888:localhost:8888 user@server -N"
-log_info "  2. VS Code mcp.json: type=http, url=http://localhost:8888/mcp"
+log_info "  1. SSH tunnel: ssh -L 18888:localhost:18888 user@server -N"
+log_info "  2. VS Code mcp.json: type=http, url=http://localhost:18888/mcp"
 log_info "  3. Bearer token: eib-mcp-gateway-token-2025"
 
 exit 0
