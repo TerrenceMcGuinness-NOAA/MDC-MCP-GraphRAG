@@ -84,7 +84,7 @@ fi
 #   mcp-server:stable    - MCP RAG Server (Phase 19 Content Abstraction)
 #   mcp-server:clean     - Same as stable, alternate tag
 #   chromadb:v134clean   - ChromaDB with v2 API compatibility
-#   langflow:latest      - LangFlow AI workflow builder
+#   n8n:latest           - n8n workflow automation (Phase 11E)
 #
 # Pull commands (requires GitLab authentication):
 #   docker login registry.gitlab-licensed.vlab.noaa.gov
@@ -100,6 +100,38 @@ fi
 #
 # TODO: Add automatic pull option in provisioning (Phase 20+)
 ################################################################################
+
+################################################################################
+# n8n Workflow Automation (Phase 11E)
+################################################################################
+log_subsection "n8n Workflow Automation Setup"
+
+N8N_IMAGE="n8nio/n8n:latest"
+
+# Check if n8n image exists
+if docker image inspect "${N8N_IMAGE}" &>/dev/null; then
+    log_info "n8n image already available: ${N8N_IMAGE}"
+else
+    log_info "Pulling n8n image..."
+    if docker pull "${N8N_IMAGE}"; then
+        log_success "n8n image pulled: ${N8N_IMAGE}"
+    else
+        log_warning "Failed to pull n8n image - will be pulled on first start"
+    fi
+fi
+
+# Create n8n data volume if needed
+if docker volume inspect n8n-devops-data &>/dev/null; then
+    log_info "n8n volume already exists: n8n-devops-data"
+else
+    log_info "Creating n8n data volume..."
+    docker volume create n8n-devops-data
+    log_success "Created volume: n8n-devops-data"
+fi
+
+log_info "n8n service configured in docker-compose.devops.yaml"
+log_info "Start with: docker compose -f docker-compose.devops.yaml up -d n8n"
+log_info "Web UI: http://localhost:5678 (admin / eib-n8n-2025)"
 
 log_success "Docker setup complete"
 

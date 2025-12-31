@@ -30,7 +30,7 @@
     // Gateway runs with --transport streaming which exposes /mcp endpoint
     "eib-mcp-gateway": {
       "type": "http",
-      "url": "http://localhost:8888/mcp",
+      "url": "http://localhost:18888/mcp",
       "headers": {
         "Authorization": "Bearer eib-mcp-gateway-token-2025"
       }

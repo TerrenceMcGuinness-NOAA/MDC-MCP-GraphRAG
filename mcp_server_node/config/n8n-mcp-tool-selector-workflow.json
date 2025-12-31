@@ -1,0 +1,81 @@
+{
+  "name": "MCP Tool Selector - Interactive",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "MCP Tool Selector",
+        "formDescription": "Select and execute MCP RAG tools",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Tool Name",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {"option": "get_knowledge_base_status"},
+                  {"option": "search_documentation"},
+                  {"option": "search_issues"},
+                  {"option": "get_pull_requests"},
+                  {"option": "list_job_scripts"},
+                  {"option": "get_operational_guidance"},
+                  {"option": "get_system_configs"},
+                  {"option": "analyze_code_structure"},
+                  {"option": "find_dependencies"},
+                  {"option": "find_callers_callees"},
+                  {"option": "list_sdd_workflows"},
+                  {"option": "mcp_health_check"}
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Query/Arguments (JSON)",
+              "fieldType": "textarea",
+              "placeholder": "{\"query\": \"EE2 compliance\", \"max_results\": 5}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "form-trigger",
+      "name": "Tool Selection Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [250, 300],
+      "webhookId": "mcp-tool-selector"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tool names are used directly - no prefix needed for gateway\nconst selectedTool = $input.first().json['Tool Name'];\nconst argsJson = $input.first().json['Query/Arguments (JSON)'] || '{}';\n\nlet args = {};\ntry {\n  args = JSON.parse(argsJson);\n} catch (e) {\n  args = {};\n}\n\nconst gatewayUrl = 'http://172.17.0.1:18888/mcp';\nconst headers = {\n  'Authorization': 'Bearer eib-mcp-gateway-token-2025',\n  'Content-Type': 'application/json',\n  'Accept': 'application/json, text/event-stream'\n};\n\n// Step 1: Initialize session\nconst initPayload = {\n  jsonrpc: '2.0',\n  id: 1,\n  method: 'initialize',\n  params: {\n    protocolVersion: '2024-11-05',\n    capabilities: {},\n    clientInfo: { name: 'n8n-mcp-client', version: '1.0.0' }\n  }\n};\n\nconst initResponse = await this.helpers.httpRequest({\n  method: 'POST',\n  url: gatewayUrl,\n  headers: headers,\n  body: initPayload,\n  returnFullResponse: true,\n  json: true\n});\n\n// Get session ID from response header\nconst sessionId = initResponse.headers['mcp-session-id'];\n\nif (!sessionId) {\n  return { json: { success: false, toolCalled: selectedTool, output: 'Failed to get session ID. Headers: ' + JSON.stringify(initResponse.headers) } };\n}\n\n// Step 2: Call the tool with session ID (use tool name directly, no prefix)\nconst toolPayload = {\n  jsonrpc: '2.0',\n  id: 2,\n  method: 'tools/call',\n  params: {\n    name: selectedTool,\n    arguments: args\n  }\n};\n\nconst toolResponse = await this.helpers.httpRequest({\n  method: 'POST',\n  url: gatewayUrl,\n  headers: {\n    ...headers,\n    'Mcp-Session-Id': sessionId\n  },\n  body: toolPayload,\n  returnFullResponse: true,\n  json: false\n});\n\nconst toolBody = typeof toolResponse.body === 'string' ? toolResponse.body : JSON.stringify(toolResponse.body);\n\n// Parse SSE response\nlet formattedOutput = '';\nconst dataMatches = toolBody.match(/data: ({[^\\n]+})/g);\nif (dataMatches) {\n  for (const dm of dataMatches) {\n    try {\n      const jsonStr = dm.replace('data: ', '');\n      const parsed = JSON.parse(jsonStr);\n      if (parsed.result && parsed.result.content) {\n        parsed.result.content.forEach(item => {\n          if (item.type === 'text') {\n            formattedOutput += item.text;\n          }\n        });\n      } else if (parsed.error) {\n        formattedOutput = 'Error: ' + (parsed.error.message || JSON.stringify(parsed.error));\n      }\n    } catch (e) {\n      // Skip parse errors\n    }\n  }\n}\n\nif (!formattedOutput) {\n  formattedOutput = toolBody;\n}\n\nreturn { json: { success: !formattedOutput.startsWith('Error'), toolCalled: selectedTool, sessionId, output: formattedOutput } };"
+      },
+      "id": "code-mcp-call",
+      "name": "Call MCP Gateway",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [550, 300]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "MCP Tool Result",
+        "completionMessage": "=Tool: {{ $json.toolCalled }}\n\nResult:\n{{ $json.output }}"
+      },
+      "id": "form-completion",
+      "name": "Show Result",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Tool Selection Form": {"main": [[{"node": "Call MCP Gateway", "type": "main", "index": 0}]]},
+    "Call MCP Gateway": {"main": [[{"node": "Show Result", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-12-31T00:00:00.000Z",
+  "versionId": "6"
+}

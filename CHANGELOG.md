@@ -1,5 +1,44 @@
 # MCP Server Changelog
 
+## [7.1.0] - Phase 11E n8n Workflow Automation (December 31, 2025)
+
+### Added
+- **n8n Docker Service** (`docker-compose.devops.yaml`):
+  - Image: `n8nio/n8n:latest` on port 5678
+  - Container name: `global-workflow-n8n`
+  - Basic auth: admin / eib-n8n-2025
+  - Persistent volume: `n8n-devops-data`
+  - Health check via `/healthz` endpoint
+
+- **Provisioning Script** (`SETUP/bin/start-n8n.sh`):
+  - Start/stop/status commands
+  - Background mode support
+  - MCP Gateway integration instructions
+
+### Rationale
+- LangFlow v1.6.9 has critical bugs in MCP client (dict race condition, asyncio scoping)
+- n8n provides stable, production-ready workflow automation
+- HTTP Request node connects to MCP Gateway for tool invocation
+
+### Usage
+```bash
+# Start n8n
+SETUP/bin/start-n8n.sh --background
+
+# Web UI: http://localhost:5678
+# Credentials: admin / eib-n8n-2025
+
+# MCP Gateway integration via HTTP Request node:
+# URL: http://host.docker.internal:8888/sse
+# Auth: Bearer token from gateway startup
+```
+
+### References
+- Phase 11E SDD: `sdd_framework/workflows/phase11_docker_mcp_gateway_langflow.md`
+- n8n Documentation: https://docs.n8n.io/
+
+---
+
 ## [7.0.6] - Phase 11 Container DB Connectivity Fix (December 15, 2025)
 
 ### Fixed

@@ -1,0 +1,89 @@
+Host *
+    StrictHostKeyChecking no
+    UserKnownHostsFile=/dev/null
+Host usercontainer
+    IdentityFile /home/Terry.McGuinness/.ssh/pw_id_rsa
+    HostName localhost
+    User Terry.McGuinness
+    Port 2222
+
+Host Gaea
+   User Terry.McGuinness
+   HostName gaea-rsa.princeton.rdhpcs.noaa.gov
+   #Port 55007
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+
+Host GaeaMCP
+   User Terry.McGuinness
+   HostName gaea-rsa.princeton.rdhpcs.noaa.gov
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+   LocalForward 8888 localhost:8888
+   # Also forward VNC if needed
+   #LocalForward 8444 localhost:8444
+
+Host Orion
+   User mterry
+   HostName orion-login.hpc.msstate.edu
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+   ForwardX11 yes
+   ForwardX11Trusted yes
+
+Host Hercules
+   User mterry
+   HostName hercules-login-1.hpc.msstate.edu
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+   ForwardX11 yes
+   ForwardX11Trusted yes
+
+Host Ursa
+   User Terry.McGuinness
+   HostName localhost
+   Port 60007
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+   ForwardX11 yes
+   ForwardX11Trusted yes
+
+Host Hera
+   User Terry.McGuinness
+   HostName localhost
+   Port 6472
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+   ForwardX11 yes
+   ForwardX11Trusted yes
+
+# MCP tunnel via Hera - uses REVERSE tunnel from MCP server
+# STEP 1: On MCP server (here), run: ssh HeraReverse -N &
+#         This makes Hera's localhost:18888 point back to MCP server's 18888
+# STEP 2: Again here then use ssh HeraMCP-internal
+#         
+Host HeraReverse
+   User Terry.McGuinness
+   HostName hera-rsa.princeton.rdhpcs.noaa.gov
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+   ExitOnForwardFailure yes
+   LocalForward 6472 localhost:6472
+
+# Second: Use port 6472 to reach hfe11 directly, forward 18888 back
+Host HeraMCP-internal
+   User Terry.McGuinness
+   HostName localhost
+   Port 6472
+   IdentityFile ~/.ssh/id_rsa
+   ServerAliveInterval 60
+   ServerAliveCountMax 30
+   # RemoteForward: hfe11:18888 → MCP:18888
+   RemoteForward 18888 localhost:18888
