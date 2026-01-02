@@ -220,14 +220,102 @@ create_workspace_readme() {
 
 - Use the 'work' alias to jump to your workspace.
 - Your VS Code tunnel helper is in ~/bin/code.sh (if installed).
+- The EIB MCP RAG Server repo is cloned at: ${workspace_dir}/eib-mcp-rag-server
 
 Default tunnel name: pw_${first_name}
+
+## Repository
+
+The EIB MCP RAG Server repository has been cloned to your workspace.
+To update it:
+
+    cd ${workspace_dir}/eib-mcp-rag-server
+    git pull origin develop
 
 EOF
 
   local user_group
   user_group=$(get_user_group "${username}")
   chown "${username}:${user_group}" "${readme}" 2>/dev/null || true
+}
+
+clone_mcp_rag_repo() {
+  local username="$1"
+  local workspace_dir="${SCRATCH_ROOT}/${username}"
+  local repo_dir="${workspace_dir}/eib-mcp-rag-server"
+  local repo_url="https://vlab.noaa.gov/gitlab-community/NWS/Operations/NCEP/EMC/eib-mcp-rag-server.git"
+  local user_group
+  user_group=$(get_user_group "${username}")
+
+  log_info "Setting up EIB MCP RAG repository for ${username}"
+
+  if [[ -d "${repo_dir}/.git" ]]; then
+    log_warning "Repository already exists at ${repo_dir}; updating..."
+    sudo -u "${username}" git -C "${repo_dir}" fetch origin 2>/dev/null || true
+  else
+    log_info "Cloning EIB MCP RAG repository to ${repo_dir}"
+    # Clone as the user to ensure proper ownership
+    sudo -u "${username}" git clone "${repo_url}" "${repo_dir}" 2>/dev/null || {
+      log_warning "Failed to clone repository (may require authentication)"
+      log_info "User can manually clone with: git clone ${repo_url} ${repo_dir}"
+      return 0
+    }
+    
+    # Set up develop as default branch
+    if [[ -d "${repo_dir}/.git" ]]; then
+      sudo -u "${username}" git -C "${repo_dir}" checkout develop 2>/dev/null || true
+      log_success "Repository cloned and set to develop branch"
+    fi
+  fi
+
+  # Ensure ownership is correct
+  chown -R "${username}:${user_group}" "${repo_dir}" 2>/dev/null || true
+}
+
+setup_vscode_mcp_config() {
+  local username="$1"
+  local workspace_dir="${SCRATCH_ROOT}/${username}"
+  local vscode_dir="${workspace_dir}/.vscode"
+  local mcp_json="${vscode_dir}/mcp.json"
+  local repo_dir="${workspace_dir}/eib-mcp-rag-server"
+  local user_group
+  user_group=$(get_user_group "${username}")
+
+  log_info "Setting up VS Code MCP configuration for ${username}"
+
+  mkdir -p "${vscode_dir}"
+
+  cat > "${mcp_json}" << EOF
+{
+  "servers": {
+    // EIB MCP RAG Server - Full Mode (34 tools)
+    // Configured for user: ${username}
+    // Workspace: ${workspace_dir}
+    "eib-mcp-rag-full": {
+      "command": "node",
+      "args": [
+        "${repo_dir}/mcp_server_node/src/UnifiedMCPServer.js",
+        "full"
+      ],
+      "type": "stdio",
+      "env": {
+        "MCP_WORKSPACE_ROOT": "${repo_dir}",
+        "MCP_WORKFLOW_ROOT": "${repo_dir}/supported_repos/global-workflow",
+        "SDD_FRAMEWORK_ROOT": "${repo_dir}/sdd_framework",
+        "CHROMA_SERVER_URL": "http://localhost:8080",
+        "CHROMADB_URL": "http://127.0.0.1:8080",
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_PASSWORD": "gfsworkflow2025",
+        "ENABLE_RAG": "true",
+        "ENABLE_GITHUB": "false"
+      }
+    }
+  }
+}
+EOF
+
+  chown -R "${username}:${user_group}" "${vscode_dir}" 2>/dev/null || true
+  log_success "VS Code MCP configuration created at ${mcp_json}"
 }
 
 add_to_groups() {
@@ -252,6 +340,8 @@ provision_user() {
   create_scratch_space "${username}"
   setup_bin_directory "${username}"
   setup_bash_environment "${username}"
+  clone_mcp_rag_repo "${username}"
+  setup_vscode_mcp_config "${username}"
   create_workspace_readme "${username}"
   add_to_groups "${username}"
 
