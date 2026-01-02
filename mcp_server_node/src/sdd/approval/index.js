@@ -1,10 +1,16 @@
 /**
  * Approval Providers Index
  * 
- * Export all approval provider implementations
+ * Export all approval provider implementations for Phase 4B ISD
  * 
- * Version: 1.0.0
- * Phase: 4B - Interactive Supervised Execution
+ * Version: 2.0.0
+ * Phase: 4B - Interactive Supervised Development
+ * Date: January 2, 2026
+ * 
+ * Providers:
+ * - MCPApprovalProvider: Multi-turn MCP tool calls (VS Code Copilot, Claude Desktop)
+ * - CLIApprovalProvider: Terminal readline prompts (Claude Code, SSH)
+ * - ManifestApprovalProvider: Pre-approved patterns from YAML/JSON files (CI/CD)
  */
 
 export { 
@@ -16,7 +22,6 @@ export {
 } from './ApprovalProvider.js';
 
 export { MCPApprovalProvider } from './MCPApprovalProvider.js';
-
-// Future providers (stubs for now)
-// export { CLIApprovalProvider } from './CLIApprovalProvider.js';
-// export { ManifestApprovalProvider } from './ManifestApprovalProvider.js';
+export { CLIApprovalProvider } from './CLIApprovalProvider.js';
+export { ManifestApprovalProvider, createManifest } from './ManifestApprovalProvider.js';
+export { ExecutionStateStore, getDefaultStore } from './ExecutionStateStore.js';

@@ -5,10 +5,11 @@
  * - Returns approval request as MCP response
  * - Waits for user's next message with approval decision
  * - Supports multi-turn conversation flow
+ * - Uses persistent file storage for execution state
  * 
- * Version: 1.0.0
- * Phase: 4B - Interactive Supervised Execution
- * Date: December 5, 2025
+ * Version: 2.0.0
+ * Phase: 4B - Interactive Supervised Development
+ * Date: January 2, 2026
  */
 
 import { 
@@ -16,22 +17,19 @@ import {
   ApprovalResult, 
   ExecutionMode 
 } from './ApprovalProvider.js';
-
-/**
- * Pending execution state storage
- * Maps execution IDs to their state
- */
-const pendingExecutions = new Map();
+import { getDefaultStore } from './ExecutionStateStore.js';
 
 /**
  * MCP Approval Provider
  * Uses multi-turn MCP tool calls for approval flow
+ * Now with persistent file-based state storage
  */
 export class MCPApprovalProvider extends ApprovalProvider {
   constructor(options = {}) {
     super(options);
     this.executionId = options.executionId || null;
     this.pendingApproval = options.pendingApproval || null;
+    this.stateStore = options.stateStore || getDefaultStore();
   }
 
   /**
@@ -185,68 +183,59 @@ export class MCPApprovalProvider extends ApprovalProvider {
   }
 
   /**
-   * Save execution state for resumption
+   * Save execution state for resumption (persistent)
    * @param {string} executionId - Unique execution ID
    * @param {Object} state - Execution state to save
    */
   static saveExecutionState(executionId, state) {
-    pendingExecutions.set(executionId, {
-      ...state,
-      savedAt: Date.now()
-    });
-
-    // Clean up old executions (older than timeout)
-    const timeout = 300000; // 5 minutes
-    for (const [id, exec] of pendingExecutions.entries()) {
-      if (Date.now() - exec.savedAt > timeout) {
-        pendingExecutions.delete(id);
-      }
-    }
+    const store = getDefaultStore();
+    store.save(executionId, state);
   }
 
   /**
-   * Load execution state for resumption
+   * Load execution state for resumption (persistent)
    * @param {string} executionId - Execution ID to load
    * @returns {Object|null} Saved state or null
    */
   static loadExecutionState(executionId) {
-    const state = pendingExecutions.get(executionId);
-    if (!state) return null;
-
-    // Check if expired
-    const timeout = 300000; // 5 minutes
-    if (Date.now() - state.savedAt > timeout) {
-      pendingExecutions.delete(executionId);
-      return null;
-    }
-
-    return state;
+    const store = getDefaultStore();
+    return store.load(executionId);
   }
 
   /**
-   * Clear execution state
+   * Clear execution state (persistent)
    * @param {string} executionId - Execution ID to clear
    */
   static clearExecutionState(executionId) {
-    pendingExecutions.delete(executionId);
+    const store = getDefaultStore();
+    store.delete(executionId);
   }
 
   /**
-   * List pending executions
+   * List pending executions (persistent)
    * @returns {Array} List of pending execution IDs
    */
   static listPendingExecutions() {
-    const result = [];
-    for (const [id, state] of pendingExecutions.entries()) {
-      result.push({
-        executionId: id,
-        workflowName: state.workflowName,
-        currentStep: state.currentStepIndex,
-        totalSteps: state.totalSteps,
-        savedAt: new Date(state.savedAt).toISOString()
-      });
-    }
-    return result;
+    const store = getDefaultStore();
+    return store.list(false); // Only non-expired
+  }
+
+  /**
+   * Get store statistics
+   * @returns {Object} Store stats
+   */
+  static getStoreStats() {
+    const store = getDefaultStore();
+    return store.getStats();
+  }
+
+  /**
+   * Run cleanup on persistent store
+   * @returns {Object} Cleanup summary
+   */
+  static cleanupStates() {
+    const store = getDefaultStore();
+    return store.cleanup();
   }
 }
 

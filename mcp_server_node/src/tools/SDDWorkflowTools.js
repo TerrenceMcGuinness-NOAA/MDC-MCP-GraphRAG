@@ -2,8 +2,8 @@
  * SDD Workflow Tools
  * MCP tools for executing and managing SDD framework workflows
  * 
- * Version: 2.0.0 - Phase 4B: Interactive Supervised Execution
- * Date: December 5, 2025
+ * Version: 3.0.0 - Phase 4B: Interactive Supervised Development (ISD)
+ * Date: January 2, 2026
  */
 
 import { WorkflowExecutor } from '../sdd/WorkflowExecutor.js';
@@ -14,6 +14,7 @@ import {
   ExecutionMode,
   ApprovalResult 
 } from '../sdd/approval/ApprovalProvider.js';
+import { getDefaultStore } from '../sdd/approval/ExecutionStateStore.js';
 import { ContentResolver } from '../utils/ContentResolver.js';
 
 export class SDDWorkflowTools {
@@ -197,6 +198,33 @@ export class SDDWorkflowTools {
         required: ['workflow_name']
       },
       this.executeWorkflowSupervised.bind(this)
+    );
+
+    // Tool 8: Manage execution states (Phase 4B)
+    server.registerTool(
+      'manage_sdd_execution_state',
+      'List, inspect, or cleanup pending workflow execution states. Use for debugging multi-turn workflows or cleaning up stale states.',
+      {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['list', 'inspect', 'delete', 'cleanup', 'stats'],
+            description: 'Action to perform: list (show pending), inspect (details), delete (remove), cleanup (remove expired), stats (store statistics)',
+            default: 'list'
+          },
+          execution_id: {
+            type: 'string',
+            description: 'Execution ID for inspect/delete actions'
+          },
+          include_expired: {
+            type: 'boolean',
+            description: 'Include expired states in list',
+            default: false
+          }
+        }
+      },
+      this.manageExecutionState.bind(this)
     );
   }
 
@@ -792,5 +820,132 @@ export class SDDWorkflowTools {
     }
 
     return { content: [{ type: 'text', text: output }] };
+  }
+
+  /**
+   * Manage execution states (Phase 4B)
+   * List, inspect, delete, cleanup, or get stats on persistent execution states
+   */
+  async manageExecutionState(args = {}) {
+    const { action = 'list', execution_id, include_expired = false } = args;
+    const store = getDefaultStore();
+
+    try {
+      let output = '# Execution State Management\n\n';
+
+      switch (action) {
+        case 'list': {
+          const states = store.list(include_expired);
+          output += `## Pending Executions${include_expired ? ' (including expired)' : ''}\n\n`;
+          
+          if (states.length === 0) {
+            output += '*No pending executions found.*\n';
+          } else {
+            output += `Found ${states.length} execution(s):\n\n`;
+            for (const state of states) {
+              const statusIcon = state.status === 'expired' ? '[EXPIRED]' : '[PENDING]';
+              output += `### ${statusIcon} ${state.executionId}\n`;
+              output += `- **Workflow**: ${state.workflowName}\n`;
+              output += `- **Progress**: Step ${state.currentStep + 1} of ${state.totalSteps}\n`;
+              output += `- **Saved**: ${state.savedAt}\n`;
+              output += `- **Expires**: ${state.expiresAt}\n`;
+              if (state.status === 'pending') {
+                output += `- **TTL Remaining**: ${state.ttlRemaining}s\n`;
+              }
+              output += '\n';
+            }
+          }
+          break;
+        }
+
+        case 'inspect': {
+          if (!execution_id) {
+            output += `[ERROR] execution_id required for inspect action\n`;
+            break;
+          }
+          
+          const state = store.load(execution_id);
+          if (!state) {
+            output += `[ERROR] Execution not found or expired: ${execution_id}\n`;
+            break;
+          }
+          
+          output += `## Execution Details: ${execution_id}\n\n`;
+          output += `**Workflow**: ${state.workflowName}\n`;
+          output += `**Current Step**: ${state.currentStepIndex + 1} of ${state.totalSteps}\n`;
+          output += `**Started**: ${new Date(state.startTime).toISOString()}\n`;
+          output += `**Saved**: ${new Date(state.savedAt).toISOString()}\n`;
+          output += `**Expires**: ${new Date(state.expiresAt).toISOString()}\n\n`;
+          
+          if (state.results?.steps) {
+            output += `### Completed Steps\n\n`;
+            for (const step of state.results.steps) {
+              const icon = step.status === 'success' ? '[OK]' : 
+                          step.status === 'skipped' ? '[--]' : '[!!]';
+              output += `${icon} ${step.name} (${step.status})\n`;
+            }
+          }
+          
+          if (state.results?.pendingStep) {
+            output += `\n### Pending Step\n\n`;
+            output += `**Name**: ${state.results.pendingStep.name}\n`;
+            output += `**Type**: ${state.results.pendingStep.type}\n`;
+          }
+          break;
+        }
+
+        case 'delete': {
+          if (!execution_id) {
+            output += `[ERROR] execution_id required for delete action\n`;
+            break;
+          }
+          
+          const success = store.delete(execution_id);
+          if (success) {
+            output += `[OK] Deleted execution state: ${execution_id}\n`;
+          } else {
+            output += `[WARN] Could not delete (may not exist): ${execution_id}\n`;
+          }
+          break;
+        }
+
+        case 'cleanup': {
+          const result = store.cleanup();
+          output += `## Cleanup Complete\n\n`;
+          output += `- **Expired removed**: ${result.expiredRemoved}\n`;
+          output += `- **Overflow removed**: ${result.overflowRemoved}\n`;
+          output += `- **Remaining states**: ${result.remaining}\n`;
+          output += `- **Timestamp**: ${result.timestamp}\n`;
+          break;
+        }
+
+        case 'stats': {
+          const stats = store.getStats();
+          output += `## Store Statistics\n\n`;
+          output += `- **State Directory**: ${stats.stateDir}\n`;
+          output += `- **TTL**: ${stats.ttlMs / 1000}s\n`;
+          output += `- **Max States**: ${stats.maxStates}\n`;
+          output += `- **Total States**: ${stats.totalStates}\n`;
+          output += `- **Pending**: ${stats.pendingStates}\n`;
+          output += `- **Expired**: ${stats.expiredStates}\n`;
+          output += `- **Timestamp**: ${stats.timestamp}\n`;
+          break;
+        }
+
+        default:
+          output += `[ERROR] Unknown action: ${action}\n`;
+          output += `Valid actions: list, inspect, delete, cleanup, stats\n`;
+      }
+
+      return { content: [{ type: 'text', text: output }] };
+
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Failed to manage execution state: ${error.message}`
+        }]
+      };
+    }
   }
 }
