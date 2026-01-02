@@ -675,6 +675,11 @@ export class SDDWorkflowTools {
       // Execute workflow
       const result = await executor.executeWorkflow(workflow_name, params);
 
+      // Save state if awaiting approval (for multi-turn)
+      if (result.status === 'awaiting_approval' && result._resumeState) {
+        MCPApprovalProvider.saveExecutionState(result.executionId, result._resumeState);
+      }
+
       // Format output based on result status
       return this.formatSupervisedResult(result, mode);
 
