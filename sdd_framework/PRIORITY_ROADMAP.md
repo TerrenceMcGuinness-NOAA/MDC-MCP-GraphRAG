@@ -1,22 +1,43 @@
 # MCP/RAG System - Priority Roadmap
 
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
-**Last Updated**: December 11, 2025  
+**Last Updated**: January 2, 2026  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development - Phase 12 Complete
+**Status**: Active Development - Phase 11E Complete
 
 ---
 
-## 🟢 Current System Status (December 2025)
+## 🟢 Current System Status (January 2026)
 
 | Component | Status | Metrics |
 |-----------|--------|---------|
-| **MCP Server** | ✅ Operational | v3.0.0, 16 tools registered |
-| **ChromaDB** | ✅ Healthy | 12 collections, 14,854 documents |
+| **MCP Server** | ✅ Operational | v7.1.0, 38 tools across 8 modules |
+| **ChromaDB** | ✅ Healthy | 12 collections, 14,856 documents |
 | **Neo4j** | ✅ Healthy | 2,730 files, 1,481 functions, 85,894 relationships |
+| **Docker Gateway** | ✅ Operational | Port 18888, Streamable HTTP transport |
+| **n8n Workflow** | ✅ Operational | Port 5678, MCP Gateway integration |
+| **SDD Validator** | ✅ Operational | 4 tools, standalone server |
 | **GitLab Registry** | ✅ Ready | `chromadb:v134clean` image pushed |
 | **GitFlow Branches** | ✅ Created | develop, env/dev-ops, env/staging, env/production |
-| **Environment Isolation** | ✅ Implemented | MCP_ENV config for all environments |
+
+---
+
+## ✅ Phase 11E: n8n Workflow Automation (COMPLETE)
+
+**Status**: COMPLETE (January 2, 2026)  
+**SDD**: `phase11_docker_mcp_gateway_langflow.md`
+
+**Accomplishments**:
+- [x] n8n Docker service added to docker-compose.devops.yaml
+- [x] n8n provisioning integrated into SETUP/provisioning/03-docker.sh
+- [x] Working n8n→MCP Gateway workflow (session handling, tool invocation)
+- [x] LangFlow removed (MCP client bugs: dict race condition, asyncio scoping)
+- [x] MCP Gateway systemd service with Streamable HTTP transport
+
+**Key Technical Details**:
+- n8n HTTP Request node with `this.helpers.httpRequest()` 
+- MCP session initialization required before tools/call
+- Gateway URL: `http://172.17.0.1:18888/mcp` (from container)
 
 ---
 
@@ -32,9 +53,6 @@
 - [x] Environment-aware configuration (Python + Node.js)
 - [x] Docker-compose files for devops, staging, production
 - [x] MCP_ENV isolation strategy documented
-
-**Key Finding**: BuildKit attestations caused "Invalid tag: missing manifest digest" in GitLab.  
-**Solution**: Build with `--provenance=false --sbom=false` flags.
 
 ---
 
@@ -55,7 +73,7 @@ The SDD Framework includes autonomous self-modification capabilities (`SelfModif
 
 ---
 
-## 🟠 Phase 4B: Interactive Supervised Execution
+## 🟠 Phase 4B: Interactive Supervised Execution (NEXT PRIORITY)
 
 **Status**: SDD Complete (`phase4b_interactive_supervised_execution.md`)  
 **Priority**: HIGH - Enables safe workflow execution before full autonomy  
@@ -93,12 +111,15 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 | Capability | Status | Evidence |
 |------------|--------|----------|
-| Semantic documentation search | ✅ Operational | ChromaDB with 14,854 documents (12 collections) |
+| Semantic documentation search | ✅ Operational | ChromaDB with 14,856 documents (12 collections) |
 | Code structure analysis | ✅ Operational | Neo4j graph database (85,894 relationships) |
 | EE2 compliance scanning | ✅ Demonstrated | seaice-concentration, EVS audits complete |
 | SME-guided AI corrections | ✅ Implemented | 56 MCP directives preventing false positives |
-| MCP tool integration | ✅ Working | 16 tools accessible via VS Code Copilot |
-| SDD Workflow Framework | ✅ Operational | 24 workflows defined, supervised execution |
+| MCP tool integration | ✅ Working | 38 tools across 8 modules |
+| SDD Workflow Framework | ✅ Operational | 28 workflows defined, supervised execution |
+| SDD Validator Server | ✅ Operational | 4 tools: sdd_validate, framework_integrity, development_status, bootstrap_progress |
+| Docker MCP Gateway | ✅ Complete | Phase 11E - Streamable HTTP on port 18888 |
+| n8n Workflow Automation | ✅ Complete | Phase 11E - Replaces LangFlow |
 | Container Registry | ✅ Ready | GitLab Registry with custom chromadb image |
 | GitFlow DevOps | ✅ Complete | 4 environment branches configured |
 | Bootstrap Capability | 🔒 ON HOLD | Infrastructure ready, awaiting Phase 4B |
@@ -106,6 +127,17 @@ An AI-assisted development platform for NOAA operational weather systems that:
 ---
 
 ## Priority Phases
+
+### ✅ Phase 11E: n8n Workflow Automation (COMPLETE)
+**Goal**: Multi-client MCP access via workflow automation  
+**Status**: COMPLETE - January 2, 2026  
+**Deliverables**:
+- [x] n8n Docker service (port 5678)
+- [x] MCP Gateway integration workflow
+- [x] Session handling for MCP protocol
+- [x] Replaced LangFlow due to MCP client bugs
+
+---
 
 ### ✅ Phase 12: DevOps GitFlow & Containerization (COMPLETE)
 **Goal**: Establish complete DevOps pipeline  
@@ -119,9 +151,53 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ---
 
-### 🔴 Phase 13: GitLab CI/CD Pipeline (NEXT)
+### 🔴 Phase 4B: ISD Approval Gates (NEXT)
+**Goal**: Interactive Supervised Development with human-in-the-loop approval  
+**Why Next**: Unlocks safe bootstrap capability and USD sub-agent dispatch  
+**Deliverables**:
+- [ ] ApprovalProvider interface and implementations
+- [ ] WorkflowExecutor integration with approval gates
+- [ ] `execute_sdd_workflow_supervised` MCP tool
+- [ ] CLI wrapper for terminal/Claude Code
+- [ ] Approval manifest format for batch/CI
+
+**Timeline**: ~20 hours  
+**Blocks**: Phase 4C USD Architecture
+
+---
+
+### 🟡 Phase 4C: USD Sub-Agent Dispatch
+**Goal**: Unsupervised Development mode for autonomous sub-agent execution  
+**Why**: Enables complex multi-agent workflows with context packaging  
+**Deliverables**:
+- [ ] ContextPackager for form-factor adaptation
+- [ ] USDDispatcher for sub-agent execution
+- [ ] Form factors: Claude CLI, VS Code, GitHub Actions, n8n
+- [ ] Workflow schema v2.0 with sub_agent step type
+
+**Timeline**: ~26 hours  
+**Blocks**: Full Bootstrap Capability
+
+---
+
+### 🟡 Phase 4D: Multi-Tenant SDD Workspaces
+**Goal**: Scale SDD workflow storage for multiple users/teams using MCP/RAG for GFS development  
+**Why**: Platform is useless if only one person can use it  
+**Deliverables**:
+- [ ] Three-tier workspace hierarchy (Platform → Team → User)
+- [ ] WorkspaceManager and WorkspaceResolver
+- [ ] Per-user execution state persistence
+- [ ] Workspace management MCP tools
+- [ ] Migration from current flat structure
+
+**Timeline**: ~30 hours  
+**Blocks**: Production multi-user deployment
+
+---
+
+### 🟡 Phase 13: GitLab CI/CD Pipeline
 **Goal**: Automated build, test, and deploy pipeline  
-**Why Next**: Automates what we built in Phase 12  
+**Why**: Automates what we built in Phase 12  
 **Deliverables**:
 - [ ] .gitlab-ci.yml with lint/test/build/deploy stages
 - [ ] GitLab Runner on Parallel Works
@@ -129,8 +205,7 @@ An AI-assisted development platform for NOAA operational weather systems that:
 - [ ] Security scanning (Trivy)
 - [ ] Health check verification post-deploy
 
-**Timeline**: 1-2 weeks  
-**Blocks**: Automated deployments
+**Timeline**: 1-2 weeks after Phase 4B
 
 ---
 
@@ -179,13 +254,6 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ---
 
-### ⚪ Phase 11: Docker MCP Gateway & LangFlow
-**Goal**: Multi-client MCP access via gateway  
-**Status**: SDD exists  
-**Timeline**: After Phase 13
-
----
-
 ## Technical Architecture
 
 ```
@@ -194,7 +262,7 @@ An AI-assisted development platform for NOAA operational weather systems that:
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ MCP Server  │  │  ChromaDB   │  │   Neo4j     │          │
 │  │ (Node.js)   │  │ v134clean   │  │   5.15.0    │          │
-│  │  16 Tools   │  │ 14,854 docs │  │ 85K+ rels   │          │
+│  │  38 Tools   │  │ 14,856 docs │  │ 85K+ rels   │          │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
 │         └────────────────┼────────────────┘                  │
 │                          │                                   │
@@ -204,10 +272,25 @@ An AI-assisted development platform for NOAA operational weather systems that:
 │         └────────────────┬────────────────┘                  │
 └──────────────────────────┼──────────────────────────────────┘
                            │
-              ┌────────────┴────────────┐
-              │   VS Code + Copilot     │
-              │   (Developer Interface) │
-              └─────────────────────────┘
+     ┌────────────────────┼────────────────────┐
+     │                    │                    │
+┌────┴─────┐    ┌─────────┴────────┐    ┌─────┴─────┐
+│ VS Code  │    │ Docker Gateway   │    │   n8n     │
+│ Copilot  │    │ (port 18888)     │    │ (5678)    │
+└──────────┘    └──────────────────┘    └───────────┘
+```
+
+### MCP Server Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           4 MCP Servers (Separation of Concerns)            │
+├─────────────────────────────────────────────────────────────┤
+│  eib-mcp-rag-full     │ Full 38 tools, RAG enabled          │
+│  eib-mcp-gateway      │ Docker container, 34 tools          │
+│  global-workflow-core │ Neo4j only, fast code analysis      │
+│  eib-sdd-validator    │ 4 SDD framework tools               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Environment Isolation
@@ -280,26 +363,29 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ## Next Actions
 
-1. **Immediate**: Set up GitLab Runners for CI/CD (Phase 13)
-2. **This Week**: Test container deployments with docker-compose files
-3. **Next Week**: First automated pipeline runs
+1. **Immediate**: Phase 4B - Interactive Supervised Execution
+2. **This Week**: ApprovalProvider interface implementation
+3. **Next Week**: Integration with `execute_sdd_workflow_supervised`
 4. **Ongoing**: Document runbooks, gather user feedback
 
 ---
 
-## SDD Workflow Inventory (24 Workflows)
+## SDD Workflow Inventory (30 Workflows)
 
 | Workflow | Status | Purpose |
-|----------|--------|---------|
+|----------|--------|--------|
+| phase11e_n8n_workflow_automation | ✅ Complete | n8n MCP integration |
 | phase12_devops_gitflow_containerization | ✅ Complete | GitFlow + containers |
-| phase4b_interactive_supervised_execution | 📋 SDD Ready | Approval gates |
+| phase4b_interactive_supervised_execution | 🔴 NEXT | ISD approval gates |
+| phase4c_isd_usd_architecture | 🟡 PLANNED | USD sub-agent dispatch |
+| phase4d_multi_tenant_sdd_workspaces | 🟡 PLANNED | Multi-user workspace scaling |
 | phase10_fortran_call_tree_ingestion | 📋 SDD Ready | Fortran analysis |
-| phase11_docker_mcp_gateway_langflow | 📋 SDD Ready | Multi-client gateway |
 | phase8_multimodal_embeddings_workflow | 📋 SDD Ready | Image/diagram ingestion |
 | phase9_metrics_comparative_analysis | 📋 SDD Ready | Productivity metrics |
 | ee2_enhanced_embeddings_workflow | ✅ Complete | EE2 standards ingestion |
 | v7_collection_upgrade_workflow | ✅ Complete | v7 collection migration |
-| *...and 16 more* | Various | See sdd_framework/workflows/ |
+| bootstrap_capability_workflow | 📋 Blocked | Awaiting Phase 4B |
+| *...and 19 more* | Various | See sdd_framework/workflows/ |
 
 ---
 

@@ -1,6 +1,37 @@
 {
   "servers": {
-    // Local stdio server (original - for direct local use)
+    // ============================================================================
+    // MCP SERVER SELECTION GUIDE (SOC - Separation of Concerns)
+    // ============================================================================
+    // 
+    // SERVER SELECTION BY TASK:
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ Task                           │ Use Server           │ Tools Available │
+    // ├─────────────────────────────────────────────────────────────────────────┤
+    // │ GFS/GEFS code structure        │ global-workflow-core │ 16 (Neo4j)      │
+    // │ Weather documentation (RAG)    │ eib-mcp-gateway      │ 34 (full)       │
+    // │ EE2 compliance checking        │ eib-mcp-gateway      │ 34 (full)       │
+    // │ HPC operational guidance       │ eib-mcp-gateway      │ 34 (full)       │
+    // │ GitHub issues/PRs              │ eib-mcp-gateway      │ 34 (full)       │
+    // │ SDD framework validation       │ eib-sdd-validator    │ 4 (SDD only)    │
+    // │ Development progress tracking  │ eib-sdd-validator    │ 4 (SDD only)    │
+    // │ Bootstrap capability status    │ eib-sdd-validator    │ 4 (SDD only)    │
+    // └─────────────────────────────────────────────────────────────────────────┘
+    //
+    // THREE DOMAINS:
+    // 1. Global Workflow (GFS/GEFS) - Weather forecasting code analysis
+    // 2. MCP/RAG Infrastructure    - This development platform's health
+    // 3. SDD Framework             - Development methodology validation
+    //
+    // DB DEPENDENCIES:
+    // - global-workflow-core: Neo4j only (fast, code-focused)
+    // - eib-mcp-gateway: ChromaDB + Neo4j (full RAG capabilities)
+    // - eib-sdd-validator: None (filesystem-based, self-contained)
+    // ============================================================================
+
+    // FULL MODE: All 34 tools - RAG search, EE2 compliance, GitHub, code analysis
+    // Use when: You need documentation search, compliance checking, or operational guidance
+    // DB required: ChromaDB (vectors) + Neo4j (graph)
     "eib-mcp-rag-full": {
       "command": "node",
       "args": [
@@ -21,13 +52,12 @@
         "GITHUB_TOKEN": "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"
       }
     },
-    // Remote gateway via SSH port forward (use after: ssh -L 8888:localhost:8888 remote-host)
-    // Start gateway with: sudo systemctl start mcp-gateway
-    // Uses fixed token (MCP_GATEWAY_AUTH_TOKEN environment variable)
-    // 
-    // Uses Streamable HTTP transport (MCP spec 2025-06-18)
-    // VS Code 1.102+ supports "type": "http" - tries Streamable HTTP first, falls back to SSE
-    // Gateway runs with --transport streaming which exposes /mcp endpoint
+
+    // GATEWAY MODE: Docker container with full 34 tools via HTTP
+    // Use when: Remote access, multi-client (n8n, LangFlow, Claude Desktop)
+    // Transport: Streamable HTTP (MCP spec 2025-06-18)
+    // Start with: sudo systemctl start mcp-gateway
+    // Port forward: ssh -L 18888:localhost:18888 remote-host
     "eib-mcp-gateway": {
       "type": "http",
       "url": "http://localhost:18888/mcp",
@@ -35,15 +65,15 @@
         "Authorization": "Bearer eib-mcp-gateway-token-2025"
       }
     },
-    // Direct remote access (replace YOUR_REMOTE_IP with actual IP)
-    // DISABLED - uncomment when gateway is running
-    // "eib-mcp-gateway-direct": {
-    //   "type": "http",
-    //   "url": "http://3.238.80.83:8888/mcp",
-    //   "headers": {
-    //     "Authorization": "Bearer n6zhx980geq5qunerdwoh7xijz0zqog5l6860pjruzp1mqslas"
-    //   }
-    // },
+
+    // CORE MODE: 16 tools - Code analysis only (NO RAG, NO EE2, NO GitHub)
+    // Use when: Fast code structure analysis with source code on disk
+    // DB required: Neo4j only (graph relationships)
+    // Tools: analyze_code_structure, find_dependencies, trace_execution_path,
+    //        find_callers_callees, get_workflow_structure, get_system_configs,
+    //        describe_component, list_sdd_workflows, execute_sdd_workflow, etc.
+    // NOT available: search_documentation, analyze_ee2_compliance, 
+    //                get_operational_guidance, search_issues
     "global-workflow-core": {
       "command": "node",
       "args": [
@@ -52,7 +82,37 @@
       ],
       "type": "stdio",
       "env": {
-        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow",
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_PASSWORD": "gfsworkflow2025"
+      }
+    },
+
+    // ============================================================================
+    // SDD FRAMEWORK VALIDATOR (Separate System - NOT Global Workflow)
+    // ============================================================================
+    // This is for validating the MCP/RAG development system itself, NOT GFS code.
+    // The SDD Framework is a separate concern from Global Workflow analysis.
+    //
+    // Use when: Checking SDD framework health, development progress, bootstrap status
+    // DB required: None (filesystem-based validation)
+    // Domain: MCP/RAG system development, NOT weather forecasting
+    // ============================================================================
+    
+    // SDD MODE: 4 tools - Framework validation only
+    // Use when: Validating SDD framework integrity, checking development progress
+    // Purpose: Self-referential system - validates the development system itself
+    // Tools: sdd_validate, framework_integrity, development_status, bootstrap_progress
+    // NOT for: GFS/GEFS code analysis, EE2 compliance, weather documentation
+    "eib-sdd-validator": {
+      "command": "node",
+      "args": [
+        "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/mcp-server-sdd.js"
+      ],
+      "type": "stdio",
+      "env": {
+        "MCP_WORKSPACE_ROOT": "/mcp_rag_eib/eib-mcp-rag-server",
+        "SDD_FRAMEWORK_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework"
       }
     }
   }

@@ -1,20 +1,34 @@
 # Unified Spec-Driven Design (SDD) Framework
-**Version**: 4.0 Consolidated  
-**Date**: November 13, 2025  
-**Status**: Production-Ready Framework with Health-Check Integration  
-**Purpose**: Unified approach consolidating WEEK 1-3 evolution with health monitoring
+**Version**: 5.0 ISD/USD Architecture  
+**Date**: January 2, 2026  
+**Status**: Production-Ready Framework with ISD/USD Execution Modes  
+**Purpose**: Unified approach consolidating planning and execution phases
 
 ---
 
-## 🎯 **Executive Summary: SDD Framework Evolution**
+## 🎯 **Executive Summary: SDD Dual-Function Model**
 
-The MCP-RAG system has evolved through a rigorous **Spec-Driven Design** methodology across three distinct phases (WEEK 1-3), each building upon the previous foundation. This framework now integrates comprehensive **health monitoring** as a core architectural principle.
+The SDD framework provides two primary functions:
+1. **Planning Phase** - Creating specifications (the "S" in SDD)
+2. **Execution Phase** - Delivering specifications via ISD or USD modes
+
+### **Terminology**
+
+| Acronym | Full Name | Description |
+|---------|-----------|-------------|
+| **SDD** | Spec-Driven Development | The methodology - plan first, then execute |
+| **ISD** | Interactive Supervised Development | Human approves each side-effect step |
+| **USD** | Unsupervised Development | Autonomous execution within approved scope |
 
 ### **SDD Framework Success Metrics**
 - ✅ **Week 1**: Data Access Layer (2,300+ LOC, Neo4j + ChromaDB unified interface)
 - ✅ **Week 2**: Tool Consolidation (22→21 tools, 36% duplicate reduction, 5 focused modules)
 - ✅ **Week 3**: Quality & Testing (Enhanced embeddings, 1,852+ docs, comprehensive test infrastructure)
 - ✅ **Health Integration**: Proactive monitoring with automated diagnostics
+- ✅ **Phase 11E**: Docker MCP Gateway + n8n workflow automation
+- ✅ **Phase 12**: DevOps GitFlow & Containerization
+- 🔴 **Phase 4B**: ISD approval gates (next priority)
+- 🟡 **Phase 4C**: USD sub-agent dispatch (planned)
 
 ---
 

@@ -25,6 +25,8 @@ class SDDValidator {
   constructor(frameworkRoot = '/mcp_rag_eib/eib-mcp-rag-server') {
     this.frameworkRoot = frameworkRoot;
     this.sddFrameworkPath = path.join(frameworkRoot, 'sdd_framework');
+    this.mcpRuntimePath = path.join(frameworkRoot, 'mcp_server_node', 'src');
+    this.architecturePath = path.join(frameworkRoot, 'mcp_architecture');
   }
 
   async sdd_validate() {
@@ -268,48 +270,130 @@ class SDDValidator {
 
   // Helper methods for development_status
   async identifyDevelopmentPhase() {
-    const structure = await this.checkStructure();
-    const methodology = await this.checkMethodology();
-    
-    if (structure.valid && methodology.compliant) {
+    // SPOT: Read from PRIORITY_ROADMAP.md
+    try {
+      const roadmapPath = path.join(this.sddFrameworkPath, 'PRIORITY_ROADMAP.md');
+      const content = await fs.readFile(roadmapPath, 'utf-8');
+      
+      // Extract phase from "**Status**: Phase XX" pattern in header
+      const statusMatch = content.match(/\*\*Status\*\*:\s*Phase\s+(\d+[A-Za-z]?)\s+(Complete|In Progress)/i);
+      if (statusMatch) {
+        return `Phase ${statusMatch[1]} ${statusMatch[2]}`;
+      }
+      
+      // Fallback: find first 🔴 NEXT priority phase
+      const nextPhaseMatch = content.match(/###\s+🔴\s+Phase\s+(\d+[A-Za-z]?):\s+([^\n]+)\s+\(NEXT\)/);
+      if (nextPhaseMatch) {
+        return `Phase ${nextPhaseMatch[1]} Next: ${nextPhaseMatch[2]}`;
+      }
+      
       return 'implementation';
-    } else if (structure.valid) {
-      return 'specification';
-    } else {
-      return 'initialization';
+    } catch {
+      return 'unknown';
     }
   }
 
   async calculateProgressMetrics() {
     const validation = await this.sdd_validate();
+    
+    // SPOT: Read additional metrics from PRIORITY_ROADMAP.md
+    let toolCount = 0;
+    let workflowCount = 0;
+    try {
+      const roadmapPath = path.join(this.sddFrameworkPath, 'PRIORITY_ROADMAP.md');
+      const content = await fs.readFile(roadmapPath, 'utf-8');
+      
+      // Extract tool count from "XX tools" pattern
+      const toolMatch = content.match(/(\d+)\s+tools/i);
+      if (toolMatch) toolCount = parseInt(toolMatch[1]);
+      
+      // Extract workflow count from "## SDD Workflow Inventory (XX Workflows)"
+      const workflowMatch = content.match(/SDD Workflow Inventory\s*\((\d+)\s+Workflows\)/i);
+      if (workflowMatch) workflowCount = parseInt(workflowMatch[1]);
+    } catch {
+      // Use defaults
+    }
+    
     return {
       completion_percentage: validation.compliance_score,
       framework_maturity: validation.framework_status,
-      active_components: Object.keys(validation.validation_results).length
+      active_components: Object.keys(validation.validation_results).length,
+      mcp_tools: toolCount,
+      sdd_workflows: workflowCount
     };
   }
 
   async checkMilestones() {
-    return {
+    // SPOT: Read milestone status from PRIORITY_ROADMAP.md
+    const milestones = {
       systematic_organization: true,
       sdd_framework_creation: true,
       tool_implementation: true,
       workflow_integration: false,
-      bootstrap_capability: false
+      bootstrap_capability: false,
+      docker_gateway: false,
+      n8n_integration: false,
+      devops_gitflow: false
     };
+    
+    try {
+      const roadmapPath = path.join(this.sddFrameworkPath, 'PRIORITY_ROADMAP.md');
+      const content = await fs.readFile(roadmapPath, 'utf-8');
+      
+      // Check for completed phases
+      if (content.includes('Phase 11E') && content.includes('COMPLETE')) {
+        milestones.n8n_integration = true;
+      }
+      if (content.includes('Phase 12') && content.includes('COMPLETE')) {
+        milestones.devops_gitflow = true;
+      }
+      if (content.includes('Docker MCP Gateway') && content.includes('✅ Complete')) {
+        milestones.docker_gateway = true;
+      }
+      if (content.includes('SDD Validator Server') && content.includes('✅ Operational')) {
+        milestones.workflow_integration = true;
+      }
+      if (content.includes('Bootstrap Capability') && content.includes('🔒 ON HOLD')) {
+        milestones.bootstrap_capability = false;
+      }
+    } catch {
+      // Use defaults
+    }
+    
+    return milestones;
   }
 
   async identifyNextActions() {
-    const milestones = await this.checkMilestones();
+    // SPOT: Read next actions from PRIORITY_ROADMAP.md
     const actions = [];
-
-    if (!milestones.workflow_integration) {
-      actions.push('Integrate SDD workflows with MCP runtime');
+    
+    try {
+      const roadmapPath = path.join(this.sddFrameworkPath, 'PRIORITY_ROADMAP.md');
+      const content = await fs.readFile(roadmapPath, 'utf-8');
+      
+      // Extract from "## Next Actions" section
+      const actionsMatch = content.match(/## Next Actions\s+([\s\S]*?)(?=---|\n## )/);
+      if (actionsMatch) {
+        const lines = actionsMatch[1].split('\n');
+        for (const line of lines) {
+          const itemMatch = line.match(/^\d+\.\s+\*\*[^*]+\*\*:\s*(.+)/);
+          if (itemMatch) {
+            actions.push(itemMatch[1].trim());
+          }
+        }
+      }
+      
+      // If no actions found, check for NEXT phase
+      if (actions.length === 0) {
+        const nextPhaseMatch = content.match(/###\s+🔴\s+Phase\s+\d+[A-Za-z]?:\s+([^\n]+)\s+\(NEXT\)/);
+        if (nextPhaseMatch) {
+          actions.push(`Complete ${nextPhaseMatch[1]}`);
+        }
+      }
+    } catch {
+      actions.push('Review PRIORITY_ROADMAP.md for current priorities');
     }
-    if (!milestones.bootstrap_capability) {
-      actions.push('Establish bootstrap development cycle');
-    }
-
+    
     return actions;
   }
 

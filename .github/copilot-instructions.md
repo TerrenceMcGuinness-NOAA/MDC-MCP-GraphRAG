@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-MCP/RAG development platform for NOAA Global Workflow AI assistance. Provides 27+ tools for code analysis, EE2 compliance validation, and semantic search across operational weather forecasting infrastructure.
+MCP/RAG development platform for NOAA Global Workflow AI assistance. Provides 38 tools for code analysis, EE2 compliance validation, and semantic search across operational weather forecasting infrastructure.
 
-**Architecture**: MCP Server (Node.js v3.6.2) → ChromaDB (vectors) + Neo4j (graph) → VS Code/Copilot
+**Architecture**: MCP Server (Node.js v7.1.0) → ChromaDB (vectors) + Neo4j (graph) → VS Code/Copilot
 
 ## Quick Start Commands
 
@@ -26,14 +26,23 @@ npm run test:integration                        # Integration tests
 
 ## Critical Patterns
 
-### SDD-First Development (REQUIRED for new features)
-1. Create workflow plan in `sdd_framework/workflows/phaseX_feature_name.md`
-2. Reference methodology docs in `sdd_framework/methodology/`
-3. **Rule**: "If it's not in the SDD, it doesn't get coded."
+### SDD Methodology (REQUIRED for new features)
+
+**SDD = Spec-Driven Development** with two phases:
+1. **Planning Phase** - Create specification in `sdd_framework/workflows/phaseX_feature_name.md`
+2. **Execution Phase** - Run via ISD or USD mode
+
+| Acronym | Full Name | Description |
+|---------|-----------|-------------|
+| **SDD** | Spec-Driven Development | The methodology - plan first, then execute |
+| **ISD** | Interactive Supervised Development | Human approves each side-effect step |
+| **USD** | Unsupervised Development | Autonomous execution within approved scope |
+
+**Rule**: "If it's not in the SDD, it doesn't get coded."
 
 For detailed SDD agentic patterns and multi-step execution guidance, see:
 - [spec_driven_design_core.md](sdd_framework/methodology/spec_driven_design_core.md)
-- [framework_integration_architecture.md](sdd_framework/methodology/framework_integration_architecture.md)
+- [phase4c_isd_usd_architecture.md](sdd_framework/workflows/phase4c_isd_usd_architecture.md)
 
 ### MCP-First Policy
 Always try MCP tools before shell commands when analyzing code:
@@ -77,7 +86,9 @@ Configuration sources MUST be singular:
 | **EE2** | EMC Environment 2.0 - NCO production coding standards |
 | **MCP** | Model Context Protocol - AI tool integration standard |
 | **RAG** | Retrieval-Augmented Generation |
-| **SDD** | Software Design Document - required planning docs |
+| **SDD** | Spec-Driven Development - plan first, then execute |
+| **ISD** | Interactive Supervised Development - human approval gates |
+| **USD** | Unsupervised Development - autonomous sub-agent execution |
 | **GFS/GEFS** | Global Forecast System / Ensemble version |
 | **HPC** | Hera, WCOSS2, Orion, Hercules, Gaea platforms |
 
@@ -230,19 +241,101 @@ volumes:
 - `scripts/` - Tool internals (baked into image instead)
 - Other supported_repos - EVS, n8n, mcp-gateway, rocoto_dryrun, etc.
 
+## MCP Tool Selection Guide (SOC for LLMs)
+
+**Design Principle**: Tool and server names encode their purpose so LLMs can select correctly from names alone.
+
+### Three-Domain Separation
+
+| Domain | System | Server | Purpose |
+|--------|--------|--------|---------|
+| **Global Workflow** | GFS/GEFS weather forecasting | `global-workflow-core`, `eib-mcp-gateway` | Analyze weather model code |
+| **MCP/RAG Infrastructure** | This development platform | `eib-mcp-rag-full`, `eib-mcp-gateway` | Server health, RAG search |
+| **SDD Framework** | Development methodology | `eib-sdd-validator` | Validate SDD specs, bootstrap progress |
+
+### Server Selection Matrix
+
+| If the task involves... | Use Server | Why |
+|-------------------------|------------|-----|
+| GFS/GEFS code on disk + call graphs | `global-workflow-core` | Neo4j graph only, fast, no RAG |
+| Weather documentation search | `eib-mcp-gateway` | ChromaDB vectors for semantic search |
+| EE2 compliance checking | `eib-mcp-gateway` | Needs EE2 standards in ChromaDB |
+| "What does this GFS code do?" | `eib-mcp-gateway` | RAG-powered explanations |
+| HPC operational procedures | `eib-mcp-gateway` | Operational guidance in vectors |
+| GitHub issues/PRs | `eib-mcp-gateway` | GitHub API integration |
+| **SDD framework validation** | `eib-sdd-validator` | Framework integrity, bootstrap status |
+| **Development progress tracking** | `eib-sdd-validator` | Milestone completion, phase tracking |
+
+### Tool Naming Convention
+
+```
+<domain>_<action>_<object>
+```
+
+| Component | Signals | Examples |
+|-----------|---------|----------|
+| **domain** | What system/standard | `mcp_`, `ee2_`, `sdd_` |
+| **action** | What operation | `search_`, `analyze_`, `get_`, `list_`, `validate_` |
+| **object** | What target | `_documentation`, `_compliance`, `_structure`, `_integrity` |
+
+### Quick Reference: Tool → Server Mapping
+
+| Tool Name Pattern | Requires | Available In |
+|-------------------|----------|--------------|
+| `get_workflow_structure`, `get_system_configs` | Filesystem only | All servers |
+| `analyze_code_structure`, `find_*`, `trace_*` | Neo4j | `core`, `full`, `gateway` |
+| `search_documentation`, `explain_with_context` | ChromaDB | `full`, `gateway` only |
+| `analyze_ee2_compliance`, `scan_repository_*` | ChromaDB | `full`, `gateway` only |
+| `get_operational_guidance`, `list_job_scripts` | ChromaDB | `full`, `gateway` only |
+| `search_issues`, `get_pull_requests` | GitHub API | `full`, `gateway` only |
+| `list_sdd_workflows`, `execute_sdd_workflow*` | Filesystem | `core`, `full`, `gateway` |
+| **`sdd_validate`, `framework_integrity`** | **Filesystem** | **`eib-sdd-validator` only** |
+| **`development_status`, `bootstrap_progress`** | **Filesystem** | **`eib-sdd-validator` only** |
+
+### Decision Tree for Tool Selection
+
+```
+User Question
+    │
+    ├─► "Show me the GFS code structure of X" 
+    │       → analyze_code_structure (global-workflow-core)
+    │
+    ├─► "What does this weather error mean?" / "How do I run GFS?"
+    │       → search_documentation (eib-mcp-gateway)
+    │
+    ├─► "Is this code EE2 compliant?"
+    │       → analyze_ee2_compliance (eib-mcp-gateway)
+    │
+    ├─► "What calls this forecast function?"
+    │       → find_callers_callees (global-workflow-core)
+    │
+    ├─► "How do I run jobs on HERA?"
+    │       → get_operational_guidance (eib-mcp-gateway)
+    │
+    ├─► "What are the open GFS PRs?"
+    │       → get_pull_requests (eib-mcp-gateway)
+    │
+    ├─► "Is the SDD framework healthy?" / "What's our dev progress?"
+    │       → sdd_validate, development_status (eib-sdd-validator)
+    │
+    └─► "What's the bootstrap capability status?"
+            → bootstrap_progress (eib-sdd-validator)
+```
+
 ## MCP Tool Categories
 
-**27 tools across 7 modules** - always prefer MCP tools over shell commands:
+**38 tools across 8 modules** - always prefer MCP tools over shell commands:
 
-| Module | Tools | Use For |
-|--------|-------|---------|
-| WorkflowInfo | `get_workflow_structure`, `get_system_configs`, `describe_component` | Static queries, HPC configs |
-| SemanticSearch | `search_documentation`, `explain_with_context`, `find_related_files` | RAG-powered search |
-| EE2Compliance | `analyze_ee2_compliance`, `scan_repository_compliance`, `generate_compliance_report` | Standards validation |
-| CodeAnalysis | `analyze_code_structure`, `find_dependencies`, `trace_execution_path`, `find_callers_callees` | Dependency mapping |
-| SDDWorkflow | `list_sdd_workflows`, `get_sdd_workflow`, `execute_sdd_workflow_supervised` | Development orchestration |
-| Operational | `get_operational_guidance`, `list_job_scripts`, `explain_workflow_component` | HPC procedures |
-| GitHub | `search_issues`, `get_pull_requests` | Repository integration |
+| Module | Tools | DB Dependency | Server | Use For |
+|--------|-------|---------------|--------|---------|
+| WorkflowInfo | `get_workflow_structure`, `get_system_configs`, `describe_component` | None (filesystem) | All | Static queries, HPC configs |
+| CodeAnalysis | `analyze_code_structure`, `find_dependencies`, `trace_execution_path`, `find_callers_callees` | Neo4j | `core`, `full`, `gateway` | Call graphs, dependencies |
+| SemanticSearch | `search_documentation`, `explain_with_context`, `find_related_files`, `get_knowledge_base_status` | ChromaDB+Neo4j | `full`, `gateway` | RAG-powered search |
+| EE2Compliance | `analyze_ee2_compliance`, `scan_repository_compliance`, `generate_compliance_report`, `search_ee2_standards` | ChromaDB | `full`, `gateway` | NCO standards validation |
+| Operational | `get_operational_guidance`, `list_job_scripts`, `explain_workflow_component` | ChromaDB | `full`, `gateway` | HPC procedures |
+| SDDWorkflow | `list_sdd_workflows`, `get_sdd_workflow`, `execute_sdd_workflow_supervised` | None | `core`, `full`, `gateway` | Development orchestration |
+| GitHub | `search_issues`, `get_pull_requests` | GitHub API | `full`, `gateway` | Repository integration |
+| **SDDValidator** | `sdd_validate`, `framework_integrity`, `development_status`, `bootstrap_progress` | **None** | **`eib-sdd-validator`** | **SDD framework health** |
 
 ## Infrastructure
 
