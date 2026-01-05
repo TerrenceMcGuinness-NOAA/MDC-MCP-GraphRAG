@@ -16,12 +16,16 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// SDD Framework root - uses env var for container, falls back to relative path for local dev
+const SDD_FRAMEWORK_ROOT = process.env.SDD_FRAMEWORK_ROOT || 
+  path.join(__dirname, '../../../../sdd_framework');
+
 /**
  * Default configuration
  */
 const DEFAULT_CONFIG = {
-  // State files directory (relative to sdd_framework)
-  stateDir: path.join(__dirname, '../../../../sdd_framework/execution_state'),
+  // State files directory (within sdd_framework)
+  stateDir: path.join(SDD_FRAMEWORK_ROOT, 'execution_state'),
   // Time-to-live for execution states (5 minutes default)
   ttlMs: 5 * 60 * 1000,
   // Maximum states to keep (prevent disk bloat)

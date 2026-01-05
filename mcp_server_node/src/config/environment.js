@@ -13,6 +13,10 @@
  * 
  * Environment Variables:
  *   MCP_ENV: development (default), devops, staging, production
+ *   MCP_WORKFLOW_ROOT: Path to global-workflow repository (default: relative path)
+ *   SDD_FRAMEWORK_ROOT: Path to sdd_framework directory (default: relative path)
+ *     - Container: /app/sdd_framework (volume-mounted)
+ *     - Local: ./sdd_framework (relative to repo root)
  * 
  * Data Isolation Strategy:
  *   - development: Feature branches, local experimentation

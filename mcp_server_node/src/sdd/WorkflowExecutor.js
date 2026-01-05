@@ -21,11 +21,15 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// SDD Framework root - uses env var for container, falls back to relative path for local dev
+const SDD_FRAMEWORK_ROOT = process.env.SDD_FRAMEWORK_ROOT || 
+  path.join(__dirname, '../../../sdd_framework');
+
 export class WorkflowExecutor {
   constructor(dataAccess, healthMonitor = null) {
     this.dataAccess = dataAccess;
     this.healthMonitor = healthMonitor;
-    this.workflowDir = path.join(__dirname, '../../../sdd_framework/workflows');
+    this.workflowDir = path.join(SDD_FRAMEWORK_ROOT, 'workflows');
     this.executionHistory = [];
     
     // Phase 4: Bootstrap capability

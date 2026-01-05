@@ -44,6 +44,8 @@ ENV NEO4J_USER=neo4j
 ENV NEO4J_PASSWORD=gfsworkflow2025
 ENV ENABLE_RAG=true
 ENV ENABLE_GITHUB=true
+# SDD Framework root (volume-mounted by MCP catalog)
+ENV SDD_FRAMEWORK_ROOT=/app/sdd_framework
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
