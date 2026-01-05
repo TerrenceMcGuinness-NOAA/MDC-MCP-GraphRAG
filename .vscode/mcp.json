@@ -58,6 +58,7 @@
     // Transport: Streamable HTTP (MCP spec 2025-06-18)
     // Start with: sudo systemctl start mcp-gateway
     // Port forward: ssh -L 18888:localhost:18888 remote-host
+    // Token: Static when MCP_GATEWAY_AUTH_TOKEN env var is set (see systemd service)
     "eib-mcp-gateway": {
       "type": "http",
       "url": "http://localhost:18888/mcp",

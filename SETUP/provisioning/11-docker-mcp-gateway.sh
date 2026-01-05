@@ -157,23 +157,24 @@ MCP_CONFIG_DIR="${USER_HOME}/.docker/mcp"
 run_as_user "${USER_NAME}" "mkdir -p ${MCP_CONFIG_DIR}/catalogs"
 
 # Create EIB MCP RAG catalog entry (v3 format with registry: key)
+# SPOT: This is the single source of truth for MCP gateway catalog configuration
 # Note: Uses 172.17.0.1 (Docker bridge gateway) for container-to-host DB access
-cat > "${MCP_CONFIG_DIR}/catalogs/eib-mcp-rag.yaml" << 'EOF'
-# EIB MCP RAG Server Catalog - v3 format
-# Used by: docker mcp gateway run --catalog eib-mcp-rag.yaml --servers eib-mcp-rag
+cat > "${MCP_CONFIG_DIR}/catalogs/eib-local.yaml" << EOF
+# EIB MCP RAG Server Catalog - v3 format (SPOT - Single Point of Truth)
+# Created by: SETUP/provisioning/11-docker-mcp-gateway.sh
+# Used by: sudo systemctl start mcp-gateway
 # Transport: streaming (Streamable HTTP - MCP spec 2025-06-18)
 
-name: eib-mcp-rag-catalog
-displayName: EIB MCP RAG Server
+version: 3
+name: eib-local
+displayName: EIB Local MCP Catalog
 
 registry:
   eib-mcp-rag:
-    description: "AI-powered MCP server with RAG for NOAA Global Workflow - semantic search, EE2 compliance, code analysis"
-    title: "EIB MCP RAG Server"
-    type: "server"
-    image: "eib-mcp-rag:latest"
-    
-    # Environment variables for DB connections (use host bridge IP from container)
+    title: EIB MCP RAG Server
+    description: AI-powered code analysis and EE2 compliance checking for NOAA Global Workflow
+    type: server
+    image: eib-mcp-rag:latest
     env:
       - name: CHROMADB_HOST
         value: "172.17.0.1"
@@ -184,27 +185,32 @@ registry:
       - name: NEO4J_URI
         value: "bolt://172.17.0.1:7687"
       - name: NEO4J_USER
-        value: "neo4j"
+        value: neo4j
       - name: NEO4J_PASSWORD
-        value: "gfsworkflow2025"
+        value: gfsworkflow2025
       - name: MCP_WORKFLOW_ROOT
         value: "/app/supported_repos/global-workflow"
-    
-    # Volume mounts for source code access
+      - name: MCP_SCENARIO
+        value: full
+      - name: ENABLE_RAG
+        value: "true"
+      - name: ENABLE_GITHUB
+        value: "true"
     volumes:
       - "${EIB_REPO}/supported_repos:/app/supported_repos:ro"
       - "${EIB_REPO}/sdd_framework:/app/sdd_framework:ro"
-    
-    # Metadata
     metadata:
-      category: "AI Development"
-      tags: ["noaa", "weather", "hpc", "gfs", "rag", "semantic-search"]
-      owner: "EMC"
+      category: devops
+      tags:
+        - noaa
+        - gfs
+        - mcp
+        - rag
 EOF
 
 chown -R "$(get_ownership "${USER_NAME}")" "${MCP_CONFIG_DIR}"
 
-log_success "MCP catalog created: ${MCP_CONFIG_DIR}/catalogs/eib-mcp-rag.yaml"
+log_success "MCP catalog created: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml"
 
 ################################################################################
 # Build MCP RAG Container Image
@@ -280,9 +286,9 @@ Environment=PATH=/usr/local/go/bin:/usr/bin:/bin:${USER_HOME}/.docker/cli-plugin
 WorkingDirectory=${USER_HOME}
 
 # Use streaming transport (Streamable HTTP - MCP spec 2025-06-18)
-# Uses catalog file for proper server configuration including env vars and volumes
+# SPOT: Uses eib-local.yaml catalog created by this provisioning script
 # Note: Port 18888 to avoid conflicts with common services on HPC systems
-ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --catalog eib-mcp-rag.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived
+ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --catalog eib-local.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived
 
 Restart=on-failure
 RestartSec=10
@@ -310,7 +316,7 @@ log_section "Docker MCP Gateway Setup Complete"
 log_info "Components installed:"
 log_success "  Go compiler: $(go version | awk '{print $3}')"
 log_success "  docker-mcp plugin: ${DOCKER_CLI_PLUGINS}/docker-mcp"
-log_success "  MCP catalog: ${MCP_CONFIG_DIR}/catalogs/eib-mcp-rag.yaml"
+log_success "  MCP catalog: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml (SPOT)"
 log_success "  Container image: eib-mcp-rag:latest"
 log_success "  Systemd service: mcp-gateway.service"
 
@@ -321,7 +327,7 @@ log_info "  sudo systemctl status mcp-gateway"
 log_info ""
 log_info "Or run manually:"
 log_info "  export MCP_GATEWAY_AUTH_TOKEN=\"eib-mcp-gateway-token-2025\""
-log_info "  docker mcp gateway run --catalog eib-mcp-rag.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose"
+log_info "  docker mcp gateway run --catalog eib-local.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose"
 log_info ""
 log_info "Remote Access (from client machine):"
 log_info "  1. SSH tunnel: ssh -L 18888:localhost:18888 user@server -N"
