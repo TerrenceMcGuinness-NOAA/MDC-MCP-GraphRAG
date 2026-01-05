@@ -889,7 +889,296 @@ npm test
 
 ---
 
+## 10. ISD/USD Implementation Reference (Phase 4B/4C)
+
+**Version:** 2.0.0  
+**Date:** January 5, 2026  
+**Status:** Production-Ready
+
+### 10.1 Directory Structure
+
+```
+mcp_server_node/src/sdd/
+├── WorkflowExecutor.js        # Main executor (938 LOC)
+├── SpecificationParser.js     # Workflow parsing
+├── SelfModificationEngine.js  # Bootstrap capability
+└── approval/
+    ├── index.js               # Module exports
+    ├── ApprovalProvider.js    # Abstract base class (~200 LOC)
+    ├── MCPApprovalProvider.js # VS Code/Claude Desktop (243 LOC)
+    ├── CLIApprovalProvider.js # Terminal readline (~150 LOC)
+    ├── ManifestApprovalProvider.js # CI/CD pre-approval (~200 LOC)
+    └── ExecutionStateStore.js # JSON persistence (337 LOC)
+
+sdd_framework/
+├── execution_state/           # JSON state files (TTL: 5 min)
+│   └── README.md
+└── workflows/
+    ├── phase4b_interactive_supervised_execution.md
+    └── phase4c_isd_usd_architecture.md
+```
+
+### 10.2 ApprovalProvider Interface
+
+```javascript
+/**
+ * Abstract base class for approval providers
+ */
+export class ApprovalProvider {
+  constructor(options = {}) {
+    this.executionMode = options.mode || ExecutionMode.DRY_RUN;
+    this.timeout = options.timeout || 300000;  // 5 min default
+    this.autoApproveTypes = options.autoApproveTypes || [];
+    this.denyTypes = options.denyTypes || [];
+    this.auditLog = [];
+  }
+
+  /**
+   * Check if step requires approval
+   * @param {Object} step - Step metadata
+   * @returns {boolean}
+   */
+  requiresApproval(step) {
+    if (this.autoApproveTypes.includes(step.type)) return false;
+    if (this.denyTypes.includes(step.type)) return false;
+    return SIDE_EFFECT_TYPES.includes(step.type);
+  }
+
+  /**
+   * Request approval for a step
+   * @param {Object} step - Step metadata
+   * @param {Object} preview - Preview of what will happen
+   * @returns {Promise<ApprovalResult|Object>}
+   */
+  async requestApproval(step, preview) {
+    throw new Error('Must implement requestApproval');
+  }
+
+  /**
+   * Generate preview for approval display
+   * @param {Object} step - Step metadata
+   * @returns {Object}
+   */
+  generatePreview(step) {
+    return {
+      type: step.type,
+      name: step.name,
+      description: step.description,
+      sideEffects: this.identifySideEffects(step),
+      estimatedDuration: this.estimateDuration(step)
+    };
+  }
+}
+
+/**
+ * Constants
+ */
+export const ApprovalResult = {
+  APPROVED: 'approved',
+  SKIPPED: 'skipped',
+  QUIT: 'quit',
+  APPROVE_ALL: 'approve_all',
+  PENDING: 'pending'
+};
+
+export const ExecutionMode = {
+  DRY_RUN: 'dry_run',
+  SUPERVISED: 'supervised',
+  AUTO_APPROVED: 'auto_approved',
+  BATCH: 'batch'
+};
+
+export const SIDE_EFFECT_TYPES = [
+  'code_generation',
+  'code_modification',
+  'command',
+  'ingestion',
+  'sub_agent'
+];
+
+export const READ_ONLY_TYPES = [
+  'health_check',
+  'validation',
+  'data_query',
+  'mcp_tool'
+];
+```
+
+### 10.3 ExecutionStateStore Configuration
+
+```javascript
+const DEFAULT_CONFIG = {
+  // State files directory
+  stateDir: 'sdd_framework/execution_state',
+  
+  // Time-to-live for execution states
+  ttlMs: 5 * 60 * 1000,  // 5 minutes
+  
+  // Maximum states to keep (prevent disk bloat)
+  maxStates: 100,
+  
+  // Cleanup interval (run cleanup every N operations)
+  cleanupInterval: 10
+};
+```
+
+### 10.4 MCP Tool Registration
+
+```javascript
+// SDDWorkflowTools.js - Tool registration
+
+// execute_sdd_workflow_supervised
+server.registerTool(
+  'execute_sdd_workflow_supervised',
+  'Execute SDD workflow with human approval gates...',
+  {
+    type: 'object',
+    properties: {
+      workflow_name: { type: 'string', description: 'Workflow to execute' },
+      mode: { 
+        type: 'string', 
+        enum: ['dry_run', 'supervised', 'auto_approved'],
+        default: 'dry_run'
+      },
+      auto_approve: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Step types to auto-approve'
+      },
+      execution_id: {
+        type: 'string',
+        description: 'Resume execution with this ID'
+      },
+      pending_approval: {
+        type: 'string',
+        enum: ['approved', 'skipped', 'quit', 'approve_all'],
+        description: 'Response to pending approval'
+      }
+    },
+    required: ['workflow_name']
+  },
+  this.executeSupervisedWorkflow.bind(this)
+);
+
+// manage_execution_state
+server.registerTool(
+  'manage_execution_state',
+  'List, inspect, or cleanup pending workflow states...',
+  {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['list', 'inspect', 'delete', 'cleanup', 'stats']
+      },
+      execution_id: { type: 'string' }
+    }
+  },
+  this.manageExecutionState.bind(this)
+);
+```
+
+### 10.5 Multi-Turn Approval Flow Sequence
+
+```
+┌─────────────┐     ┌──────────────┐     ┌───────────────────┐
+│ VS Code     │     │ MCP Server   │     │ ExecutionState    │
+│ Copilot     │     │              │     │ Store             │
+└──────┬──────┘     └──────┬───────┘     └─────────┬─────────┘
+       │                   │                       │
+       │ execute_sdd_workflow_supervised           │
+       │ {workflow: "demo", mode: "supervised"}    │
+       │──────────────────►│                       │
+       │                   │                       │
+       │                   │ Execute read-only steps
+       │                   │                       │
+       │                   │ Side-effect step found
+       │                   │                       │
+       │                   │ save(execId, state)   │
+       │                   │──────────────────────►│
+       │                   │                       │
+       │   Return: {status: "awaiting_approval",   │
+       │            execution_id: "exec_123",      │
+       │            pendingStep: {...}}            │
+       │◄──────────────────│                       │
+       │                   │                       │
+       │ User reviews, types "Approve"             │
+       │                   │                       │
+       │ execute_sdd_workflow_supervised           │
+       │ {execution_id: "exec_123",                │
+       │  pending_approval: "approved"}            │
+       │──────────────────►│                       │
+       │                   │                       │
+       │                   │ load(execId)          │
+       │                   │──────────────────────►│
+       │                   │◄──────────────────────│
+       │                   │                       │
+       │                   │ Resume execution...   │
+       │                   │                       │
+       │   Return: {status: "completed",           │
+       │            results: [...]}                │
+       │◄──────────────────│                       │
+       │                   │                       │
+       │                   │ delete(execId)        │
+       │                   │──────────────────────►│
+       │                   │                       │
+```
+
+### 10.6 State File Example
+
+```json
+{
+  "executionId": "exec_1704484800000_r7k2m",
+  "workflowName": "bootstrap_capability_demo",
+  "currentStepIndex": 2,
+  "totalSteps": 5,
+  "status": "awaiting_approval",
+  "pendingStep": {
+    "index": 2,
+    "name": "code_generation",
+    "type": "code_generation",
+    "preview": {
+      "action": "Create file",
+      "target": "src/tools/ExampleBootstrapTool.js",
+      "lines": 45,
+      "language": "javascript"
+    }
+  },
+  "results": {
+    "executionId": "exec_1704484800000_r7k2m",
+    "workflow": "bootstrap_capability_demo",
+    "executionMode": "supervised",
+    "status": "in_progress",
+    "startTime": 1704484800000,
+    "steps": [
+      {
+        "name": "health_check",
+        "status": "completed",
+        "duration": 234,
+        "result": { "chromadb": "healthy", "neo4j": "healthy" }
+      },
+      {
+        "name": "analyze_context",
+        "status": "completed",
+        "duration": 567,
+        "result": { "filesAnalyzed": 12, "patterns": 3 }
+      }
+    ],
+    "params": {}
+  },
+  "startTime": 1704484800000,
+  "savedAt": 1704484801234,
+  "expiresAt": 1704485101234
+}
+```
+
+---
+
 **End of Extended Technical Appendix**
+
+**Version History:**
+- v1.0 (November 2025): Initial appendix with RAG architecture
+- v2.0 (January 2026): Added Section 10 - ISD/USD implementation reference
 
 **Next Steps:**
 - Compile LaTeX paper: `pdflatex SDD_Framework_Paper.tex`

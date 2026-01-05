@@ -89,14 +89,29 @@ The comprehensive technical specification covering the entire MCP-RAG system in 
 
 ### 1. SDD Framework Papers (`sdd_framework/`)
 
-**Main Document: Graph-Enriched RAG for Operational Weather Forecasting**
+**Main Document: Spec-Driven Development with Supervised RAG Refinement**  
+**Version:** 2.0 (January 5, 2026) - ISD/USD Architecture Update
 
 The foundational technical specification describing:
 - System architecture for MCP-RAG
 - Graph enrichment pipeline (Neo4j + ChromaDB)
-- Hybrid search algorithms
-- Performance evaluation methodology
+- Hybrid search algorithms with α/β/γ weighting
+- Semantic annotation schema (7 MCP directives)
+- SME Review Guide methodology
+- **NEW (v2.0): Interactive Supervised Development (ISD)**
+  - Execution mode hierarchy (dry_run → supervised → auto_approved → batch)
+  - Multi-turn approval flow with state persistence
+  - ApprovalProvider architecture (MCP, CLI, Manifest)
+  - ExecutionStateStore for JSON-based state management
+  - USD sub-agent dispatch architecture (planned)
+- Performance evaluation: 3.8× retrieval improvement, 5-9× dev velocity
 - Deployment architecture
+
+**Files:**
+- `SDD_Framework_Journal_Paper.md` - Main paper (v2.0, ~14 pages)
+- `Extended_Technical_Appendix.md` - Implementation reference (v2.0)
+- `SDD_Framework_Paper.tex` - LaTeX version (needs update)
+- `main.tex` - Technical specification
 
 **Target Venues:** NOAA Technical Memo, arXiv, JOSS, SoftwareX
 

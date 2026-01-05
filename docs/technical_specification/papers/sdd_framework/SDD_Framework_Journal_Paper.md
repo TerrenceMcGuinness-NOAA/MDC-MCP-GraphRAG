@@ -2,8 +2,8 @@
 
 **Authors:** NOAA EMC Global Workflow MCP Team  
 **Affiliation:** NOAA Environmental Modeling Center, Global Workflow Development Team  
-**Date:** December 4, 2025  
-**Version:** 1.1  
+**Date:** January 5, 2026  
+**Version:** 2.0 (ISD/USD Architecture Update)  
 
 ---
 
@@ -11,7 +11,7 @@
 
 We present the **Spec-Driven Development (SDD) Framework**, a novel methodology for AI-assisted software development that combines structured workflow specifications with hybrid graph-enhanced retrieval-augmented generation (RAG) and supervised Subject Matter Expert (SME) refinement. The framework enables systematic documentation, validation, and execution of complex software development tasks through machine-readable specifications in YAML and Markdown formats. A key innovation is the integration of semantic annotations in reStructuredText (RST) documentation that preserve human-readable content while embedding machine-processable metadata for enhanced AI comprehension. We demonstrate the framework's effectiveness through deployment in the NOAA Global Workflow system, achieving autonomous code analysis, compliance validation, and development task execution. The SME Review Guide mechanism enables domain experts to refine AI knowledge bases through structured annotation reviews, improving retrieval accuracy by 3-5× compared to pure text-based search. This work addresses critical challenges in maintaining large-scale operational software systems where domain expertise is scarce and documentation complexity exceeds human cognitive capacity.
 
-**Keywords:** Spec-Driven Development, Retrieval-Augmented Generation, Knowledge Graphs, Software Development Automation, Subject Matter Expert Refinement, Semantic Annotations, Weather Forecasting Systems
+**Keywords:** Spec-Driven Development, Retrieval-Augmented Generation, Knowledge Graphs, Software Development Automation, Subject Matter Expert Refinement, Semantic Annotations, Weather Forecasting Systems, Interactive Supervised Development, Multi-turn Approval Workflows
 
 ---
 
@@ -1036,7 +1036,220 @@ Use LLMs to generate initial annotations from code/documentation, then SME revie
 
 ---
 
-## 9. Related Work
+## 9. Interactive Supervised Development (ISD/USD)
+
+A critical gap in the original SDD framework was the binary choice between `dry_run` (preview only) and full autonomous execution. This section describes the **Interactive Supervised Development (ISD)** and **Unsupervised Development (USD)** architecture implemented in Phase 4B/4C (January 2026).
+
+### 9.1 Execution Mode Hierarchy
+
+The SDD framework now supports four execution modes with progressive trust levels:
+
+| Mode | Description | Human Interaction | Use Case |
+|------|-------------|-------------------|----------|
+| **dry_run** | Preview only, no side effects | None | Planning, validation |
+| **supervised** | Human approves each side-effect step | Per-step approval | Development, learning |
+| **auto_approved** | Pre-approved step types via manifest | Pattern-based | Trusted workflows |
+| **batch** | Execute all steps autonomously | None (pre-approved) | CI/CD pipelines |
+
+```
+dry_run ──► supervised ──► auto_approved ──► batch
+(SAFE)      (CONTROLLED)    (SEMI-AUTO)     (FULL AUTO)
+```
+
+### 9.2 Step Type Classification
+
+Steps are classified by their side-effect potential:
+
+**Read-Only Steps (Auto-Execute in ISD):**
+- `health_check` - Verify system components
+- `validation` - Check conditions/assertions
+- `data_query` - Query databases/APIs
+- `mcp_tool` - Call read-only MCP tools
+
+**Side-Effect Steps (Require ISD Approval):**
+- `code_generation` - Create new files
+- `code_modification` - Modify existing files
+- `command` - Run shell commands
+- `ingestion` - Update knowledge base
+
+**Sub-Agent Steps (ISD Approval + USD Execution):**
+- `sub_agent` - Dispatch to external agent (Claude CLI, GitHub Actions, n8n)
+
+### 9.3 Approval Provider Architecture
+
+Different execution environments require different approval mechanisms. The framework implements a provider abstraction:
+
+```javascript
+// Abstract base class
+class ApprovalProvider {
+  async requestApproval(step, preview) → ApprovalResult
+  requiresApproval(step) → boolean
+  generatePreview(step) → Object
+}
+
+// ApprovalResult enum
+const ApprovalResult = {
+  APPROVED: 'approved',      // Execute step
+  SKIPPED: 'skipped',        // Skip, continue workflow
+  QUIT: 'quit',              // Abort workflow
+  APPROVE_ALL: 'approve_all', // Approve remaining steps
+  PENDING: 'pending'         // Multi-turn: await user input
+};
+```
+
+**Provider Implementations:**
+
+| Provider | Environment | Mechanism |
+|----------|-------------|-----------|
+| `MCPApprovalProvider` | VS Code Copilot, Claude Desktop | Multi-turn MCP tool calls |
+| `CLIApprovalProvider` | Claude Code, SSH terminals | readline prompts |
+| `ManifestApprovalProvider` | CI/CD pipelines | JSON/YAML pre-approval |
+
+### 9.4 Multi-Turn State Persistence
+
+The MCP protocol is stateless—each tool call is independent. For multi-turn approval workflows, execution state must persist between calls.
+
+**ExecutionStateStore Implementation:**
+
+```javascript
+class ExecutionStateStore {
+  // Configuration
+  stateDir: 'sdd_framework/execution_state/'
+  ttlMs: 300000        // 5-minute TTL
+  maxStates: 100       // Prevent disk bloat
+  cleanupInterval: 10  // Cleanup every N operations
+  
+  // Operations
+  save(executionId, state) → boolean
+  load(executionId) → Object | null
+  delete(executionId) → boolean
+  cleanup() → number  // Remove expired states
+  list() → Object[]   // Active states
+}
+```
+
+**State File Format:**
+
+```json
+{
+  "executionId": "exec_1704484800_abc123",
+  "workflowName": "bootstrap_capability_demo",
+  "currentStepIndex": 2,
+  "totalSteps": 5,
+  "status": "awaiting_approval",
+  "pendingStep": {
+    "index": 2,
+    "name": "code_generation",
+    "type": "code_generation",
+    "preview": { "file": "ExampleTool.js", "lines": 45 }
+  },
+  "results": { /* prior step results */ },
+  "savedAt": 1704484800000,
+  "expiresAt": 1704485100000
+}
+```
+
+### 9.5 ISD Workflow Example
+
+```
+User: Execute bootstrap demo with supervision
+
+┌─────────────────────────────────────────────────────────────┐
+│ [Step 1: health_check] ✅ Auto-executed (read-only)         │
+│   Result: ChromaDB healthy, Neo4j healthy                   │
+├─────────────────────────────────────────────────────────────┤
+│ [Step 2: code_generation] ⏸️ APPROVAL REQUIRED              │
+│   Action: Create file src/tools/ExampleTool.js              │
+│   Lines: 45 | Language: JavaScript                          │
+│                                                             │
+│   Preview:                                                  │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │ /**                                                  │   │
+│   │  * ExampleTool - Generated by Bootstrap              │   │
+│   │  */                                                  │   │
+│   │ export class ExampleTool { ... }                     │   │
+│   └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│   [Approve] [Skip] [Diff] [Quit] [Approve All]              │
+└─────────────────────────────────────────────────────────────┘
+
+User: Approve
+
+┌─────────────────────────────────────────────────────────────┐
+│ [Step 2: code_generation] ✅ Approved and executed          │
+│   Created: src/tools/ExampleTool.js                         │
+├─────────────────────────────────────────────────────────────┤
+│ [Step 3: command] ⏸️ APPROVAL REQUIRED                      │
+│   Command: node --check src/tools/ExampleTool.js            │
+│   Purpose: Validate JavaScript syntax                       │
+│                                                             │
+│   [Approve] [Skip] [Quit]                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.6 USD Sub-Agent Dispatch (Architecture)
+
+The ISD orchestrator can spawn USD sub-agents for complex autonomous tasks:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 ISD → USD DISPATCH FLOW                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ISD Orchestrator                                           │
+│       │                                                     │
+│       │ [sub_agent step] ⏸️ APPROVAL GATE                   │
+│       │                                                     │
+│       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              APPROVAL PROMPT                         │   │
+│  │                                                      │   │
+│  │  "Launch USD sub-agent to refactor component?"       │   │
+│  │                                                      │   │
+│  │  • Agent: Claude CLI                                 │   │
+│  │  • Objective: Generate EE2-compliant refactoring     │   │
+│  │  • Scope: sorc/ufs_model.fd/**/*.F90                │   │
+│  │  • Timeout: 5 minutes                                │   │
+│  │  • Allowed tools: Read, Bash, MCP analyze tools      │   │
+│  │                                                      │   │
+│  │  [Approve] [Edit Constraints] [Skip] [Quit]          │   │
+│  └─────────────────────────────────────────────────────┘   │
+│       │                                                     │
+│       │ User: "Approve"                                     │
+│       ▼                                                     │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │           CONTEXT PACKAGER                           │   │
+│  │                                                      │   │
+│  │  Adapts context to form factor:                      │   │
+│  │  • Claude CLI → .claude/task_<id>.md                │   │
+│  │  • GitHub Actions → Issue body with context          │   │
+│  │  • n8n → Webhook payload                             │   │
+│  └─────────────────────────────────────────────────────┘   │
+│       │                                                     │
+│       ▼                                                     │
+│  USD Agent runs autonomously within constraints             │
+│       │                                                     │
+│       ▼                                                     │
+│  Results captured → Validated → Returned to ISD             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.7 Implementation Status
+
+| Component | Status | LOC | File |
+|-----------|--------|-----|------|
+| WorkflowExecutor | ✅ Complete | 938 | `src/sdd/WorkflowExecutor.js` |
+| ApprovalProvider (base) | ✅ Complete | ~200 | `src/sdd/approval/ApprovalProvider.js` |
+| MCPApprovalProvider | ✅ Complete | 243 | `src/sdd/approval/MCPApprovalProvider.js` |
+| CLIApprovalProvider | ✅ Complete | ~150 | `src/sdd/approval/CLIApprovalProvider.js` |
+| ManifestApprovalProvider | ✅ Complete | ~200 | `src/sdd/approval/ManifestApprovalProvider.js` |
+| ExecutionStateStore | ✅ Complete | 337 | `src/sdd/approval/ExecutionStateStore.js` |
+| USD Sub-agent Dispatch | 🔴 Planned | - | Phase 4C workflow |
+
+---
+
+## 10. Related Work
 
 **Retrieval-Augmented Generation:**  
 Lewis et al. (2020) introduced RAG for open-domain QA. Our work extends RAG to code intelligence with graph enrichment and supervised SME refinement.
@@ -1053,26 +1266,33 @@ DocGen (Moreno et al., 2013) auto-generates documentation from code. Our annotat
 **Compliance Checking:**  
 Static analysis tools (Coverity, SonarQube) detect code issues. Our system provides *contextual explanations* for compliance violations.
 
+**Agentic AI Frameworks:**  
+Claude Code (Anthropic, 2025) provides autonomous coding capabilities. Our ISD/USD architecture builds on similar concepts with structured approval gates and workflow specifications, enabling controlled autonomy within defined scopes.
+
 ---
 
-## 10. Conclusion
+## 11. Conclusion
 
-The **Spec-Driven Development (SDD) Framework** demonstrates that AI-assisted software development can achieve human-expert-level code intelligence through three innovations:
+The **Spec-Driven Development (SDD) Framework** demonstrates that AI-assisted software development can achieve human-expert-level code intelligence through four key innovations:
 
 1. **Machine-readable workflow specifications** enable systematic task decomposition and automated validation
 2. **Semantic annotations** in documentation bridge the gap between human-readable text and machine-processable metadata
 3. **Supervised SME refinement** systematically captures domain expertise in knowledge bases
+4. **Interactive Supervised Development (ISD)** provides controlled execution with human approval gates, balancing safety with productivity
 
 Deployment in NOAA Global Workflow validates the approach with empirical improvements:
 - **3.8× retrieval accuracy** over baseline text search
 - **5-9× development velocity** for complex tasks
 - **77% false positive reduction** in compliance checking
+- **14,968 documents** indexed across 12 ChromaDB collections
+- **86,189 code relationships** mapped in Neo4j graph
+- **34 MCP tools** providing comprehensive code intelligence
 
 The framework addresses fundamental challenges in maintaining large-scale operational systems where domain expertise is scarce and documentation complexity exceeds human cognitive capacity.
 
-**Key Takeaway:** AI assistance is most effective when domain experts refine the knowledge base through structured methodologies like the SME Review Guide. Pure automation fails—supervised human-AI collaboration succeeds.
+**Key Takeaway:** AI assistance is most effective when combining three elements: (1) high-quality knowledge bases refined by domain experts, (2) structured workflow specifications that capture intent, and (3) controlled execution modes that balance autonomy with human oversight. Pure automation fails—supervised human-AI collaboration succeeds.
 
-**Availability:** Complete SDD Framework specifications, MCP directive templates, and deployment guides available at: `/mcp_rag_eib/eib-mcp-rag-server/sdd_framework/`
+**Availability:** Complete SDD Framework specifications, ISD/USD architecture, MCP directive templates, and deployment guides available at: `/mcp_rag_eib/eib-mcp-rag-server/sdd_framework/`
 
 ---
 
@@ -1100,9 +1320,11 @@ This work was developed by the NOAA Environmental Modeling Center Global Workflo
 
 8. ChromaDB. (2025). "Chroma - the AI-native open-source embedding database." https://www.trychroma.com
 
-9. Microsoft Corporation. (2025). "Model Context Protocol (MCP) Specification." https://modelcontextprotocol.io
+9. Anthropic. (2025). "Model Context Protocol (MCP) Specification." https://modelcontextprotocol.io
 
 10. Sentence Transformers. (2025). "State-of-the-Art Text Embeddings." https://www.sbert.net
+
+11. Anthropic. (2025). "Claude Code: Agentic Coding in the Terminal." https://docs.anthropic.com/claude-code
 
 ---
 
@@ -1278,15 +1500,21 @@ This work was developed by the NOAA Environmental Modeling Center Global Workflo
 **End of Document**
 
 **Document Statistics:**
-- **Pages:** ~10 (estimated when formatted)
-- **Sections:** 10 main + 2 appendices
-- **Words:** ~8,500
-- **Figures/Tables:** 12
-- **Code Examples:** 15+
-- **References:** 10
+- **Version:** 2.0 (January 5, 2026)
+- **Pages:** ~14 (estimated when formatted)
+- **Sections:** 11 main + 2 appendices
+- **Words:** ~12,500
+- **Figures/Tables:** 18
+- **Code Examples:** 25+
+- **References:** 11
+
+**Version History:**
+- v1.0 (November 19, 2025): Initial paper with RAG architecture and SME refinement
+- v1.1 (December 4, 2025): Added YAML task tracking, EVS case study
+- v2.0 (January 5, 2026): Added Section 9 (ISD/USD Architecture), updated statistics
 
 **Publication Readiness:** This document is suitable for submission as:
 - NOAA Technical Memorandum
 - arXiv preprint (cs.SE or cs.AI)
 - Journal article (with minor reformatting for specific venue)
-- Conference paper (condensed to 6-8 pages)
+- Conference paper (condensed to 8-10 pages)
