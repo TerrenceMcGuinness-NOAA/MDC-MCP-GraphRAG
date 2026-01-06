@@ -200,7 +200,7 @@ The MCP/RAG system provides AI assistants (VS Code Copilot, Claude Desktop, n8n)
 
 | Collection | Documents | Purpose |
 |------------|-----------|---------|
-| `global-workflow-docs-v6` | 5,307 | GFS/GEFS documentation |
+| `global-workflow-docs-v7` | 5,307 | GFS/GEFS documentation |
 | `ee2-standards-v2` | 1,245 | EE2 compliance standards |
 | `operational-guidance` | 892 | HPC runbooks and procedures |
 | `code-snippets` | 3,124 | Indexed code with context |

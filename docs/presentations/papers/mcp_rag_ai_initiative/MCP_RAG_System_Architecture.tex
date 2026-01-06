@@ -31,6 +31,10 @@
 \usepackage{titlesec}
 \usepackage{etoolbox}
 
+% Prevent widows and orphans
+\widowpenalty=10000
+\clubpenalty=10000
+
 % TikZ libraries
 \usetikzlibrary{shapes.geometric, shapes.symbols, arrows.meta, positioning, 
                 fit, backgrounds, calc, shadows, decorations.pathreplacing,
@@ -212,7 +216,7 @@
     \end{tikzpicture}
     \textcolor{white}{\rule{\linewidth}{0pt}}\\[1cm]
     {\Huge\bfseries\textcolor{noaablue}{MCP/RAG System Architecture}}\\[0.5em]
-    {\LARGE\textcolor{noaalight}{for AI-Assisted Weather Forecasting Operations}}\\[1.5em]
+    {\LARGE\textcolor{noaalight}{AI-Assisted Infrastructure for NOAA's GFS Software Development Initiative}}\\[1.5em]
     \rule{0.8\linewidth}{1pt}\\[0.5em]
     {\large\textcolor{gray}{Technical Reference Document — Version 2.0.0}}
 }
@@ -221,17 +225,12 @@
     \textbf{Environmental Information Branch}\\
     Environmental Modeling Center\\
     National Oceanic and Atmospheric Administration\\[1em]
-    \texttt{Terry.McGuinness@noaa.gov}
+    \texttt{Terry.McGuinness@noaa.gov}\\[1.5em]
+    \textit{with contributions from}\\
+    \textbf{Claude (Anthropic)} — AI Pair Programming Assistant
 }
 
 \date{
-    \vspace{1em}
-    \begin{spotbox}
-    This document serves as the \textbf{Single Point of Truth (SPOT)} for the\\
-    AI Software Development Initiative supporting NOAA's flagship\\
-    \textbf{Global Forecast System (GFS)}
-    \end{spotbox}
-    \vspace{1em}
     January 6, 2026
 }
 
@@ -239,6 +238,8 @@
 % DOCUMENT BEGIN
 %------------------------------------------------------------------------------
 \begin{document}
+
+\raggedbottom  % Prevent stretching vertical space to fill pages
 
 \maketitle
 \thispagestyle{empty}
@@ -356,62 +357,71 @@ Four core principles guide the system architecture:
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    scale=0.85, transform shape,
+    scale=0.92, transform shape,
     layer/.style={rectangle, rounded corners=6pt, draw=#1, fill=#1!10,
-                  minimum width=15cm, align=center, thick},
+                  minimum width=16.5cm, align=center, thick},
     component/.style={rectangle, rounded corners=4pt, draw=#1, fill=white,
-                      minimum width=2.8cm, minimum height=1cm, align=center, font=\small},
-    db/.style={cylinder, shape border rotate=90, draw=#1, fill=#1!15,
-               minimum width=2.5cm, minimum height=1.5cm, aspect=0.25, font=\small},
+                      minimum width=3.4cm, minimum height=1.3cm, align=center, font=\normalsize},
     arrow/.style={->, thick, >=stealth}
 ]
-    % AI Client Layer
-    \node[layer=gray, minimum height=2.5cm] (ai) at (0, 6) {};
-    \node[above=0.1cm, font=\bfseries] at (ai.north) {AI Client Layer};
-    \node[component=gray] at (-5, 6) {VS Code\\Copilot};
-    \node[component=gray] at (-1.7, 6) {Claude\\Desktop};
-    \node[component=gray] at (1.7, 6) {n8n\\(HTTP/SSE)};
-    \node[component=gray] at (5, 6) {Local LLM\\(Ollama)};
+    % AI Client Layer - y=10
+    \node[layer=gray, minimum height=3cm] (ai) at (0, 10) {};
+    \node[above=0.2cm, font=\large\bfseries] at (ai.north) {AI Client Layer};
+    \node[component=gray] at (-6, 10) {VS Code\\Copilot};
+    \node[component=gray] at (-2, 10) {Claude\\Desktop};
+    \node[component=gray] at (2, 10) {n8n\\(HTTP/SSE)};
+    \node[component=gray] at (6, 10) {Local LLM\\(Ollama)};
     
-    % MCP Protocol arrow
-    \draw[arrow, noaablue, very thick] (0, 4.5) -- node[right, font=\footnotesize] {MCP (stdio/SSE)} (0, 3.5);
+    % MCP Protocol arrow - touches boxes
+    \draw[-{Stealth[length=5mm, width=3mm]}, black, line width=2.5pt] (0, 8.5) -- (0, 6.5);
     
-    % MCP Server Layer
-    \node[layer=noaablue, minimum height=2.2cm] (mcp) at (0, 2.2) {};
-    \node[above=0.1cm, font=\bfseries, text=noaablue] at (mcp.north) {MCP Server Layer};
-    \node[font=\small] at (0, 2.5) {\textbf{UnifiedMCPServer.js} (v3.6.2) — 38 Tools};
+    % MCP Server Layer label - drawn AFTER arrow to appear on top
+    \node[font=\large\bfseries, text=noaablue, fill=white, inner sep=3pt] at (0, 7.5) {MCP Server Layer};
+    \node[font=\small, fill=white, inner sep=2pt] at (0.8, 7.5) {MCP (stdio/SSE)};
     
-    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (-5, 1.8) {Workflow\\Info};
-    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (-2.8, 1.8) {Code\\Analysis};
-    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (-0.6, 1.8) {Semantic\\Search};
-    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (1.6, 1.8) {EE2\\Compliance};
-    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (3.8, 1.8) {SDD\\Workflow};
-    \node[font=\scriptsize] at (5.8, 1.8) {...};
+    % MCP Server Layer - y=5
+    \node[layer=noaablue, minimum height=3cm] (mcp) at (0, 5) {};
+    \node[font=\normalsize] at (0, 5.6) {\textbf{UnifiedMCPServer.js} (v3.6.2) — 38 Tools};
     
-    % Knowledge Base Layer
-    \node[layer=chromagreen!80!black, minimum height=2.8cm] (kb) at (0, -1.2) {};
-    \node[above=0.1cm, font=\bfseries, text=chromagreen!80!black] at (kb.north) {Knowledge Base Layer};
+    \node[component=noaablue, minimum width=2.5cm, font=\small] at (-6, 4.4) {Workflow\\Info};
+    \node[component=noaablue, minimum width=2.5cm, font=\small] at (-3.3, 4.4) {Code\\Analysis};
+    \node[component=noaablue, minimum width=2.5cm, font=\small] at (-0.6, 4.4) {Semantic\\Search};
+    \node[component=noaablue, minimum width=2.5cm, font=\small] at (2.1, 4.4) {EE2\\Compliance};
+    \node[component=noaablue, minimum width=2.5cm, font=\small] at (4.8, 4.4) {SDD\\Workflow};
+    \node[font=\normalsize] at (7, 4.4) {...};
     
-    % ChromaDB
-    \node[db=chromagreen] (chroma) at (-4, -1.4) {};
-    \node[font=\small\bfseries] at (-4, -0.8) {ChromaDB};
-    \node[font=\scriptsize, text width=2.5cm, align=center] at (-4, -2) {14,968 docs\\768-dim vectors};
+    % Arrow to KB - touches boxes
+    \draw[-{Stealth[length=5mm, width=3mm]}, black, line width=2pt] (0, 3.5) -- (0, 1.5);
     
-    % Neo4j
-    \node[db=neo4jblue] (neo4j) at (4, -1.4) {};
-    \node[font=\small\bfseries] at (4, -0.8) {Neo4j};
-    \node[font=\scriptsize, text width=2.5cm, align=center] at (4, -2) {2,744 files\\86,189 rels};
+    % Knowledge Base Layer label - drawn AFTER arrow to appear on top
+    \node[font=\large\bfseries, text=chromagreen!80!black, fill=white, inner sep=3pt] at (0, 2.5) {Knowledge Base Layer};
     
-    % Source Code Layer
-    \node[layer=gray!70, minimum height=1.8cm] (src) at (0, -4.5) {};
-    \node[above=0.1cm, font=\bfseries] at (src.north) {Source Code Layer};
-    \node[component=gray, font=\scriptsize] at (-4, -4.7) {global-workflow\\(GFS/GEFS)};
-    \node[component=gray, font=\scriptsize] at (0, -4.7) {nws-hpc-standards\\(EE2)};
-    \node[component=gray, font=\scriptsize] at (4, -4.7) {GSI, UFS, UPP\\(submodules)};
+    % Knowledge Base Layer - y=0, same height as others
+    \node[layer=chromagreen!80!black, minimum height=3cm] (kb) at (0, 0) {};
     
-    % Arrows between layers
-    \draw[arrow, gray] (mcp.south) -- (kb.north);
-    \draw[arrow, gray] (kb.south) -- (src.north);
+    % ChromaDB cylinder - compact, inside the layer
+    \node[cylinder, shape border rotate=90, draw=chromagreen, fill=chromagreen!25,
+          minimum width=4cm, minimum height=2cm, aspect=0.2] (chroma) at (-4.5, -0.2) {};
+    \node[font=\normalsize\bfseries, text=chromagreen!70!black] at (-4.5, 0.3) {ChromaDB};
+    \node[font=\small, align=center] at (-4.5, -0.6) {14,968 docs\\768-dim vectors};
+    
+    % Neo4j cylinder - compact, inside the layer
+    \node[cylinder, shape border rotate=90, draw=neo4jblue, fill=neo4jblue!25,
+          minimum width=4cm, minimum height=2cm, aspect=0.2] (neo4j) at (4.5, -0.2) {};
+    \node[font=\normalsize\bfseries, text=neo4jblue!80!black] at (4.5, 0.3) {Neo4j};
+    \node[font=\small, align=center] at (4.5, -0.6) {2,744 files\\86,189 rels};
+    
+    % Arrow to Source - touches boxes
+    \draw[-{Stealth[length=5mm, width=3mm]}, black, line width=2pt] (0, -1.5) -- (0, -3.5);
+    
+    % Source Code Layer label - drawn AFTER arrow to appear on top
+    \node[font=\large\bfseries, fill=white, inner sep=3pt] at (0, -2.5) {Source Code Layer};
+    
+    % Source Code Layer - y=-5
+    \node[layer=gray!70, minimum height=3cm] (src) at (0, -5) {};
+    \node[component=gray, minimum width=4cm, minimum height=1.4cm, font=\normalsize] at (-5, -5) {global-workflow\\(GFS/GEFS)};
+    \node[component=gray, minimum width=4cm, minimum height=1.4cm, font=\normalsize] at (0, -5) {nws-hpc-standards\\(EE2)};
+    \node[component=gray, minimum width=4cm, minimum height=1.4cm, font=\normalsize] at (5, -5) {GSI, UFS, UPP\\(submodules)};
     
 \end{tikzpicture}
 \caption{MCP/RAG System Architecture — Four-layer design with COTS LLM independence}
@@ -438,10 +448,6 @@ Workflow & n8n & 2.1.x & 5678 & Automation orchestration \\
 \caption{Core infrastructure components}
 \end{table}
 
-\begin{warningbox}
-\textbf{Technology Change (December 2025):} LangFlow v1.6.9 was replaced with n8n due to critical bugs in LangFlow's MCP client implementation (dict race condition, asyncio scoping errors). n8n provides stable, production-ready workflow automation with native HTTP Request nodes for MCP Gateway integration. Workflow definitions can be imported via JSON files for reproducible deployments.
-\end{warningbox}
-
 \newpage
 %------------------------------------------------------------------------------
 % SECTION 3: KNOWLEDGE BASE DESIGN
@@ -460,7 +466,7 @@ The vector store organizes documents into purpose-specific collections:
     num/.style={circle, draw=chromagreen!70!black, fill=white, font=\scriptsize\bfseries,
                 minimum size=0.6cm}
 ]
-    \node[coll] (c1) at (0, 3) {global-workflow-docs-v6};
+    \node[coll] (c1) at (0, 3) {global-workflow-docs-v7};
     \node[num] at (2.5, 3) {5,307};
     
     \node[coll] (c2) at (0, 2) {ee2-standards-v2};
@@ -482,8 +488,8 @@ The vector store organizes documents into purpose-specific collections:
     \draw[thick, noaablue] (-2.5, -2.8) -- (3.5, -2.8);
     \node[font=\bfseries] at (0, -3.3) {Total: 14,968 documents};
     
-    % Legend
-    \node[font=\scriptsize, text=gray] at (5.5, 1) {Document counts\\per collection};
+    % Legend - left aligned, larger font
+    \node[font=\normalsize, text=gray, align=left] at (5.5, 1) {Document counts\\per collection};
 \end{tikzpicture}
 \caption{ChromaDB collection organization with document counts}
 \end{figure}
@@ -493,26 +499,31 @@ The vector store organizes documents into purpose-specific collections:
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
+    scale=0.88, transform shape,
     node/.style={ellipse, draw=neo4jblue, fill=neo4jblue!20, thick,
-                 minimum width=2.2cm, minimum height=1cm, font=\small\bfseries},
-    rel/.style={->, thick, >=stealth, neo4jblue!70}
+                 minimum width=2.8cm, minimum height=1.3cm, font=\normalsize\bfseries},
+    rel/.style={->, thick, >=stealth, neo4jblue!70, line width=1.5pt}
 ]
-    % Nodes
-    \node[node] (file) at (0, 2) {File};
-    \node[node] (func) at (4, 2) {Function};
-    \node[node] (class) at (8, 2) {Class};
-    \node[node] (mod) at (4, -1) {Module};
+    % Nodes - wider spacing to prevent text overlap
+    \node[node] (file) at (0, 0) {File};
+    \node[node] (func) at (5.5, 0) {Function};
+    \node[node] (class) at (11, 0) {Class};
+    \node[node] (mod) at (0, -4.5) {Module};
     
-    % Relationships
-    \draw[rel] (func) -- node[above, font=\scriptsize] {DEFINED\_IN} (file);
-    \draw[rel] (func) to[bend left=20] node[above, font=\scriptsize] {CALLS} (func);
-    \draw[rel] (file) -- node[left, font=\scriptsize] {IMPORTS} (mod);
-    \draw[rel] (class) -- node[above, font=\scriptsize] {HAS\_METHOD} (func);
-    \draw[rel] (file) to[bend right=30] node[below, font=\scriptsize] {DEPENDS\_ON} (file);
+    % Relationships - cleaner routing with more space for labels
+    \draw[rel] (func) -- node[above, font=\small, yshift=2pt] {DEFINED\_IN} (file);
+    \draw[rel] (class) -- node[above, font=\small, yshift=2pt] {HAS\_METHOD} (func);
+    \draw[rel] (file) -- node[right, font=\small, xshift=5pt] {IMPORTS} (mod);
     
-    % Stats box
-    \node[rectangle, rounded corners, draw=gray, fill=gray!10,
-          minimum width=4cm, font=\scriptsize, align=left] at (10, 0) {
+    % Self-referential relationships with better loops - higher arcs
+    \draw[rel] (func) to[out=70, in=110, looseness=5] 
+        node[above, font=\small, yshift=3pt] {CALLS} (func);
+    \draw[rel] (file) to[out=200, in=250, looseness=5] 
+        node[left, font=\small, xshift=-8pt] {DEPENDS\_ON} (file);
+    
+    % Stats box - centered under blue nodes
+    \node[rectangle, rounded corners, draw=gray, fill=gray!15,
+          minimum width=4.5cm, minimum height=2.5cm, font=\normalsize, align=left] at (5.5, -3.5) {
         \textbf{Statistics:}\\
         • 2,744 File nodes\\
         • 1,540 Function nodes\\
@@ -549,35 +560,43 @@ Where:
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    qtype/.style={rectangle, rounded corners=4pt, minimum width=2.5cm, 
-                  minimum height=0.8cm, font=\small, align=center},
+    scale=0.88, transform shape,
+    qtype/.style={rectangle, rounded corners=4pt, minimum width=2.8cm, 
+                  minimum height=1.1cm, font=\normalsize, align=center},
     arrow/.style={->, thick, >=stealth}
 ]
-    % Query types
-    \node[qtype, draw=noaablue, fill=noaablue!20] (concept) at (-5, 0) {Concept\\``What is X?''};
-    \node[qtype, draw=chromagreen, fill=chromagreen!20] (usage) at (-2.5, 0) {Usage\\``How to use X''};
+    % Query types - wider spacing to prevent overlap
+    \node[qtype, draw=noaablue, fill=noaablue!20] (concept) at (-6, 0) {Concept\\``What is X?''};
+    \node[qtype, draw=chromagreen, fill=chromagreen!20] (usage) at (-3, 0) {Usage\\``How to use X''};
     \node[qtype, draw=neo4jblue, fill=neo4jblue!20] (structure) at (0, 0) {Structure\\``What calls X''};
-    \node[qtype, draw=mcporange, fill=mcporange!20] (compliance) at (2.5, 0) {Compliance\\``Is this EE2?''};
-    \node[qtype, draw=red!70, fill=red!20] (trouble) at (5, 0) {Troubleshoot\\``Why fail?''};
+    \node[qtype, draw=mcporange, fill=mcporange!20] (compliance) at (3, 0) {Compliance\\``Is this EE2?''};
+    \node[qtype, draw=red!70, fill=red!20] (trouble) at (6, 0) {Troubleshoot\\``Why fail?''};
     
-    % Weight bars below
-    \foreach \x/\a/\b/\g in {-5/0.7/0.1/0.2, -2.5/0.5/0.3/0.2, 0/0.2/0.7/0.1, 2.5/0.3/0.2/0.5, 5/0.4/0.4/0.2} {
-        \fill[chromagreen!60] (\x-0.8, -1.2) rectangle (\x-0.8+\a*1.5, -1.5);
-        \fill[neo4jblue!60] (\x-0.8, -1.6) rectangle (\x-0.8+\b*1.5, -1.9);
-        \fill[mcporange!60] (\x-0.8, -2.0) rectangle (\x-0.8+\g*1.5, -2.3);
+    % Grid cells for weight bars - thin gray borders, wider spacing
+    \foreach \x in {-6, -3, 0, 3, 6} {
+        \draw[gray!50, thin] (\x-1.2, -1.5) rectangle (\x+1.2, -1.85);
+        \draw[gray!50, thin] (\x-1.2, -2.0) rectangle (\x+1.2, -2.35);
+        \draw[gray!50, thin] (\x-1.2, -2.5) rectangle (\x+1.2, -2.85);
     }
     
-    % Legend
-    \node[font=\scriptsize] at (-6.5, -1.35) {$\alpha$};
-    \node[font=\scriptsize] at (-6.5, -1.75) {$\beta$};
-    \node[font=\scriptsize] at (-6.5, -2.15) {$\gamma$};
+    % Weight bars below - wider spacing to match boxes
+    \foreach \x/\a/\b/\g in {-6/0.7/0.1/0.2, -3/0.5/0.3/0.2, 0/0.2/0.7/0.1, 3/0.3/0.2/0.5, 6/0.4/0.4/0.2} {
+        \fill[chromagreen!60] (\x-1.2, -1.5) rectangle (\x-1.2+\a*2.4, -1.85);
+        \fill[neo4jblue!60] (\x-1.2, -2.0) rectangle (\x-1.2+\b*2.4, -2.35);
+        \fill[mcporange!60] (\x-1.2, -2.5) rectangle (\x-1.2+\g*2.4, -2.85);
+    }
     
-    \fill[chromagreen!60] (6.5, -1.35) rectangle (7, -1.55);
-    \node[font=\scriptsize, right] at (7.1, -1.45) {Vector};
-    \fill[neo4jblue!60] (6.5, -1.75) rectangle (7, -1.95);
-    \node[font=\scriptsize, right] at (7.1, -1.85) {Graph};
-    \fill[mcporange!60] (6.5, -2.15) rectangle (7, -2.35);
-    \node[font=\scriptsize, right] at (7.1, -2.25) {Annotation};
+    % Legend - moved further left
+    \node[font=\normalsize] at (-8, -1.67) {$\alpha$};
+    \node[font=\normalsize] at (-8, -2.17) {$\beta$};
+    \node[font=\normalsize] at (-8, -2.67) {$\gamma$};
+    
+    \fill[chromagreen!60] (8, -1.6) rectangle (8.5, -1.9);
+    \node[font=\normalsize, right] at (8.6, -1.75) {Vector};
+    \fill[neo4jblue!60] (8, -2.1) rectangle (8.5, -2.4);
+    \node[font=\normalsize, right] at (8.6, -2.25) {Graph};
+    \fill[mcporange!60] (8, -2.6) rectangle (8.5, -2.9);
+    \node[font=\normalsize, right] at (8.6, -2.75) {Annotation};
 \end{tikzpicture}
 \caption{Query type detection adjusts retrieval weights automatically}
 \end{figure}
@@ -608,7 +627,7 @@ Troubleshoot & 0.4 & 0.4 & 0.2 \\
 \subsection{Overview}
 
 The semantic annotation system embeds machine-readable directives in RST documentation that:
-\begin{itemize}[leftmargin=2em]
+\begin{itemize}[leftmargin=2em, itemsep=2pt, parsep=0pt]
     \item Guide AI compliance analysis with structured metadata
     \item Prevent false positives via SME corrections
     \item Provide platform-specific operational guidance
@@ -662,6 +681,7 @@ SME corrections address systematic AI false positives. The most common example:
 %------------------------------------------------------------------------------
 \section{MCP Tool Inventory}
 
+\vspace{0.5em}
 \subsection{Tool Categories (38 Tools)}
 
 \begin{figure}[H]
@@ -705,36 +725,39 @@ SME corrections address systematic AI false positives. The most common example:
 \caption{MCP tool categories with backend dependencies}
 \end{figure}
 
+\vspace{1.5em}
 \subsection{Tool Selection Decision Tree}
 
+\vspace{0.5em}
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    scale=0.9, transform shape,
-    node distance=0.8cm,
+    scale=0.95, transform shape,
+    node distance=1cm,
     question/.style={ellipse, draw=noaablue, fill=noaablue!10, 
-                     minimum width=3cm, font=\small, align=center},
+                     minimum width=3.5cm, font=\normalsize, align=center},
     tool/.style={rectangle, rounded corners=4pt, draw=chromagreen, fill=chromagreen!15,
-                 minimum width=3.5cm, font=\small\ttfamily, align=center},
+                 minimum width=3.2cm, minimum height=0.7cm, font=\footnotesize\ttfamily, align=center},
     arrow/.style={->, thick, >=stealth}
 ]
     \node[question] (q) at (0, 0) {User\\Question};
     
-    \node[tool] (t1) at (-6, -2) {analyze\_code\_structure};
-    \node[tool] (t2) at (-2, -2) {search\_documentation};
-    \node[tool] (t3) at (2, -2) {analyze\_ee2\_compliance};
-    \node[tool] (t4) at (6, -2) {find\_callers\_callees};
+    % Staggered tool boxes at different heights
+    \node[tool] (t1) at (-5.5, -2.2) {analyze\_code\_structure};
+    \node[tool] (t2) at (-2.4, -3.4) {search\_documentation};
+    \node[tool] (t3) at (2.4, -3.4) {analyze\_ee2\_compliance};
+    \node[tool] (t4) at (5.5, -2.2) {find\_callers\_callees};
     
-    \draw[arrow] (q) -- node[above left, font=\scriptsize] {``Code structure?''} (t1);
-    \draw[arrow] (q) -- node[left, font=\scriptsize] {``How to?''} (t2);
-    \draw[arrow] (q) -- node[right, font=\scriptsize] {``EE2 compliant?''} (t3);
-    \draw[arrow] (q) -- node[above right, font=\scriptsize] {``What calls X?''} (t4);
+    \draw[arrow] (q) -- node[above left, font=\small] {``Code structure?''} (t1);
+    \draw[arrow] (q) -- node[left, font=\small, pos=0.55] {``How to?''} (t2);
+    \draw[arrow] (q) -- node[right, font=\small, pos=0.55, fill=white, inner sep=2pt, xshift=-1cm] {``EE2 compliant?''} (t3);
+    \draw[arrow] (q) -- node[above right, font=\small] {``What calls X?''} (t4);
     
-    % DB indicators
-    \node[font=\scriptsize, text=neo4jblue] at (-6, -2.8) {(Neo4j)};
-    \node[font=\scriptsize, text=chromagreen] at (-2, -2.8) {(Both)};
-    \node[font=\scriptsize, text=chromagreen] at (2, -2.8) {(ChromaDB)};
-    \node[font=\scriptsize, text=neo4jblue] at (6, -2.8) {(Neo4j)};
+    % DB indicators below each box
+    \node[font=\small, text=neo4jblue] at (-5.5, -2.9) {(Neo4j)};
+    \node[font=\small, text=chromagreen] at (-2.4, -4.1) {(Both)};
+    \node[font=\small, text=chromagreen] at (2.4, -4.1) {(ChromaDB)};
+    \node[font=\small, text=neo4jblue] at (5.5, -2.9) {(Neo4j)};
 \end{tikzpicture}
 \caption{Tool selection based on user question type}
 \end{figure}
@@ -747,7 +770,7 @@ SME corrections address systematic AI false positives. The most common example:
 
 \subsection{Environment Variables}
 
-\begin{lstlisting}[style=bashstyle, caption={mcp-config.env — Primary configuration file}]
+\begin{lstlisting}[style=bashstyle, basicstyle=\ttfamily\footnotesize, caption={mcp-config.env — Primary configuration file}]
 # MCP Server Configuration
 MCP_SERVER_VERSION=3.6.2
 MCP_SERVER_MODE=full  # Options: full, core, lite
@@ -769,18 +792,28 @@ SEMANTIC_THRESHOLD=0.1
 GRAPH_TRAVERSAL_DEPTH=3
 \end{lstlisting}
 
+\vspace{1.5em}
 \subsection{VS Code MCP Configuration}
 
-\begin{lstlisting}[style=jsonstyle, caption={.vscode/mcp.json — VS Code integration}]
+\begin{lstlisting}[style=jsonstyle, basicstyle=\ttfamily\footnotesize, caption={.vscode/mcp.json — Docker MCP Gateway integration}]
 {
   "servers": {
+    // GATEWAY MODE: Docker container with full 34 tools via HTTP
+    // Transport: Streamable HTTP (MCP spec 2025-06-18)
+    "eib-mcp-gateway": {
+      "type": "http",
+      "url": "http://localhost:18888/mcp",
+      "headers": { "Authorization": "Bearer eib-mcp-gateway-token-2025" }
+    },
+    // LOCAL MODE: Direct stdio for development
     "eib-mcp-rag-full": {
       "type": "stdio",
       "command": "node",
       "args": ["mcp_server_node/src/UnifiedMCPServer.js", "full"],
       "env": {
-        "CHROMADB_HOST": "localhost",
-        "NEO4J_URI": "bolt://localhost:7687"
+        "CHROMADB_URL": "http://localhost:8080",
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_PASSWORD": "gfsworkflow2025"
       }
     }
   }
@@ -880,15 +913,15 @@ Graph traversal & <2000ms & 1400ms & Depth-dependent \\
     % Memory bars
     \node[label, anchor=east] at (-0.2, 2) {ChromaDB};
     \fill[chromagreen!70] (0, 1.8) rectangle (2.4, 2.2);
-    \node[label] at (2.7, 2) {1.2 GB};
+    \node[label, anchor=west] at (2.5, 2) {1.2 GB};
     
     \node[label, anchor=east] at (-0.2, 1) {Neo4j};
     \fill[neo4jblue!70] (0, 0.8) rectangle (4.2, 1.2);
-    \node[label] at (4.5, 1) {2.1 GB};
+    \node[label, anchor=west] at (4.3, 1) {2.1 GB};
     
     \node[label, anchor=east] at (-0.2, 0) {Node.js};
     \fill[mcporange!70] (0, -0.2) rectangle (0.76, 0.2);
-    \node[label] at (1.1, 0) {380 MB};
+    \node[label, anchor=west] at (0.86, 0) {380 MB};
     
     % Scale
     \draw[thick] (0, -0.8) -- (6, -0.8);
@@ -1073,7 +1106,7 @@ Copilot Instructions & \filepath{.github/copilot-instructions.md} \\
 2.0 & Jan 6, 2026 & EIB Team & Elevated to SPOT; comprehensive rewrite \\
 \end{tabular}\\[1em]
 \textbf{Contact:} \href{mailto:Terry.McGuinness@noaa.gov}{Terry.McGuinness@noaa.gov}\\[0.5em]
-\textbf{Repository:} \url{https://vlab.noaa.gov/gitlab-licensed/NWS/Operations/NCEP/EMC/EIB/eib-mcp-rag-server}
+\textbf{Repository:} {\small\url{https://vlab.noaa.gov/gitlab-community/NWS/Operations/NCEP/EMC/eib-mcp-rag-server}}
 \end{center}
 
 \end{document}
