@@ -1,6 +1,8 @@
 # Technical Specification Documentation
 
-This directory contains technical specifications, white papers, and reference documentation for the MCP-RAG system.
+This directory contains technical specifications and reference documentation for the MCP-RAG system.
+
+**Note:** Papers have been reorganized under `docs/presentations/papers/` as of January 2026.
 
 ## Directory Structure
 
@@ -8,21 +10,22 @@ This directory contains technical specifications, white papers, and reference do
 technical_specification/
 ├── README.md                    # This file
 ├── COMPILATION_GUIDE.md         # LaTeX compilation instructions
-├── PDF_GENERATION_STATUS.md     # PDF generation status
-│
-└── papers/                      # Technical papers collection
-    ├── README.md                # Papers index
-    ├── sdd_framework/           # SDD Framework papers (Phase 1)
-    ├── hybrid_annotations/      # Phase 2 Hybrid Annotations
-    └── fm_assisted_annotations/ # Phase 3 FM-Assisted Generation
+└── PDF_GENERATION_STATUS.md     # PDF generation status
+
+../presentations/papers/         # Technical papers collection (NEW LOCATION)
+├── README.md                    # Papers index
+├── mcp_rag_ai_initiative/       # SPOT: Main MCP/RAG System Architecture
+├── sdd_framework/               # SDD Framework papers
+├── docker_mcp_gateway/          # Docker Gateway papers
+└── ...                          # Other paper collections
 ```
 
 ## Quick Links
 
-- **[Papers Collection](papers/README.md)** - All technical papers organized by topic
-- **[SDD Framework Paper](papers/sdd_framework/main.pdf)** - Core technical specification
-- **[Hybrid Annotations Spec](papers/hybrid_annotations/PHASE_2_HYBRID_ARCHITECTURE_SPECIFICATION.md)** - Phase 2 architecture
-- **[FM-Assisted Annotations](papers/fm_assisted_annotations/FM_Assisted_Annotation_Generation.pdf)** - Phase 3 white paper
+- **[MCP/RAG AI Initiative (SPOT)](../presentations/papers/mcp_rag_ai_initiative/)** - Main system architecture document
+- **[Papers Collection](../presentations/papers/README.md)** - All technical papers organized by topic
+- **[SDD Framework Papers](../presentations/papers/sdd_framework/)** - Workflow orchestration documentation
+- **[Docker MCP Gateway](../presentations/papers/docker_mcp_gateway/)** - Container deployment documentation
 
 ---
 
