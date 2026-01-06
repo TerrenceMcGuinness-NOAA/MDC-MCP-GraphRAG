@@ -6,11 +6,11 @@ This directory contains the SPOT (Single Point of Truth) documentation for the A
 
 ## Document Inventory
 
-| Document | Format | Status | Description |
-|----------|--------|--------|-------------|
-| `MCP_RAG_System_Architecture.md` | Markdown | **SPOT** | Authoritative technical reference |
-| `MCP_RAG_System_Architecture.pdf` | PDF | Pending | Compiled version for distribution |
-| `MCP_RAG_System_Architecture.tex` | LaTeX | Pending | Formatted publication version |
+| Document | Format | Pages | Status | Description |
+|----------|--------|-------|--------|-------------|
+| `MCP_RAG_System_Architecture.md` | Markdown | — | **SPOT** | Authoritative technical reference |
+| `MCP_RAG_System_Architecture.tex` | LaTeX | 16 | ✅ Complete | Professional publication source |
+| `MCP_RAG_System_Architecture.pdf` | PDF | 16 | ✅ Complete | Distribution-ready version (531KB) |
 
 ## Quick Links
 
@@ -47,7 +47,7 @@ This document covers:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 2.0.0 | January 6, 2026 | Elevated to SPOT; comprehensive restructure |
+| 2.0.0 | January 6, 2026 | Elevated to SPOT; LaTeX/PDF versions with TikZ diagrams |
 | 1.0.0 | November 19, 2025 | Initial Extended Technical Appendix |
 
 ---

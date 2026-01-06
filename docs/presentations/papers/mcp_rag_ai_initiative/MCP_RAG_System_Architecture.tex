@@ -1,0 +1,1079 @@
+% MCP/RAG System Architecture for AI-Assisted Weather Forecasting Operations
+% NOAA Environmental Modeling Center — EIB AI Software Development Initiative
+% Version 2.0.0 | January 2026
+
+\documentclass[11pt,letterpaper,twoside]{article}
+
+%------------------------------------------------------------------------------
+% PACKAGES
+%------------------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in,inner=1.25in,outer=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{pifont}
+\usepackage{multicol}
+\usepackage{float}
+\usepackage{wrapfig}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{titlesec}
+\usepackage{etoolbox}
+
+% TikZ libraries
+\usetikzlibrary{shapes.geometric, shapes.symbols, arrows.meta, positioning, 
+                fit, backgrounds, calc, shadows, decorations.pathreplacing,
+                matrix, chains}
+
+%------------------------------------------------------------------------------
+% COLORS - NOAA Theme
+%------------------------------------------------------------------------------
+\definecolor{noaablue}{RGB}{0, 51, 102}
+\definecolor{noaalight}{RGB}{0, 102, 153}
+\definecolor{noaagold}{RGB}{255, 195, 0}
+\definecolor{chromagreen}{RGB}{46, 139, 87}
+\definecolor{neo4jblue}{RGB}{0, 120, 212}
+\definecolor{mcporange}{RGB}{230, 126, 34}
+\definecolor{codegray}{RGB}{245, 245, 245}
+\definecolor{sectionblue}{RGB}{0, 71, 132}
+
+%------------------------------------------------------------------------------
+% HYPERREF SETUP
+%------------------------------------------------------------------------------
+\hypersetup{
+    colorlinks=true,
+    linkcolor=noaablue,
+    citecolor=noaablue,
+    urlcolor=noaalight,
+    pdftitle={MCP/RAG System Architecture for AI-Assisted Weather Forecasting},
+    pdfauthor={NOAA EMC Environmental Information Branch},
+    pdfsubject={AI Software Development Initiative - Technical Reference},
+    pdfkeywords={MCP, RAG, GFS, NOAA, AI, Weather Forecasting}
+}
+
+%------------------------------------------------------------------------------
+% CODE LISTINGS
+%------------------------------------------------------------------------------
+\lstdefinestyle{bashstyle}{
+    language=bash,
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codegray},
+    frame=single,
+    framerule=0.5pt,
+    rulecolor=\color{gray!50},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=8pt,
+    breaklines=true,
+    showstringspaces=false,
+    keywordstyle=\color{noaablue}\bfseries,
+    commentstyle=\color{chromagreen},
+    stringstyle=\color{mcporange},
+    captionpos=b
+}
+
+\lstdefinestyle{pythonstyle}{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codegray},
+    frame=single,
+    framerule=0.5pt,
+    rulecolor=\color{gray!50},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=8pt,
+    breaklines=true,
+    showstringspaces=false,
+    keywordstyle=\color{noaablue}\bfseries,
+    commentstyle=\color{chromagreen},
+    stringstyle=\color{mcporange},
+    captionpos=b
+}
+
+\lstdefinestyle{jsonstyle}{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codegray},
+    frame=single,
+    framerule=0.5pt,
+    rulecolor=\color{gray!50},
+    breaklines=true,
+    showstringspaces=false,
+    keywordstyle=\color{noaablue}\bfseries,
+    stringstyle=\color{mcporange},
+    captionpos=b
+}
+
+\lstset{style=bashstyle}
+
+%------------------------------------------------------------------------------
+% TCOLORBOX ENVIRONMENTS
+%------------------------------------------------------------------------------
+\tcbuselibrary{skins,breakable}
+
+\newtcolorbox{keyinsight}{
+    colback=noaablue!5,
+    colframe=noaablue,
+    fonttitle=\bfseries,
+    title=Key Insight,
+    rounded corners,
+    boxrule=1pt,
+    left=8pt,
+    right=8pt,
+    top=6pt,
+    bottom=6pt
+}
+
+\newtcolorbox{warningbox}{
+    colback=mcporange!10,
+    colframe=mcporange,
+    fonttitle=\bfseries,
+    title=Warning,
+    rounded corners,
+    boxrule=1pt
+}
+
+\newtcolorbox{spotbox}{
+    colback=noaagold!15,
+    colframe=noaagold!80!black,
+    fonttitle=\bfseries\color{black},
+    title=Single Point of Truth,
+    rounded corners,
+    boxrule=2pt,
+    shadow={1mm}{-1mm}{0mm}{gray!50}
+}
+
+\newtcolorbox{componentbox}[1][]{
+    colback=white,
+    colframe=noaalight,
+    fonttitle=\bfseries,
+    title=#1,
+    rounded corners,
+    boxrule=1pt,
+    left=6pt,
+    right=6pt
+}
+
+%------------------------------------------------------------------------------
+% SECTION FORMATTING
+%------------------------------------------------------------------------------
+\titleformat{\section}
+    {\Large\bfseries\color{sectionblue}}
+    {\thesection}{1em}{}
+    [\titlerule]
+
+\titleformat{\subsection}
+    {\large\bfseries\color{noaablue}}
+    {\thesubsection}{1em}{}
+
+\titleformat{\subsubsection}
+    {\normalsize\bfseries\color{noaalight}}
+    {\thesubsubsection}{1em}{}
+
+%------------------------------------------------------------------------------
+% HEADER/FOOTER
+%------------------------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE]{\small\textcolor{gray}{MCP/RAG System Architecture}}
+\fancyhead[RO]{\small\textcolor{gray}{NOAA EMC — EIB AI Initiative}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\setlength{\headheight}{14pt}
+
+%------------------------------------------------------------------------------
+% CUSTOM COMMANDS
+%------------------------------------------------------------------------------
+\newcommand{\toolname}[1]{\texttt{\small #1}}
+\newcommand{\filepath}[1]{\texttt{\footnotesize #1}}
+\newcommand{\checkmark}{\ding{51}}
+\newcommand{\crossmark}{\ding{55}}
+
+%------------------------------------------------------------------------------
+% TITLE PAGE
+%------------------------------------------------------------------------------
+\title{
+    \vspace{-1cm}
+    \begin{tikzpicture}[remember picture, overlay]
+        \fill[noaablue] (current page.north west) rectangle 
+            ([yshift=-4cm]current page.north east);
+    \end{tikzpicture}
+    \textcolor{white}{\rule{\linewidth}{0pt}}\\[1cm]
+    {\Huge\bfseries\textcolor{noaablue}{MCP/RAG System Architecture}}\\[0.5em]
+    {\LARGE\textcolor{noaalight}{for AI-Assisted Weather Forecasting Operations}}\\[1.5em]
+    \rule{0.8\linewidth}{1pt}\\[0.5em]
+    {\large\textcolor{gray}{Technical Reference Document — Version 2.0.0}}
+}
+
+\author{
+    \textbf{Environmental Information Branch}\\
+    Environmental Modeling Center\\
+    National Oceanic and Atmospheric Administration\\[1em]
+    \texttt{Terry.McGuinness@noaa.gov}
+}
+
+\date{
+    \vspace{1em}
+    \begin{spotbox}
+    This document serves as the \textbf{Single Point of Truth (SPOT)} for the\\
+    AI Software Development Initiative supporting NOAA's flagship\\
+    \textbf{Global Forecast System (GFS)}
+    \end{spotbox}
+    \vspace{1em}
+    January 6, 2026
+}
+
+%------------------------------------------------------------------------------
+% DOCUMENT BEGIN
+%------------------------------------------------------------------------------
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\newpage
+
+%------------------------------------------------------------------------------
+% EXECUTIVE SUMMARY
+%------------------------------------------------------------------------------
+\section*{Executive Summary}
+\addcontentsline{toc}{section}{Executive Summary}
+
+This document serves as the authoritative technical reference for the \textbf{Model Context Protocol (MCP) with Retrieval-Augmented Generation (RAG)} system developed by the Environmental Information Branch (EIB) to support NOAA's flagship Global Forecast System (GFS).
+
+The system provides AI-assisted code analysis, compliance validation, and operational guidance for the Global Workflow—a complex multi-repository codebase spanning Fortran, Python, Bash, and C that produces operational weather forecasts for the National Weather Service.
+
+\vspace{1em}
+\begin{center}
+\begin{tikzpicture}
+    \node[draw=noaablue, fill=noaablue!10, rounded corners=8pt, 
+          minimum width=14cm, minimum height=3.5cm, align=center] (cap) {
+        \begin{minipage}{13cm}
+        \centering
+        \textbf{\large Key Capabilities}\\[0.8em]
+        \begin{tabular}{cl}
+            \textcolor{chromagreen}{\checkmark} & 38 MCP tools for code analysis, semantic search, and compliance\\
+            \textcolor{chromagreen}{\checkmark} & Hybrid retrieval: ChromaDB (vectors) + Neo4j (graph relationships)\\
+            \textcolor{chromagreen}{\checkmark} & EE2 compliance validation against NCO production standards\\
+            \textcolor{chromagreen}{\checkmark} & Multi-platform HPC guidance (Hera, WCOSS2, Orion, Hercules, Gaea)\\
+            \textcolor{chromagreen}{\checkmark} & COTS LLM independence—works with Claude, GPT-4, Gemini, local models
+        \end{tabular}
+        \end{minipage}
+    };
+\end{tikzpicture}
+\end{center}
+
+\vspace{1em}
+\tableofcontents
+\newpage
+
+%------------------------------------------------------------------------------
+% SECTION 1: MISSION AND SCOPE
+%------------------------------------------------------------------------------
+\section{Mission and Scope}
+
+\subsection{Problem Statement}
+
+The Global Workflow represents one of NOAA's most complex software systems:
+
+\begin{center}
+\begin{tikzpicture}[
+    stat/.style={rectangle, rounded corners=6pt, draw=noaablue, fill=noaablue!15,
+                 minimum width=3cm, minimum height=1.5cm, align=center, font=\small}
+]
+    \node[stat] (files) at (0, 0) {\textbf{2,744+}\\Files};
+    \node[stat] (funcs) at (4, 0) {\textbf{1,540+}\\Functions};
+    \node[stat] (rels) at (8, 0) {\textbf{86,189}\\Relationships};
+    \node[stat] (plat) at (12, 0) {\textbf{5}\\HPC Platforms};
+    
+    \draw[->, thick, gray] (files) -- (funcs);
+    \draw[->, thick, gray] (funcs) -- (rels);
+    \draw[->, thick, gray] (rels) -- (plat);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+Traditional documentation and manual code review cannot scale to support:
+\begin{itemize}[leftmargin=2em]
+    \item New developer onboarding to complex legacy codebases
+    \item Cross-platform troubleshooting across HPC systems
+    \item Compliance validation before NCO submission
+    \item Understanding call relationships in 50+ submodules
+\end{itemize}
+
+\subsection{Solution: AI-Assisted Operations}
+
+The MCP/RAG system provides AI assistants (VS Code Copilot, Claude Desktop, n8n) with structured access to the Global Workflow knowledge base:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{l|l|X}
+\toprule
+\textbf{Capability} & \textbf{Implementation} & \textbf{Example Query} \\
+\midrule
+Code Understanding & Neo4j call graphs & ``What functions call \texttt{err\_chk}?'' \\
+Compliance Checking & EE2 + SME annotations & ``Is this script EE2 compliant?'' \\
+Operational Guidance & Platform-specific docs & ``How do I run GFS on Hera?'' \\
+Dependency Analysis & Graph traversal & ``What depends on this module?'' \\
+\bottomrule
+\end{tabularx}
+\caption{AI-assisted capabilities provided by the MCP/RAG system}
+\end{table}
+
+\subsection{Design Principles}
+
+\begin{keyinsight}
+Four core principles guide the system architecture:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{COTS LLM Independence}: No vendor lock-in; works with any MCP-compatible client
+    \item \textbf{SPOT}: Single Point of Truth for each configuration domain
+    \item \textbf{MCP-First Policy}: AI uses MCP tools before shell commands
+    \item \textbf{Offline Capable}: Full functionality after initial setup
+\end{enumerate}
+\end{keyinsight}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 2: SYSTEM ARCHITECTURE
+%------------------------------------------------------------------------------
+\section{System Architecture}
+
+\subsection{High-Level Architecture}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.85, transform shape,
+    layer/.style={rectangle, rounded corners=6pt, draw=#1, fill=#1!10,
+                  minimum width=15cm, align=center, thick},
+    component/.style={rectangle, rounded corners=4pt, draw=#1, fill=white,
+                      minimum width=2.8cm, minimum height=1cm, align=center, font=\small},
+    db/.style={cylinder, shape border rotate=90, draw=#1, fill=#1!15,
+               minimum width=2.5cm, minimum height=1.5cm, aspect=0.25, font=\small},
+    arrow/.style={->, thick, >=stealth}
+]
+    % AI Client Layer
+    \node[layer=gray, minimum height=2.5cm] (ai) at (0, 6) {};
+    \node[above=0.1cm, font=\bfseries] at (ai.north) {AI Client Layer};
+    \node[component=gray] at (-5, 6) {VS Code\\Copilot};
+    \node[component=gray] at (-1.7, 6) {Claude\\Desktop};
+    \node[component=gray] at (1.7, 6) {n8n\\(HTTP/SSE)};
+    \node[component=gray] at (5, 6) {Local LLM\\(Ollama)};
+    
+    % MCP Protocol arrow
+    \draw[arrow, noaablue, very thick] (0, 4.5) -- node[right, font=\footnotesize] {MCP (stdio/SSE)} (0, 3.5);
+    
+    % MCP Server Layer
+    \node[layer=noaablue, minimum height=2.2cm] (mcp) at (0, 2.2) {};
+    \node[above=0.1cm, font=\bfseries, text=noaablue] at (mcp.north) {MCP Server Layer};
+    \node[font=\small] at (0, 2.5) {\textbf{UnifiedMCPServer.js} (v3.6.2) — 38 Tools};
+    
+    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (-5, 1.8) {Workflow\\Info};
+    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (-2.8, 1.8) {Code\\Analysis};
+    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (-0.6, 1.8) {Semantic\\Search};
+    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (1.6, 1.8) {EE2\\Compliance};
+    \node[component=noaablue, minimum width=2cm, font=\scriptsize] at (3.8, 1.8) {SDD\\Workflow};
+    \node[font=\scriptsize] at (5.8, 1.8) {...};
+    
+    % Knowledge Base Layer
+    \node[layer=chromagreen!80!black, minimum height=2.8cm] (kb) at (0, -1.2) {};
+    \node[above=0.1cm, font=\bfseries, text=chromagreen!80!black] at (kb.north) {Knowledge Base Layer};
+    
+    % ChromaDB
+    \node[db=chromagreen] (chroma) at (-4, -1.4) {};
+    \node[font=\small\bfseries] at (-4, -0.8) {ChromaDB};
+    \node[font=\scriptsize, text width=2.5cm, align=center] at (-4, -2) {14,968 docs\\768-dim vectors};
+    
+    % Neo4j
+    \node[db=neo4jblue] (neo4j) at (4, -1.4) {};
+    \node[font=\small\bfseries] at (4, -0.8) {Neo4j};
+    \node[font=\scriptsize, text width=2.5cm, align=center] at (4, -2) {2,744 files\\86,189 rels};
+    
+    % Source Code Layer
+    \node[layer=gray!70, minimum height=1.8cm] (src) at (0, -4.5) {};
+    \node[above=0.1cm, font=\bfseries] at (src.north) {Source Code Layer};
+    \node[component=gray, font=\scriptsize] at (-4, -4.7) {global-workflow\\(GFS/GEFS)};
+    \node[component=gray, font=\scriptsize] at (0, -4.7) {nws-hpc-standards\\(EE2)};
+    \node[component=gray, font=\scriptsize] at (4, -4.7) {GSI, UFS, UPP\\(submodules)};
+    
+    % Arrows between layers
+    \draw[arrow, gray] (mcp.south) -- (kb.north);
+    \draw[arrow, gray] (kb.south) -- (src.north);
+    
+\end{tikzpicture}
+\caption{MCP/RAG System Architecture — Four-layer design with COTS LLM independence}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Component Inventory}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{l|l|c|c|l}
+\toprule
+\textbf{Component} & \textbf{Technology} & \textbf{Version} & \textbf{Port} & \textbf{Purpose} \\
+\midrule
+MCP Server & Node.js & v3.6.2 & stdio & Tool orchestration \\
+Vector DB & ChromaDB & 0.5.x & 8080 & Semantic similarity \\
+Graph DB & Neo4j & 5.13.0 & 7474/7687 & Code relationships \\
+Embeddings & all-mpnet-base-v2 & Latest & — & 768-dim vectors \\
+Gateway & Docker MCP & 1.0.x & 8888 & SSE transport \\
+Workflow & n8n & 2.1.x & 5678 & Automation orchestration \\
+\bottomrule
+\end{tabular}
+\caption{Core infrastructure components}
+\end{table}
+
+\begin{warningbox}
+\textbf{Technology Change (December 2025):} LangFlow v1.6.9 was replaced with n8n due to critical bugs in LangFlow's MCP client implementation (dict race condition, asyncio scoping errors). n8n provides stable, production-ready workflow automation with native HTTP Request nodes for MCP Gateway integration. Workflow definitions can be imported via JSON files for reproducible deployments.
+\end{warningbox}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 3: KNOWLEDGE BASE DESIGN
+%------------------------------------------------------------------------------
+\section{Knowledge Base Design}
+
+\subsection{ChromaDB Collections}
+
+The vector store organizes documents into purpose-specific collections:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    coll/.style={rectangle, rounded corners=4pt, draw=chromagreen, fill=chromagreen!15,
+                 minimum width=4cm, minimum height=0.8cm, font=\small},
+    num/.style={circle, draw=chromagreen!70!black, fill=white, font=\scriptsize\bfseries,
+                minimum size=0.6cm}
+]
+    \node[coll] (c1) at (0, 3) {global-workflow-docs-v6};
+    \node[num] at (2.5, 3) {5,307};
+    
+    \node[coll] (c2) at (0, 2) {ee2-standards-v2};
+    \node[num] at (2.5, 2) {1,245};
+    
+    \node[coll] (c3) at (0, 1) {operational-guidance};
+    \node[num] at (2.5, 1) {892};
+    
+    \node[coll] (c4) at (0, 0) {code-snippets};
+    \node[num] at (2.5, 0) {3,124};
+    
+    \node[coll] (c5) at (0, -1) {sme-annotations};
+    \node[num] at (2.5, -1) {568};
+    
+    \node[coll, fill=gray!20, draw=gray] (c6) at (0, -2) {Other collections};
+    \node[num, draw=gray] at (2.5, -2) {3,832};
+    
+    % Total
+    \draw[thick, noaablue] (-2.5, -2.8) -- (3.5, -2.8);
+    \node[font=\bfseries] at (0, -3.3) {Total: 14,968 documents};
+    
+    % Legend
+    \node[font=\scriptsize, text=gray] at (5.5, 1) {Document counts\\per collection};
+\end{tikzpicture}
+\caption{ChromaDB collection organization with document counts}
+\end{figure}
+
+\subsection{Neo4j Graph Schema}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node/.style={ellipse, draw=neo4jblue, fill=neo4jblue!20, thick,
+                 minimum width=2.2cm, minimum height=1cm, font=\small\bfseries},
+    rel/.style={->, thick, >=stealth, neo4jblue!70}
+]
+    % Nodes
+    \node[node] (file) at (0, 2) {File};
+    \node[node] (func) at (4, 2) {Function};
+    \node[node] (class) at (8, 2) {Class};
+    \node[node] (mod) at (4, -1) {Module};
+    
+    % Relationships
+    \draw[rel] (func) -- node[above, font=\scriptsize] {DEFINED\_IN} (file);
+    \draw[rel] (func) to[bend left=20] node[above, font=\scriptsize] {CALLS} (func);
+    \draw[rel] (file) -- node[left, font=\scriptsize] {IMPORTS} (mod);
+    \draw[rel] (class) -- node[above, font=\scriptsize] {HAS\_METHOD} (func);
+    \draw[rel] (file) to[bend right=30] node[below, font=\scriptsize] {DEPENDS\_ON} (file);
+    
+    % Stats box
+    \node[rectangle, rounded corners, draw=gray, fill=gray!10,
+          minimum width=4cm, font=\scriptsize, align=left] at (10, 0) {
+        \textbf{Statistics:}\\
+        • 2,744 File nodes\\
+        • 1,540 Function nodes\\
+        • 86,189 relationships\\
+        • Avg 31.4 rels/file
+    };
+\end{tikzpicture}
+\caption{Neo4j graph schema showing node types and relationships}
+\end{figure}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 4: HYBRID RETRIEVAL ALGORITHM
+%------------------------------------------------------------------------------
+\section{Hybrid Retrieval Algorithm}
+
+\subsection{Scoring Function}
+
+The hybrid retrieval combines three components using a weighted sum:
+
+\begin{equation}
+\text{hybrid\_score} = \alpha \cdot \text{vector\_score} + \beta \cdot \text{graph\_score} + \gamma \cdot \text{annotation\_score}
+\end{equation}
+
+Where:
+\begin{itemize}[leftmargin=2em]
+    \item $\alpha$ (vector\_score): Cosine similarity from ChromaDB embeddings
+    \item $\beta$ (graph\_score): Structural relevance from Neo4j traversal
+    \item $\gamma$ (annotation\_score): Semantic annotation intent matching
+\end{itemize}
+
+\subsection{Query Type Detection and Weight Matrix}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    qtype/.style={rectangle, rounded corners=4pt, minimum width=2.5cm, 
+                  minimum height=0.8cm, font=\small, align=center},
+    arrow/.style={->, thick, >=stealth}
+]
+    % Query types
+    \node[qtype, draw=noaablue, fill=noaablue!20] (concept) at (-5, 0) {Concept\\``What is X?''};
+    \node[qtype, draw=chromagreen, fill=chromagreen!20] (usage) at (-2.5, 0) {Usage\\``How to use X''};
+    \node[qtype, draw=neo4jblue, fill=neo4jblue!20] (structure) at (0, 0) {Structure\\``What calls X''};
+    \node[qtype, draw=mcporange, fill=mcporange!20] (compliance) at (2.5, 0) {Compliance\\``Is this EE2?''};
+    \node[qtype, draw=red!70, fill=red!20] (trouble) at (5, 0) {Troubleshoot\\``Why fail?''};
+    
+    % Weight bars below
+    \foreach \x/\a/\b/\g in {-5/0.7/0.1/0.2, -2.5/0.5/0.3/0.2, 0/0.2/0.7/0.1, 2.5/0.3/0.2/0.5, 5/0.4/0.4/0.2} {
+        \fill[chromagreen!60] (\x-0.8, -1.2) rectangle (\x-0.8+\a*1.5, -1.5);
+        \fill[neo4jblue!60] (\x-0.8, -1.6) rectangle (\x-0.8+\b*1.5, -1.9);
+        \fill[mcporange!60] (\x-0.8, -2.0) rectangle (\x-0.8+\g*1.5, -2.3);
+    }
+    
+    % Legend
+    \node[font=\scriptsize] at (-6.5, -1.35) {$\alpha$};
+    \node[font=\scriptsize] at (-6.5, -1.75) {$\beta$};
+    \node[font=\scriptsize] at (-6.5, -2.15) {$\gamma$};
+    
+    \fill[chromagreen!60] (6.5, -1.35) rectangle (7, -1.55);
+    \node[font=\scriptsize, right] at (7.1, -1.45) {Vector};
+    \fill[neo4jblue!60] (6.5, -1.75) rectangle (7, -1.95);
+    \node[font=\scriptsize, right] at (7.1, -1.85) {Graph};
+    \fill[mcporange!60] (6.5, -2.15) rectangle (7, -2.35);
+    \node[font=\scriptsize, right] at (7.1, -2.25) {Annotation};
+\end{tikzpicture}
+\caption{Query type detection adjusts retrieval weights automatically}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{l|ccc}
+\toprule
+\textbf{Query Type} & $\boldsymbol{\alpha}$ \textbf{(vector)} & $\boldsymbol{\beta}$ \textbf{(graph)} & $\boldsymbol{\gamma}$ \textbf{(annotation)} \\
+\midrule
+Concept & 0.7 & 0.1 & 0.2 \\
+Usage & 0.5 & 0.3 & 0.2 \\
+Structure & 0.2 & 0.7 & 0.1 \\
+Compliance & 0.3 & 0.2 & 0.5 \\
+Troubleshoot & 0.4 & 0.4 & 0.2 \\
+\bottomrule
+\end{tabular}
+\caption{Weight matrix for hybrid retrieval by query type}
+\end{table}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 5: SEMANTIC ANNOTATION SYSTEM
+%------------------------------------------------------------------------------
+\section{Semantic Annotation System}
+
+\subsection{Overview}
+
+The semantic annotation system embeds machine-readable directives in RST documentation that:
+\begin{itemize}[leftmargin=2em]
+    \item Guide AI compliance analysis with structured metadata
+    \item Prevent false positives via SME corrections
+    \item Provide platform-specific operational guidance
+    \item Remain invisible to human readers (RST comments)
+\end{itemize}
+
+\subsection{Directive Types}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{l|l|X}
+\toprule
+\textbf{Directive} & \textbf{Purpose} & \textbf{Example} \\
+\midrule
+\texttt{mcp:compliance::} & Mark EE2 requirements & \texttt{mcp:compliance:: environment\_variables} \\
+\texttt{mcp:intent::} & Describe enforcement rationale & \texttt{mcp:intent:: environment\_validation} \\
+\texttt{mcp:severity::} & RFC 2119 levels & \texttt{mcp:severity:: must} \\
+\texttt{mcp:utility::} & Document prod utilities & \texttt{mcp:utility:: err\_chk} \\
+\texttt{mcp:sme\_correction::} & Correct AI false positives & \texttt{mcp:sme\_correction:: bash\_error} \\
+\texttt{mcp:guidance::} & Platform-specific guidance & \texttt{mcp:guidance:: hera\_environment} \\
+\texttt{mcp:anti\_pattern::} & Mark incorrect patterns & \texttt{mcp:anti\_pattern:: bare\_exit} \\
+\bottomrule
+\end{tabularx}
+\caption{MCP semantic annotation directive types}
+\end{table}
+
+\subsection{SME Corrections — Critical Feature}
+
+\begin{warningbox}
+SME corrections address systematic AI false positives. The most common example:
+
+\textbf{AI-Generated Recommendation (INCORRECT):}
+\begin{quote}
+\textcolor{red}{\crossmark} ``Missing \texttt{set -eu} in scripts''
+\end{quote}
+
+\textbf{SME Correction:}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textcolor{red}{\crossmark} \texttt{set -eu} is \textbf{NOT} in EE2 standards
+    \item \textcolor{red}{\crossmark} \texttt{set -e} is \textbf{NOT} required in operational scripts
+    \item \textcolor{chromagreen}{\checkmark} Only \texttt{set -x} is shown in EE2 examples for debug logging
+\end{itemize}
+
+\textbf{False Positive Rate:} $\sim$80\% of scripts flagged incorrectly without this correction
+\end{warningbox}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 6: MCP TOOL INVENTORY
+%------------------------------------------------------------------------------
+\section{MCP Tool Inventory}
+
+\subsection{Tool Categories (38 Tools)}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    cat/.style={rectangle, rounded corners=6pt, draw=#1, fill=#1!15,
+                minimum width=4.5cm, minimum height=1.8cm, align=center},
+    num/.style={circle, draw=#1, fill=white, font=\bfseries, minimum size=0.8cm}
+]
+    % Row 1
+    \node[cat=gray] (wf) at (0, 3) {\textbf{Workflow Info}\\Filesystem only};
+    \node[num=gray] at (1.8, 3.6) {4};
+    
+    \node[cat=neo4jblue] (ca) at (5, 3) {\textbf{Code Analysis}\\Neo4j required};
+    \node[num=neo4jblue] at (6.8, 3.6) {5};
+    
+    \node[cat=chromagreen] (ss) at (10, 3) {\textbf{Semantic Search}\\ChromaDB + Neo4j};
+    \node[num=chromagreen] at (11.8, 3.6) {4};
+    
+    % Row 2
+    \node[cat=mcporange] (ee) at (0, 0.5) {\textbf{EE2 Compliance}\\ChromaDB required};
+    \node[num=mcporange] at (1.8, 1.1) {4};
+    
+    \node[cat=noaalight] (op) at (5, 0.5) {\textbf{Operational}\\ChromaDB required};
+    \node[num=noaalight] at (6.8, 1.1) {3};
+    
+    \node[cat=noaablue] (sdd) at (10, 0.5) {\textbf{SDD Workflow}\\Filesystem only};
+    \node[num=noaablue] at (11.8, 1.1) {4};
+    
+    % Row 3
+    \node[cat=violet] (gh) at (2.5, -2) {\textbf{GitHub}\\API required};
+    \node[num=violet] at (4.3, -1.4) {2};
+    
+    \node[cat=red] (sys) at (7.5, -2) {\textbf{System Health}\\All backends};
+    \node[num=red] at (9.3, -1.4) {2};
+    
+    % Total
+    \node[rectangle, rounded corners, draw=noaablue, fill=noaablue!10,
+          minimum width=6cm, font=\large\bfseries] at (5, -4) {Total: 38 Tools};
+\end{tikzpicture}
+\caption{MCP tool categories with backend dependencies}
+\end{figure}
+
+\subsection{Tool Selection Decision Tree}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.9, transform shape,
+    node distance=0.8cm,
+    question/.style={ellipse, draw=noaablue, fill=noaablue!10, 
+                     minimum width=3cm, font=\small, align=center},
+    tool/.style={rectangle, rounded corners=4pt, draw=chromagreen, fill=chromagreen!15,
+                 minimum width=3.5cm, font=\small\ttfamily, align=center},
+    arrow/.style={->, thick, >=stealth}
+]
+    \node[question] (q) at (0, 0) {User\\Question};
+    
+    \node[tool] (t1) at (-6, -2) {analyze\_code\_structure};
+    \node[tool] (t2) at (-2, -2) {search\_documentation};
+    \node[tool] (t3) at (2, -2) {analyze\_ee2\_compliance};
+    \node[tool] (t4) at (6, -2) {find\_callers\_callees};
+    
+    \draw[arrow] (q) -- node[above left, font=\scriptsize] {``Code structure?''} (t1);
+    \draw[arrow] (q) -- node[left, font=\scriptsize] {``How to?''} (t2);
+    \draw[arrow] (q) -- node[right, font=\scriptsize] {``EE2 compliant?''} (t3);
+    \draw[arrow] (q) -- node[above right, font=\scriptsize] {``What calls X?''} (t4);
+    
+    % DB indicators
+    \node[font=\scriptsize, text=neo4jblue] at (-6, -2.8) {(Neo4j)};
+    \node[font=\scriptsize, text=chromagreen] at (-2, -2.8) {(Both)};
+    \node[font=\scriptsize, text=chromagreen] at (2, -2.8) {(ChromaDB)};
+    \node[font=\scriptsize, text=neo4jblue] at (6, -2.8) {(Neo4j)};
+\end{tikzpicture}
+\caption{Tool selection based on user question type}
+\end{figure}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 7: CONFIGURATION REFERENCE
+%------------------------------------------------------------------------------
+\section{Configuration Reference}
+
+\subsection{Environment Variables}
+
+\begin{lstlisting}[style=bashstyle, caption={mcp-config.env — Primary configuration file}]
+# MCP Server Configuration
+MCP_SERVER_VERSION=3.6.2
+MCP_SERVER_MODE=full  # Options: full, core, lite
+
+# Database Connections
+CHROMADB_HOST=localhost
+CHROMADB_PORT=8080
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=password
+
+# Knowledge Base Paths
+MCP_WORKFLOW_ROOT=/mcp_rag_eib/.../supported_repos/global-workflow
+KNOWLEDGE_BASE_PATH=/mcp_rag_eib/.../mcp_server_node/knowledge-base
+
+# Performance Tuning
+MAX_QUERY_RESULTS=50
+SEMANTIC_THRESHOLD=0.1
+GRAPH_TRAVERSAL_DEPTH=3
+\end{lstlisting}
+
+\subsection{VS Code MCP Configuration}
+
+\begin{lstlisting}[style=jsonstyle, caption={.vscode/mcp.json — VS Code integration}]
+{
+  "servers": {
+    "eib-mcp-rag-full": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["mcp_server_node/src/UnifiedMCPServer.js", "full"],
+      "env": {
+        "CHROMADB_HOST": "localhost",
+        "NEO4J_URI": "bolt://localhost:7687"
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 8: DEPLOYMENT PROCEDURES
+%------------------------------------------------------------------------------
+\section{Deployment Procedures}
+
+\subsection{Fresh Deployment}
+
+\begin{lstlisting}[style=bashstyle, caption={Complete deployment sequence}]
+# Step 1: Clone repository
+cd /mcp_rag_eib
+git clone https://vlab.noaa.gov/.../eib-mcp-rag-server.git
+cd eib-mcp-rag-server
+
+# Step 2: Initialize Git submodules
+git submodule update --init --recursive
+
+# Step 3: Start infrastructure
+docker compose -f docker-compose.devops.yaml up -d
+
+# Step 4: Verify services
+curl http://localhost:8080/api/v2/heartbeat  # ChromaDB
+curl http://localhost:7474                    # Neo4j
+
+# Step 5: Install dependencies and ingest
+cd mcp_server_node && npm install
+python3 scripts/ingest_ee2_v7.py
+node scripts/build_code_graph.js
+
+# Step 6: Start MCP server
+node src/UnifiedMCPServer.js full
+\end{lstlisting}
+
+\subsection{Docker Gateway Deployment}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1cm,
+    box/.style={rectangle, rounded corners=4pt, draw=noaablue, fill=noaablue!10,
+                minimum width=3cm, minimum height=1cm, align=center, font=\small},
+    arrow/.style={->, thick, >=stealth}
+]
+    \node[box] (client) at (0, 2) {n8n\\Workflow};
+    \node[box] (gw) at (0, 0) {Docker MCP\\Gateway :8888};
+    \node[box] (mcp) at (0, -2) {MCP Server\\Container};
+    \node[box] (chroma) at (-3, -4) {ChromaDB\\:8080};
+    \node[box] (neo4j) at (3, -4) {Neo4j\\:7687};
+    
+    \draw[arrow] (client) -- node[right, font=\scriptsize] {SSE} (gw);
+    \draw[arrow] (gw) -- node[right, font=\scriptsize] {stdio} (mcp);
+    \draw[arrow] (mcp) -- (chroma);
+    \draw[arrow] (mcp) -- (neo4j);
+\end{tikzpicture}
+\caption{Docker Gateway deployment topology}
+\end{figure}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 9: PERFORMANCE SPECIFICATIONS
+%------------------------------------------------------------------------------
+\section{Performance Specifications}
+
+\subsection{Response Time Targets}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l|cc|l}
+\toprule
+\textbf{Query Type} & \textbf{Target} & \textbf{Typical} & \textbf{Notes} \\
+\midrule
+Concept queries & <500ms & 350ms & Vector search dominant \\
+Usage queries & <1000ms & 650ms & Balanced hybrid \\
+Structure queries & <1500ms & 1100ms & Graph traversal overhead \\
+Compliance queries & <800ms & 550ms & Annotation matching \\
+Graph traversal & <2000ms & 1400ms & Depth-dependent \\
+\bottomrule
+\end{tabular}
+\caption{Response time targets by query type}
+\end{table}
+
+\subsection{Resource Requirements}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    bar/.style={rectangle, rounded corners=2pt, minimum height=0.6cm},
+    label/.style={font=\small}
+]
+    % Memory bars
+    \node[label, anchor=east] at (-0.2, 2) {ChromaDB};
+    \fill[chromagreen!70] (0, 1.8) rectangle (2.4, 2.2);
+    \node[label] at (2.7, 2) {1.2 GB};
+    
+    \node[label, anchor=east] at (-0.2, 1) {Neo4j};
+    \fill[neo4jblue!70] (0, 0.8) rectangle (4.2, 1.2);
+    \node[label] at (4.5, 1) {2.1 GB};
+    
+    \node[label, anchor=east] at (-0.2, 0) {Node.js};
+    \fill[mcporange!70] (0, -0.2) rectangle (0.76, 0.2);
+    \node[label] at (1.1, 0) {380 MB};
+    
+    % Scale
+    \draw[thick] (0, -0.8) -- (6, -0.8);
+    \foreach \x in {0, 1, 2, 3, 4, 5, 6} {
+        \draw (\x, -0.75) -- (\x, -0.85);
+        \node[font=\scriptsize] at (\x, -1.1) {\x GB};
+    }
+    
+    % Total
+    \node[font=\bfseries] at (3, -1.8) {Total: $\sim$3.7 GB RSS};
+\end{tikzpicture}
+\caption{Memory usage by component (production)}
+\end{figure}
+
+\begin{componentbox}[Resource Requirements]
+\begin{multicols}{2}
+\textbf{Minimum:}
+\begin{itemize}[leftmargin=1em]
+    \item 4 CPU cores
+    \item 8 GB RAM
+    \item 20 GB storage
+\end{itemize}
+
+\columnbreak
+
+\textbf{Recommended:}
+\begin{itemize}[leftmargin=1em]
+    \item 8 CPU cores
+    \item 16 GB RAM
+    \item 100 GB storage
+\end{itemize}
+\end{multicols}
+\end{componentbox}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 10: TROUBLESHOOTING
+%------------------------------------------------------------------------------
+\section{Troubleshooting Guide}
+
+\subsection{Common Issues and Solutions}
+
+\begin{componentbox}[ChromaDB Connection Errors]
+\textbf{Symptom:} \texttt{Connection refused to http://localhost:8080}
+
+\begin{lstlisting}[style=bashstyle]
+# Check service status
+docker ps | grep chromadb
+
+# View logs
+docker logs chromadb --tail 50
+
+# Restart
+docker compose -f docker-compose.devops.yaml restart chromadb
+\end{lstlisting}
+\end{componentbox}
+
+\begin{componentbox}[Neo4j Query Timeouts]
+\textbf{Symptom:} \texttt{Query exceeded 30000 ms limit}
+
+\begin{lstlisting}[style=bashstyle]
+# Add indexes in Neo4j Browser
+CREATE INDEX function_name_index FOR (f:Function) ON (f.name);
+CREATE INDEX file_path_index FOR (f:File) ON (f.path);
+
+# Verify indexes
+SHOW INDEXES;
+\end{lstlisting}
+\end{componentbox}
+
+\begin{componentbox}[MCP Tool ``Disabled by User'']
+\textbf{Note:} This typically means the tool \textit{errored}—not that the user disabled it. This is a VS Code quirk.
+
+\begin{lstlisting}[style=bashstyle]
+# Check MCP server logs for actual error
+tail -f mcp_server_node/logs/mcp-server.log
+\end{lstlisting}
+\end{componentbox}
+
+\newpage
+%------------------------------------------------------------------------------
+% SECTION 11: REPRODUCIBILITY
+%------------------------------------------------------------------------------
+\section{Reproducibility Checklist}
+
+\subsection{Full System Reproduction}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l|l|l}
+\toprule
+\textbf{Requirement} & \textbf{Specification} & \textbf{Status} \\
+\midrule
+Hardware & 8-core CPU, 16GB RAM, 100GB storage & $\square$ \\
+OS & Rocky Linux 8.6+ or Ubuntu 22.04+ & $\square$ \\
+Git & Version 2.30+ & $\square$ \\
+Docker & Version 20.10+ & $\square$ \\
+Node.js & Version 18.0+ & $\square$ \\
+Python & Version 3.11+ & $\square$ \\
+Network & Access to vlab.noaa.gov, Docker Hub, HF Hub & $\square$ \\
+\bottomrule
+\end{tabular}
+\caption{Prerequisites checklist for full system deployment}
+\end{table}
+
+\subsection{Deployment Steps Summary}
+
+\begin{enumerate}[leftmargin=2em]
+    \item Clone repository from vlab.noaa.gov
+    \item Initialize submodules: \texttt{git submodule update --init --recursive}
+    \item Start infrastructure: \texttt{docker compose -f docker-compose.devops.yaml up -d}
+    \item Install dependencies: \texttt{cd mcp\_server\_node \&\& npm install}
+    \item Ingest data: \texttt{python3 scripts/ingest\_ee2\_v7.py}
+    \item Build graph: \texttt{node scripts/build\_code\_graph.js}
+    \item Start MCP: \texttt{node src/UnifiedMCPServer.js full}
+    \item Test: \texttt{curl http://localhost:8080/api/v2/heartbeat}
+\end{enumerate}
+
+\begin{keyinsight}
+\textbf{Expected deployment time:} 2--3 hours (including data ingestion)
+\end{keyinsight}
+
+%------------------------------------------------------------------------------
+% APPENDICES
+%------------------------------------------------------------------------------
+\appendix
+\newpage
+
+\section{Glossary}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{l|X}
+\toprule
+\textbf{Term} & \textbf{Definition} \\
+\midrule
+EE2 & EMC Environment 2.0 — NCO production coding standards \\
+MCP & Model Context Protocol — AI tool integration standard \\
+RAG & Retrieval-Augmented Generation \\
+GFS & Global Forecast System — NOAA's flagship weather model \\
+GEFS & Global Ensemble Forecast System \\
+HPC & High-Performance Computing platforms (Hera, WCOSS2, etc.) \\
+NCO & NCEP Central Operations — production deployment authority \\
+SDD & Spec-Driven Development — workflow orchestration methodology \\
+SPOT & Single Point of Truth — authoritative configuration source \\
+\bottomrule
+\end{tabularx}
+\caption{Glossary of terms and acronyms}
+\end{table}
+
+\section{Related Documentation}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l|l}
+\toprule
+\textbf{Document} & \textbf{Location} \\
+\midrule
+SDD Framework & \filepath{sdd\_framework/} \\
+Bootstrap Capability & \filepath{presentations/papers/sdd\_framework/} \\
+Docker Gateway & \filepath{presentations/papers/docker\_mcp\_gateway/} \\
+Copilot Instructions & \filepath{.github/copilot-instructions.md} \\
+\bottomrule
+\end{tabular}
+\caption{Related documentation locations}
+\end{table}
+
+%------------------------------------------------------------------------------
+% DOCUMENT CONTROL
+%------------------------------------------------------------------------------
+\vfill
+\begin{center}
+\rule{0.8\linewidth}{0.5pt}\\[1em]
+\textbf{Document Control}\\[0.5em]
+\begin{tabular}{l|l|l|l}
+\textbf{Version} & \textbf{Date} & \textbf{Author} & \textbf{Changes} \\
+\hline
+1.0 & Nov 19, 2025 & EIB Team & Initial appendix \\
+2.0 & Jan 6, 2026 & EIB Team & Elevated to SPOT; comprehensive rewrite \\
+\end{tabular}\\[1em]
+\textbf{Contact:} \href{mailto:Terry.McGuinness@noaa.gov}{Terry.McGuinness@noaa.gov}\\[0.5em]
+\textbf{Repository:} \url{https://vlab.noaa.gov/gitlab-licensed/NWS/Operations/NCEP/EMC/EIB/eib-mcp-rag-server}
+\end{center}
+
+\end{document}

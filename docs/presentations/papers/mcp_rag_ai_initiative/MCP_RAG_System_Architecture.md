@@ -56,7 +56,7 @@ Traditional documentation and manual code review cannot scale to support:
 
 ### 1.2 Solution: AI-Assisted Operations
 
-The MCP/RAG system provides AI assistants (VS Code Copilot, Claude Desktop, LangFlow) with:
+The MCP/RAG system provides AI assistants (VS Code Copilot, Claude Desktop, n8n) with:
 
 | Capability | Implementation | Benefit |
 |------------|----------------|---------|
@@ -82,8 +82,8 @@ The MCP/RAG system provides AI assistants (VS Code Copilot, Claude Desktop, Lang
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        AI Client Layer                               │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │ VS Code     │  │ Claude      │  │ LangFlow    │  │ Local LLM   │ │
-│  │ Copilot     │  │ Desktop     │  │ (SSE)       │  │ (Ollama)    │ │
+│  │ VS Code     │  │ Claude      │  │ n8n         │  │ Local LLM   │ │
+│  │ Copilot     │  │ Desktop     │  │ (HTTP/SSE)  │  │ (Ollama)    │ │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘ │
 └─────────┼────────────────┼────────────────┼────────────────┼────────┘
           │                │                │                │
@@ -137,7 +137,10 @@ The MCP/RAG system provides AI assistants (VS Code Copilot, Claude Desktop, Lang
 | Vector DB | ChromaDB | 0.5.x | 8080 | Semantic similarity search |
 | Graph DB | Neo4j | 5.13.0 | 7474/7687 | Code structure relationships |
 | Embedding Model | all-mpnet-base-v2 | Latest | — | 768-dim text embeddings |
-| Gateway | Docker MCP | 1.0.x | 8888 | SSE transport for LangFlow |
+| Gateway | Docker MCP | 1.0.x | 8888 | SSE transport |
+| Workflow | n8n | 2.1.x | 5678 | Automation orchestration |
+
+> **Technology Change (December 2025):** LangFlow v1.6.9 was replaced with n8n due to critical bugs in LangFlow's MCP client (dict race condition, asyncio scoping errors). n8n provides stable workflow automation with JSON-importable workflow definitions.
 
 **Tool Modules (9 files, 38 tools):**
 
@@ -667,9 +670,10 @@ SETUP/bin/start-mcp-gateway.sh --background
 # > Gateway URL: http://localhost:8888/sse
 # > Bearer token: <generated-token>
 
-# Connect from LangFlow:
+# Connect from n8n via HTTP Request node:
 # URL: http://host.docker.internal:8888/sse
 # Authorization: Bearer <token>
+# n8n workflows can be imported via JSON files for reproducibility
 ```
 
 ### 8.3 Update Procedure
