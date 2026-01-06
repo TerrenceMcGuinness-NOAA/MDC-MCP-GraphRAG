@@ -453,6 +453,57 @@ export class WorkflowExecutor {
               : 'Content does not match pattern';
             break;
 
+          case 'file_exists':
+            // Validate file exists on filesystem
+            const filePath = check.path || check.target || step.target;
+            const fullFilePath = path.isAbsolute(filePath) 
+              ? filePath 
+              : path.join(this.repoRoot, filePath);
+            try {
+              await fs.promises.access(fullFilePath);
+              passed = true;
+              message = `File exists: ${filePath}`;
+            } catch {
+              passed = false;
+              message = `File not found: ${filePath}`;
+            }
+            break;
+
+          case 'file_content':
+            // Validate file contains expected pattern
+            const contentFilePath = check.path || check.target || step.target;
+            const contentFullPath = path.isAbsolute(contentFilePath) 
+              ? contentFilePath 
+              : path.join(this.repoRoot, contentFilePath);
+            try {
+              const fileContent = await fs.promises.readFile(contentFullPath, 'utf-8');
+              const contentPattern = new RegExp(check.pattern || '.*');
+              passed = contentPattern.test(fileContent);
+              message = passed
+                ? `File contains expected pattern: ${check.pattern}`
+                : `File does not contain pattern: ${check.pattern}`;
+            } catch (err) {
+              passed = false;
+              message = `Cannot read file: ${err.message}`;
+            }
+            break;
+
+          case 'syntax_check':
+            // Validate JavaScript file has valid syntax
+            const syntaxFilePath = check.path || check.target || step.target;
+            const syntaxFullPath = path.isAbsolute(syntaxFilePath) 
+              ? syntaxFilePath 
+              : path.join(this.repoRoot, syntaxFilePath);
+            try {
+              execSync(`node --check "${syntaxFullPath}"`, { stdio: 'pipe' });
+              passed = true;
+              message = `Syntax valid: ${syntaxFilePath}`;
+            } catch (syntaxError) {
+              passed = false;
+              message = `Syntax error: ${syntaxError.message}`;
+            }
+            break;
+
           default:
             message = `Unknown validation type: ${check.type}`;
             passed = false;
@@ -747,12 +798,40 @@ export class WorkflowExecutor {
           type: 'manual',  // Will be updated from metadata
           required: true,
           description: '',
-          metadata: {}
+          metadata: {},
+          content: null,  // Will hold code block content if present
+          template: null  // Will hold template name if specified
         };
         
-        // Collect metadata and description lines
-        for (let j = i + 1; j < lines.length && !lines[j].match(/^(###\s+Step|\d+\.)/); j++) {
+        // Collect metadata, description lines, and code blocks
+        let inCodeBlock = false;
+        let codeBlockContent = '';
+        let codeBlockLang = '';
+        
+        for (let j = i + 1; j < lines.length && !lines[j].match(/^(###\s+Step|\d+\.\s+\*\*)/); j++) {
           const metaLine = lines[j];
+          
+          // Check for code block start/end
+          const codeBlockStart = metaLine.match(/^```(\w*)/);
+          if (codeBlockStart) {
+            if (!inCodeBlock) {
+              inCodeBlock = true;
+              codeBlockLang = codeBlockStart[1];
+              codeBlockContent = '';
+            } else {
+              inCodeBlock = false;
+              // Only capture javascript/js code blocks as content
+              if (codeBlockLang === 'javascript' || codeBlockLang === 'js') {
+                step.content = codeBlockContent.trim();
+              }
+            }
+            continue;
+          }
+          
+          if (inCodeBlock) {
+            codeBlockContent += metaLine + '\n';
+            continue;
+          }
           
           // Extract metadata: **Key**: Value
           const metaMatch = metaLine.match(/^\*\*(.+?)\*\*:\s*(.+)$/);
@@ -764,6 +843,8 @@ export class WorkflowExecutor {
               step.type = value.toLowerCase();
             } else if (key === 'required') {
               step.required = value.toLowerCase() === 'yes' || value.toLowerCase() === 'true';
+            } else if (key === 'template') {
+              step.template = value === 'None' ? null : value;
             } else {
               step.metadata[key] = value;
               // Promote common properties
@@ -771,7 +852,7 @@ export class WorkflowExecutor {
                 step[key] = value.replace(/^"(.*)"$/, '$1'); // Remove quotes if present
               }
             }
-          } else if (metaLine.trim() && !metaLine.startsWith('#')) {
+          } else if (metaLine.trim() && !metaLine.startsWith('#') && !metaLine.startsWith('-')) {
             step.description += metaLine.trim() + ' ';
           }
         }
