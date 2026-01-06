@@ -215,8 +215,8 @@
             ([yshift=-4cm]current page.north east);
     \end{tikzpicture}
     \textcolor{white}{\rule{\linewidth}{0pt}}\\[1cm]
-    {\Huge\bfseries\textcolor{noaablue}{MCP/RAG System Architecture}}\\[0.5em]
-    {\LARGE\textcolor{noaalight}{AI-Assisted Infrastructure for NOAA's GFS Software Development Initiative}}\\[1.5em]
+    {\LARGE\textcolor{noaalight}{AI-Assisted Infrastructure for\\NOAA's GFS Software Development Initiative}}\\[1.8em]
+    {\Huge\bfseries\textcolor{noaablue}{MCP/RAG System Architecture}}\\[1.5em]
     \rule{0.8\linewidth}{1pt}\\[0.5em]
     {\large\textcolor{gray}{Technical Reference Document — Version 2.0.0}}
 }
@@ -227,7 +227,7 @@
     National Oceanic and Atmospheric Administration\\[1em]
     \texttt{Terry.McGuinness@noaa.gov}\\[1.5em]
     \textit{with contributions from}\\
-    \textbf{Claude (Anthropic)} — AI Pair Programming Assistant
+    {\small Claude Opus 4.5 (Anthropic) - AI Pair Programming Assistant}
 }
 
 \date{
@@ -260,7 +260,7 @@ The system provides AI-assisted code analysis, compliance validation, and operat
 \begin{center}
 \begin{tikzpicture}
     \node[draw=noaablue, fill=noaablue!10, rounded corners=8pt, 
-          minimum width=14cm, minimum height=3.5cm, align=center] (cap) {
+          minimum width=14cm, minimum height=4.5cm, align=center] (cap) {
         \begin{minipage}{13cm}
         \centering
         \textbf{\large Key Capabilities}\\[0.8em]
@@ -269,7 +269,7 @@ The system provides AI-assisted code analysis, compliance validation, and operat
             \textcolor{chromagreen}{\checkmark} & Hybrid retrieval: ChromaDB (vectors) + Neo4j (graph relationships)\\
             \textcolor{chromagreen}{\checkmark} & EE2 compliance validation against NCO production standards\\
             \textcolor{chromagreen}{\checkmark} & Multi-platform HPC guidance (Hera, WCOSS2, Orion, Hercules, Gaea)\\
-            \textcolor{chromagreen}{\checkmark} & COTS LLM independence—works with Claude, GPT-4, Gemini, local models
+            \textcolor{chromagreen}{\checkmark} & COTS LLM independence - works with Claude, GPT-4, Gemini, \ldots
         \end{tabular}
         \end{minipage}
     };
