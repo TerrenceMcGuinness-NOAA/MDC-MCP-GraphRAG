@@ -88,26 +88,87 @@ export class SpecificationParser {
 
   /**
    * Parse individual step into modification spec
+   * Supports both verb_noun format (v2.0) and legacy types
    */
   parseStep(step) {
     const type = step.type?.toLowerCase();
+    if (!type) {
+      console.warn('[WARN] Step missing type field');
+      return null;
+    }
 
-    switch (type) {
-      case 'code_generation':
-        return this.parseCodeGeneration(step);
+    // Extract verb from type (handles both 'generate_file' and 'code_generation')
+    const verb = type.split('_')[0];
+
+    // V2.0: Match on verb for unified handling
+    switch (verb) {
+      case 'generate':
+        // generate_file, generate_patch, generate_config
+        return this.parseGenerateStep(step);
       
-      case 'code_modification':
-        return this.parseCodeModification(step);
+      case 'write':
+        // write_file, write_patch - literal content
+        return this.parseWriteStep(step);
       
-      case 'tool_registration':
+      case 'execute':
+        // execute_command, execute_git, execute_ingest
+        return this.parseExecuteStep(step);
+      
+      case 'delete':
+        // delete_file, delete_directory
+        return this.parseDeleteStep(step);
+      
+      case 'read':
+      case 'validate':
+      case 'check':
+      case 'analyze':
+        // Read-only operations - handled by workflow execution, not modification
+        return null;
+      
+      // LEGACY SUPPORT: Handle old noun-centric types
+      case 'code':
+        // code_generation, code_modification
+        if (type === 'code_generation') {
+          return this.parseCodeGeneration(step);
+        } else if (type === 'code_modification') {
+          return this.parseCodeModification(step);
+        }
+        return null;
+      
+      case 'command':
+        return this.parseExecuteStep(step);
+      
+      case 'file':
+        // file_creation, file_modification, file_delete
+        if (type === 'file_creation') {
+          return this.parseWriteStep(step);
+        } else if (type === 'file_modification') {
+          return this.parseCodeModification(step);
+        } else if (type === 'file_delete') {
+          return this.parseDeleteStep(step);
+        }
+        return null;
+      
+      case 'tool':
+        // tool_registration
         return this.parseToolRegistration(step);
       
-      case 'method_addition':
+      case 'method':
+        // method_addition
         return this.parseMethodAddition(step);
       
+      case 'ingestion':
+        return this.parseExecuteStep(step);
+      
+      case 'git':
+        // git_operation
+        return this.parseExecuteStep(step);
+      
+      case 'health':
+      case 'data':
       case 'validation':
-      case 'command':
-        // These are handled by existing workflow execution
+      case 'analysis':
+        // Legacy read-only types
         return null;
       
       default:
@@ -117,16 +178,65 @@ export class SpecificationParser {
   }
 
   /**
-   * Parse code generation step
+   * Parse generate step (LLM synthesis)
+   * Type: generate_file, generate_patch, generate_config
    */
-  parseCodeGeneration(step) {
+  parseGenerateStep(step) {
     return {
       type: 'generate_file',
+      modality: 'generative',
       spec: {
         filePath: step.target || step.file,
+        intent: step.intent || step.description,
         template: step.template,
-        content: this.extractCodeBlock(step.body),
+        content: this.extractCodeBlock(step.body), // Reference content
         variables: this.extractVariables(step),
+        description: step.title
+      }
+    };
+  }
+
+  /**
+   * Parse write step (literal content copy)
+   * Type: write_file, write_patch, write_config
+   */
+  parseWriteStep(step) {
+    return {
+      type: 'write_file',
+      modality: 'literal',
+      spec: {
+        filePath: step.target || step.file,
+        content: this.extractCodeBlock(step.body), // THE actual content
+        description: step.title
+      }
+    };
+  }
+
+  /**
+   * Parse execute step (command execution)
+   * Type: execute_command, execute_git, execute_ingest
+   */
+  parseExecuteStep(step) {
+    return {
+      type: 'execute_command',
+      spec: {
+        command: step.command || this.extractCodeBlock(step.body),
+        cwd: step.cwd,
+        timeout: step.timeout,
+        description: step.title
+      }
+    };
+  }
+
+  /**
+   * Parse delete step
+   * Type: delete_file, delete_directory
+   */
+  parseDeleteStep(step) {
+    return {
+      type: 'delete_file',
+      spec: {
+        target: step.target || step.file,
         description: step.title
       }
     };

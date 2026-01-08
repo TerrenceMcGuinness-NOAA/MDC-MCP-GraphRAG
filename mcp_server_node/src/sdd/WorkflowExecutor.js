@@ -15,7 +15,8 @@ import { SpecificationParser } from './SpecificationParser.js';
 import { 
   ApprovalResult, 
   ExecutionMode,
-  SIDE_EFFECT_TYPES 
+  SIDE_EFFECT_TYPES,
+  hasSideEffects as checkSideEffects  // V2.0: verb-based function
 } from './approval/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -269,7 +270,8 @@ export class WorkflowExecutor {
    * @returns {Object} Dry-run result
    */
   generateDryRunResult(step) {
-    const hasSideEffects = SIDE_EFFECT_TYPES.includes(step.type);
+    // V2.0: Use verb-based side-effect detection
+    const hasSideEffects = checkSideEffects(step.type);
     
     return {
       name: step.name,

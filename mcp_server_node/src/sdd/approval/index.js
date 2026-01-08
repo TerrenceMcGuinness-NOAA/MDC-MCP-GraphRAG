@@ -3,9 +3,9 @@
  * 
  * Export all approval provider implementations for Phase 4B ISD
  * 
- * Version: 2.0.0
- * Phase: 4B - Interactive Supervised Development
- * Date: January 2, 2026
+ * Version: 3.0.0
+ * Phase: 4C - Verb+Noun Paradigm
+ * Date: January 8, 2026
  * 
  * Providers:
  * - MCPApprovalProvider: Multi-turn MCP tool calls (VS Code Copilot, Claude Desktop)
@@ -17,6 +17,14 @@ export {
   ApprovalProvider, 
   ApprovalResult, 
   ExecutionMode,
+  // V2.0 Verb-based exports
+  SIDE_EFFECT_VERBS,
+  READ_ONLY_VERBS,
+  LEGACY_TYPE_MAP,
+  getVerb,
+  hasSideEffects,
+  isReadOnly,
+  // Legacy arrays (deprecated but still exported for backward compat)
   SIDE_EFFECT_TYPES,
   READ_ONLY_TYPES 
 } from './ApprovalProvider.js';

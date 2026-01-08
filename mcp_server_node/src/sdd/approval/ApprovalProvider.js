@@ -6,9 +6,9 @@
  * - CLIApprovalProvider: Terminal readline prompts (Claude Code, SSH)
  * - ManifestApprovalProvider: Pre-approved patterns from YAML/JSON files
  * 
- * Version: 1.0.0
- * Phase: 4B - Interactive Supervised Execution
- * Date: December 5, 2025
+ * Version: 2.0.0 - Verb+Noun Paradigm
+ * Phase: 4C - Unified Step Type Vocabulary
+ * Date: January 8, 2026
  */
 
 /**
@@ -33,26 +33,128 @@ export const ExecutionMode = {
 };
 
 /**
- * Step types that require approval (have side effects)
+ * VERB+NOUN PARADIGM (v2.0)
+ * 
+ * Step types follow the pattern: <verb>_<noun>
+ * - VERB determines approval policy (HOW content comes to exist)
+ * - NOUN clarifies the target (WHERE/WHAT)
+ * 
+ * Examples: generate_file, write_file, execute_command, validate_service
  */
-export const SIDE_EFFECT_TYPES = [
-  'code_generation',
-  'code_modification', 
-  'command',
-  'ingestion',
-  'file_delete',
-  'git_operation'
+
+/**
+ * Verbs that require approval (have side effects)
+ */
+export const SIDE_EFFECT_VERBS = [
+  'generate',   // Non-deterministic content creation (LLM synthesis)
+  'write',      // File system modification (literal copy)
+  'execute',    // Command/script execution
+  'delete',     // Destructive operations
+  'ingest'      // Knowledge base updates
 ];
 
 /**
- * Step types that are read-only (no approval needed)
+ * Verbs that are read-only (no approval needed)
+ */
+export const READ_ONLY_VERBS = [
+  'read',       // Data queries
+  'validate',   // Condition checks
+  'check',      // Status inspection
+  'analyze'     // Analysis without modification
+];
+
+/**
+ * LEGACY SUPPORT: Map old noun-centric types to verb+noun equivalents
+ * These are recognized for backward compatibility with existing workflows
+ */
+export const LEGACY_TYPE_MAP = {
+  // Old side-effect types
+  'code_generation': 'generate_file',
+  'code_modification': 'generate_patch',
+  'command': 'execute_command',
+  'ingestion': 'execute_ingest',
+  'file_delete': 'delete_file',
+  'git_operation': 'execute_git',
+  // Old intent-vocabulary types (previously unrecognized!)
+  'file_creation': 'write_file',
+  'file_modification': 'write_patch',
+  'shell_command': 'execute_command',
+  'docker_operation': 'execute_command',
+  // Old read-only types
+  'health_check': 'check_health',
+  'data_query': 'read_query',
+  'validation': 'validate_result',
+  'analysis': 'read_analysis'
+};
+
+/**
+ * LEGACY SUPPORT: Old arrays for imports that use them
+ * @deprecated Use getVerb() and SIDE_EFFECT_VERBS instead
+ */
+export const SIDE_EFFECT_TYPES = [
+  // New verb_noun patterns
+  'generate_file', 'generate_patch', 'generate_config',
+  'write_file', 'write_patch', 'write_config',
+  'execute_command', 'execute_git', 'execute_ingest',
+  'delete_file', 'delete_directory',
+  // Legacy patterns (for backward compat)
+  'code_generation', 'code_modification', 'command',
+  'ingestion', 'file_delete', 'git_operation',
+  'file_creation', 'file_modification'
+];
+
+/**
+ * @deprecated Use getVerb() and READ_ONLY_VERBS instead
  */
 export const READ_ONLY_TYPES = [
-  'health_check',
-  'data_query',
-  'validation',
-  'analysis'
+  // New verb_noun patterns
+  'read_query', 'read_file', 'read_analysis',
+  'validate_result', 'validate_service', 'validate_health',
+  'check_health', 'check_status',
+  'analyze_code', 'analyze_structure',
+  // Legacy patterns
+  'health_check', 'data_query', 'validation', 'analysis'
 ];
+
+/**
+ * Extract verb from step type
+ * Handles both verb_noun format and legacy types
+ * @param {string} stepType - Step type (e.g., 'generate_file' or 'code_generation')
+ * @returns {string} The verb component
+ */
+export function getVerb(stepType) {
+  if (!stepType) return 'unknown';
+  
+  const normalizedType = stepType.toLowerCase();
+  
+  // If legacy type, map it first
+  const mappedType = LEGACY_TYPE_MAP[normalizedType] || normalizedType;
+  
+  // Extract verb (first segment before underscore)
+  const verb = mappedType.split('_')[0];
+  
+  return verb;
+}
+
+/**
+ * Check if step type has side effects based on its verb
+ * @param {string} stepType - Step type
+ * @returns {boolean}
+ */
+export function hasSideEffects(stepType) {
+  const verb = getVerb(stepType);
+  return SIDE_EFFECT_VERBS.includes(verb);
+}
+
+/**
+ * Check if step type is read-only based on its verb
+ * @param {string} stepType - Step type
+ * @returns {boolean}
+ */
+export function isReadOnly(stepType) {
+  const verb = getVerb(stepType);
+  return READ_ONLY_VERBS.includes(verb);
+}
 
 /**
  * Abstract Approval Provider
@@ -71,6 +173,7 @@ export class ApprovalProvider {
 
   /**
    * Check if step requires approval based on type and mode
+   * Uses verb-based logic (v2.0 paradigm)
    * @param {Object} step - Step metadata
    * @returns {boolean}
    */
@@ -101,110 +204,120 @@ export class ApprovalProvider {
       return true; // Will be denied in approval
     }
 
-    // Read-only steps don't need approval
-    if (READ_ONLY_TYPES.includes(step.type)) {
+    // V2.0: Use verb-based logic
+    // Read-only verbs don't need approval
+    if (isReadOnly(step.type)) {
       return false;
     }
 
-    // Side-effect steps require approval
-    return SIDE_EFFECT_TYPES.includes(step.type);
+    // Side-effect verbs require approval
+    return hasSideEffects(step.type);
   }
 
   /**
    * Generate preview for step - what will happen if approved
+   * Supports both verb_noun format and legacy types
    * @param {Object} step - Step metadata
    * @returns {Object} Preview object
    */
   generatePreview(step) {
+    const verb = getVerb(step.type);
     const preview = {
       stepName: step.name,
       stepType: step.type,
-      hasSideEffects: SIDE_EFFECT_TYPES.includes(step.type),
+      verb: verb,
+      hasSideEffects: hasSideEffects(step.type),
       timestamp: new Date().toISOString()
     };
 
-    switch (step.type) {
-      case 'code_generation':
+    // Match on verb for consistent handling of both new and legacy types
+    switch (verb) {
+      case 'generate':
         return {
           ...preview,
-          action: 'CREATE FILE',
+          action: 'GENERATE (LLM synthesis)',
+          target: step.target || step.file,
+          intent: step.intent || step.description,
+          contentPreview: step.content?.substring(0, 500),
+          contentLength: step.content?.length || 0,
+          truncated: (step.content?.length || 0) > 500,
+          modality: 'generative'
+        };
+
+      case 'write':
+        return {
+          ...preview,
+          action: 'WRITE (literal copy)',
           target: step.target || step.file,
           contentPreview: step.content?.substring(0, 500),
           contentLength: step.content?.length || 0,
-          truncated: (step.content?.length || 0) > 500
+          truncated: (step.content?.length || 0) > 500,
+          modality: 'literal'
         };
 
-      case 'code_modification':
+      case 'execute':
         return {
           ...preview,
-          action: 'MODIFY FILE',
-          target: step.file || step.target,
-          modification: step.action || step.operation,
-          description: step.description
-        };
-
-      case 'command':
-        return {
-          ...preview,
-          action: 'RUN COMMAND',
-          command: step.command,
+          action: 'EXECUTE COMMAND',
+          command: step.command || step.content,
           workingDirectory: step.cwd || 'repository root',
           sandbox: step.sandbox !== false,
           timeout: step.timeout || 30000,
-          riskLevel: this.assessCommandRisk(step.command)
+          riskLevel: this.assessCommandRisk(step.command || step.content)
         };
 
-      case 'ingestion':
+      case 'delete':
         return {
           ...preview,
-          action: 'UPDATE KNOWLEDGE BASE',
+          action: 'DELETE',
+          target: step.target || step.file,
+          riskLevel: 'high'
+        };
+
+      case 'ingest':
+        return {
+          ...preview,
+          action: 'INGEST TO KNOWLEDGE BASE',
           target: step.target || 'all',
           source: step.source,
           collections: step.collections || ['default']
         };
 
-      case 'file_delete':
+      case 'read':
         return {
           ...preview,
-          action: 'DELETE FILE',
-          target: step.target || step.file,
-          riskLevel: 'high'
-        };
-
-      case 'git_operation':
-        return {
-          ...preview,
-          action: 'GIT OPERATION',
-          operation: step.operation,
-          target: step.target,
-          riskLevel: step.operation === 'push' ? 'high' : 'medium'
-        };
-
-      case 'health_check':
-        return {
-          ...preview,
-          action: 'CHECK HEALTH',
-          components: step.components || ['all'],
-          readOnly: true
-        };
-
-      case 'data_query':
-        return {
-          ...preview,
-          action: 'QUERY DATA',
+          action: 'READ (query)',
           query: step.query,
           readOnly: true
         };
 
-      case 'validation':
+      case 'validate':
         return {
           ...preview,
           action: 'VALIDATE',
+          target: step.target,
           checks: step.checks?.map(c => c.type) || [],
           readOnly: true
         };
 
+      case 'check':
+        return {
+          ...preview,
+          action: 'CHECK STATUS',
+          components: step.components || step.target || ['all'],
+          readOnly: true
+        };
+
+      case 'analyze':
+        return {
+          ...preview,
+          action: 'ANALYZE',
+          target: step.target,
+          readOnly: true
+        };
+
       default:
+        // Fallback for any unrecognized types
         return {
           ...preview,
           action: step.type?.toUpperCase() || 'UNKNOWN',
