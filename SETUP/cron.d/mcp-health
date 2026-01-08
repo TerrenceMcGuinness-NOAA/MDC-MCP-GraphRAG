@@ -1,0 +1,11 @@
+# MCP Gateway Health Monitoring
+# Phase 23: Static Mode Multi-User Gateway
+# Runs every 5 minutes
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/5 * * * * root /opt/mcp/bin/health-check.sh 2>&1 | head -20
+
+# Daily log rotation
+0 0 * * * root find /var/log/mcp-health.log -size +10M -exec truncate -s 0 {} \;

@@ -1,0 +1,43 @@
+[Unit]
+Description=EIB MCP RAG Server (Static Container)
+Documentation=https://github.com/NOAA-EMC/eib-mcp-rag-server
+After=docker.service chromadb.service
+Requires=docker.service
+Wants=chromadb.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+# Cleanup any existing container before start
+ExecStartPre=-/usr/bin/docker stop eib-mcp-rag-static
+ExecStartPre=-/usr/bin/docker rm eib-mcp-rag-static
+
+# Run container with resource limits
+ExecStart=/usr/bin/docker run \
+    --name eib-mcp-rag-static \
+    --memory=8g \
+    --cpus=4 \
+    --init \
+    --security-opt no-new-privileges \
+    -e CHROMADB_HOST=172.17.0.1 \
+    -e CHROMADB_PORT=8080 \
+    -e NEO4J_URI=bolt://172.17.0.1:7687 \
+    -e NEO4J_USER=neo4j \
+    -e NEO4J_PASSWORD=${NEO4J_PASSWORD} \
+    -e MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow \
+    -v /mcp_rag_eib/eib-mcp-rag-server/supported_repos:/app/supported_repos:ro \
+    -v /mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:ro \
+    --label docker-mcp=true \
+    --label docker-mcp-name=eib-mcp-rag \
+    --label docker-mcp-transport=stdio \
+    eib-mcp-rag:latest
+
+ExecStop=/usr/bin/docker stop eib-mcp-rag-static
+ExecStopPost=-/usr/bin/docker rm eib-mcp-rag-static
+
+[Install]
+WantedBy=multi-user.target

@@ -41,6 +41,7 @@ declare -a SCRIPTS=(
     "09-desktop-vnc.sh:Remote Desktop (VNC)"
     "10-verification.sh:Final Verification"
     "11-docker-mcp-gateway.sh:Docker MCP Gateway"
+    "12-static-mode-gateway.sh:Phase 23 Static Mode (Production)"
 )
 
 ################################################################################

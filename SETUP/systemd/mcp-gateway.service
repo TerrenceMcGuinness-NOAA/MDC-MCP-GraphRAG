@@ -1,0 +1,27 @@
+[Unit]
+Description=Docker MCP Gateway (Static Mode)
+Documentation=https://github.com/docker/mcp-gateway
+After=mcp-rag.service
+Requires=mcp-rag.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=Terry.McGuinness
+Environment=HOME=/home/Terry.McGuinness
+
+ExecStart=/home/Terry.McGuinness/.docker/cli-plugins/docker-mcp gateway run \
+    --catalog eib-local.yaml \
+    --servers eib-mcp-rag \
+    --transport streaming \
+    --port 18888 \
+    --static=true \
+    --verbose
+
+# Clean up orphaned containers on stop (safety net)
+ExecStopPost=-/usr/bin/docker ps -q --filter "label=docker-mcp-name=eib-mcp-rag" | xargs -r docker stop
+ExecStopPost=-/usr/bin/docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag" | xargs -r docker rm
+
+[Install]
+WantedBy=multi-user.target
