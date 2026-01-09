@@ -16,6 +16,10 @@ require_root
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/user_config.sh"
 
+# Bare repository configuration for faster local clones
+BARE_REPO_DIR="${SCRATCH_ROOT}/eib-mcp-rag-server_bare"
+UPSTREAM_REPO_URL="ssh://git@gitlab-licensed.vlab.noaa.gov:29418/NWS/Operations/NCEP/EMC/EIB/eib-mcp-rag-server.git"
+
 usage() {
   cat << 'EOF'
 Usage:
@@ -239,32 +243,67 @@ EOF
   chown "${username}:${user_group}" "${readme}" 2>/dev/null || true
 }
 
+update_bare_repo() {
+  # Update or create the bare repository from upstream
+  # This should be run once before provisioning users
+  log_info "Updating bare repository at ${BARE_REPO_DIR}"
+
+  if [[ -d "${BARE_REPO_DIR}" ]]; then
+    log_info "Fetching latest changes from upstream..."
+    git -C "${BARE_REPO_DIR}" fetch --all --prune 2>&1 || {
+      log_warning "Failed to fetch from upstream; bare repo may be stale"
+      return 1
+    }
+    log_success "Bare repository updated from upstream"
+  else
+    log_info "Creating bare repository from upstream..."
+    git clone --bare "${UPSTREAM_REPO_URL}" "${BARE_REPO_DIR}" 2>&1 || {
+      log_error "Failed to create bare repository from upstream"
+      log_error "Ensure you have SSH access to: ${UPSTREAM_REPO_URL}"
+      return 1
+    }
+    log_success "Bare repository created at ${BARE_REPO_DIR}"
+  fi
+
+  # Ensure the bare repo is readable by all users
+  chmod -R a+rX "${BARE_REPO_DIR}" 2>/dev/null || true
+  return 0
+}
+
 clone_mcp_rag_repo() {
   local username="$1"
   local workspace_dir="${SCRATCH_ROOT}/${username}"
   local repo_dir="${workspace_dir}/eib-mcp-rag-server"
-  local repo_url="https://vlab.noaa.gov/gitlab-community/NWS/Operations/NCEP/EMC/eib-mcp-rag-server.git"
   local user_group
   user_group=$(get_user_group "${username}")
 
   log_info "Setting up EIB MCP RAG repository for ${username}"
 
+  # Verify bare repo exists
+  if [[ ! -d "${BARE_REPO_DIR}" ]]; then
+    log_error "Bare repository not found at ${BARE_REPO_DIR}"
+    log_error "Run update_bare_repo first or ensure bare repo exists"
+    return 1
+  fi
+
   if [[ -d "${repo_dir}/.git" ]]; then
     log_warning "Repository already exists at ${repo_dir}; updating..."
-    sudo -u "${username}" git -C "${repo_dir}" fetch origin 2>/dev/null || true
+    GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git -C "${repo_dir}" fetch origin 2>/dev/null || true
   else
-    log_info "Cloning EIB MCP RAG repository to ${repo_dir}"
-    # Clone as the user to ensure proper ownership
-    sudo -u "${username}" git clone "${repo_url}" "${repo_dir}" 2>/dev/null || {
-      log_warning "Failed to clone repository (may require authentication)"
-      log_info "User can manually clone with: git clone ${repo_url} ${repo_dir}"
-      return 0
+    log_info "Cloning from local bare repository to ${repo_dir}"
+    # Clone from local bare repo - fast and no auth required
+    git clone "${BARE_REPO_DIR}" "${repo_dir}" 2>&1 || {
+      log_error "Failed to clone from bare repository"
+      return 1
     }
     
-    # Set up develop as default branch
+    # Set upstream remote to the actual GitLab URL for future pulls
     if [[ -d "${repo_dir}/.git" ]]; then
-      sudo -u "${username}" git -C "${repo_dir}" checkout develop 2>/dev/null || true
+      git -C "${repo_dir}" remote set-url origin "${UPSTREAM_REPO_URL}" 2>/dev/null || true
+      git -C "${repo_dir}" remote add local "${BARE_REPO_DIR}" 2>/dev/null || true
+      git -C "${repo_dir}" checkout develop 2>/dev/null || true
       log_success "Repository cloned and set to develop branch"
+      log_info "Remote 'origin' set to upstream, 'local' set to bare repo"
     fi
   fi
 
@@ -362,6 +401,12 @@ log_subsection "Provisioning Linux User Accounts"
 if [[ "${STATUS_ONLY}" == true ]]; then
   print_status
   exit 0
+fi
+
+# Update bare repository before provisioning users
+log_info "Ensuring bare repository is up-to-date..."
+if ! update_bare_repo; then
+  log_warning "Bare repo update failed; user clones may use stale code"
 fi
 
 for username in "${USERS_TO_PROVISION[@]}"; do
