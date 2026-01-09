@@ -210,7 +210,51 @@ EOF
 
 chown -R "$(get_ownership "${USER_NAME}")" "${MCP_CONFIG_DIR}"
 
-log_success "MCP catalog created: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml"
+log_success "MCP catalog file created: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml"
+
+################################################################################
+# Register Catalog with Docker MCP System
+################################################################################
+
+log_subsection "Registering Catalog with Docker MCP"
+
+# The docker mcp catalog system requires explicit registration
+# Simply having the YAML file in ~/.docker/mcp/catalogs/ is NOT sufficient
+# We must: 1) Create catalog, 2) Add server to catalog, 3) Enable server
+
+log_info "Creating eib-local catalog in docker mcp system..."
+
+# Create the catalog (idempotent - will fail silently if exists)
+run_as_user "${USER_NAME}" "docker mcp catalog create eib-local 2>/dev/null || true"
+
+# Add the server to the catalog from our YAML file
+# This imports the server definition into the docker mcp registry
+log_info "Adding eib-mcp-rag server to catalog..."
+run_as_user "${USER_NAME}" "docker mcp catalog add eib-local eib-mcp-rag ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml --force" || {
+    log_warning "Failed to add server to catalog, may already exist"
+}
+
+# Enable the server so it's available to the gateway
+log_info "Enabling eib-mcp-rag server..."
+run_as_user "${USER_NAME}" "docker mcp server enable eib-mcp-rag" || {
+    log_warning "Failed to enable server, may already be enabled"
+}
+
+# Verify registration
+log_info "Verifying catalog registration..."
+CATALOG_LIST=$(run_as_user "${USER_NAME}" "docker mcp catalog ls 2>&1" || echo "")
+if echo "${CATALOG_LIST}" | grep -q "eib-local"; then
+    log_success "Catalog 'eib-local' registered in docker mcp system"
+else
+    log_warning "Catalog registration may have issues - check 'docker mcp catalog ls'"
+fi
+
+SERVER_LIST=$(run_as_user "${USER_NAME}" "docker mcp server ls 2>&1" || echo "")
+if echo "${SERVER_LIST}" | grep -q "eib-mcp-rag"; then
+    log_success "Server 'eib-mcp-rag' enabled and ready"
+else
+    log_warning "Server may not be enabled - check 'docker mcp server ls'"
+fi
 
 ################################################################################
 # Build MCP RAG Container Image
@@ -269,8 +313,19 @@ fi
 log_subsection "MCP Gateway Systemd Service"
 
 GATEWAY_SERVICE="/etc/systemd/system/mcp-gateway.service"
+SERVICE_TEMPLATE="${SETUP_DIR}/systemd/mcp-gateway.service.template"
 
-cat > "${GATEWAY_SERVICE}" << EOF
+# Use template if available (SPOT), otherwise generate inline
+if [[ -f "${SERVICE_TEMPLATE}" ]]; then
+    log_info "Installing from template: ${SERVICE_TEMPLATE}"
+    # Substitute variables in template
+    sed -e "s|\${USER_NAME}|${USER_NAME}|g" \
+        -e "s|\${USER_HOME}|${USER_HOME}|g" \
+        -e "s|\${USER_GROUP}|$(get_user_group "${USER_NAME}")|g" \
+        "${SERVICE_TEMPLATE}" > "${GATEWAY_SERVICE}"
+else
+    log_info "Template not found, generating inline..."
+    cat > "${GATEWAY_SERVICE}" << EOF
 [Unit]
 Description=Docker MCP Gateway (Streamable HTTP transport)
 After=network.target docker.service chromadb-persistent.service
@@ -285,10 +340,10 @@ Environment=MCP_GATEWAY_AUTH_TOKEN=eib-mcp-gateway-token-2025
 Environment=PATH=/usr/local/go/bin:/usr/bin:/bin:${USER_HOME}/.docker/cli-plugins
 WorkingDirectory=${USER_HOME}
 
-# Use streaming transport (Streamable HTTP - MCP spec 2025-06-18)
-# SPOT: Uses eib-local.yaml catalog created by this provisioning script
-# Note: Port 18888 to avoid conflicts with common services on HPC systems
-ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --catalog eib-local.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived
+# Use streaming transport (Streamable HTTP - bidirectional, MCP spec 2025-06-18)
+# Server is registered via 'docker mcp catalog add' + 'docker mcp server enable'
+# Port 18888 to avoid conflicts with common services on RDHPCS systems
+ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --servers eib-mcp-rag --transport streaming --port 18888 --long-lived
 
 Restart=on-failure
 RestartSec=10
@@ -296,6 +351,7 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
+fi
 
 log_info "Created systemd service: mcp-gateway.service"
 
@@ -316,9 +372,26 @@ log_section "Docker MCP Gateway Setup Complete"
 log_info "Components installed:"
 log_success "  Go compiler: $(go version | awk '{print $3}')"
 log_success "  docker-mcp plugin: ${DOCKER_CLI_PLUGINS}/docker-mcp"
-log_success "  MCP catalog: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml (SPOT)"
+log_success "  MCP catalog file: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml"
 log_success "  Container image: eib-mcp-rag:latest"
 log_success "  Systemd service: mcp-gateway.service"
+
+log_info ""
+log_info "Catalog registration status:"
+run_as_user "${USER_NAME}" "docker mcp catalog ls" || true
+log_info ""
+run_as_user "${USER_NAME}" "docker mcp server ls" || true
+
+# Verify tool discovery with dry-run
+log_info ""
+log_info "Testing tool discovery (dry-run)..."
+TOOL_COUNT=$(run_as_user "${USER_NAME}" "docker mcp gateway run --servers eib-mcp-rag --dry-run 2>&1" | grep -oP '\(\d+ tools\)' | grep -oP '\d+' || echo "0")
+if [[ "${TOOL_COUNT}" -gt 0 ]]; then
+    log_success "Gateway discovers ${TOOL_COUNT} tools from eib-mcp-rag server"
+else
+    log_warning "Tool discovery returned 0 tools - check catalog registration"
+    log_info "Debug: docker mcp gateway run --servers eib-mcp-rag --dry-run --verbose"
+fi
 
 log_info ""
 log_info "Start the gateway service:"
@@ -327,11 +400,15 @@ log_info "  sudo systemctl status mcp-gateway"
 log_info ""
 log_info "Or run manually:"
 log_info "  export MCP_GATEWAY_AUTH_TOKEN=\"eib-mcp-gateway-token-2025\""
-log_info "  docker mcp gateway run --catalog eib-local.yaml --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose"
+log_info "  docker mcp gateway run --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose"
+log_info ""
+log_info "Verify tools available:"
+log_info "  docker mcp tools ls"
 log_info ""
 log_info "Remote Access (from client machine):"
 log_info "  1. SSH tunnel: ssh -L 18888:localhost:18888 user@server -N"
 log_info "  2. VS Code mcp.json: type=http, url=http://localhost:18888/mcp"
 log_info "  3. Bearer token: eib-mcp-gateway-token-2025"
 
+record_result "11-docker-mcp-gateway.sh" "success" "${TOOL_COUNT} tools"
 exit 0

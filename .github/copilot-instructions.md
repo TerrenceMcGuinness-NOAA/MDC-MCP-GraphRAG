@@ -137,11 +137,11 @@ AI Clients (LangFlow, VS Code, Claude Desktop)
               │
               ▼
      Docker MCP Gateway (docker-mcp plugin)
-         Port 8888 (SSE transport)
+         Port 18888 (Streamable HTTP transport)
               │
               ▼
      MCP Server Container (eib-mcp-rag:latest)
-         32 tools available
+         35 tools available
               │
     ┌─────────┴─────────┐
     ▼                   ▼
@@ -151,21 +151,44 @@ ChromaDB            Neo4j
 
 ### Quick Start - Gateway + LangFlow
 ```bash
-# Start gateway with SSE transport (required for LangFlow)
+# Start gateway with Streamable HTTP transport (bidirectional)
 SETUP/bin/start-mcp-gateway.sh --background
 
 # Or manually:
-docker mcp gateway run --servers eib-mcp-rag --transport sse --port 8888 --long-lived --verbose
+export MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025"
+docker mcp gateway run --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose
 
 # Gateway outputs:
-# > Gateway URL: http://localhost:8888/sse
-# > Use Bearer token: Authorization: Bearer <generated-token>
+# > Gateway URL: http://localhost:18888/mcp
+# > Use Bearer token: Authorization: Bearer eib-mcp-gateway-token-2025
+```
+
+### Catalog Registration (CRITICAL)
+The gateway requires **explicit catalog registration** - having YAML files in `~/.docker/mcp/catalogs/` is NOT sufficient:
+```bash
+# 1. Create catalog in docker mcp system
+docker mcp catalog create eib-local
+
+# 2. Add server from YAML file to catalog
+docker mcp catalog add eib-local eib-mcp-rag ~/.docker/mcp/catalogs/eib-local.yaml
+
+# 3. Enable server for gateway discovery
+docker mcp server enable eib-mcp-rag
+
+# 4. Verify registration
+docker mcp catalog ls          # Should show: eib-local
+docker mcp server ls           # Should show: eib-mcp-rag (enabled)
+docker mcp tools ls            # Should show: 42 tools (35 EIB + 7 gateway)
+
+# 5. Test discovery
+docker mcp gateway run --servers eib-mcp-rag --dry-run --verbose
+# Should show: > eib-mcp-rag: (35 tools)
 ```
 
 ### LangFlow Connection
-1. Gateway URL: `http://host.docker.internal:8888/sse`
-2. Transport: SSE
-3. Authorization header: `Bearer <token-from-gateway-startup>`
+1. Gateway URL: `http://host.docker.internal:18888/mcp` (from container) or `http://localhost:18888/mcp`
+2. Transport: HTTP (Streamable HTTP)
+3. Authorization header: `Bearer eib-mcp-gateway-token-2025`
 4. Select `eib-mcp-rag` server in MCP Tools component
 
 ### Gateway Commands
@@ -174,10 +197,14 @@ docker mcp gateway run --servers eib-mcp-rag --transport sse --port 8888 --long-
 docker compose -f docker-compose.mcp-standalone.yaml build
 
 # Test gateway discovery (dry-run)
-docker mcp gateway run --servers docker://eib-mcp-rag:latest --dry-run --verbose
+docker mcp gateway run --servers eib-mcp-rag --dry-run --verbose
 
 # List available tools
 docker mcp tools ls
+
+# Check container labels (gateway uses these for discovery)
+docker inspect eib-mcp-rag --format '{{json .Config.Labels}}' | jq
+```
 
 # Check container labels (gateway uses these for discovery)
 docker inspect eib-mcp-rag --format '{{json .Config.Labels}}' | jq

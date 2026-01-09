@@ -1,5 +1,78 @@
 # MCP Server Changelog
 
+## [7.1.1] - Docker MCP Catalog Registration & Systemd Service (January 9, 2026)
+
+### Added
+- **Docker MCP Catalog Registration** (`SETUP/provisioning/11-docker-mcp-gateway.sh`):
+  - `docker mcp catalog create eib-local` - Creates catalog in docker mcp system
+  - `docker mcp catalog add eib-local eib-mcp-rag` - Imports server from YAML
+  - `docker mcp server enable eib-mcp-rag` - Enables server for gateway discovery
+  - Tool discovery verification with dry-run test
+  - **Critical insight**: YAML files in `~/.docker/mcp/catalogs/` are NOT sufficient - explicit registration required
+
+- **Systemd Service Templates** (`SETUP/systemd/`):
+  - `mcp-gateway.service.template` - Streamable HTTP gateway service (SPOT)
+  - `mcp-rag.service.template` - Static container service for multi-user RDHPCS
+  - Variable substitution: `${USER_NAME}`, `${USER_HOME}`, `${USER_GROUP}`
+
+- **Gateway Helper Script** (`SETUP/bin/start-mcp-gateway.sh`):
+  - Commands: `start`, `stop`, `status`, `restart`, `foreground`
+  - Port configuration via `--port` flag or `MCP_GATEWAY_PORT` env
+  - Colorized status output with tool count verification
+
+### Changed
+- **Transport Protocol**: Changed from SSE to Streamable HTTP (`--transport streaming`)
+  - SSE is server→client only (not bidirectional)
+  - Streamable HTTP provides full MCP protocol support via `/mcp` endpoint
+  - POST requests for tool calls, SSE responses for results
+
+- **Gateway Port**: Changed from 8888 to 18888
+  - Avoids conflicts with common services on RDHPCS systems
+  - Updated in: mcp.json, provisioning scripts, systemd templates, copilot-instructions
+
+- **Authentication Token**: Static token via `MCP_GATEWAY_AUTH_TOKEN` environment variable
+  - Token: `eib-mcp-gateway-token-2025`
+  - Removed dynamic token generation for predictable multi-client access
+
+### Fixed
+- **Provisioning Status File**: Added `SETUP/provisioning/.provision_status` to `.gitignore`
+  - Machine-specific runtime state should not be committed
+
+### Configuration
+```bash
+# Start gateway via systemd (production)
+sudo systemctl start mcp-gateway
+
+# Or via helper script
+SETUP/bin/start-mcp-gateway.sh start
+
+# Manual foreground mode (development)
+export MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025"
+docker mcp gateway run --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose
+
+# Verify tools
+docker mcp tools ls  # Should show 42 tools (35 EIB + 7 gateway)
+```
+
+### VS Code MCP Configuration
+```json
+{
+  "eib-mcp-gateway": {
+    "type": "http",
+    "url": "http://localhost:18888/mcp",
+    "headers": {
+      "Authorization": "Bearer eib-mcp-gateway-token-2025"
+    }
+  }
+}
+```
+
+### References
+- Docker MCP Gateway: https://github.com/docker/mcp-gateway
+- MCP Streamable HTTP: https://spec.modelcontextprotocol.io/specification/basic/transports/
+
+---
+
 ## [7.1.0] - Phase 11E n8n Workflow Automation (December 31, 2025)
 
 ### Added

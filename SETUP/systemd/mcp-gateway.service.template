@@ -1,0 +1,45 @@
+# Template: mcp-gateway.service
+# Installed by: SETUP/provisioning/11-docker-mcp-gateway.sh
+# Variables replaced: ${USER_NAME}, ${USER_HOME}, ${USER_GROUP}
+#
+# This template is the SPOT (Single Point of Truth) for the MCP Gateway systemd service.
+# The provisioning script reads this template and substitutes variables.
+
+[Unit]
+Description=Docker MCP Gateway (Streamable HTTP transport)
+Documentation=https://github.com/docker/mcp-gateway
+After=network.target docker.service chromadb-persistent.service mcp-rag.service
+Requires=docker.service
+Wants=chromadb-persistent.service mcp-rag.service
+
+[Service]
+Type=simple
+User=${USER_NAME}
+Group=${USER_GROUP}
+
+# Authentication token for MCP clients
+Environment=MCP_GATEWAY_AUTH_TOKEN=eib-mcp-gateway-token-2025
+Environment=PATH=/usr/local/go/bin:/usr/bin:/bin:${USER_HOME}/.docker/cli-plugins
+Environment=HOME=${USER_HOME}
+WorkingDirectory=${USER_HOME}
+
+# Use streaming transport (Streamable HTTP - bidirectional, MCP spec 2025-06-18)
+# Server registered via 'docker mcp catalog add' + 'docker mcp server enable'
+# Port 18888 to avoid conflicts with common services on RDHPCS systems
+ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run \
+    --servers eib-mcp-rag \
+    --transport streaming \
+    --port 18888 \
+    --long-lived \
+    --verbose
+
+# Clean up orphaned containers on stop (safety net)
+ExecStopPost=-/usr/bin/docker ps -q --filter "label=docker-mcp-name=eib-mcp-rag" | xargs -r docker stop
+ExecStopPost=-/usr/bin/docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag" | xargs -r docker rm
+
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

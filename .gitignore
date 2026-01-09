@@ -32,6 +32,7 @@ pip-delete-this-directory.txt
 *.sock
 *.swp
 *.swo
+SETUP/provisioning/.provision_status
 
 # Environment Configs - NEVER commit
 .env

@@ -1,0 +1,53 @@
+# Template: mcp-rag.service (Static Container Mode)
+# Installed by: SETUP/provisioning/12-static-mode-gateway.sh
+# Variables replaced: ${USER_NAME}, ${NEO4J_PASSWORD}, ${EIB_REPO}
+#
+# This runs the MCP RAG server as a static Docker container (not per-session).
+# Used by mcp-gateway.service in --static mode for multi-user RDHPCS environments.
+
+[Unit]
+Description=EIB MCP RAG Server (Static Container)
+Documentation=https://github.com/NOAA-EMC/eib-mcp-rag-server
+After=docker.service chromadb-persistent.service
+Requires=docker.service
+Wants=chromadb-persistent.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+# Cleanup any existing container before start
+ExecStartPre=-/usr/bin/docker stop eib-mcp-rag-static
+ExecStartPre=-/usr/bin/docker rm eib-mcp-rag-static
+
+# Run container with resource limits
+# Uses 172.17.0.1 (Docker bridge gateway) for container-to-host DB access
+ExecStart=/usr/bin/docker run \
+    --name eib-mcp-rag-static \
+    --memory=8g \
+    --cpus=4 \
+    --init \
+    --security-opt no-new-privileges \
+    -e CHROMADB_HOST=172.17.0.1 \
+    -e CHROMADB_PORT=8080 \
+    -e CHROMADB_URL=http://172.17.0.1:8080 \
+    -e NEO4J_URI=bolt://172.17.0.1:7687 \
+    -e NEO4J_USER=neo4j \
+    -e NEO4J_PASSWORD=${NEO4J_PASSWORD} \
+    -e MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow \
+    -e SDD_FRAMEWORK_ROOT=/app/sdd_framework \
+    -v ${EIB_REPO}/supported_repos:/app/supported_repos:ro \
+    -v ${EIB_REPO}/sdd_framework:/app/sdd_framework:ro \
+    --label docker-mcp=true \
+    --label docker-mcp-name=eib-mcp-rag \
+    --label docker-mcp-transport=stdio \
+    eib-mcp-rag:latest
+
+ExecStop=/usr/bin/docker stop eib-mcp-rag-static
+ExecStopPost=-/usr/bin/docker rm eib-mcp-rag-static
+
+[Install]
+WantedBy=multi-user.target

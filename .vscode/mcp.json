@@ -9,10 +9,10 @@
     // │ Task                           │ Use Server           │ Tools Available │
     // ├─────────────────────────────────────────────────────────────────────────┤
     // │ GFS/GEFS code structure        │ global-workflow-core │ 16 (Neo4j)      │
-    // │ Weather documentation (RAG)    │ eib-mcp-gateway      │ 34 (full)       │
-    // │ EE2 compliance checking        │ eib-mcp-gateway      │ 34 (full)       │
-    // │ HPC operational guidance       │ eib-mcp-gateway      │ 34 (full)       │
-    // │ GitHub issues/PRs              │ eib-mcp-gateway      │ 34 (full)       │
+    // │ Weather documentation (RAG)    │ eib-mcp-gateway      │ 35 (full)       │
+    // │ EE2 compliance checking        │ eib-mcp-gateway      │ 35 (full)       │
+    // │ HPC operational guidance       │ eib-mcp-gateway      │ 35 (full)       │
+    // │ GitHub issues/PRs              │ eib-mcp-gateway      │ 35 (full)       │
     // └─────────────────────────────────────────────────────────────────────────┘
     //
     // TWO DOMAINS:
@@ -24,7 +24,7 @@
     // - eib-mcp-gateway: ChromaDB + Neo4j (full RAG capabilities)
     // ============================================================================
 
-    // FULL MODE: All 34 tools - RAG search, EE2 compliance, GitHub, code analysis
+    // FULL MODE: All 35 tools - RAG search, EE2 compliance, GitHub, code analysis
     // Use when: You need documentation search, compliance checking, or operational guidance
     // DB required: ChromaDB (vectors) + Neo4j (graph)
     "eib-mcp-rag-full": {
@@ -48,12 +48,14 @@
       }
     },
 
-    // GATEWAY MODE: Docker container with full 34 tools via HTTP
-    // Use when: Remote access, multi-client (n8n, LangFlow, Claude Desktop)
-    // Transport: Streamable HTTP (MCP spec 2025-06-18)
+    // GATEWAY MODE: Docker container with full 35 tools via Streamable HTTP
+    // Use when: Remote access, multi-client (LangFlow, Claude Desktop, n8n)
+    // Transport: Streamable HTTP (bidirectional - MCP spec 2025-06-18)
     // Start with: sudo systemctl start mcp-gateway
+    //         or: docker mcp gateway run --servers eib-mcp-rag --transport streaming --port 18888 --long-lived
     // Port forward: ssh -L 18888:localhost:18888 remote-host
-    // Token: Static when MCP_GATEWAY_AUTH_TOKEN env var is set (see systemd service)
+    // Token: Set MCP_GATEWAY_AUTH_TOKEN env var for static token, otherwise dynamic
+    // Verify tools: docker mcp tools ls
     "eib-mcp-gateway": {
       "type": "http",
       "url": "http://localhost:18888/mcp",
