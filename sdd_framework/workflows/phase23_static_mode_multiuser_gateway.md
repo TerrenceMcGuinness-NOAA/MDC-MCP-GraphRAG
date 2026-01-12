@@ -1,15 +1,273 @@
-# Phase 23: Static Mode Multi-User Gateway Architecture
+# Phase 23: Multi-User Gateway Architecture & Container Lifecycle Management
 
-**Description**: Refactor the MCP Gateway deployment from per-session container spawning (`--long-lived`) to static container mode (`--static`) with systemd management and health monitoring, enabling efficient multi-user access from RDHPCS platforms.
+**Description**: Architecture analysis and solution design for MCP Gateway container lifecycle in multi-user RDHPCS deployments. Evolved from static mode investigation to smart container activity detection approach.
 
 **Priority**: HIGH (Production stability)
-**Timeline**: January 2025
-**Status**: PLANNING
+**Timeline**: January 2026
+**Status**: ✅ RESEARCH COMPLETE - Ready for Implementation
 **Depends On**: Phase 11 (Docker MCP Gateway) ✅ COMPLETE
 
 ---
 
-## Problem Statement
+## Document Index
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **This Document** | `sdd_framework/workflows/phase23_*.md` | SDD specification & container activity research |
+| **Architecture Analysis** | [`mcp_architecture/docs/DOCKER_MCP_GATEWAY_MULTIUSER_ARCHITECTURE.md`](../../mcp_architecture/docs/DOCKER_MCP_GATEWAY_MULTIUSER_ARCHITECTURE.md) | Detailed 4-option analysis & hybrid recommendation |
+
+---
+
+## Key Decisions Summary
+
+| Decision | Outcome |
+|----------|---------|
+| **Static mode (`--static`)** | ❌ Not viable - requires docker-mcp-bridge entrypoint |
+| **Container per session** | ✅ Intended gateway design - not a bug |
+| **VS Code access method** | ✅ Direct stdio via mcp.json (200MB vs 2GB) |
+| **External clients** | ✅ Gateway with `type: remote` → HTTP server |
+| **Container cleanup** | ✅ Smart activity detection via TCP connection count |
+
+---
+
+## ⚠️ STATUS UPDATE: January 12, 2026
+
+### Investigation Outcome
+
+After comprehensive investigation of Docker MCP Gateway v0.35.0 source code:
+
+**Original Assumption INVALID**: We assumed `--static` mode would connect to pre-started containers via stdio. This is **incorrect**.
+
+**Actual Static Mode Requirements**:
+1. Container MUST run `docker-mcp-bridge` entrypoint (not native MCP server)
+2. Bridge listens on TCP port 4444 (not stdio)
+3. Gateway uses `socat STDIO TCP:mcp-{name}:4444` to connect
+4. Container name must match pattern `mcp-{server-name}`
+
+From `pkg/gateway/run.go`:
+```go
+// Static mode uses socat to connect via TCP, not native stdio
+client = mcpclient.NewStdioCmdClient(cg.serverConfig.Name, "socat", nil,
+    "STDIO", fmt.Sprintf("TCP:mcp-%s:4444", cg.serverConfig.Name))
+```
+
+### New Recommendation: Hybrid Architecture (Option D)
+
+See full analysis: [[DOCKER_MCP_GATEWAY_MULTIUSER_ARCHITECTURE|mcp_architecture/docs/DOCKER_MCP_GATEWAY_MULTIUSER_ARCHITECTURE.md]]
+
+**VS Code Sessions**: Direct stdio (mcp.json) → Node.js process (~200MB)
+**External Clients**: Gateway (type:remote) → HTTP MCP Server (:3000)
+
+This supersedes the original static mode plan below, which remains for historical reference.
+
+---
+
+## Phase 23b: Container Activity Detection Research (January 12, 2026)
+
+### Problem Reframe
+
+Container cleanup isn't just about age - we need to distinguish:
+
+| Container State | Action |
+|----------------|--------|
+| Active (user connected) | PRESERVE - don't interrupt work |
+| Idle (recently used) | GRACE PERIOD - might reconnect |
+| Orphaned (no connections) | CANDIDATE for cleanup |
+| Stuck/unhealthy | FORCE CLEANUP |
+
+### Container Activity Signals
+
+**Investigation Results** - what signals can we query?
+
+#### 1. TCP Connection Count (BEST SIGNAL)
+```bash
+# ESTABLISHED connections inside container (st=01 in hex)
+docker exec $CONTAINER_ID awk 'NR>1 && $4=="01" {count++} END {print count+0}' /proc/net/tcp
+# Returns: 2 (active connections), 0 (orphaned)
+```
+
+**Interpretation**:
+- `count > 0` = Active MCP session(s) connected via gateway
+- `count == 0` = No clients connected = candidate for cleanup
+
+#### 2. Docker Stats (SECONDARY SIGNAL)
+```bash
+docker stats --no-stream --format "{{.CPUPerc}}\t{{.NetIO}}" $CONTAINER_ID
+# Returns: 0.00%    111MB / 156kB
+```
+
+**Interpretation**:
+- CPU spike = actively processing tool call
+- Network I/O delta = tool traffic in progress
+
+#### 3. Container Health Status
+```bash
+docker inspect $CONTAINER_ID --format '{{.State.Health.Status}}'
+# Returns: healthy, unhealthy, starting, none
+```
+
+**Interpretation**:
+- `unhealthy` = cleanup immediately
+- `healthy` + no connections = orphan candidate
+
+#### 4. Container Labels (METADATA)
+```bash
+docker inspect $CONTAINER_ID --format '{{json .Config.Labels}}' | jq .
+# Labels: docker-mcp=true, docker-mcp-name=eib-mcp-rag
+```
+
+### Proposed Cleanup Algorithm
+
+```
+FOR each container WHERE label "docker-mcp=true":
+    
+    1. CHECK health status
+       IF unhealthy → CLEANUP (immediate)
+    
+    2. CHECK TCP connections
+       connections = exec awk '/proc/net/tcp' count established
+       
+       IF connections > 0:
+           # Active session - DO NOT TOUCH
+           SKIP
+       
+    3. CHECK idle time (using container start time)
+       age = NOW - container.CreatedAt
+       
+       IF connections == 0 AND age > GRACE_PERIOD (30 min):
+           # Orphaned container - safe to cleanup
+           CLEANUP
+       
+       IF connections == 0 AND age <= GRACE_PERIOD:
+           # Recently started, might reconnect
+           LOG "grace period" and SKIP
+```
+
+### Grace Period Rationale
+
+| Scenario | Typical Duration |
+|----------|-----------------|
+| VS Code restart | 2-5 minutes |
+| Network hiccup | 1-2 minutes |
+| Lunch break (tunnel open) | Keep (still connected) |
+| End of day (tunnel closed) | Cleanup after 30 min |
+| Container crash recovery | Systemd handles |
+
+**Recommended Grace Period**: 30 minutes after last connection drop
+
+### Implementation Considerations
+
+1. **Container exec capability**: Cleanup script needs docker exec access
+2. **No network tools in container**: Use `/proc/net/tcp` directly (works!)
+3. **Minimal image impact**: No additional packages needed in MCP container
+4. **Race condition**: Check connections immediately before stop
+
+---
+
+## Implementation Artifacts (Ready to Create)
+
+### Artifact 1: Smart Cleanup Script
+**Target**: `SETUP/bin/mcp-container-cleanup.sh`
+
+```bash
+#!/bin/bash
+# Smart MCP Container Cleanup - Connection Aware
+# Only removes containers with NO active TCP connections
+
+LABEL="docker-mcp=true"
+GRACE_PERIOD_MINUTES=30
+
+for container in $(docker ps -q --filter "label=$LABEL"); do
+    # Check health first
+    health=$(docker inspect "$container" --format '{{.State.Health.Status}}' 2>/dev/null)
+    if [[ "$health" == "unhealthy" ]]; then
+        echo "[CLEANUP] $container - unhealthy"
+        docker stop "$container" && docker rm "$container"
+        continue
+    fi
+    
+    # Count ESTABLISHED TCP connections (st=01)
+    connections=$(docker exec "$container" awk 'NR>1 && $4=="01" {c++} END {print c+0}' /proc/net/tcp 2>/dev/null)
+    
+    if [[ "$connections" -gt 0 ]]; then
+        echo "[ACTIVE] $container - $connections connections"
+        continue
+    fi
+    
+    # Check age for grace period
+    created=$(docker inspect "$container" --format '{{.Created}}')
+    age_seconds=$(( $(date +%s) - $(date -d "$created" +%s) ))
+    age_minutes=$(( age_seconds / 60 ))
+    
+    if [[ "$age_minutes" -gt "$GRACE_PERIOD_MINUTES" ]]; then
+        echo "[CLEANUP] $container - orphaned ($age_minutes min, 0 connections)"
+        docker stop "$container" && docker rm "$container"
+    else
+        echo "[GRACE] $container - waiting ($age_minutes min < $GRACE_PERIOD_MINUTES)"
+    fi
+done
+
+# Cleanup exited containers unconditionally
+docker ps -aq --filter "label=$LABEL" --filter "status=exited" | xargs -r docker rm
+```
+
+### Artifact 2: Systemd Timer
+**Target**: `SETUP/systemd/mcp-container-cleanup.timer`
+
+```ini
+[Unit]
+Description=Smart MCP Container Cleanup Timer
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+### Artifact 3: Systemd Service
+**Target**: `SETUP/systemd/mcp-container-cleanup.service`
+
+```ini
+[Unit]
+Description=Smart MCP Container Cleanup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/eib-mcp-rag/bin/mcp-container-cleanup.sh
+```
+
+---
+
+## Verification Commands
+
+```bash
+# Check current container status
+docker ps --filter "label=docker-mcp=true" --format 'table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}'
+
+# Test connection detection manually
+docker exec <CONTAINER_ID> awk 'NR>1 && $4=="01" {c++} END {print c+0}' /proc/net/tcp
+
+# Dry-run cleanup (just show what would happen)
+# Set GRACE_PERIOD_MINUTES=0 for immediate test
+```
+
+---
+
+## Change Log
+
+| Date | Change |
+|------|--------|
+| 2026-01-12 | Initial static mode investigation |
+| 2026-01-12 | Discovered static mode requires docker-mcp-bridge |
+| 2026-01-12 | Researched container activity detection via TCP connections |
+| 2026-01-12 | Finalized smart cleanup algorithm |
+
+---
+
+## Problem Statement (Original - Still Valid)
 
 ### Observed Issue
 

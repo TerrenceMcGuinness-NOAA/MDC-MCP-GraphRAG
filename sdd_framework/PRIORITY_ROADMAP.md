@@ -1,9 +1,9 @@
 # MCP/RAG System - Priority Roadmap
 
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
-**Last Updated**: January 2, 2026  
+**Last Updated**: January 12, 2026  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development - Phase 11E Complete
+**Status**: Active Development - Phase 23 Investigation Complete
 
 ---
 
@@ -11,14 +11,48 @@
 
 | Component | Status | Metrics |
 |-----------|--------|---------|
-| **MCP Server** | ✅ Operational | v7.1.0, 38 tools across 8 modules |
-| **ChromaDB** | ✅ Healthy | 12 collections, 14,856 documents |
-| **Neo4j** | ✅ Healthy | 2,730 files, 1,481 functions, 85,894 relationships |
-| **Docker Gateway** | ✅ Operational | Port 18888, Streamable HTTP transport |
+| **MCP Server** | ✅ Operational | v7.1.1, 35 tools across 8 modules |
+| **ChromaDB** | ✅ Healthy | 12 collections, 14,968 documents |
+| **Neo4j** | ✅ Healthy | 2,744 files, 1,540 functions, 86,189 relationships |
+| **Docker Gateway** | ⚠️ Under Review | Port 18888, Container accumulation issue identified |
 | **n8n Workflow** | ✅ Operational | Port 5678, MCP Gateway integration |
 | **SDD Validator** | ✅ Operational | 4 tools, standalone server |
 | **GitLab Registry** | ✅ Ready | `chromadb:v134clean` image pushed |
 | **GitFlow Branches** | ✅ Created | develop, env/dev-ops, env/staging, env/production |
+
+---
+
+## ⚠️ Phase 23: Static Mode Multi-User Gateway (REVISED)
+
+**Status**: INVESTIGATION COMPLETE - Architecture decision needed  
+**SDD**: `phase23_static_mode_multiuser_gateway.md`  
+**Analysis**: `mcp_architecture/docs/DOCKER_MCP_GATEWAY_MULTIUSER_ARCHITECTURE.md`
+
+### Investigation Findings (January 12, 2026)
+
+**Original assumption INVALID**: `--static` mode does NOT connect to native MCP servers via stdio.
+
+**Actual requirements for static mode**:
+- Container MUST run `docker-mcp-bridge` entrypoint
+- Bridge listens on TCP port 4444 (not stdio)
+- Gateway uses `socat` to connect
+
+**Key insight**: Container spawning per session is the **intended design** of Docker MCP Gateway.
+
+### Recommended: Hybrid Architecture (Option D)
+
+| Access Method | Transport | Memory/User |
+|---------------|-----------|-------------|
+| VS Code Sessions | Direct stdio (mcp.json) | ~200MB |
+| External Clients | Gateway (type:remote) → HTTP MCP Server | ~200MB shared |
+
+### Implementation Plan
+
+- **Phase 1 (Immediate)**: Disable gateway, use stdio for VS Code
+- **Phase 2 (This Week)**: Add HTTP transport to UnifiedMCPServer.js
+- **Phase 3 (Next Week)**: Complete hybrid with `type: remote` gateway
+
+**Documentation**: See wiki [[Docker_MCP_Gateway_MultiUser_Architecture]]
 
 ---
 
@@ -375,13 +409,14 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ---
 
-## SDD Workflow Inventory (30 Workflows)
+## SDD Workflow Inventory (30+ Workflows)
 
 | Workflow | Status | Purpose |
 |----------|--------|--------|
+| phase23_static_mode_multiuser_gateway | ⚠️ REVISED | Multi-user gateway (Hybrid Architecture recommended) |
 | phase11e_n8n_workflow_automation | ✅ Complete | n8n MCP integration |
 | phase12_devops_gitflow_containerization | ✅ Complete | GitFlow + containers |
-| phase4b_interactive_supervised_execution | 🔴 NEXT | ISD approval gates |
+| phase4b_interactive_supervised_execution | ✅ Complete | ISD approval gates |
 | phase4c_isd_usd_architecture | 🟡 PLANNED | USD sub-agent dispatch |
 | phase4d_multi_tenant_sdd_workspaces | 🟡 PLANNED | Multi-user workspace scaling |
 | phase10_fortran_call_tree_ingestion | 📋 SDD Ready | Fortran analysis |
@@ -389,8 +424,8 @@ An AI-assisted development platform for NOAA operational weather systems that:
 | phase9_metrics_comparative_analysis | 📋 SDD Ready | Productivity metrics |
 | ee2_enhanced_embeddings_workflow | ✅ Complete | EE2 standards ingestion |
 | v7_collection_upgrade_workflow | ✅ Complete | v7 collection migration |
-| bootstrap_capability_workflow | 📋 Blocked | Awaiting Phase 4B |
-| *...and 19 more* | Various | See sdd_framework/workflows/ |
+| bootstrap_capability_workflow | 📋 Blocked | Awaiting Phase 4C USD |
+| *...and 18 more* | Various | See sdd_framework/workflows/ |
 
 ---
 
