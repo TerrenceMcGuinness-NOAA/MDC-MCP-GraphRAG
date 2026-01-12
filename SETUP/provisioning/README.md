@@ -36,6 +36,8 @@ sudo ./provision.sh --list           # List available scripts
 | `09-desktop-vnc.sh` | VNC/noVNC remote desktop | 02 |
 | `10-verification.sh` | Final verification | All |
 | `11-docker-mcp-gateway.sh` | Docker MCP Gateway plugin | 03, 07 |
+| `12-static-mode-gateway.sh` | Phase 23 Static Mode gateway | 11 |
+| `13-container-cleanup.sh` | Smart container cleanup timer | 03 |
 
 ## Architecture
 
@@ -56,6 +58,8 @@ provisioning/
 ├── 09-desktop-vnc.sh     # VNC remote desktop
 ├── 10-verification.sh    # Verification
 ├── 11-docker-mcp-gateway.sh  # Docker MCP Gateway plugin
+├── 12-static-mode-gateway.sh # Phase 23 static mode gateway
+├── 13-container-cleanup.sh   # Smart container cleanup (Phase 23)
 └── README.md             # This file
 ```
 

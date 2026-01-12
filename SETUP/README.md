@@ -212,6 +212,36 @@ docker compose down
 docker compose up -d --build
 ```
 
+### MCP Container Cleanup (Phase 23)
+The smart container cleanup service manages Docker MCP Gateway container lifecycle:
+
+```bash
+# Timer Status
+systemctl list-timers mcp-container-cleanup.timer
+
+# Manual Run (Dry Run - see what would happen)
+MCP_CLEANUP_DRY_RUN=true /opt/eib-mcp-rag/bin/mcp-container-cleanup.sh
+
+# Manual Run (Actually clean up)
+systemctl start mcp-container-cleanup.service
+
+# View Logs
+journalctl -u mcp-container-cleanup.service -f
+
+# Check Current MCP Containers
+docker ps --filter "label=docker-mcp=true" --format 'table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}'
+```
+
+**Cleanup Algorithm**:
+1. Unhealthy containers → Immediate cleanup
+2. Containers with active TCP connections → Preserved (never interrupted)
+3. No connections + age > 30 min → Cleanup (orphaned)
+4. No connections + age < 30 min → Grace period (may reconnect)
+
+**Configuration** (via environment variables):
+- `MCP_CLEANUP_GRACE_MINUTES=30` - Grace period for disconnected containers
+- `MCP_CLEANUP_DRY_RUN=true` - Preview mode (no actual cleanup)
+
 ---
 
 ## Environment Variables
