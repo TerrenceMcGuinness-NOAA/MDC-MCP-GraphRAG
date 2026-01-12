@@ -66,6 +66,16 @@ Configuration sources MUST be singular:
 - Documentation URLs: `mcp_server_node/scripts/documentation_sources_config.py`
 - Environment: `SETUP/mcp-env.sh`
 - MCP config: `.vscode/mcp.json`
+- **Changelog**: `CHANGELOG.md` (root) - Update for ALL version changes
+
+### Changelog Practice
+**ALWAYS update `CHANGELOG.md`** when:
+- Adding/modifying MCP tools
+- Changing infrastructure (Docker, systemd, provisioning)
+- Completing SDD workflow phases
+- Fixing bugs or making breaking changes
+
+Format: Semantic versioning with dated headers. Include commit references where applicable.
 
 ## Key Directories
 
