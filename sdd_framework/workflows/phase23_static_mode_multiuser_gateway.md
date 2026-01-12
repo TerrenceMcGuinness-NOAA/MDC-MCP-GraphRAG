@@ -4,7 +4,7 @@
 
 **Priority**: HIGH (Production stability)
 **Timeline**: January 2026
-**Status**: ✅ RESEARCH COMPLETE - Ready for Implementation
+**Status**: ✅ IMPLEMENTED - Timer active and tested
 **Depends On**: Phase 11 (Docker MCP Gateway) ✅ COMPLETE
 
 ---
@@ -264,6 +264,10 @@ docker exec <CONTAINER_ID> awk 'NR>1 && $4=="01" {c++} END {print c+0}' /proc/ne
 | 2026-01-12 | Discovered static mode requires docker-mcp-bridge |
 | 2026-01-12 | Researched container activity detection via TCP connections |
 | 2026-01-12 | Finalized smart cleanup algorithm |
+| 2026-01-12 | **IMPLEMENTED**: mcp-container-cleanup.sh with TCP detection |
+| 2026-01-12 | **IMPLEMENTED**: Systemd timer (15-min interval, 30-min grace) |
+| 2026-01-12 | **IMPLEMENTED**: Provisioning script 13-container-cleanup.sh |
+| 2026-01-12 | **TESTED**: Timer active, correctly detecting active connections |
 
 ---
 
