@@ -1,0 +1,19 @@
+[Unit]
+Description=Smart MCP Container Cleanup Timer
+Documentation=https://github.com/NOAA-EMC/eib-mcp-rag-server
+# Phase 23: Multi-User Gateway Architecture
+# Runs connection-aware cleanup every 15 minutes
+# See: sdd_framework/workflows/phase23_static_mode_multiuser_gateway.md
+
+[Timer]
+# Start 10 minutes after boot
+OnBootSec=10min
+# Then run every 15 minutes
+OnUnitActiveSec=15min
+# Persist timer across reboots
+Persistent=true
+# Add randomized delay to avoid thundering herd
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

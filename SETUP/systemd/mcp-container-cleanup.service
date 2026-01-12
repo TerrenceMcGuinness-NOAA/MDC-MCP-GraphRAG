@@ -1,0 +1,20 @@
+[Unit]
+Description=Smart MCP Container Cleanup Service
+Documentation=https://github.com/NOAA-EMC/eib-mcp-rag-server
+# Phase 23: Multi-User Gateway Architecture
+# See: sdd_framework/workflows/phase23_static_mode_multiuser_gateway.md
+
+[Service]
+Type=oneshot
+ExecStart=/opt/eib-mcp-rag/bin/mcp-container-cleanup.sh
+Environment=MCP_CLEANUP_GRACE_MINUTES=30
+Environment=MCP_CLEANUP_DRY_RUN=false
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Allow docker socket access
+SupplementaryGroups=docker
