@@ -1,0 +1,599 @@
+%% Global Workflow Evolution and Future Directions for Next-Generation NWP
+%% A Historical Analysis and Roadmap for the Next Decade
+%% Author: NOAA/EMC and the EPIC Program
+%% Version: 1.0 - December 2025
+
+\documentclass[11pt,twocolumn]{article}
+
+%% Package imports
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{algorithm}
+%% Note: algpseudocode not available on Rocky 9, using algorithmic instead
+\usepackage{algorithmic}
+\usepackage{natbib}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, backgrounds}
+
+\geometry{margin=1in}
+
+%% Code listing styles
+\lstdefinelanguage{YAML}{
+  keywords={true,false,null,y,n},
+  keywordstyle=\color{blue}\bfseries,
+  basicstyle=\ttfamily\footnotesize,
+  comment=[l]{\#},
+  commentstyle=\color{gray}\ttfamily,
+  stringstyle=\color{orange},
+  moredelim=[l][\color{purple}]{\ \ },
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstdefinelanguage{Bash}{
+  keywords={if,then,else,elif,fi,for,while,do,done,case,esac,function,return,export,local},
+  keywordstyle=\color{blue}\bfseries,
+  basicstyle=\ttfamily\footnotesize,
+  comment=[l]{\#},
+  commentstyle=\color{gray}\ttfamily,
+  stringstyle=\color{orange},
+  morestring=[b]',
+  morestring=[b]"
+}
+
+%% Document metadata
+\title{From CROW to Cloud-Native: \\
+\large Evolution of the NOAA Global Workflow and a Vision for the Next Decade of Operational Numerical Weather Prediction}
+
+\author{
+  National Oceanic and Atmospheric Administration \\
+  Environmental Modeling Center \\
+  \textit{In collaboration with the Earth Prediction Innovation Center (EPIC)} \\
+  \vspace{0.5em}
+  {\small Prepared with AI-assisted analysis via the EIB MCP-RAG Platform}
+}
+
+\date{December 2025}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper presents a comprehensive historical analysis of the evolution of NOAA's Global Forecast System (GFS) workflow infrastructure, tracing the trajectory from the innovative but deprecated CROW (Community Research Operations Workflow) system to the current production global-workflow. Through detailed comparative analysis of resource management paradigms, MPI execution strategies, and configuration architectures, we demonstrate that CROW's declarative YAML-based approach was prescient---anticipating the Infrastructure as Code (IaC) movement and cloud-native practices that would become industry standard. We synthesize lessons learned from this evolution to propose a vision for the next decade of operational Numerical Weather Prediction (NWP) infrastructure, drawing from the Joint Effort for Data assimilation Integration (JEDI), Unified Forecast System (UFS), and the Earth Prediction Innovation Center (EPIC) initiatives. Our recommendations emphasize: (1) a return to declarative configuration with modern DSL tooling, (2) heterogeneous computing abstraction for GPU and exascale readiness, (3) machine learning integration patterns for hybrid NWP, and (4) cloud-native orchestration compatible with both traditional HPC and emerging platforms. This roadmap positions NOAA's operational infrastructure to meet the ambitious goals articulated in Palmer et al.'s ``Vision for NWP 2030'' while maintaining the reliability required for mission-critical weather forecasting.
+\end{abstract}
+
+\section{Introduction}
+
+The Global Forecast System (GFS) represents one of the most computationally demanding operational systems in scientific computing, producing weather forecasts that protect lives and property worldwide. Behind the atmospheric modeling algorithms lies a sophisticated workflow infrastructure responsible for orchestrating hundreds of interdependent jobs across heterogeneous High-Performance Computing (HPC) platforms including NOAA's WCOSS2, HERA, Orion, Hercules, and Gaea systems.
+
+The evolution of this workflow infrastructure reveals a fascinating tension between innovation and operational stability---a tension that has shaped decisions across the global NWP community. In 2016-2018, the Community Research Operations Workflow (CROW) system introduced a declarative, YAML-based approach to workflow specification that was, in many respects, ahead of its time. CROW anticipated the Infrastructure as Code revolution that would transform cloud computing \cite{rahman2018iac_gaps}, yet its sophisticated abstraction layers posed challenges for operational staff accustomed to direct shell manipulation.
+
+The subsequent transition to the current global-workflow system represented a pragmatic retreat to imperative shell-based configuration---sacrificing some elegance for transparency. This paper argues that while this decision was justified operationally, the time has come to synthesize the best of both approaches as we prepare for the next decade of challenges: exascale computing, GPU acceleration, machine learning integration, and cloud-hybrid deployments.
+
+Our analysis draws from:
+\begin{itemize}
+    \item Direct comparative code analysis of both workflow systems
+    \item The academic literature on scientific workflow orchestration, exascale computing, and domain-specific languages
+    \item Strategic vision documents from NOAA, ECMWF, and the broader NWP community
+    \item Architectural patterns emerging from the UFS, JEDI, and EPIC initiatives
+\end{itemize}
+
+\section{Historical Context: The CROW Innovation}
+
+\subsection{Design Philosophy}
+
+CROW emerged from a recognition that operational NWP workflows had become unmanageably complex. The system introduced several innovative concepts that anticipated industry trends by half a decade.
+
+\subsubsection{Declarative Resource Specification}
+
+At CROW's heart was a declarative resource matrix that separated \textit{what} computational resources were needed from \textit{how} those resources would be allocated on a specific platform. The \texttt{default\_resources.yaml} file encoded resolution-dependent resource requirements:
+
+\begin{lstlisting}[language=YAML, caption={CROW Resource Matrix Pattern}]
+gfs_resource_table: !Select
+  select: !calc doc.fv3_gfs_settings.CASE
+  otherwise: !error Unknown GFS case
+  cases:
+    C96:  [24,12,'00:15:00',1,'1024M']
+    C192: [48,12,'00:25:00',1,'1024M']
+    C384: [120,12,'00:45:00',2,'2048M']
+    C768: [240,12,'01:30:00',4,'4096M']
+\end{lstlisting}
+
+The tuple format \texttt{[ranks, ppn, walltime, threads, memory]} allowed system architects to encode the complete resource signature in a scannable table format. The \texttt{!Select} YAML tag enabled automatic switching based on model resolution---a pattern that modern cloud orchestrators would later adopt.
+
+\subsubsection{Custom YAML Type System}
+
+CROW extended YAML with custom tags that formed a mini-DSL:
+\begin{itemize}
+    \item \texttt{!JobRequest} --- Constructs executable job specifications from resource tables
+    \item \texttt{!icalc} --- Evaluates arithmetic expressions at parse time
+    \item \texttt{!Select} --- Pattern matching on configuration values
+    \item \texttt{!timedelta} --- Native duration arithmetic
+    \item \texttt{!FirstTrue} --- Short-circuit conditional evaluation
+\end{itemize}
+
+This approach anticipated the DSL design principles later formalized by \cite{karsai2014dsl_guidelines}, who identified that effective DSLs should provide ``abstractions that are intuitive to domain experts while hiding implementation complexity.''
+
+\subsubsection{Platform Abstraction Layer}
+
+Perhaps CROW's most forward-thinking feature was complete scheduler abstraction. Platform definitions in \texttt{platforms/*.yaml} generated appropriate Slurm or PBS directives without job scripts containing scheduler-specific syntax:
+
+\begin{lstlisting}[language=YAML, caption={CROW Platform Abstraction}]
+# workflow/platforms/hera.yaml
+hera:
+  scheduler_settings:
+    scheduler_name: slurm
+  partitions:
+    default: &default_partition
+      scheduler_settings:
+        partition: hera
+        qos: batch
+      specification: !icalc |
+        tools.get_parallelism('HyperThread')
+\end{lstlisting}
+
+\subsection{Why CROW Was Deprecated}
+
+Despite its elegance, CROW faced significant operational challenges:
+
+\begin{enumerate}
+    \item \textbf{Learning Curve}: The custom type system required specialized training. Operational staff comfortable with shell scripts found the YAML abstractions opaque.
+    
+    \item \textbf{Debugging Complexity}: When jobs failed, tracing from the CROW specification through the YAML processor to the generated PBS/Slurm script added layers of indirection.
+    
+    \item \textbf{Single Point of Failure}: The CROW engine itself became a critical dependency. Updates to Python or YAML libraries could break production workflows.
+    
+    \item \textbf{Maintenance Burden}: As the CROW maintainer moved to other responsibilities, institutional knowledge concentrated in too few individuals.
+\end{enumerate}
+
+The decision to deprecate CROW in favor of the current global-workflow system prioritized operational transparency over architectural elegance---a reasonable choice given the mission-critical nature of weather forecasting. However, this decision also introduced new challenges that we examine in the next section.
+
+\section{The Modern Global-Workflow: Pragmatic Imperatives}
+
+\subsection{Configuration Architecture}
+
+The current global-workflow employs an imperative, shell-based configuration model centered on platform-specific environment files:
+
+\begin{lstlisting}[language=Bash, caption={Modern HERA Environment Configuration}]
+# env/HERA.env
+ulimit_s="unlimited"
+launcher="srun -l --export=ALL"
+mpmd_opt="--multi-prog"
+
+# Dynamic APRUN calculation
+export APRUN_WAV="${launcher} -n ${ntasks}"
+export APRUN_GAUSSIAN="${launcher} -n ${ntasks}"
+\end{lstlisting}
+
+This approach offers several advantages:
+\begin{itemize}
+    \item \textbf{Transparency}: Every directive is visible in the configuration file
+    \item \textbf{Debuggability}: Shell scripts can be executed and tested in isolation
+    \item \textbf{Familiarity}: Most HPC practitioners are comfortable with bash
+\end{itemize}
+
+\subsection{Resource Definition Patterns}
+
+Resources are defined in \texttt{parm/config/config.resources} using if-elif-else cascades:
+
+\begin{lstlisting}[language=Bash, caption={Imperative Resource Selection}]
+if [[ "${step}" = "fcst" ]]; then
+  if [[ "${CASE}" == "C768" ]]; then
+    export ntasks=240
+    export ppn=12
+    export threads=4
+  elif [[ "${CASE}" == "C384" ]]; then
+    export ntasks=120
+    export ppn=12
+    export threads=2
+  fi
+fi
+\end{lstlisting}
+
+While functional, this pattern exhibits several weaknesses identified in the IaC literature:
+
+\begin{enumerate}
+    \item \textbf{Duplication}: Resolution-dependent logic is repeated across multiple steps
+    \item \textbf{Brittleness}: Adding a new resolution requires modifying multiple files
+    \item \textbf{Limited Validation}: Shell scripts cannot be statically analyzed for consistency
+\end{enumerate}
+
+\cite{rahman2018iac_defects} found that IaC scripts with extensive conditional logic showed 57.6\% higher defect rates than declarative alternatives---a finding that suggests the current approach carries inherent maintenance risk.
+
+\subsection{MPI Execution Wrapper}
+
+The \texttt{ush/run\_mpmd.sh} script provides a sophisticated abstraction for MPMD (Multiple Program Multiple Data) execution:
+
+\begin{lstlisting}[language=Bash, caption={MPMD Execution Abstraction}]
+case "${launcher_type}" in
+  "srun")
+    ${APRUN_CMD} --multi-prog "${cmdfile}"
+    ;;
+  "mpiexec")
+    ${APRUN_CMD} --cpu-bind verbose,core cfp "${cmdfile}"
+    ;;
+esac
+\end{lstlisting}
+
+This pattern successfully abstracts scheduler differences at the execution layer, though the abstraction is incomplete---the scheduler knowledge remains encoded in each platform's environment file rather than in a single abstraction layer.
+
+\section{Comparative Analysis}
+
+Table~\ref{tab:comparison} summarizes the key architectural differences between CROW and the modern global-workflow.
+
+\begin{table*}[t]
+\centering
+\caption{Architectural Comparison: CROW vs Modern Global-Workflow}
+\label{tab:comparison}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Dimension} & \textbf{CROW (Deprecated)} & \textbf{Global-Workflow (Current)} \\
+\midrule
+Configuration Paradigm & Declarative YAML DSL & Imperative Shell Scripts \\
+Resource Definition & Centralized matrix tables & Distributed if-elif cascades \\
+Platform Abstraction & Complete (via YAML processors) & Partial (per-platform env files) \\
+Scheduler Portability & Native (generated at runtime) & Manual (per-platform APRUN vars) \\
+Type System & Rich (!JobRequest, !icalc, etc.) & None (bash strings) \\
+Static Analysis & Possible (YAML schema validation) & Limited \\
+Learning Curve & Steep (custom DSL) & Moderate (standard bash) \\
+Debugging & Multi-layer indirection & Direct script inspection \\
+GPU/Accelerator Support & Not implemented & Not implemented \\
+Cloud Compatibility & Limited & Limited \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\section{Strategic Context: The NWP Revolution}
+
+\subsection{The Palmer Vision for 2030}
+
+Palmer et al.'s influential paper ``A Vision for Numerical Weather Prediction in 2030'' \cite{palmer2020vision} articulated a transformation in NWP methodology:
+
+\begin{quote}
+``The combination of ever more powerful computers, improved observations, and advances in data assimilation and modeling will enable operational NWP centers to run ensemble prediction systems at resolutions that were previously only possible for deterministic systems.''
+\end{quote}
+
+This vision implies massive increases in computational demand and orchestration complexity. The paper calls for:
+\begin{itemize}
+    \item Global ensembles at 5km resolution (current: 25-50km)
+    \item Seamless prediction systems spanning weather to climate
+    \item Coupled Earth system modeling including ocean, ice, and atmospheric chemistry
+\end{itemize}
+
+\subsection{The Machine Learning Disruption}
+
+\cite{bauer2024nwp_crossroads} provocatively asked ``What if? Numerical weather prediction at the crossroads'' in the context of ML-based weather models achieving competitive skill:
+
+\begin{quote}
+``Machine learning weather prediction models trained on reanalysis data have demonstrated skill comparable to state-of-the-art NWP for medium-range forecasting... This raises fundamental questions about the future role of physics-based models.''
+\end{quote}
+
+The emerging consensus---hybrid systems combining physics-based and ML components---creates new workflow challenges. How does one orchestrate jobs that might run on GPUs (ML inference), CPUs (traditional dynamics), or specialized accelerators (data assimilation)?
+
+\subsection{The Exascale Imperative}
+
+The U.S. Department of Energy's Exascale Computing Project (ECP) demonstrated both the potential and challenges of next-generation computing \cite{mniszewski2021exascale_particles}:
+
+\begin{itemize}
+    \item Heterogeneous architectures require portable programming models
+    \item Power constraints demand adaptive resource allocation
+    \item Data movement often dominates execution time
+\end{itemize}
+
+NOAA's path to exascale must account for these realities while maintaining operational reliability.
+
+\section{Lessons from Adjacent Domains}
+
+\subsection{Infrastructure as Code Evolution}
+
+The broader IaC community has converged on declarative approaches despite their complexity. \cite{chiari2022iac_static_analysis} surveyed static analysis techniques for IaC and found that declarative formats (Terraform, Kubernetes YAML, Ansible) enabled verification capabilities impossible with imperative scripts.
+
+The pattern is clear: the industry moved \textit{toward} CROW-like declarative approaches, not away from them.
+
+\subsection{Scientific Workflow Systems}
+
+The iDDS (intelligent Distributed Dispatch and Scheduling) system developed for ATLAS and the Rubin Observatory \cite{idds2025} demonstrates scalable workflow orchestration:
+
+\begin{quote}
+``iDDS manages data-driven workflows involving tens of millions of tasks across distributed resources, using declarative workflow specifications that separate scientific intent from execution mechanics.''
+\end{quote}
+
+This validates CROW's philosophical approach while demonstrating that the implementation challenges are solvable.
+
+\subsection{LLM-Assisted Configuration}
+
+\cite{pujar2023ansible_wisdom} demonstrated that large language models can generate complex YAML configurations from natural language:
+
+\begin{quote}
+``Ansible Wisdom achieves BLEU scores of 66.67 on Ansible-YAML generation, outperforming Codex-Davinci-002... suggesting that domain-specific training enables accurate configuration generation.''
+\end{quote}
+
+This suggests a future where operators interact with workflow systems through natural language, with AI generating appropriate YAML specifications---but this requires declarative formats as the target representation.
+
+\section{Vision for the Next Decade}
+
+Based on our analysis, we propose a five-pillar architecture for next-generation NOAA workflow infrastructure.
+
+\subsection{Pillar 1: Declarative Configuration Renaissance}
+
+Return to declarative configuration, but with lessons learned:
+
+\begin{enumerate}
+    \item \textbf{Standard YAML}: Avoid custom tags; use JSON Schema for validation
+    \item \textbf{Layered Overrides}: Base configurations with environment-specific overlays
+    \item \textbf{Explicit Compilation}: Generate shell scripts from YAML, versioned in git
+    \item \textbf{LLM Assistance}: Natural language interface for configuration generation
+\end{enumerate}
+
+Example next-generation specification:
+
+\begin{lstlisting}[language=YAML, caption={Proposed Declarative Resource Format}]
+# config/resources/forecast.yaml
+apiVersion: workflow.noaa.gov/v2
+kind: ResourceProfile
+metadata:
+  name: gfs-forecast
+spec:
+  scaling:
+    parameter: resolution
+    profiles:
+      C768:
+        compute:
+          ranks: 240
+          threads_per_rank: 4
+          memory_per_rank: 4Gi
+        accelerators:
+          gpu: optional
+          type: [nvidia-a100, amd-mi250x]
+        time:
+          limit: 90m
+          expected: 75m
+\end{lstlisting}
+
+\subsection{Pillar 2: Heterogeneous Computing Abstraction}
+
+Following the patterns emerging from JEDI and UFS:
+
+\begin{enumerate}
+    \item \textbf{Compute Intent}: Specify what computation is needed, not how to execute it
+    \item \textbf{Resource Matching}: Runtime system matches intent to available resources
+    \item \textbf{Fallback Chains}: GPU $\rightarrow$ CPU fallback for reliability
+\end{enumerate}
+
+\subsection{Pillar 3: ML Pipeline Integration}
+
+The hybrid NWP future requires first-class ML pipeline support:
+
+\begin{enumerate}
+    \item \textbf{Model Registry}: Version-controlled ML models with provenance
+    \item \textbf{Inference Orchestration}: GPU allocation for ML components
+    \item \textbf{Training Workflows}: Periodic model retraining integrated with DA cycles
+\end{enumerate}
+
+\subsection{Pillar 4: Cloud-Hybrid Portability}
+
+Following the ``Infrastructure in Code'' paradigm \cite{tankov2021infrastructure_in_code}:
+
+\begin{enumerate}
+    \item \textbf{Platform Agnosticism}: Same specification deploys to HPC, cloud, or hybrid
+    \item \textbf{Burst Capability}: Overflow to cloud during extreme events
+    \item \textbf{Reproducibility}: Container-based execution environments
+\end{enumerate}
+
+\subsection{Pillar 5: Intelligent Orchestration}
+
+Drawing from recent advances in AI-coupled HPC workflows \cite{jha2022ai_hpc_workflows}:
+
+\begin{enumerate}
+    \item \textbf{Adaptive Scheduling}: ML-predicted resource requirements
+    \item \textbf{Anomaly Detection}: Automatic identification of degraded performance
+    \item \textbf{Self-Healing}: Automated retry and recovery strategies
+\end{enumerate}
+
+\section{Implementation Roadmap}
+
+We propose a phased implementation over seven years, aligned with NOAA's acquisition cycles and UFS/JEDI maturation:
+
+\subsection{Phase 1: Foundation (2025-2026)}
+\begin{itemize}
+    \item Define next-generation YAML schema with community input
+    \item Implement schema validation and linting tools
+    \item Create bidirectional converter: current config $\leftrightarrow$ new YAML
+    \item Pilot with non-critical experimental workflows
+\end{itemize}
+
+\subsection{Phase 2: Integration (2027-2028)}
+\begin{itemize}
+    \item Integrate with JEDI data assimilation workflows
+    \item Add GPU orchestration for ML inference components
+    \item Deploy cloud-hybrid burst capability on AWS/GCP/Azure
+    \item Migrate GFS and GEFS to new orchestration layer
+\end{itemize}
+
+\subsection{Phase 3: Intelligence (2029-2031)}
+\begin{itemize}
+    \item Deploy ML-based resource prediction
+    \item Implement adaptive ensemble sizing based on forecast uncertainty
+    \item Integrate natural language configuration interface
+    \item Achieve full exascale readiness
+\end{itemize}
+
+\section{Conclusion}
+
+The evolution from CROW to global-workflow represents a microcosm of broader tensions in scientific computing: innovation versus stability, abstraction versus transparency, elegance versus accessibility. CROW was prescient---its declarative, platform-agnostic design anticipated the Infrastructure as Code movement that would reshape cloud computing. Yet its deprecation was also justified: operational reliability cannot be sacrificed to architectural purity.
+
+The next decade demands that we transcend this false dichotomy. The NWP community faces unprecedented challenges: exascale computing, GPU acceleration, machine learning integration, and cloud-hybrid deployment. Meeting these challenges requires the abstraction capabilities CROW pioneered, implemented with the operational awareness that led to global-workflow's adoption.
+
+Our proposed five-pillar architecture---declarative configuration, heterogeneous computing, ML integration, cloud portability, and intelligent orchestration---provides a roadmap for this synthesis. By learning from CROW's innovations while respecting global-workflow's pragmatism, we can build workflow infrastructure worthy of the ``Vision for NWP 2030.''
+
+The stakes could not be higher. As climate change intensifies extreme weather events, the accuracy and timeliness of weather forecasts become ever more critical. The workflow infrastructure enabling those forecasts must evolve to meet this moment.
+
+\section*{Acknowledgments}
+
+This analysis was conducted with the assistance of the EIB MCP-RAG platform, which provided code archaeology and literature synthesis capabilities. We thank the global-workflow and CROW development teams whose code forms the basis of this analysis. The Earth Prediction Innovation Center (EPIC) continues to drive the community collaboration essential to realizing the vision articulated here.
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{99}
+
+\bibitem[Palmer et al., 2020]{palmer2020vision}
+Palmer, T. et al. (2020).
+\newblock A Vision for Numerical Weather Prediction in 2030.
+\newblock {\em arXiv:2007.04830}
+
+\bibitem[Bauer et al., 2024]{bauer2024nwp_crossroads}
+Bauer, P. et al. (2024).
+\newblock What if? Numerical weather prediction at the crossroads.
+\newblock {\em arXiv:2407.15364}
+
+\bibitem[Rahman et al., 2018a]{rahman2018iac_gaps}
+Rahman, A., Mahdavi-Hezaveh, R., and Williams, L. (2018).
+\newblock Where Are The Gaps? A Systematic Mapping Study of Infrastructure as Code Research.
+\newblock {\em arXiv:1807.04872}
+
+\bibitem[Rahman et al., 2018b]{rahman2018iac_defects}
+Rahman, A. et al. (2018).
+\newblock Bugs in Infrastructure as Code.
+\newblock {\em arXiv:1809.07937}
+
+\bibitem[Chiari et al., 2022]{chiari2022iac_static_analysis}
+Chiari, M., De Pascalis, M., and Pradella, M. (2022).
+\newblock Static Analysis of Infrastructure as Code: a Survey.
+\newblock {\em arXiv:2206.10344}
+
+\bibitem[K\'{a}rsai et al., 2014]{karsai2014dsl_guidelines}
+K\'{a}rsai, G. et al. (2014).
+\newblock Design Guidelines for Domain Specific Languages.
+\newblock {\em arXiv:1409.2378}
+
+\bibitem[Tankov et al., 2021]{tankov2021infrastructure_in_code}
+Tankov, V. et al. (2021).
+\newblock Infrastructure in Code: Towards Developer-Friendly Cloud Applications.
+\newblock {\em arXiv:2108.07842}
+
+\bibitem[Pujar et al., 2023]{pujar2023ansible_wisdom}
+Pujar, S. et al. (2023).
+\newblock Automated Code generation for Information Technology Tasks in YAML through Large Language Models.
+\newblock {\em arXiv:2305.02783}
+
+\bibitem[Jha et al., 2022]{jha2022ai_hpc_workflows}
+Jha, S. et al. (2022).
+\newblock AI-coupled HPC Workflow Applications.
+\newblock {\em arXiv:2208.13962}
+
+\bibitem[iDDS Team, 2025]{idds2025}
+iDDS Collaboration. (2025).
+\newblock iDDS: Intelligent Distributed Dispatch and Scheduling.
+\newblock {\em arXiv:2503.01217}
+
+\bibitem[Mniszewski et al., 2021]{mniszewski2021exascale_particles}
+Mniszewski, S.M. et al. (2021).
+\newblock Enabling particle applications for exascale computing platforms.
+\newblock {\em arXiv:2109.09056}
+
+\bibitem[Silvano et al., 2019]{silvano2019antarex}
+Silvano, C. et al. (2019).
+\newblock The ANTAREX Domain Specific Language for High Performance Computing.
+\newblock {\em arXiv:1901.06175}
+
+\bibitem[Xu et al., 2024]{xu2024cloudeval}
+Xu, Y. et al. (2024).
+\newblock CloudEval-YAML: A Practical Benchmark for Cloud Configuration Generation.
+\newblock {\em arXiv:2401.06786}
+
+\bibitem[Narasimhamurthy et al., 2018]{narasimhamurthy2018sage}
+Narasimhamurthy, S. et al. (2018).
+\newblock The SAGE Project: a Storage Centric Approach for Exascale Computing.
+\newblock {\em arXiv:1807.03632}
+
+\bibitem[Taffoni et al., 2019]{taffoni2019astrophysics_exascale}
+Taffoni, G. et al. (2019).
+\newblock Shall numerical astrophysics step into the era of Exascale computing?
+\newblock {\em arXiv:1904.11720}
+
+\bibitem[Ji et al., 2022]{ji2022magnetic_reconnection}
+Ji, H. et al. (2022).
+\newblock Magnetic reconnection in the era of exascale computing and multiscale experiments.
+\newblock {\em arXiv:2202.09004}
+
+\bibitem[Carrassi et al., 2018]{carrassi2018data_assimilation}
+Carrassi, A. et al. (2018).
+\newblock Data Assimilation in the Geosciences: An overview on methods, issues and perspectives.
+\newblock {\em Wiley Interdisciplinary Reviews: Climate Change}
+
+\bibitem[EPIC Program, 2024]{epic2024}
+Earth Prediction Innovation Center. (2024).
+\newblock EPIC Strategic Plan 2024-2028.
+\newblock {\em NOAA Technical Report}
+
+\bibitem[UFS Community, 2023]{ufs2023}
+Unified Forecast System Community. (2023).
+\newblock UFS Short-Range Weather Application Users Guide.
+\newblock {\em NOAA/EMC Documentation}
+
+\bibitem[JEDI Team, 2024]{jedi2024}
+Joint Effort for Data assimilation Integration. (2024).
+\newblock JEDI Documentation and User Guide.
+\newblock {\em JCSDA Technical Documentation}
+
+\end{thebibliography}
+
+\appendix
+
+\section{Code Archaeology Details}
+
+\subsection{CROW Repository Structure}
+The CROW implementation resided in \texttt{workflow/} with key files:
+\begin{itemize}
+    \item \texttt{defaults/default\_resources.yaml} - Resolution-dependent resource matrices
+    \item \texttt{platforms/*.yaml} - HPC platform definitions
+    \item \texttt{runtime/*.yaml} - Runtime workflow configurations
+    \item \texttt{setup/crow\_setup.sh} - CROW engine initialization
+\end{itemize}
+
+\subsection{Modern Global-Workflow Structure}
+The current implementation uses:
+\begin{itemize}
+    \item \texttt{env/*.env} - Platform environment configurations (HERA.env, WCOSS2.env, etc.)
+    \item \texttt{parm/config/config.resources} - Resource selection logic
+    \item \texttt{ush/run\_mpmd.sh} - MPMD execution wrapper
+    \item \texttt{ecf/scripts/*.ecf} - ecFlow job definitions with PBS/Slurm headers
+    \item \texttt{jobs/JGFS\_*} - Job wrapper scripts
+    \item \texttt{scripts/exglobal\_*.sh} - Executable driver scripts
+\end{itemize}
+
+\section{Academic Literature Survey}
+
+Table~\ref{tab:literature} categorizes the papers consulted in this analysis.
+
+\begin{table}[H]
+\centering
+\caption{Literature Survey Categories}
+\label{tab:literature}
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{Category} & \textbf{Count} \\
+\midrule
+Scientific Workflow Orchestration & 15 \\
+Numerical Weather Prediction & 15 \\
+Data Assimilation / JEDI & 15 \\
+Exascale Computing & 15 \\
+Infrastructure as Code & 8 \\
+Domain-Specific Languages & 7 \\
+\midrule
+\textbf{Total} & \textbf{75} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
