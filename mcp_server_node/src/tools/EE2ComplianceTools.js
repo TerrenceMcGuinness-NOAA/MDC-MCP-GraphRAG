@@ -189,9 +189,12 @@ export class EE2ComplianceTools {
           },
           categories: {
             type: 'array',
-            items: { type: 'string' },
-            default: ['error_handling', 'environment_variables', 'file_naming'],
-            description: 'Compliance categories to analyze'
+            items: { 
+              type: 'string',
+              enum: ['error_handling', 'environment_variables', 'file_naming', 'shebang_compliance', 'production_utilities']
+            },
+            default: ['error_handling', 'environment_variables', 'file_naming', 'shebang_compliance', 'production_utilities'],
+            description: 'Compliance categories to analyze. All 5 categories are now fully implemented.'
           }
         }
         // Note: No required fields - ContentResolver validates at runtime
@@ -690,6 +693,7 @@ export class EE2ComplianceTools {
           const content = fs.readFileSync(file, 'utf-8');
           const lines = content.split('\n');
           const relativePath = path.relative(repository_path, file);
+          const basename = path.basename(file);  // Compute once for all category checks
           
           // Enhanced analysis with code examples and specific fixes
           const fileIssue = {
@@ -824,26 +828,204 @@ export class EE2ComplianceTools {
           
           // File naming check - ENHANCED
           if (categories.includes('file_naming')) {
-            const basename = path.basename(file);
+            const fileNamingViolations = [];
+            
             if (type === 'job_cards' && !basename.match(/^(J|JEVS_)/)) {
-              fileIssue.issues.push('file_naming');
-              fileIssue.examples.push({
+              fileNamingViolations.push({
                 issue: 'Job card naming violation',
                 current: basename,
                 fix: `Rename to JEVS_${basename} or J${basename}`
               });
+            }
+            
+            // Check ex-script naming convention (must start with 'ex')
+            if (type === 'shell_scripts' && relativePath.startsWith('scripts/')) {
+              if (!basename.startsWith('ex')) {
+                fileNamingViolations.push({
+                  issue: 'Ex-script naming violation',
+                  current: basename,
+                  fix: `Scripts in scripts/ directory should start with 'ex' prefix per EE2 standard`,
+                  evidence: 'standards.rst - ex-script naming convention'
+                });
+              }
+            }
+            
+            // Check output file naming patterns in content (line-by-line to avoid multiline issues)
+            for (const line of lines) {
+              // Skip comments and empty lines
+              if (line.trim().startsWith('#') || !line.trim()) continue;
+              
+              // Match COM-related assignment or copy operations
+              const comPattern = line.match(/\$\{?COM(OUT|IN)[^}]*\}?.*["']([^"']+\.[a-zA-Z0-9]+)["']/);
+              if (comPattern) {
+                const filename = comPattern[2];
+                // Check if filename portion (not path/variables) has uppercase
+                const baseName = filename.split('/').pop();
+                if (baseName && !baseName.includes('$') && baseName !== baseName.toLowerCase()) {
+                  fileNamingViolations.push({
+                    issue: 'Uppercase characters in output filename',
+                    current: baseName,
+                    line: lines.indexOf(line) + 1,
+                    fix: `Use lowercase only in output filenames: ${baseName.toLowerCase()}`,
+                    evidence: 'EE2 Section B - Output file naming'
+                  });
+                  break; // Only flag once per file
+                }
+              }
+            }
+            
+            // Push all file_naming violations at once (count file only once)
+            if (fileNamingViolations.length > 0) {
+              fileIssue.issues.push('file_naming');
+              fileIssue.examples.push(...fileNamingViolations);
               issuesByCategory.file_naming.total_files_with_issues++;
             }
           }
           
+          // Shebang compliance check - NEW
+          if (categories.includes('shebang_compliance')) {
+            const violations = [];
+            
+            // Check if file is a shell script
+            if (type === 'shell_scripts' || content.match(/^#!.*\b(bash|sh|ksh)\b/m)) {
+              // 1. Shebang must be on line 1 (no blank lines before)
+              const firstLine = lines[0] || '';
+              if (!firstLine.startsWith('#!')) {
+                // Find where shebang actually is
+                let shebangLine = -1;
+                for (let i = 0; i < Math.min(5, lines.length); i++) {
+                  if (lines[i].startsWith('#!')) {
+                    shebangLine = i;
+                    break;
+                  }
+                }
+                if (shebangLine > 0) {
+                  violations.push({
+                    issue: `Shebang on line ${shebangLine + 1}, must be line 1`,
+                    line: shebangLine + 1,
+                    current: lines[shebangLine],
+                    fix: `Remove ${shebangLine} blank line(s) before shebang`,
+                    evidence: 'EE2 shebang requirement - must be first line'
+                  });
+                } else if (shebangLine === -1 && lines.length > 0) {
+                  violations.push({
+                    issue: 'Missing shebang',
+                    line: 1,
+                    current: firstLine.substring(0, 50),
+                    fix: 'Add shebang as first line: #!/bin/bash or #!/bin/sh',
+                    evidence: 'EE2 shebang requirement'
+                  });
+                }
+              }
+              
+              // 2. Check valid shell types (bash, sh, ksh all OK per SME corrections)
+              const shebangMatch = content.match(/^#!.*\/(bash|sh|ksh|env\s+(bash|sh))/m);
+              if (shebangMatch) {
+                // Valid - no violation
+              } else if (content.match(/^#!/m)) {
+                const actualShebang = lines.find(l => l.startsWith('#!'));
+                if (actualShebang && !actualShebang.match(/python|perl|ruby/)) {
+                  violations.push({
+                    issue: 'Non-standard shebang',
+                    line: 1,
+                    current: actualShebang,
+                    fix: 'Use standard shebang: #!/bin/bash, #!/bin/sh, or #!/bin/ksh',
+                    evidence: 'EE2 - valid shells: bash, sh, ksh'
+                  });
+                }
+              }
+              
+              // 3. J-jobs should have PS4 export for timing
+              if (relativePath.match(/jobs\/J[A-Z]/) || basename.match(/^J[A-Z]/)) {
+                if (!content.includes('PS4=') && !content.includes("PS4='")) {
+                  violations.push({
+                    issue: 'J-job missing PS4 timing export',
+                    fix: "Add: export PS4='+ $SECONDS + '",
+                    evidence: 'standards.rst lines 868-919 - J-job timing requirement'
+                  });
+                }
+              }
+            }
+            
+            if (violations.length > 0) {
+              fileIssue.issues.push('shebang_compliance');
+              fileIssue.examples.push(...violations);
+              issuesByCategory.shebang_compliance.total_files_with_issues++;
+            }
+          }
+          
+          // Production utilities check - NEW
+          if (categories.includes('production_utilities')) {
+            const violations = [];
+            
+            if (type === 'shell_scripts') {
+              // 1. Check for err_chk/err_exit usage in operational scripts
+              const isOperational = relativePath.match(/scripts\/ex|jobs\/J/);
+              if (isOperational) {
+                // Operational scripts should use production utilities
+                const hasErrChk = content.match(/err_chk|err_exit/);
+                const hasExplicitExit = content.match(/\bexit\s+[1-9]/);
+                
+                if (hasExplicitExit && !hasErrChk) {
+                  violations.push({
+                    issue: 'Using explicit exit instead of err_exit utility',
+                    example: content.match(/\bexit\s+[1-9].*/)?.[0]?.trim(),
+                    fix: 'Replace "exit N" with err_exit utility for proper NCO error handling',
+                    evidence: 'standards.rst - NCO SPA prohibits forced exits',
+                    phase2_correction: 'Use err_exit utility, NOT explicit exit statements'
+                  });
+                }
+              }
+              
+              // 2. Check for proper logging utility usage
+              if (isOperational && !content.match(/set -x/)) {
+                violations.push({
+                  issue: 'Missing debug logging',
+                  fix: 'Add "set -x" near top of script for debug logging',
+                  evidence: 'standards.rst lines 588-595'
+                });
+              }
+              
+              // 3. Check for postmsg usage in J-jobs (optional but recommended)
+              if (relativePath.match(/jobs\/J/) && !content.match(/postmsg|msg=/)) {
+                // Note: This is a recommendation, not a hard requirement
+                violations.push({
+                  issue: 'J-job missing postmsg calls',
+                  fix: 'Consider adding postmsg calls for job status tracking',
+                  evidence: 'NCO operational best practice',
+                  severity: 'info'
+                });
+              }
+              
+              // 4. Check for SENDCOM usage pattern
+              if (content.match(/SENDCOM/) && !content.match(/SENDCOM.*:-|SENDCOM.*:=/)) {
+                // SENDCOM should have a default value
+                violations.push({
+                  issue: 'SENDCOM without default value',
+                  fix: 'Use ${SENDCOM:-YES} pattern for proper default handling',
+                  evidence: 'EE2 environment variable defaults'
+                });
+              }
+            }
+            
+            if (violations.length > 0) {
+              fileIssue.issues.push('production_utilities');
+              fileIssue.examples.push(...violations);
+              issuesByCategory.production_utilities.total_files_with_issues++;
+            }
+          }
+          
+          // Debug: Log each file's issues
           if (fileIssue.issues.length > 0) {
+            console.error(`[DEBUG] File ${relativePath}: issues=${fileIssue.issues.join(',')}, examples=${fileIssue.examples.length}`);
             fileIssues.push(fileIssue);
             for (const issue of fileIssue.issues) {
-              if (issuesByCategory[issue].specific_files.length < 20) {
+              if (issuesByCategory[issue] && issuesByCategory[issue].specific_files.length < 20) {
                 issuesByCategory[issue].specific_files.push(relativePath);
+                console.error(`[DEBUG] Added ${relativePath} to ${issue}.specific_files`);
               }
               // Store first 3 examples per category
-              if (issuesByCategory[issue].common_patterns.length < 3) {
+              if (issuesByCategory[issue] && issuesByCategory[issue].common_patterns.length < 3) {
                 issuesByCategory[issue].common_patterns.push(...fileIssue.examples.slice(0, 1));
               }
             }

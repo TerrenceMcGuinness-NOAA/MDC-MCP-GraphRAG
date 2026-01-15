@@ -1,5 +1,54 @@
 # MCP Server Changelog
 
+## [7.1.4] - EE2 Compliance Tool Bug Fixes (January 15, 2026)
+
+### Fixed
+- **Variable scoping bug** in `scan_repository_compliance`:
+  - `basename` variable now computed once per file at loop start
+  - Previously caused "basename is not defined" errors in shebang_compliance category
+
+- **Output filename false positive** in `file_naming` category:
+  - Replaced multiline regex with line-by-line parsing to avoid capturing comments
+  - Now correctly identifies uppercase in actual output filenames, not comments
+
+- **Debug logging** added for issue tracking:
+  - Per-file debug output shows issues found and category assignments
+  - Post-scan summary shows issues by category before filtering
+
+### Changed
+- Increased robustness of COM/COMOUT pattern matching for output file naming
+
+---
+
+## [7.1.3] - EE2 Compliance Tool Enhancement (January 15, 2026)
+
+### Added
+- **`shebang_compliance` category** in `scan_repository_compliance`:
+  - Validates shebang is on line 1 (no blank lines before)
+  - Checks for valid shell types (bash, sh, ksh per SME corrections)
+  - Verifies J-jobs have `PS4` timing export per standards.rst lines 868-919
+
+- **`production_utilities` category** in `scan_repository_compliance`:
+  - Checks for `err_chk`/`err_exit` usage instead of explicit `exit N` statements
+  - Validates `set -x` debug logging presence in operational scripts
+  - Checks `SENDCOM` default value pattern
+  - Warns on missing `postmsg` calls in J-jobs (info severity)
+
+- **Enhanced `file_naming` category**:
+  - Ex-script prefix validation (scripts in scripts/ must start with 'ex')
+  - Output filename case checking (no uppercase in resolved filenames)
+  - COM/COMOUT pattern analysis
+
+### Changed
+- Tool schema now lists all 5 implemented categories with enum constraint
+- Default categories expanded from 3 to 5 (error_handling, environment_variables, file_naming, shebang_compliance, production_utilities)
+- Improved category documentation in tool description
+
+### Fixed
+- Categories `shebang_compliance` and `production_utilities` were listed in schema but not implemented (now fixed)
+
+---
+
 ## [7.1.2] - Academic Citations for Forward-Looking Documents (January 15, 2026)
 
 ### Added
