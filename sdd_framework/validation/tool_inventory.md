@@ -1,10 +1,27 @@
 # MCP Tool Inventory & Consolidation Analysis
-**Date**: 2025-10-16  
+**Date**: 2025-10-16 (Updated January 15, 2026)  
 **Purpose**: Audit existing tools and plan consolidation
 
 ---
 
-## Current Tool Count: 26 Tools
+## Roadmap Alignment
+
+This inventory supports the **GraphRAG Enhancement Roadmap**:
+
+| Phase | Tools Impacted | Status |
+|-------|----------------|--------|
+| Phase 22 | Validation/benchmarking tools | PLANNING |
+| Phase 24 | `speculative_search_documentation` (new) | PROSPECTUS Q2 2026 |
+
+**Vision Reference**: [ADVANCED_FUTURE_WORK.md §3](../../docs/development/ADVANCED_FUTURE_WORK.md#3-true-graphrag-fusion)
+
+---
+
+## Current Tool Count: 35 Tools (January 2026)
+
+> **Note**: This section was originally 26 tools. After Week 2 consolidation and 
+> subsequent phases, the current production count is **35 tools across 8 modules**.
+> See [PRIORITY_ROADMAP.md](../PRIORITY_ROADMAP.md) for current status.
 
 ### Tool Distribution by Module
 

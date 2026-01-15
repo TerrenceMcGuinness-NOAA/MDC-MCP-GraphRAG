@@ -1,5 +1,34 @@
 # MCP Server Changelog
 
+## [7.1.2] - Academic Citations for Forward-Looking Documents (January 15, 2026)
+
+### Added
+- **Phase 24 SDD References**: Added 16 peer-reviewed citations to `phase24_graph_guided_speculative_retrieval.md`
+  - GraphRAG Foundations: LEGO-GraphRAG, AGRAG, XGraphRAG, TERAG, GraphRAG Survey
+  - Token-Efficient Retrieval: CORAG, HiRAG, Plan*RAG
+  - Code Knowledge Graphs: CKGFuzzer, GraphGen4Code
+  - Weather/NWP AI Context: Pangu-Weather, FuXi-2.0
+
+- **ADVANCED_FUTURE_WORK.md Section 7**: Comprehensive references section with 5 categories
+  - GraphRAG and Knowledge Graph-Enhanced Retrieval (6 papers)
+  - Token Budget and Cost-Constrained Retrieval (4 papers)
+  - Code Knowledge Graphs (4 papers)
+  - Weather Forecasting AI (5 papers)
+  - Multi-Modal and Visual Understanding (2 papers)
+
+### Changed
+- Converted placeholder external references to actual arXiv citations with links
+- Added table format for all citations with arXiv IDs and relevance notes
+
+### Documentation
+All citations sourced via MCP paper discovery tools (`search_papers`) using arXiv API:
+- GraphRAG query: 15 results analyzed
+- Token budget query: 10 results analyzed
+- Code knowledge graph query: 10 results analyzed
+- Weather forecasting ML query: 8 results analyzed
+
+---
+
 ## [7.1.1] - Docker MCP Catalog Registration & Systemd Service (January 9, 2026)
 
 ### Added

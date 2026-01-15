@@ -44,6 +44,22 @@ For detailed SDD agentic patterns and multi-step execution guidance, see:
 - [spec_driven_design_core.md](sdd_framework/methodology/spec_driven_design_core.md)
 - [phase4c_isd_usd_architecture.md](sdd_framework/workflows/phase4c_isd_usd_architecture.md)
 
+### Roadmap Alignment Principle
+
+All SDD workflows must maintain **convergent success paths** through explicit cross-referencing:
+
+1. **Vision → Implementation**: Every phase SDD must reference its vision document
+2. **Implementation → Validation**: Downstream phases must be declared
+3. **Novel Contributions**: Document additions beyond original vision
+
+**Key Alignment Chain** (GraphRAG):
+```
+ADVANCED_FUTURE_WORK.md §3  ──►  Phase 24 SDD  ──►  Phase 22 SDD
+(True GraphRAG Vision)          (GGSR Q2 2026)     (Validation Q1 2026)
+```
+
+See [Roadmap Alignment Principles](sdd_framework/methodology/spec_driven_design_core.md#-roadmap-alignment-principles) for the full protocol.
+
 ### MCP-First Policy
 Always try MCP tools before shell commands when analyzing code:
 ```javascript
@@ -143,7 +159,7 @@ python3 -m pip install --user chromadb sentence-transformers
 
 ### Architecture
 ```
-AI Clients (LangFlow, VS Code, Claude Desktop)
+AI Clients (n8n, VS Code, Claude Desktop)
               │
               ▼
      Docker MCP Gateway (docker-mcp plugin)
@@ -159,7 +175,7 @@ ChromaDB            Neo4j
 (vectors)           (graph)
 ```
 
-### Quick Start - Gateway + LangFlow
+### Quick Start - Gateway + n8n
 ```bash
 # Start gateway with Streamable HTTP transport (bidirectional)
 SETUP/bin/start-mcp-gateway.sh --background
@@ -195,11 +211,13 @@ docker mcp gateway run --servers eib-mcp-rag --dry-run --verbose
 # Should show: > eib-mcp-rag: (35 tools)
 ```
 
-### LangFlow Connection
+### n8n Connection
 1. Gateway URL: `http://host.docker.internal:18888/mcp` (from container) or `http://localhost:18888/mcp`
-2. Transport: HTTP (Streamable HTTP)
-3. Authorization header: `Bearer eib-mcp-gateway-token-2025`
-4. Select `eib-mcp-rag` server in MCP Tools component
+2. n8n runs on port 5678 (`http://localhost:5678`)
+3. Use HTTP Request node with `this.helpers.httpRequest()` for MCP calls
+4. Authorization header: `Bearer eib-mcp-gateway-token-2025`
+
+**Note**: LangFlow was removed due to MCP client bugs (dict race condition, asyncio scoping). n8n provides more reliable workflow automation.
 
 ### Gateway Commands
 ```bash
@@ -251,8 +269,8 @@ The gateway container mounts two directories for functionality (security-hardene
 **Security Note**: The `scripts/` directory is NOT mounted - documentation sources config is baked into the container image at build time (`config/documentation_sources.json`) to prevent external LLMs from accessing or modifying tool internals.
 
 ### Verified Working (December 17-19, 2025)
-- [x] Gateway discovers all 34 tools
-- [x] LangFlow connects via SSE transport
+- [x] Gateway discovers all 35 tools
+- [x] n8n connects via HTTP Request node (replaced LangFlow)
 - [x] ChromaDB queries work through container
 - [x] Neo4j queries work through container
 - [x] Bearer token authentication working

@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "eib-mcp-gateway": {
+      "type": "http",
+      "url": "http://localhost:18888/mcp",
+      "headers": {
+        "Authorization": "Bearer eib-mcp-gateway-token-2025"
+      }
+    }
+  }
+}

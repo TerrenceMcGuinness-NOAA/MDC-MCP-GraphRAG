@@ -1,6 +1,15 @@
-# Phase 11: Docker MCP Gateway + LangFlow Integration
+# Phase 11: Docker MCP Gateway Integration
 
-**Description**: Deploy the MCP RAG server as a Docker-based MCP service using Docker MCP Gateway, enabling LangFlow integration for advanced tool chain development and intermediate response inspection.
+> **⚠️ IMPLEMENTATION NOTE (December 2025)**  
+> LangFlow was replaced by **n8n** during implementation due to MCP client bugs:
+> - Dict race condition in LangFlow's MCP component
+> - Asyncio scoping issues breaking multi-turn sessions
+> 
+> The Docker MCP Gateway architecture remains as designed. n8n connects via
+> HTTP Request node using `this.helpers.httpRequest()`. See Phase 11E in
+> `PRIORITY_ROADMAP.md` for n8n implementation details.
+
+**Description**: Deploy the MCP RAG server as a Docker-based MCP service using Docker MCP Gateway, enabling workflow automation integration for advanced tool chain development and intermediate response inspection.
 
 **Rationale**: The current stdio-based MCP integration with VS Code works for end-user assistance but limits our ability to:
 1. Inspect intermediate tool responses in the MCP chain
@@ -18,15 +27,15 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                     AI Clients                                   │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ LangFlow │  │ VS Code  │  │  Claude  │  │  Cursor  │        │
-│  │          │  │ Copilot  │  │ Desktop  │  │          │        │
+│  │   n8n    │  │ VS Code  │  │  Claude  │  │  Cursor  │        │
+│  │ Workflow │  │ Copilot  │  │ Desktop  │  │          │        │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
 │       │             │             │             │               │
 │       └─────────────┴──────┬──────┴─────────────┘               │
 │                            │                                     │
 │                   ┌────────▼────────┐                           │
 │                   │  Docker MCP     │                           │
-│                   │    Gateway      │ Port 8080 (streaming)     │
+│                   │    Gateway      │ Port 18888 (streaming)    │
 │                   │  (docker-mcp)   │                           │
 │                   └────────┬────────┘                           │
 │                            │                                     │
@@ -280,6 +289,11 @@ docker mcp gateway run --port 8080 --transport streaming
 ---
 
 ## Phase 11C: LangFlow Integration
+
+> **⛔ DEPRECATED (December 2025)**  
+> This section documents the *original* LangFlow integration plan.  
+> LangFlow was replaced by n8n. See **Phase 11E in PRIORITY_ROADMAP.md** for the
+> actual n8n implementation. The content below is preserved for historical reference.
 
 ### Step 7: Configure LangFlow MCP Component
 **Type**: configuration

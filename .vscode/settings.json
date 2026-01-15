@@ -35,5 +35,11 @@
         "eib-mcp-rag-server/.vscode/mcp.json: eib-mcp-rag-full": {
             "allowedModels": []
         }
+    },
+    "chat.tools.terminal.autoApprove": {
+        "/^# Fix the duplicate line issue\nsudo sed -i '/--network global-workflow-mcp-rag/\\{n;/--network global-workflow-mcp-rag/d;\\}' /etc/systemd/system/mcp-rag\\.service\n\n# Also need to update DB hosts - on the user network, containers can use service names\n# ChromaDB and Neo4j are on the same network\nsudo sed -i 's/CHROMADB_HOST=172\\.17\\.0\\.1/CHROMADB_HOST=chromadb/' /etc/systemd/system/mcp-rag\\.service\nsudo sed -i 's/bolt:\\\\/\\\\/172\\.17\\.0\\.1:7687/bolt:\\\\/\\\\/global-workflow-neo4j:7687/' /etc/systemd/system/mcp-rag\\.service\n\ncat /etc/systemd/system/mcp-rag\\.service \\| head -45$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

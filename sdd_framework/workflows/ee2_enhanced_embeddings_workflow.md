@@ -12,6 +12,19 @@ Strategic shift from web crawling to **source-level semantic annotation** for EE
 
 ---
 
+## 📐 Roadmap Alignment
+
+This workflow establishes the **EE2 semantic layer** that feeds into the GraphRAG roadmap:
+
+| Downstream Phase | Relationship | How This Enables |
+|------------------|--------------|------------------|
+| Phase 22 | Validation | EE2 docs used as ground truth for benchmark queries |
+| Phase 24 | GraphRAG | EE2 nodes linked in graph for speculative pre-fetch |
+
+**Vision Reference**: [ADVANCED_FUTURE_WORK.md §3](../../docs/development/ADVANCED_FUTURE_WORK.md#3-true-graphrag-fusion)
+
+---
+
 ## 🎯 Strategic Advantages
 
 ### OLD Approach ❌

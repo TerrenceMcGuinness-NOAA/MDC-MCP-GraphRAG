@@ -4,7 +4,26 @@
 
 The Enhanced RAG System represents a complete transformation of the original RAG implementation, evolving from a local-only document processor to a comprehensive, multi-source knowledge platform. This system now integrates 60+ external documentation sources with local repository knowledge, providing unprecedented access to the entire NOAA Global Workflow ecosystem.
 
-## 📋 System Capabilities
+## � Roadmap Alignment
+
+This architecture is the foundation for the **GraphRAG Enhancement Roadmap**:
+
+| Document | Relationship | Timeline |
+|----------|--------------|----------|
+| [ADVANCED_FUTURE_WORK.md §3](../../docs/development/ADVANCED_FUTURE_WORK.md#3-true-graphrag-fusion) | Vision: True GraphRAG Fusion | Q2-Q4 2026 |
+| [Phase 22 SDD](../workflows/phase22_validation_benchmarking_subsystem.md) | Validation framework | Q1 2026 |
+| [Phase 24 SDD](../workflows/phase24_graph_guided_speculative_retrieval.md) | Implementation: GGSR | Q2 2026 |
+
+**Evolution Path**:
+```
+Current (Hybrid Search)  ──►  Phase 24 (Speculative)  ──►  Phase 3-4 Vision (GNN)
+    ChromaDB + Neo4j             Graph-Guided               Learned Graph
+    Parallel Queries             Pre-fetch                  Embeddings
+```
+
+---
+
+## �📋 System Capabilities
 
 ### **10x Knowledge Expansion**
 - **Before**: ~1,000 local document chunks

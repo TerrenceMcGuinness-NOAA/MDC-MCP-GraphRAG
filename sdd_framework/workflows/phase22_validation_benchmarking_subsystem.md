@@ -5,6 +5,7 @@
 **Status**: PLANNING  
 **Priority**: High  
 **Prerequisite**: Phase 4C ISD/USD Architecture (complete), Phase 9 Metrics (partial)  
+**Downstream Consumers**: [Phase 24 - Graph-Guided Speculative Retrieval](phase24_graph_guided_speculative_retrieval.md) (GGSR benchmarking)  
 **Date**: January 5, 2026
 
 ---

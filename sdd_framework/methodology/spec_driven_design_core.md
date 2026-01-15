@@ -29,8 +29,60 @@ The SDD framework provides two primary functions:
 - ✅ **Phase 12**: DevOps GitFlow & Containerization
 - 🔴 **Phase 4B**: ISD approval gates (next priority)
 - 🟡 **Phase 4C**: USD sub-agent dispatch (planned)
+- 🟢 **Phase 22**: Validation & Benchmarking (Q1 2026)
+- 🟢 **Phase 24**: Graph-Guided Speculative Retrieval (Q2 2026)
 
 ---
+
+## 📐 **Roadmap Alignment Principles**
+
+All SDD workflows must maintain **convergent success paths** through explicit cross-referencing:
+
+### **Alignment Requirements**
+
+1. **Vision → Implementation Traceability**
+   - Every implementation phase MUST reference its vision document
+   - Vision documents (e.g., `ADVANCED_FUTURE_WORK.md`) MUST link to implementing SDDs
+
+2. **Dependency Declaration**
+   - Upstream dependencies: What this phase requires
+   - Downstream consumers: What phases depend on this one
+
+3. **Roadmap Coherence Table**
+   - Map vision phases to implementation phases
+   - Note deferred items explicitly
+   - Document novel contributions beyond the original vision
+
+### **Example: Phase 24 Alignment**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Vision: ADVANCED_FUTURE_WORK.md §3 "True GraphRAG Fusion"  │
+└────────────────────────┬────────────────────────────────────┘
+                         │ implements
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Implementation: Phase 24 SDD (GGSR)                        │
+│  • Entity extraction (Vision Phase 1) ─► P24A               │
+│  • Relationship weights (Vision Phase 2) ─► P24B            │
+│  • Graph embeddings (Vision Phase 3) ─► DEFERRED Q3         │
+│  • + Novel: Speculative pre-fetch                           │
+│  • + Novel: Token budget management                         │
+└────────────────────────┬────────────────────────────────────┘
+                         │ depends on
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Validation: Phase 22 SDD (Benchmarking)                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### **Maintenance Protocol**
+
+When creating or modifying an SDD workflow:
+1. Check `ADVANCED_FUTURE_WORK.md` for related vision items
+2. Check `PRIORITY_ROADMAP.md` for dependency context
+3. Add cross-references in both directions
+4. Update the SDD Workflow Inventory table in PRIORITY_ROADMAP.md
 
 ## 🏗️ **SDD Architecture Foundation (WEEK 1 Specification)**
 
@@ -178,7 +230,7 @@ describe('Tool Health Integration', () => {
 - **ChromaDB**: API v1/v2 endpoints, heartbeat, collection count
 - **Neo4j**: Docker service status, connection availability  
 - **MCP REST API**: Port 3000 responsiveness
-- **LangFlow**: Workflow engine health
+- **n8n**: Workflow automation health (port 5678)
 
 #### **2. MCP Client Health (`mcp_server_node/test/health-check-mcp.sh`)**
 **Diagnostics**:

@@ -284,6 +284,41 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ---
 
+### 🟢 Phase 22: Validation & Benchmarking Subsystem
+**Goal**: Establish empirical validation framework for hybrid search improvements  
+**Status**: PLANNING  
+**Why**: Cannot improve what we cannot measure  
+**Deliverables**:
+- [ ] Ground truth test suite (100+ query/answer pairs)
+- [ ] Benchmark runner (vector-only vs. hybrid vs. graph-only)
+- [ ] Regression testing for code changes
+- [ ] Quality metrics dashboard
+
+**Timeline**: Q1 2026  
+**Blocks**: Phase 24 (requires validation framework)
+
+---
+
+### 🟢 Phase 24: Graph-Guided Speculative Retrieval (Q2 2026)
+**Goal**: Move from tool-assisted RAG to inference-integrated RAG  
+**Status**: PROSPECTUS  
+**SDD**: `phase24_graph_guided_speculative_retrieval.md`  
+**Implements**: [ADVANCED_FUTURE_WORK.md §3](../docs/development/ADVANCED_FUTURE_WORK.md#3-true-graphrag-fusion) Phases 1-2
+
+**Key Innovation**: Pre-load graph neighborhood into context BEFORE user asks follow-up questions
+
+**Deliverables**:
+- [ ] Entity extraction and Neo4j linking module
+- [ ] Cypher traversal queries (1-2 hop neighborhoods)
+- [ ] Relationship weight matrix (CALLS=1.0, SOURCES=0.95, etc.)
+- [ ] Token budget management (4K-8K speculative context)
+- [ ] MCP tool integration (`speculative_search_documentation`)
+
+**Timeline**: 10 weeks (Q2 2026)  
+**Depends On**: Phase 22 (validation framework for benchmarking)
+
+---
+
 ### 🟢 Phase 9: Metrics & Comparative Analysis
 **Goal**: Quantify productivity improvements  
 **Status**: SDD exists  
@@ -418,7 +453,9 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 | Workflow | Status | Purpose |
 |----------|--------|--------|
+| phase24_graph_guided_speculative_retrieval | 🟢 PROSPECTUS | GraphRAG: speculative pre-fetch (Q2 2026) |
 | phase23_static_mode_multiuser_gateway | ⚠️ REVISED | Multi-user gateway (Hybrid Architecture recommended) |
+| phase22_validation_benchmarking_subsystem | 🟡 PLANNING | Empirical validation framework |
 | phase11e_n8n_workflow_automation | ✅ Complete | n8n MCP integration |
 | phase12_devops_gitflow_containerization | ✅ Complete | GitFlow + containers |
 | phase4b_interactive_supervised_execution | ✅ Complete | ISD approval gates |

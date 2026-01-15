@@ -3,8 +3,22 @@
 **Document Type**: Strategic Development Roadmap  
 **Target**: Q2 2026 Funding Cycle  
 **Status**: Draft for Review  
-**Last Updated**: January 6, 2026  
+**Last Updated**: January 15, 2026  
 **Authors**: EIB Development Team
+
+---
+
+## 📐 Implementation Traceability
+
+This is a **Vision Document**. The following SDD workflows implement sections of this roadmap:
+
+| Section | Implementation SDD | Status | Timeline |
+|---------|-------------------|--------|----------|
+| §3 True GraphRAG Fusion (Phases 1-2) | [phase24_graph_guided_speculative_retrieval.md](../../sdd_framework/workflows/phase24_graph_guided_speculative_retrieval.md) | PROSPECTUS | Q2 2026 |
+| §3 True GraphRAG Fusion (Phases 3-4) | Not yet planned | — | Q3-Q4 2026 |
+| Validation Framework | [phase22_validation_benchmarking_subsystem.md](../../sdd_framework/workflows/phase22_validation_benchmarking_subsystem.md) | PLANNING | Q1 2026 |
+
+**Alignment Protocol**: See [Roadmap Alignment Principles](../../sdd_framework/methodology/spec_driven_design_core.md#-roadmap-alignment-principles)
 
 ---
 
@@ -251,6 +265,10 @@ Transform the MCP/RAG system from a **static knowledge retrieval** system to a *
 ---
 
 ## 3. True GraphRAG Fusion
+
+> **✅ IMPLEMENTATION STARTED: See [Phase 24 SDD](../../sdd_framework/workflows/phase24_graph_guided_speculative_retrieval.md)**  
+> Phase 24 (Q2 2026) implements Phases 1-2 below as "Graph-Guided Speculative Retrieval" (GGSR),
+> adding speculative pre-fetch and token budget management as novel contributions.
 
 ### 3.1 Current Limitation
 
@@ -622,6 +640,56 @@ eupd -[BLOCKS]-> esfc -[BLOCKS]-> ecmn -[BLOCKS]-> efmn -[BLOCKS]-> epmn
 And the RAG would pull documentation for ALL affected downstream jobs, not just `eupd`.
 
 **This single diagram encodes more operational knowledge than 50 pages of text.** That's why multi-modal ingestion is item #1 on our roadmap!
+
+---
+
+## 7. References
+
+### 7.1 GraphRAG and Knowledge Graph-Enhanced Retrieval
+
+| Citation | arXiv | Relevance |
+|----------|-------|-----------|
+| He et al. (2025), "GraphRAG Under Fire: A Comprehensive Survey" | [2501.00309](https://arxiv.org/abs/2501.00309) | Foundational taxonomy of graph-enhanced RAG methods |
+| Fang et al. (2024), "LEGO-GraphRAG: Modularizing Graph-based RAG" | [2411.05844](https://arxiv.org/abs/2411.05844) | Modular framework design space exploration |
+| Wu et al. (2025), "AGRAG: Agentic Graph RAG" | [2511.05549](https://arxiv.org/abs/2511.05549) | Multi-agent orchestration for GraphRAG |
+| Zhou et al. (2025), "XGraphRAG: Explainable GraphRAG" | [2506.13782](https://arxiv.org/abs/2506.13782) | Interpretable graph traversal mechanisms |
+| Wang et al. (2025), "TERAG: Token-Efficient GraphRAG" | [2509.18667](https://arxiv.org/abs/2509.18667) | Cost-effective context compression |
+| Yang et al. (2024), "ROGRAG: Robustness-Oriented GraphRAG" | [2503.06474](https://arxiv.org/abs/2503.06474) | Edge case handling in graph retrieval |
+
+### 7.2 Token Budget and Cost-Constrained Retrieval
+
+| Citation | arXiv | Relevance |
+|----------|-------|-----------|
+| Ravi et al. (2024), "CORAG: Cost-Constrained Retrieval Optimization" | [2411.00744](https://arxiv.org/abs/2411.00744) | Budget-aware retrieval under token limits |
+| Liu et al. (2024), "HiRAG: Hierarchical RAG" | [2408.11875](https://arxiv.org/abs/2408.11875) | Multi-level context selection |
+| Baek et al. (2024), "Plan*RAG: Planning-Guided RAG for Decision QA" | [2410.20753](https://arxiv.org/abs/2410.20753) | Multi-step retrieval planning |
+| Zhao et al. (2023), "DRAG: Dense Retrieval-Augmented Generation" | [2312.08976](https://arxiv.org/abs/2312.08976) | Efficient dense retrieval optimization |
+
+### 7.3 Code Knowledge Graphs
+
+| Citation | arXiv | Relevance |
+|----------|-------|-----------|
+| Wei et al. (2024), "CKGFuzzer: LLM-Based Fuzz Driver via Code KG" | [2411.11532](https://arxiv.org/abs/2411.11532) | Automated code knowledge graph construction |
+| Abdelaziz et al. (2020), "GraphGen4Code: A Graph-based Code Framework" | [2002.09440](https://arxiv.org/abs/2002.09440) | 2 billion code relationships at scale |
+| Jayasundara et al. (2020), "TreeCaps: Tree-Based Capsule Networks" | [2009.09777](https://arxiv.org/abs/2009.09777) | Code structure representation learning |
+| Liu et al. (2023), "SMARTKT: Code Representation Learning" | [2308.06653](https://arxiv.org/abs/2308.06653) | Multi-level code abstraction |
+
+### 7.4 Weather Forecasting AI
+
+| Citation | arXiv | Relevance |
+|----------|-------|-----------|
+| Bi et al. (2022), "Pangu-Weather: 3D High-Resolution Weather Forecasting" | [2211.02556](https://arxiv.org/abs/2211.02556) | AI outperforming NWP operational systems |
+| Chen et al. (2024), "FuXi-2.0: Generalized AI Weather Foundation Model" | [2409.07188](https://arxiv.org/abs/2409.07188) | Multi-modal forecasting foundation model |
+| Liu et al. (2025), "XiChen: Large-Scale Earth Data AI Platform" | [2507.09202](https://arxiv.org/abs/2507.09202) | Comprehensive weather AI infrastructure |
+| Koo et al. (2023), "VarteX: Vertex Transformers for 2D Weather" | [2311.06287](https://arxiv.org/abs/2311.06287) | Novel architecture for spatial data |
+| Palmer et al. (2020), "A Vision for NWP 2030" | NOAA Technical Memorandum | Strategic complexity drivers for next-gen weather |
+
+### 7.5 Multi-Modal and Visual Understanding
+
+| Citation | arXiv | Relevance |
+|----------|-------|-----------|
+| Alayrac et al. (2022), "Flamingo: Visual Language Models" | [2204.14198](https://arxiv.org/abs/2204.14198) | Few-shot visual understanding |
+| Liu et al. (2023), "LLaVA: Large Language and Vision Assistant" | [2304.08485](https://arxiv.org/abs/2304.08485) | Visual instruction tuning |
 
 ---
 
