@@ -1,0 +1,57 @@
+================================================================================
+                    Global Workflow Evolution Paper - Notes
+================================================================================
+
+Prompt 1:
+---------
+
+Please take a deep look at how resources are defined and how the MPI
+codes are run in both global-workflow and global-workflow_crow and
+let's compare and contrast the two methods used in each. Give a full
+report on how each system is constructed and maintained.
+
+
+Prompt 2:
+---------
+
+Perfectly stated and the insight between the differences is well
+formed. Now let's take this context along with this idyllic response
+and let's create a detailed paper for historical and assessment needs
+for next steps in the advancement of the system for the next decade.
+
+Make this a publishable paper written in LaTeX and put it in the
+docs/presentations/papers folder. Use this same outcome as this
+response in the conclusion but also think about the next generation
+of capabilities for the next decade with this realization that CROW
+was ahead of its time.
+
+We also need to leverage the MCP tools in this deeper analysis by
+drawing from UFS and JEDI needs along with the progress from EPIC.
+Use the MCP tool register to find papers in the literature that can
+assist us in making this a forward-looking paper.
+
+
+================================================================================
+                              Generated Output
+================================================================================
+
+Paper:    global_workflow_evolution_and_future_directions.tex
+PDF:      global_workflow_evolution_and_future_directions.pdf
+Pages:    8
+Date:     January 2026
+
+Literature Sources Consulted:
+  - Scientific Workflow Orchestration (15 papers)
+  - Numerical Weather Prediction (15 papers)
+  - Data Assimilation / JEDI (15 papers)
+  - Exascale Computing (15 papers)
+  - Infrastructure as Code (8 papers)
+  - Domain-Specific Languages (7 papers)
+
+Key Citations:
+  - Palmer et al. (2020) - "A Vision for NWP 2030"
+  - Bauer et al. (2024) - "NWP at the crossroads"
+  - Rahman et al. (2018) - IaC defect analysis
+  - iDDS Team (2025) - Modern workflow orchestration
+
+================================================================================
