@@ -6,10 +6,12 @@ This directory contains the technical papers and white papers produced for the M
 
 ```
 papers/
+├── global_workflow_evolution_and_future_directions.tex   # NEW: CROW vs Global-Workflow
+├── Makefile                             # Build script for LaTeX papers
 ├── MCP_RAG_Complete_System_Paper.tex   # MASTER PAPER - Complete system spec
 ├── README.md                            # This file
 │
-├── cots_llm_independence/   # NEW: LLM Provider Independence (January 2026)
+├── cots_llm_independence/   # LLM Provider Independence (January 2026)
 │   ├── LLM_Provider_Independence_Architecture.tex   # LaTeX source
 │   ├── LLM_Provider_Independence_Architecture.pdf   # Compiled PDF
 │   └── README.md            # Paper documentation
@@ -43,7 +45,40 @@ papers/
 
 ## Paper Summaries
 
-### NEW: LLM Provider Independence Architecture (`cots_llm_independence/`)
+### NEW: Global Workflow Evolution and Future Directions (Root Directory)
+
+**File:** `global_workflow_evolution_and_future_directions.tex` (December 2025)
+
+A comprehensive historical analysis and forward-looking roadmap for NOAA's operational NWP workflow infrastructure.
+
+**Title:** From CROW to Cloud-Native: Evolution of the NOAA Global Workflow and a Vision for the Next Decade of Operational Numerical Weather Prediction
+
+**Contents:**
+- **Historical Analysis:** CROW's declarative YAML-based approach and why it was ahead of its time
+- **Comparative Code Archaeology:** Resource management, MPI execution, platform abstraction in both systems
+- **Industry Context:** Infrastructure as Code revolution, exascale computing trends
+- **Literature Synthesis:** 75+ academic papers on workflows, NWP, data assimilation, DSLs
+- **Five-Pillar Architecture Proposal:**
+  1. Declarative Configuration Renaissance
+  2. Heterogeneous Computing Abstraction (GPU/exascale)
+  3. ML Pipeline Integration
+  4. Cloud-Hybrid Portability
+  5. Intelligent Orchestration
+- **Implementation Roadmap:** 2025-2031 phased approach
+
+**Key Citations:**
+- Palmer et al. (2020) - "A Vision for NWP 2030"
+- Bauer et al. (2024) - "NWP at the crossroads" (ML disruption)
+- Rahman et al. (2018) - IaC defect analysis
+- iDDS Team (2025) - Modern workflow orchestration
+
+**Estimated Length:** ~12-15 pages (two-column format)
+
+**Target Venues:** AMS Annual Meeting, NOAA Technical Memo, arXiv
+
+---
+
+### LLM Provider Independence Architecture (`cots_llm_independence/`)
 
 **File:** `LLM_Provider_Independence_Architecture.tex` (January 2026)
 
@@ -188,7 +223,8 @@ pandoc document.md -o document.pdf
 
 | Date | Paper | Version | Notes |
 |------|-------|---------|-------|
-| Jan 2026 | LLM Provider Independence | 1.0 | **NEW: COTS architecture for vendor independence** |
+| Dec 2025 | Global Workflow Evolution | 1.0 | **NEW: CROW vs Global-Workflow historical analysis** |
+| Jan 2026 | LLM Provider Independence | 1.0 | COTS architecture for vendor independence |
 | Nov 2025 | SDD Framework | 1.0 | Initial technical specification |
 | Nov 2025 | Hybrid Annotations | 1.0 | Phase 2 architecture spec |
 | Nov 2025 | SME Training | 1.0 | Quick start guide |
