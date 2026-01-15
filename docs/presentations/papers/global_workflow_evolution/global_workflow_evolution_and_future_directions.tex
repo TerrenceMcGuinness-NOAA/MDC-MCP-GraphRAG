@@ -24,8 +24,21 @@
 \usepackage{subcaption}
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows, positioning, fit, backgrounds}
+\usepackage{titlesec}
 
 \geometry{margin=1in}
+
+%% Section title formatting - smaller, more compact for two-column layout
+%% Using raggedright to prevent ugly word spacing in narrow columns
+\titleformat{\section}
+  {\normalfont\large\bfseries\raggedright}{\thesection.}{0.5em}{}
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries\raggedright}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}
+  {\normalfont\small\bfseries\raggedright}{\thesubsubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{2.5ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+\titlespacing*{\subsection}{0pt}{2ex plus 1ex minus .2ex}{1ex plus .2ex}
+\titlespacing*{\subsubsection}{0pt}{1.5ex plus 1ex minus .2ex}{0.5ex plus .2ex}
 
 %% Code listing styles
 \lstdefinelanguage{YAML}{
@@ -89,7 +102,7 @@ Our analysis draws from:
     \item Architectural patterns emerging from the UFS, JEDI, and EPIC initiatives
 \end{itemize}
 
-\section{Historical Context: The CROW Innovation}
+\section{Historical Context:\\ The CROW Innovation}
 
 \subsection{Design Philosophy}
 
@@ -159,7 +172,7 @@ Despite its elegance, CROW faced significant operational challenges:
 
 The decision to deprecate CROW in favor of the current global-workflow system prioritized operational transparency over architectural elegance---a reasonable choice given the mission-critical nature of weather forecasting. However, this decision also introduced new challenges that we examine in the next section.
 
-\section{The Modern Global-Workflow: Pragmatic Imperatives}
+\section{The Modern Global-Workflow:\\ Pragmatic Imperatives}
 
 \subsection{Configuration Architecture}
 
@@ -254,7 +267,7 @@ Cloud Compatibility & Limited & Limited \\
 \end{tabular}
 \end{table*}
 
-\section{Strategic Context: The NWP Revolution}
+\section{Strategic Context:\\ The NWP Revolution}
 
 \subsection{The Palmer Vision for 2030}
 
@@ -325,7 +338,7 @@ This suggests a future where operators interact with workflow systems through na
 
 Based on our analysis, we propose a five-pillar architecture for next-generation NOAA workflow infrastructure.
 
-\subsection{Pillar 1: Declarative Configuration Renaissance}
+\subsection{Pillar 1:\\ Declarative Configuration Renaissance}
 
 Return to declarative configuration, but with lessons learned:
 
@@ -361,7 +374,7 @@ spec:
           expected: 75m
 \end{lstlisting}
 
-\subsection{Pillar 2: Heterogeneous Computing Abstraction}
+\subsection{Pillar 2:\\ Heterogeneous Computing Abstraction}
 
 Following the patterns emerging from JEDI and UFS:
 
@@ -371,7 +384,7 @@ Following the patterns emerging from JEDI and UFS:
     \item \textbf{Fallback Chains}: GPU $\rightarrow$ CPU fallback for reliability
 \end{enumerate}
 
-\subsection{Pillar 3: ML Pipeline Integration}
+\subsection{Pillar 3:\\ ML Pipeline Integration}
 
 The hybrid NWP future requires first-class ML pipeline support:
 
@@ -381,7 +394,7 @@ The hybrid NWP future requires first-class ML pipeline support:
     \item \textbf{Training Workflows}: Periodic model retraining integrated with DA cycles
 \end{enumerate}
 
-\subsection{Pillar 4: Cloud-Hybrid Portability}
+\subsection{Pillar 4:\\ Cloud-Hybrid Portability}
 
 Following the ``Infrastructure in Code'' paradigm \cite{tankov2021infrastructure_in_code}:
 
@@ -391,7 +404,7 @@ Following the ``Infrastructure in Code'' paradigm \cite{tankov2021infrastructure
     \item \textbf{Reproducibility}: Container-based execution environments
 \end{enumerate}
 
-\subsection{Pillar 5: Intelligent Orchestration}
+\subsection{Pillar 5:\\ Intelligent Orchestration}
 
 Drawing from recent advances in AI-coupled HPC workflows \cite{jha2022ai_hpc_workflows}:
 
@@ -405,7 +418,7 @@ Drawing from recent advances in AI-coupled HPC workflows \cite{jha2022ai_hpc_wor
 
 We propose a phased implementation over seven years, aligned with NOAA's acquisition cycles and UFS/JEDI maturation:
 
-\subsection{Phase 1: Foundation (2025-2026)}
+\subsection{Phase 1:\\ Foundation (2025-2026)}
 \begin{itemize}
     \item Define next-generation YAML schema with community input
     \item Implement schema validation and linting tools
@@ -413,7 +426,7 @@ We propose a phased implementation over seven years, aligned with NOAA's acquisi
     \item Pilot with non-critical experimental workflows
 \end{itemize}
 
-\subsection{Phase 2: Integration (2027-2028)}
+\subsection{Phase 2:\\ Integration (2027-2028)}
 \begin{itemize}
     \item Integrate with JEDI data assimilation workflows
     \item Add GPU orchestration for ML inference components
@@ -421,7 +434,7 @@ We propose a phased implementation over seven years, aligned with NOAA's acquisi
     \item Migrate GFS and GEFS to new orchestration layer
 \end{itemize}
 
-\subsection{Phase 3: Intelligence (2029-2031)}
+\subsection{Phase 3:\\ Intelligence (2029-2031)}
 \begin{itemize}
     \item Deploy ML-based resource prediction
     \item Implement adaptive ensemble sizing based on forecast uncertainty
