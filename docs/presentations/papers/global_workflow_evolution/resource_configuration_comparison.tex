@@ -1,0 +1,619 @@
+%% Resource Configuration Comparison: CROW vs Global-Workflow
+%% A Technical Analysis of HPC Resource Management Approaches
+%% Author: NOAA/EMC
+%% Version: 1.0 - January 2026
+
+\documentclass[11pt]{article}
+
+%% Package imports
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{tabularx}
+\usepackage{multirow}
+
+\geometry{margin=1in}
+
+%% Code listing styles
+\lstdefinelanguage{YAML}{
+  keywords={true,false,null,y,n},
+  keywordstyle=\color{blue}\bfseries,
+  basicstyle=\ttfamily\scriptsize,
+  comment=[l]{\#},
+  commentstyle=\color{gray}\ttfamily,
+  stringstyle=\color{orange},
+  moredelim=[l][\color{purple}]{\ \ },
+  morestring=[b]',
+  morestring=[b]",
+  frame=single,
+  backgroundcolor=\color{gray!10}
+}
+
+\lstdefinelanguage{Bash}{
+  keywords={if,then,else,elif,fi,for,while,do,done,case,esac,function,return,export,local},
+  keywordstyle=\color{blue}\bfseries,
+  basicstyle=\ttfamily\scriptsize,
+  comment=[l]{\#},
+  commentstyle=\color{gray}\ttfamily,
+  stringstyle=\color{orange},
+  morestring=[b]',
+  morestring=[b]",
+  frame=single,
+  backgroundcolor=\color{gray!10}
+}
+
+\lstset{
+  breaklines=true,
+  breakatwhitespace=true,
+  columns=flexible,
+  keepspaces=true,
+  showstringspaces=false
+}
+
+%% Document metadata
+\title{Resource Configuration in NOAA Operational Workflows:\\
+\large A Technical Comparison of CROW and Global-Workflow Approaches}
+
+\author{
+  National Oceanic and Atmospheric Administration \\
+  Environmental Modeling Center
+}
+
+\date{January 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This technical report provides a detailed comparison of resource configuration methodologies between the Community Research Operations Workflow (CROW) system and the current production global-workflow. We examine the architectural differences in how computational resources---CPU ranks, threads, memory, walltime, and MPI execution---are specified, validated, and deployed across heterogeneous HPC platforms. Through side-by-side code analysis, we demonstrate the trade-offs between CROW's declarative YAML-based approach and global-workflow's imperative shell-based configuration. This comparison serves as a reference for developers maintaining the current system and architects designing next-generation workflow infrastructure.
+\end{abstract}
+
+\section{Introduction}
+
+The Global Forecast System (GFS) requires precise allocation of computational resources across hundreds of interdependent jobs. A single forecast cycle involves atmospheric dynamics, physics parameterizations, data assimilation, post-processing, and product generation---each with distinct resource requirements that vary by model resolution (C96 through C768) and HPC platform (WCOSS2, HERA, Orion, Hercules, Gaea).
+
+This report examines two fundamentally different approaches to specifying these resources:
+
+\begin{enumerate}
+    \item \textbf{CROW (2016-2020)}: Declarative YAML with custom type extensions
+    \item \textbf{Global-Workflow (2020-present)}: Imperative shell scripts with environment variables
+\end{enumerate}
+
+\section{Resource Specification Paradigms}
+
+\subsection{CROW: Declarative Resource Tables}
+
+CROW centralized resource definitions in \texttt{workflow/defaults/default\_resources.yaml} using resolution-indexed lookup tables.
+
+\subsubsection{Resource Table Structure}
+
+\begin{lstlisting}[language=YAML, caption={CROW GFS Resource Table}]
+gfs_resource_table: !Select
+  select: !calc doc.fv3_gfs_settings.CASE
+  otherwise: !error Unknown GFS case
+  cases:
+    C96:  &gfs_resource_C96
+      - [24,  12, '00:15:00', 1, '1024M']
+    C192: &gfs_resource_C192
+      - [48,  12, '00:25:00', 1, '1024M']
+    C384: &gfs_resource_C384
+      - [120, 12, '00:45:00', 2, '2048M']
+    C768: &gfs_resource_C768
+      - [240, 12, '01:30:00', 4, '4096M']
+\end{lstlisting}
+
+The tuple format encodes: \texttt{[ranks, ppn, walltime, threads, memory]}.
+
+Key features:
+\begin{itemize}
+    \item \texttt{!Select} --- Pattern matching on configuration value
+    \item \texttt{!calc} --- Runtime expression evaluation
+    \item \texttt{!error} --- Explicit failure for undefined cases
+    \item YAML anchors (\texttt{\&}) --- Reusable definitions
+\end{itemize}
+
+\subsubsection{JobRequest Construction}
+
+Resources were consumed via \texttt{!JobRequest} objects:
+
+\begin{lstlisting}[language=YAML, caption={CROW JobRequest Pattern}]
+gfs_forecast: !JobRequest
+  - batch_memory: !calc >-
+      doc.gfs_resource_table[0][4]
+  - mpi_ranks: !calc >-
+      doc.gfs_resource_table[0][0]
+  - OMP_NUM_THREADS: !calc >-
+      doc.gfs_resource_table[0][3]
+  - walltime: !calc >-
+      tools.parse_duration(
+        doc.gfs_resource_table[0][2])
+  - max_ppn: !calc >-
+      doc.gfs_resource_table[0][1]
+\end{lstlisting}
+
+\subsubsection{Downstream Resource Tables}
+
+CROW maintained separate tables for post-processing steps with different resource profiles:
+
+\begin{lstlisting}[language=YAML, caption={CROW Downstream Resources}]
+downstream_resource_table: !Select
+  select: !calc doc.fv3_gfs_settings.CASE
+  cases:
+    C96:
+      awips:   [24, 1, '00:05:00', 1, '2G']
+      gempak:  [24, 1, '00:05:00', 1, '2G']
+      bufrsnd: [80, 8, '00:20:00', 1, '3G']
+    C768:
+      awips:   [24, 1, '00:10:00', 1, '4G']
+      gempak:  [24, 1, '00:10:00', 1, '4G']
+      bufrsnd: [80, 8, '00:45:00', 1, '6G']
+\end{lstlisting}
+
+\subsection{Global-Workflow: Imperative Configuration}
+
+The current system uses shell scripts with conditional logic in \texttt{parm/config/config.resources}.
+
+\subsubsection{Resource Selection Logic}
+
+\begin{lstlisting}[language=Bash, caption={Global-Workflow Resource Selection}]
+case "${step}" in
+  "fcst")
+    case "${CASE}" in
+      "C48")
+        export ntasks=24
+        export ntasks_quilt=6
+        export nth_fv3=1
+        export nth_quilt=1
+        ;;
+      "C96")
+        export ntasks=48
+        export ntasks_quilt=12
+        export nth_fv3=2
+        export nth_quilt=1
+        ;;
+      "C384")
+        export ntasks=150
+        export ntasks_quilt=36
+        export nth_fv3=4
+        export nth_quilt=1
+        ;;
+      "C768")
+        export ntasks=360
+        export ntasks_quilt=72
+        export nth_fv3=4
+        export nth_quilt=1
+        ;;
+    esac
+    ;;
+  "anal")
+    # Analysis step resources
+    export ntasks=480
+    export nth=8
+    ;;
+esac
+\end{lstlisting}
+
+\subsubsection{Platform-Specific Launchers}
+
+MPI execution is configured in platform environment files:
+
+\begin{lstlisting}[language=Bash, caption={HERA Platform Configuration (env/HERA.env)}]
+# HERA - Slurm/srun based
+ulimit_s="unlimited"
+launcher="srun -l --export=ALL"
+mpmd_opt="--multi-prog"
+
+# Construct APRUN for each component
+export APRUN_UFS="${launcher} -n ${ntasks}"
+export APRUN_GAUSSIAN="${launcher} -n ${ntasks} --cpus-per-task=${nth}"
+export APRUN_CHGRES="${launcher} -n 6"
+\end{lstlisting}
+
+\begin{lstlisting}[language=Bash, caption={WCOSS2 Platform Configuration (env/WCOSS2.env)}]
+# WCOSS2 - PBS/mpiexec based
+ulimit_s="unlimited"
+launcher="mpiexec -l"
+mpmd_opt="--cpu-bind verbose,core cfp"
+
+# Construct APRUN for each component
+export APRUN_UFS="${launcher} -np ${ntasks}"
+export APRUN_GAUSSIAN="${launcher} -np ${ntasks}"
+export APRUN_CHGRES="${launcher} -np 6"
+\end{lstlisting}
+
+\section{MPI Execution Patterns}
+
+\subsection{CROW: Abstract Parallelism Layer}
+
+CROW generated scheduler-agnostic job specifications through platform configuration:
+
+\begin{lstlisting}[language=YAML, caption={CROW Platform Abstraction}]
+hera: !Platform
+  name: hera
+  scheduler_settings:
+    scheduler_name: slurm
+    
+  partitions:
+    default: &default_partition
+      specification: !icalc |
+        tools.get_parallelism('HyperThread')
+      scheduler_settings:
+        partition: hera
+        qos: batch
+\end{lstlisting}
+
+The CROW engine would translate \texttt{!JobRequest} objects into appropriate Slurm or PBS directives at generation time.
+
+\subsection{Global-Workflow: MPMD Wrapper}
+
+The current system uses \texttt{ush/run\_mpmd.sh} for MPMD execution:
+
+\begin{lstlisting}[language=Bash, caption={MPMD Execution Wrapper}]
+#!/bin/bash
+# run_mpmd.sh - Execute MPMD job
+
+create_mpmd_cmdfile() {
+  local cmdfile=$1
+  shift
+  local nprocs
+  while (( $# > 0 )); do
+    nprocs=$1; shift
+    cmd=$1; shift
+    for (( i=0; i<nprocs; i++ )); do
+      echo "$cmd" >> "${cmdfile}"
+    done
+  done
+}
+
+run_mpmd() {
+  local cmdfile=$1
+  
+  case "${launcher_type:-srun}" in
+    "srun")
+      ${APRUN_CMD} --multi-prog "${cmdfile}"
+      ;;
+    "mpiexec")
+      ${APRUN_CMD} cfp "${cmdfile}"
+      ;;
+  esac
+}
+\end{lstlisting}
+
+\subsection{CFP (Coupled Framework Parallelism)}
+
+Both systems support CFP for running multiple executables in a single MPI job:
+
+\begin{lstlisting}[language=Bash, caption={CFP Command File Format}]
+# cmdfile format: one command per MPI rank
+/path/to/executable1 arg1 arg2
+/path/to/executable1 arg1 arg2
+/path/to/executable1 arg1 arg2
+/path/to/executable2 arg1
+/path/to/executable2 arg1
+\end{lstlisting}
+
+\section{Comparative Analysis}
+
+\subsection{Code Organization}
+
+Table~\ref{tab:file_organization} compares where resource information resides in each system.
+
+\begin{table}[H]
+\centering
+\caption{File Organization Comparison}
+\label{tab:file_organization}
+\begin{tabular}{@{}p{3cm}p{4cm}@{}}
+\toprule
+\textbf{CROW} & \textbf{Global-Workflow} \\
+\midrule
+\texttt{workflow/defaults/} \texttt{default\_resources.yaml} & \texttt{parm/config/} \texttt{config.resources} \\
+\addlinespace
+\texttt{workflow/platforms/} \texttt{hera.yaml} & \texttt{env/HERA.env} \\
+\addlinespace
+\texttt{workflow/platforms/} \texttt{wcoss\_dell\_p3.yaml} & \texttt{env/WCOSS2.env} \\
+\addlinespace
+Generated at runtime & \texttt{ecf/scripts/*.ecf} (PBS/Slurm headers) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Adding a New Resolution}
+
+\subsubsection{CROW Approach}
+
+Add one entry to each resource table:
+
+\begin{lstlisting}[language=YAML, caption={Adding C1152 to CROW}]
+gfs_resource_table: !Select
+  cases:
+    # ... existing cases ...
+    C1152: &gfs_resource_C1152
+      - [480, 12, '02:30:00', 4, '8192M']
+\end{lstlisting}
+
+All jobs using \texttt{gfs\_resource\_table} automatically inherit the new resolution.
+
+\subsubsection{Global-Workflow Approach}
+
+Add case branches to each step in \texttt{config.resources}:
+
+\begin{lstlisting}[language=Bash, caption={Adding C1152 to Global-Workflow}]
+case "${step}" in
+  "fcst")
+    case "${CASE}" in
+      # ... existing cases ...
+      "C1152")
+        export ntasks=480
+        export ntasks_quilt=96
+        export nth_fv3=4
+        export nth_quilt=1
+        ;;
+    esac
+    ;;
+  "anal")
+    case "${CASE}" in
+      # ... must add C1152 here too ...
+    esac
+    ;;
+  # ... repeat for each step ...
+esac
+\end{lstlisting}
+
+\subsection{Adding a New HPC Platform}
+
+\subsubsection{CROW Approach}
+
+Create a new platform YAML file:
+
+\begin{lstlisting}[language=YAML, caption={New Platform in CROW}]
+# workflow/platforms/new_hpc.yaml
+new_hpc: !Platform
+  name: new_hpc
+  scheduler_settings:
+    scheduler_name: slurm  # or pbs
+    
+  partitions:
+    default:
+      specification: !icalc |
+        tools.get_parallelism('NoHyperThread')
+      scheduler_settings:
+        partition: compute
+        qos: normal
+\end{lstlisting}
+
+\subsubsection{Global-Workflow Approach}
+
+Create a new environment file:
+
+\begin{lstlisting}[language=Bash, caption={New Platform in Global-Workflow}]
+# env/NEW_HPC.env
+ulimit_s="unlimited"
+launcher="srun -l --export=ALL"
+mpmd_opt="--multi-prog"
+
+# Set all APRUN variables
+export APRUN_UFS="${launcher} -n ${ntasks}"
+export APRUN_GAUSSIAN="${launcher} -n ${ntasks}"
+# ... 15+ more APRUN definitions ...
+\end{lstlisting}
+
+Additionally, update ecFlow job scripts with platform-specific PBS/Slurm headers.
+
+\subsection{Validation Capabilities}
+
+\begin{table}[H]
+\centering
+\caption{Validation Feature Comparison}
+\label{tab:validation}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Feature} & \textbf{CROW} & \textbf{GW} \\
+\midrule
+Schema validation & Yes (YAML) & No \\
+Type checking & Yes (custom) & No \\
+Undefined case detection & \texttt{!error} & Runtime \\
+Static analysis & Possible & Limited \\
+IDE support & Limited & Good \\
+Syntax highlighting & YAML & Bash \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Resource Tuple Semantics}
+
+Both systems encode the same fundamental resource parameters, but with different representations.
+
+\subsection{CROW Tuple Format}
+
+\begin{verbatim}
+[ranks, ppn, walltime, threads, memory]
+\end{verbatim}
+
+Example: \texttt{[240, 12, '01:30:00', 4, '4096M']}
+\begin{itemize}
+    \item 240 MPI ranks total
+    \item 12 processes per node (ppn)
+    \item 1 hour 30 minute walltime limit
+    \item 4 OpenMP threads per rank
+    \item 4 GB memory per node
+\end{itemize}
+
+\subsection{Global-Workflow Variables}
+
+\begin{lstlisting}[language=Bash, caption={Equivalent Variables}]
+export ntasks=240          # MPI ranks
+export ppn=12              # Processes per node
+export walltime="01:30:00" # Walltime
+export nth_fv3=4           # OMP threads
+export memory="4GB"        # Memory
+\end{lstlisting}
+
+\section{Execution Flow Comparison}
+
+\subsection{CROW Execution Path}
+
+\begin{enumerate}
+    \item Parse YAML configuration files
+    \item Evaluate \texttt{!calc} expressions
+    \item Resolve \texttt{!Select} based on CASE
+    \item Construct \texttt{!JobRequest} objects
+    \item Generate scheduler scripts (Slurm/PBS)
+    \item Submit to workflow engine (ecFlow/Rocoto)
+\end{enumerate}
+
+\subsection{Global-Workflow Execution Path}
+
+\begin{enumerate}
+    \item Source platform environment (\texttt{env/*.env})
+    \item Source \texttt{config.resources}
+    \item Evaluate shell conditionals
+    \item Export environment variables
+    \item ecFlow job script reads variables
+    \item Submit with embedded PBS/Slurm directives
+\end{enumerate}
+
+\section{Memory and Thread Configuration}
+
+\subsection{CROW Memory Specification}
+
+CROW supported both per-node and per-rank memory:
+
+\begin{lstlisting}[language=YAML, caption={CROW Memory Options}]
+gfs_forecast: !JobRequest
+  - batch_memory: '4096M'     # Per node
+  # OR
+  - memory_per_rank: '1024M'  # Per rank
+\end{lstlisting}
+
+\subsection{Global-Workflow Memory}
+
+Memory is platform-dependent and often implicit:
+
+\begin{lstlisting}[language=Bash, caption={Global-Workflow Memory Handling}]
+# In config.resources
+export memory="4GB"
+
+# In ecf script
+#PBS -l select=1:mem=${memory}
+# OR
+#SBATCH --mem=${memory}
+\end{lstlisting}
+
+\section{Error Handling}
+
+\subsection{CROW: Fail-Fast}
+
+\begin{lstlisting}[language=YAML, caption={CROW Error Handling}]
+gfs_resource_table: !Select
+  select: !calc doc.settings.CASE
+  otherwise: !error |
+    Unknown resolution: expected C96-C768
+  cases:
+    C96: [...]
+\end{lstlisting}
+
+Invalid configurations fail at YAML parse time, before job submission.
+
+\subsection{Global-Workflow: Runtime Defaults}
+
+\begin{lstlisting}[language=Bash, caption={Global-Workflow Default Handling}]
+case "${CASE}" in
+  "C96")  export ntasks=48 ;;
+  "C384") export ntasks=150 ;;
+  *)
+    echo "WARNING: Unknown CASE ${CASE}"
+    export ntasks=24  # Default fallback
+    ;;
+esac
+\end{lstlisting}
+
+Unknown configurations may proceed with potentially incorrect defaults.
+
+\section{Practical Implications}
+
+\subsection{Maintenance Burden}
+
+\begin{table}[H]
+\centering
+\caption{Lines of Code for Resource Configuration}
+\label{tab:loc}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Component} & \textbf{CROW} & \textbf{GW} \\
+\midrule
+Core resource definitions & $\sim$200 & $\sim$800 \\
+Platform configurations & $\sim$150/platform & $\sim$200/platform \\
+Job request constructors & $\sim$100 & N/A \\
+\midrule
+\textbf{Total (5 platforms)} & $\sim$1,050 & $\sim$1,800 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Debugging Experience}
+
+\textbf{CROW}: Requires understanding of YAML processor, custom tags, and expression evaluation. Stack traces reference YAML line numbers.
+
+\textbf{Global-Workflow}: Standard bash debugging with \texttt{set -x}, \texttt{echo} statements, and familiar tools. Errors reference shell line numbers.
+
+\subsection{Onboarding Time}
+
+\textbf{CROW}: 2-4 weeks to become proficient with custom DSL.
+
+\textbf{Global-Workflow}: 1-2 weeks for developers familiar with bash.
+
+\section{Summary Comparison}
+
+\begin{table*}[t]
+\centering
+\caption{Comprehensive Feature Comparison}
+\label{tab:summary}
+\begin{tabular}{@{}p{4.5cm}p{5.5cm}p{5.5cm}@{}}
+\toprule
+\textbf{Dimension} & \textbf{CROW} & \textbf{Global-Workflow} \\
+\midrule
+Configuration paradigm & Declarative (YAML DSL) & Imperative (Bash) \\
+Resource definition & Centralized tables & Distributed case statements \\
+Resolution scaling & Single entry per table & Entry per step per resolution \\
+Platform abstraction & Complete (runtime generation) & Partial (per-platform env files) \\
+Scheduler support & Slurm, PBS, LSF (pluggable) & Slurm, PBS (per-platform) \\
+Type system & Rich (\texttt{!JobRequest}, \texttt{!icalc}) & None (strings) \\
+Validation & Parse-time schema checking & Runtime only \\
+Error handling & Fail-fast (\texttt{!error}) & Fallback defaults \\
+IDE support & Limited (custom YAML tags) & Excellent (bash) \\
+Debugging & Multi-layer indirection & Direct script inspection \\
+Learning curve & Steep (2-4 weeks) & Moderate (1-2 weeks) \\
+Code duplication & Minimal (DRY) & Moderate (WET) \\
+GPU support & Not implemented & Not implemented \\
+Cloud readiness & Limited & Limited \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\section{Conclusion}
+
+CROW and global-workflow represent two valid approaches to the complex problem of HPC resource configuration. CROW's declarative approach minimized duplication and enabled static validation, but required specialized knowledge. Global-workflow's imperative approach traded some elegance for transparency and debuggability.
+
+Neither system currently addresses emerging requirements for GPU orchestration, cloud deployment, or machine learning workflow integration. Future infrastructure should consider hybrid approaches that combine:
+
+\begin{itemize}
+    \item Declarative resource specification (like CROW) for consistency
+    \item Standard tooling (unlike CROW's custom tags) for maintainability
+    \item Schema validation for early error detection
+    \item Explicit compilation to shell for debuggability
+\end{itemize}
+
+\section*{Acknowledgments}
+
+This analysis was conducted using the EIB MCP-RAG platform for code archaeology across the NOAA-EMC repositories.
+
+\end{document}
