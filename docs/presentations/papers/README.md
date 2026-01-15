@@ -6,10 +6,16 @@ This directory contains the technical papers and white papers produced for the M
 
 ```
 papers/
-├── global_workflow_evolution_and_future_directions.tex   # NEW: CROW vs Global-Workflow
-├── Makefile                             # Build script for LaTeX papers
 ├── MCP_RAG_Complete_System_Paper.tex   # MASTER PAPER - Complete system spec
 ├── README.md                            # This file
+│
+├── global_workflow_evolution/   # NEW: CROW vs Global-Workflow (January 2026)
+│   ├── global_workflow_evolution_and_future_directions.tex   # LaTeX source
+│   ├── global_workflow_evolution_and_future_directions.pdf   # Compiled PDF (8 pages)
+│   ├── resource_configuration_comparison.tex   # Supporting comparison
+│   ├── resource_configuration_comparison.pdf   # Compiled comparison
+│   ├── notes.txt                # Prompt history and methodology
+│   └── Makefile                 # Build script
 │
 ├── cots_llm_independence/   # LLM Provider Independence (January 2026)
 │   ├── LLM_Provider_Independence_Architecture.tex   # LaTeX source
@@ -45,9 +51,9 @@ papers/
 
 ## Paper Summaries
 
-### NEW: Global Workflow Evolution and Future Directions (Root Directory)
+### NEW: Global Workflow Evolution and Future Directions (`global_workflow_evolution/`)
 
-**File:** `global_workflow_evolution_and_future_directions.tex` (December 2025)
+**File:** `global_workflow_evolution_and_future_directions.tex` (January 2026)
 
 A comprehensive historical analysis and forward-looking roadmap for NOAA's operational NWP workflow infrastructure.
 
