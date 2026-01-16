@@ -42,29 +42,29 @@ Add comprehensive wave model testing to the C48_S2SW configuration, enabling iso
 ### New Test Cases
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    NEW C48_S2SW WAVE TESTS (6)                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  1. C48_S2SW-gfs_stage                                                      │
-│     └── Coupled IC staging (atm + ocean + ice + wave)                       │
-│                                                                              │
-│  2. C48_S2SW-gfs_waveinit                                                   │
-│     └── WaveWatch III grid initialization                                   │
-│                                                                              │
-│  3. C48_S2SW-gfs_wavepostsbs_f000-f002                                      │
-│     └── Wave spectral bin statistics post-processing                        │
-│                                                                              │
-│  4. C48_S2SW-gfs_wavebndpnt                                                 │
-│     └── Wave boundary point extraction                                      │
-│                                                                              │
-│  5. C48_S2SW-gfs_wavebndpntbll                                              │
-│     └── Wave boundary point bulletin generation                             │
-│                                                                              │
-│  6. C48_S2SW-gfs_wavepostpnt                                                │
-│     └── Wave point output post-processing                                   │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    NEW C48_S2SW WAVE TESTS (6)                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. C48_S2SW-gfs_stage                                                  │
+│     └── Coupled IC staging (atm + ocean + ice + wave)                   │
+│                                                                         │
+│  2. C48_S2SW-gfs_waveinit                                               │
+│     └── WaveWatch III grid initialization                               │
+│                                                                         │
+│  3. C48_S2SW-gfs_wavepostsbs_f000-f002                                  │
+│     └── Wave spectral bin statistics post-processing                    │
+│                                                                         │
+│  4. C48_S2SW-gfs_wavebndpnt                                             │
+│     └── Wave boundary point extraction                                  │
+│                                                                         │
+│  5. C48_S2SW-gfs_wavebndpntbll                                          │
+│     └── Wave boundary point bulletin generation                         │
+│                                                                         │
+│  6. C48_S2SW-gfs_wavepostpnt                                            │
+│     └── Wave point output post-processing                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Dependency Chain
