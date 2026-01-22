@@ -55,15 +55,27 @@ else
 fi
 
 ################################################################################
-# LangFlow - REMOVED (January 2026)
-# Reason: Inherent bugs in workflow import functionality
-# Replacement: n8n in docker-compose.devops.yaml (JSON workflow API)
+# n8n Workflow Automation (Replaced LangFlow - January 2026)
+# Reason: LangFlow had bugs in workflow import; n8n has superior JSON API
 # See: Phase 11E in sdd_framework/PRIORITY_ROADMAP.md
 ################################################################################
 
-log_subsection "Workflow Automation (n8n)"
-log_info "n8n workflow automation available in docker-compose.devops.yaml"
-log_info "For DevOps/CI pipelines: docker compose -f docker-compose.devops.yaml up -d n8n"
+log_subsection "n8n Workflow Automation"
+
+# Check if n8n is defined in docker-compose
+if docker compose config --services 2>/dev/null | grep -q "n8n"; then
+    log_info "Starting n8n container..."
+    docker compose up -d n8n || log_warning "n8n start failed"
+    
+    if wait_for_service "http://localhost:5678/healthz" 60; then
+        log_success "n8n is ready at http://localhost:5678"
+        log_info "Credentials: admin / eib-n8n-2025"
+    else
+        log_warning "n8n may not be fully ready yet"
+    fi
+else
+    log_info "n8n not defined in docker-compose.yml, skipping"
+fi
 
 ################################################################################
 # MCP Server Systemd Service

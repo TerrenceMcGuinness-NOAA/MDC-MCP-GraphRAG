@@ -1,7 +1,6 @@
 # Global Workflow MCP RAG - Complete Stack
-# Orchestrates Neo4j and ecFlow containers
+# Orchestrates Neo4j, n8n, and ecFlow containers
 # ChromaDB runs as systemd service on host (port 8080)
-# n8n workflow automation: see docker-compose.devops.yaml
 #
 # Usage: 
 #   source ${SETUP}/mcp_env.sh  # or source bootstrap.sh
@@ -72,38 +71,38 @@ services:
     networks:
       - mcp-rag-network
 
-  # LangFlow - REMOVED (January 2026)
-  # Reason: Inherent bugs in workflow import functionality
-  # Replacement: n8n in docker-compose.devops.yaml (JSON workflow API)
-  # See: Phase 11E in sdd_framework/PRIORITY_ROADMAP.md
-  #
-  # langflow:
-  #   build:
-  #     context: .
-  #     dockerfile: dockerfiles/Dockerfile.langflow
-  #   container_name: global-workflow-langflow
-  #   hostname: langflow
-  #   ports:
-  #     - "7860:7860"
-  #   volumes:
-  #     - langflow-data:/app/langflow-data
-  #   environment:
-  #     - LANGFLOW_AUTO_LOGIN=false
-  #     - LANGFLOW_SUPERUSER=admin
-  #     - LANGFLOW_SUPERUSER_PASSWORD=admin123
-  #     - CHROMA_HOST=host.docker.internal
-  #     - CHROMA_PORT=${CHROMADB_PORT:-8080}
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:7860/api/v1/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 60s
-  #   networks:
-  #     - mcp-rag-network
+  # n8n Workflow Automation - Replaced LangFlow (January 2026)
+  # Reason: LangFlow had bugs in workflow import; n8n has superior JSON API
+  # Web UI: http://localhost:5678
+  # Credentials: admin / eib-n8n-2025
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: global-workflow-n8n
+    hostname: n8n
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=eib-n8n-2025
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=America/New_York
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - mcp-rag-network
 
   # ecFlow Workflow Server - Orchestration engine for operational workflows  
   ecflow-server:
@@ -183,7 +182,12 @@ services:
 volumes:
   # chromadb-data: DISABLED - using systemd service on host
   
-  # langflow-data: REMOVED - LangFlow deprecated in favor of n8n (see docker-compose.devops.yaml)
+  n8n-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/n8n
   
   neo4j-data:
     driver: local
