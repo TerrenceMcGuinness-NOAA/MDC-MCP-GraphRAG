@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# 08-services.sh - Docker Compose services (Neo4j, LangFlow) and systemd
+# 08-services.sh - Docker Compose services (Neo4j, ecFlow) and systemd
 # Part of modular provisioning system v4.0.0
 ################################################################################
 
@@ -55,24 +55,15 @@ else
 fi
 
 ################################################################################
-# LangFlow Setup (Optional)
+# LangFlow - REMOVED (January 2026)
+# Reason: Inherent bugs in workflow import functionality
+# Replacement: n8n in docker-compose.devops.yaml (JSON workflow API)
+# See: Phase 11E in sdd_framework/PRIORITY_ROADMAP.md
 ################################################################################
 
-log_subsection "LangFlow (Optional)"
-
-# Check if LangFlow is defined in docker-compose
-if docker compose config --services 2>/dev/null | grep -q "langflow"; then
-    log_info "Starting LangFlow container..."
-    docker compose up -d langflow || log_warning "LangFlow start failed"
-    
-    if wait_for_service "http://localhost:7860/api/v1/health" 60; then
-        log_success "LangFlow is ready at http://localhost:7860"
-    else
-        log_warning "LangFlow may not be fully ready yet"
-    fi
-else
-    log_info "LangFlow not defined in docker-compose.yml, skipping"
-fi
+log_subsection "Workflow Automation (n8n)"
+log_info "n8n workflow automation available in docker-compose.devops.yaml"
+log_info "For DevOps/CI pipelines: docker compose -f docker-compose.devops.yaml up -d n8n"
 
 ################################################################################
 # MCP Server Systemd Service

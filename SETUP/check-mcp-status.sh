@@ -42,14 +42,14 @@ else
     echo "   ❌ Not responding"
 fi
 
-# Check LangFlow (port 7860)
+# Check n8n (port 5678) - if running from docker-compose.devops.yaml
 echo ""
-echo "🔍 LangFlow UI (port 7860):"
-if curl -sf http://127.0.0.1:7860 > /dev/null 2>&1; then
+echo "🔍 n8n Workflow Automation (port 5678):"
+if curl -sf http://127.0.0.1:5678 > /dev/null 2>&1; then
     echo "   ✅ Running and responsive"
-    echo "   Access: http://localhost:7860"
+    echo "   Access: http://localhost:5678"
 else
-    echo "   ❌ Not responding"
+    echo "   ℹ️  Not running (optional - see docker-compose.devops.yaml)"
 fi
 
 # Check systemd services
@@ -63,10 +63,10 @@ systemctl is-active mcp-server-persistent.service
 # Check Docker containers
 echo ""
 echo "🐳 Docker Containers:"
-if docker ps --format "table {{.Names}}\t{{.Status}}" | grep -q langflow; then
-    docker ps --format "   {{.Names}}: {{.Status}}" | grep langflow
+if docker ps --format "table {{.Names}}\t{{.Status}}" | grep -q n8n; then
+    docker ps --format "   {{.Names}}: {{.Status}}" | grep n8n
 else
-    echo "   ❌ No LangFlow container running"
+    echo "   ℹ️  n8n not running (available in docker-compose.devops.yaml)"
 fi
 
 echo ""

@@ -1,5 +1,31 @@
 # MCP Server Changelog
 
+## [7.1.7] - LangFlow Removal, n8n Consolidation (January 22, 2026)
+
+### Removed
+- **LangFlow completely removed from provisioning stack**:
+  - SETUP/docker-compose.yml - LangFlow service commented out with deprecation note
+  - SETUP/provisioning/08-services.sh - LangFlow startup removed
+  - SETUP/provisioning/01-directories.sh - langflow directory removed, n8n directory added
+  - SETUP/check-mcp-status.sh - LangFlow check replaced with n8n check
+  - Reason: Inherent bugs in LangFlow's workflow import functionality
+  - Replacement: n8n (JSON workflow API via REST is superior)
+
+### Changed
+- Consolidated on **n8n** for workflow automation (docker-compose.devops.yaml)
+- n8n advantages over LangFlow:
+  - JSON workflow injection via REST API (upload workflows programmatically)
+  - No import bugs (LangFlow had dict race condition, asyncio scoping issues)
+  - Better MCP Gateway integration via HTTP Request nodes
+  - Documented in Phase 4C ISD/USD Architecture as form factor for USD sub-agent dispatch
+
+### SDD References
+- Phase 11E: n8n replaces LangFlow (sdd_framework/PRIORITY_ROADMAP.md)
+- Phase 4C: n8n as ISD orchestrator form factor (sdd_framework/workflows/phase4c_isd_usd_architecture.md)
+- Phase 12: DevOps GitFlow uses docker-compose.devops.yaml (sdd_framework/workflows/phase12_devops_gitflow_containerization.md)
+
+---
+
 ## [7.1.6] - Dynamic Tools Mode + EIB Auto-Load (January 22, 2026)
 
 ### Fixed

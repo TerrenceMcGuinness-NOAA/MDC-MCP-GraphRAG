@@ -27,7 +27,8 @@ DIRS=(
     "${DATA_ROOT}/neo4j/logs"
     "${DATA_ROOT}/neo4j/import"
     "${DATA_ROOT}/neo4j/plugins"
-    "${DATA_ROOT}/langflow"
+    # "${DATA_ROOT}/langflow"  # REMOVED - LangFlow deprecated, using n8n
+    "${DATA_ROOT}/n8n"  # n8n workflow automation (docker-compose.devops.yaml)
     "${DATA_ROOT}/ecflow"
     "${ETC_ROOT}"
     "${CACHE_ROOT}"

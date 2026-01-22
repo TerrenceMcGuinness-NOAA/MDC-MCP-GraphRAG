@@ -1,6 +1,7 @@
 # Global Workflow MCP RAG - Complete Stack
-# Orchestrates LangFlow and future MCP Server containers
+# Orchestrates Neo4j and ecFlow containers
 # ChromaDB runs as systemd service on host (port 8080)
+# n8n workflow automation: see docker-compose.devops.yaml
 #
 # Usage: 
 #   source ${SETUP}/mcp_env.sh  # or source bootstrap.sh
@@ -71,34 +72,38 @@ services:
     networks:
       - mcp-rag-network
 
-  # LangFlow RAG Pipeline Visualizer
-  langflow:
-    build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile.langflow
-    container_name: global-workflow-langflow
-    hostname: langflow
-    ports:
-      - "7860:7860"
-    volumes:
-      - langflow-data:/app/langflow-data
-    environment:
-      - LANGFLOW_AUTO_LOGIN=false
-      - LANGFLOW_SUPERUSER=admin
-      - LANGFLOW_SUPERUSER_PASSWORD=admin123
-      - CHROMA_HOST=host.docker.internal
-      - CHROMA_PORT=${CHROMADB_PORT:-8080}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7860/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    networks:
-      - mcp-rag-network
+  # LangFlow - REMOVED (January 2026)
+  # Reason: Inherent bugs in workflow import functionality
+  # Replacement: n8n in docker-compose.devops.yaml (JSON workflow API)
+  # See: Phase 11E in sdd_framework/PRIORITY_ROADMAP.md
+  #
+  # langflow:
+  #   build:
+  #     context: .
+  #     dockerfile: dockerfiles/Dockerfile.langflow
+  #   container_name: global-workflow-langflow
+  #   hostname: langflow
+  #   ports:
+  #     - "7860:7860"
+  #   volumes:
+  #     - langflow-data:/app/langflow-data
+  #   environment:
+  #     - LANGFLOW_AUTO_LOGIN=false
+  #     - LANGFLOW_SUPERUSER=admin
+  #     - LANGFLOW_SUPERUSER_PASSWORD=admin123
+  #     - CHROMA_HOST=host.docker.internal
+  #     - CHROMA_PORT=${CHROMADB_PORT:-8080}
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:7860/api/v1/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 60s
+  #   networks:
+  #     - mcp-rag-network
 
   # ecFlow Workflow Server - Orchestration engine for operational workflows  
   ecflow-server:
@@ -178,12 +183,7 @@ services:
 volumes:
   # chromadb-data: DISABLED - using systemd service on host
   
-  langflow-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/langflow
+  # langflow-data: REMOVED - LangFlow deprecated in favor of n8n (see docker-compose.devops.yaml)
   
   neo4j-data:
     driver: local
