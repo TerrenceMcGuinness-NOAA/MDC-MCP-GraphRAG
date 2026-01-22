@@ -43,6 +43,7 @@ declare -a SCRIPTS=(
     "11-docker-mcp-gateway.sh:Docker MCP Gateway"
     "12-static-mode-gateway.sh:Phase 23 Static Mode (Production)"
     "13-container-cleanup.sh:Smart Container Cleanup Timer"
+    "14-final-ownership.sh:Final Ownership Correction"
 )
 
 ################################################################################

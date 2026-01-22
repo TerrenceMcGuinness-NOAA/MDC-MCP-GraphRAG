@@ -29,17 +29,18 @@ if [[ -d "${MCP_ROOT}/src" ]]; then
 else
     log_info "Deploying MCP server from ${MCP_SOURCE}..."
     
-    # Copy server files
-    cp -r "${MCP_SOURCE}/src" "${MCP_ROOT}/"
-    cp -r "${MCP_SOURCE}/scripts" "${MCP_ROOT}/" 2>/dev/null || true
-    cp "${MCP_SOURCE}/package.json" "${MCP_ROOT}/"
-    cp "${MCP_SOURCE}/package-lock.json" "${MCP_ROOT}/" 2>/dev/null || true
+    # Create target directory with proper ownership first
+    mkdir -p "${MCP_ROOT}"
+    chown "${USER_OWNERSHIP}" "${MCP_ROOT}"
     
-    log_success "MCP server files deployed"
+    # Copy server files as user (not root) to avoid ownership issues
+    run_as_user "${USER_NAME}" "cp -r ${MCP_SOURCE}/src ${MCP_ROOT}/"
+    run_as_user "${USER_NAME}" "cp -r ${MCP_SOURCE}/scripts ${MCP_ROOT}/ 2>/dev/null || true"
+    run_as_user "${USER_NAME}" "cp ${MCP_SOURCE}/package.json ${MCP_ROOT}/"
+    run_as_user "${USER_NAME}" "cp ${MCP_SOURCE}/package-lock.json ${MCP_ROOT}/ 2>/dev/null || true"
+    
+    log_success "MCP server files deployed (owned by ${USER_NAME})"
 fi
-
-# Set ownership
-chown -R "${USER_OWNERSHIP}" "${MCP_ROOT}"
 
 ################################################################################
 # Install npm dependencies
@@ -56,15 +57,15 @@ else
     log_info "Installing npm dependencies (this may take a few minutes)..."
 fi
 
-# Install dependencies
-npm install --cache "${CACHE_ROOT}/npm" || {
+# Install dependencies as user (not root) to avoid ownership issues
+run_as_user "${USER_NAME}" "cd ${MCP_ROOT} && npm install --cache ${CACHE_ROOT}/npm" || {
     log_error "npm install failed"
     exit 1
 }
 
 # Count installed packages
 PKG_COUNT=$(ls -1 "${MCP_ROOT}/node_modules" 2>/dev/null | wc -l)
-log_success "Installed ${PKG_COUNT} npm packages"
+log_success "Installed ${PKG_COUNT} npm packages (owned by ${USER_NAME})"
 
 ################################################################################
 # Verify MCP Server

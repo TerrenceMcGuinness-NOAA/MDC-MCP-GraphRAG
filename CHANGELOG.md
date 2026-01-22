@@ -1,5 +1,34 @@
 # MCP Server Changelog
 
+## [7.1.5] - Docker MCP Gateway Tool Discovery Fix (January 22, 2026)
+
+### Fixed
+- **Gateway tool discovery** - MCP gateway service now discovers 35 tools correctly:
+  - Replaced `--static=true` with `--long-lived` flag in systemd service
+  - Added full catalog path `/root/.docker/mcp/catalogs/eib-local.yaml` instead of relative path
+  - Static mode failed because it expected pre-connected containers, but catalog type was `server`
+  - Long-lived mode correctly spawns containers on-demand from catalog image
+  
+- **Container cleanup** - Fixed transient `container: unbound variable` error:
+  - Cleanup script properly handles empty container lists with bash strict mode
+  - Timer is working correctly (runs every 15min, 30min grace period)
+
+- **File ownership after provisioning** - Fixed ROOT CAUSE of files owned by root:
+  - **05-python-spack.sh**: `git clone spack` now runs as user (was running as root)
+  - **07-mcp-server.sh**: `cp` and `npm install` now run as user (were running as root)
+  - **00-users.sh**: `git clone` for user repos now runs as that user (was running as root)
+  - Added `14-final-ownership.sh` as verification script (fixes only if issues found)
+  - Eliminates "permission denied" errors when editing files in VS Code
+  - Prevents recurring ownership issues after provisioning runs
+
+### Changed
+- Gateway mode changed from static pre-connected to on-demand spawning
+- Cleanup responsibility now handled by `mcp-container-cleanup.timer` (15min interval)
+- Service file: `SETUP/provisioning/12-static-mode-gateway.sh` updated
+- Provisioning now runs final ownership correction as last step
+
+---
+
 ## [7.1.4] - EE2 Compliance Tool Bug Fixes (January 15, 2026)
 
 ### Fixed

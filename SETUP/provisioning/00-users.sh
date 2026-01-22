@@ -288,27 +288,24 @@ clone_mcp_rag_repo() {
 
   if [[ -d "${repo_dir}/.git" ]]; then
     log_warning "Repository already exists at ${repo_dir}; updating..."
-    GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git -C "${repo_dir}" fetch origin 2>/dev/null || true
+    run_as_user "${username}" "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' git -C ${repo_dir} fetch origin 2>/dev/null || true"
   else
     log_info "Cloning from local bare repository to ${repo_dir}"
-    # Clone from local bare repo - fast and no auth required
-    git clone "${BARE_REPO_DIR}" "${repo_dir}" 2>&1 || {
+    # Clone from local bare repo as the target user (not root)
+    run_as_user "${username}" "git clone ${BARE_REPO_DIR} ${repo_dir}" || {
       log_error "Failed to clone from bare repository"
       return 1
     }
     
     # Set upstream remote to the actual GitLab URL for future pulls
     if [[ -d "${repo_dir}/.git" ]]; then
-      git -C "${repo_dir}" remote set-url origin "${UPSTREAM_REPO_URL}" 2>/dev/null || true
-      git -C "${repo_dir}" remote add local "${BARE_REPO_DIR}" 2>/dev/null || true
-      git -C "${repo_dir}" checkout develop 2>/dev/null || true
-      log_success "Repository cloned and set to develop branch"
+      run_as_user "${username}" "git -C ${repo_dir} remote set-url origin ${UPSTREAM_REPO_URL} 2>/dev/null || true"
+      run_as_user "${username}" "git -C ${repo_dir} remote add local ${BARE_REPO_DIR} 2>/dev/null || true"
+      run_as_user "${username}" "git -C ${repo_dir} checkout develop 2>/dev/null || true"
+      log_success "Repository cloned and set to develop branch (owned by ${username})"
       log_info "Remote 'origin' set to upstream, 'local' set to bare repo"
     fi
   fi
-
-  # Ensure ownership is correct
-  chown -R "${username}:${user_group}" "${repo_dir}" 2>/dev/null || true
 }
 
 setup_vscode_mcp_config() {

@@ -48,17 +48,18 @@ if [[ -d "${SPACK_ROOT}" ]] && [[ -f "${SPACK_ROOT}/bin/spack" ]]; then
 else
     log_info "Installing Spack..."
     
-    # Clone Spack
-    git clone -c feature.manyFiles=true https://github.com/spack/spack.git "${SPACK_ROOT}" || {
+    # Create directory as root, then clone as user to avoid ownership issues
+    mkdir -p "${SPACK_ROOT}"
+    chown "${USER_OWNERSHIP}" "${SPACK_ROOT}"
+    
+    # Clone Spack as the target user (not root)
+    run_as_user "${USER_NAME}" "git clone -c feature.manyFiles=true https://github.com/spack/spack.git ${SPACK_ROOT}" || {
         log_error "Failed to clone Spack"
         exit 1
     }
     
-    log_success "Spack installed"
+    log_success "Spack installed (owned by ${USER_NAME})"
 fi
-
-# Set ownership
-chown -R "${USER_OWNERSHIP}" "${SPACK_ROOT}"
 
 # Source Spack
 source "${SPACK_ROOT}/share/spack/setup-env.sh"
