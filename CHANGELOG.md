@@ -1,5 +1,28 @@
 # MCP Server Changelog
 
+## [7.1.6] - Dynamic Tools Mode + EIB Auto-Load (January 22, 2026)
+
+### Fixed
+- **Dynamic tools mode WITH EIB tools** - Both capabilities now work together:
+  - Added `--enable-all-servers` flag to auto-load servers from `registry.yaml`
+  - Removed `--servers eib-mcp-rag` flag (was disabling dynamic tools)
+  - Gateway now provides `mcp-find`, `mcp-add`, `mcp-remove`, `mcp-config-set`, `mcp-exec`
+  - EIB tools (35) load automatically from registry on gateway startup
+  - LLM agents can discover and add additional MCP servers on-demand (e.g., arxiv-mcp-server)
+  - Reference: [Dynamic_MCP_Server_Self_Provisioning wiki](https://github.com/TerrenceMcGuinness-NOAA/global-workflow/wiki/Dynamic_MCP_Server_Self_Provisioning)
+
+### Changed
+- `SETUP/provisioning/12-static-mode-gateway.sh` - Added `--enable-all-servers` flag
+- `SETUP/systemd/mcp-gateway.service.template` - Updated for dynamic tools + auto-load
+- Live `/etc/systemd/system/mcp-gateway.service` - Updated and restarted
+- Root's `/root/.docker/mcp/registry.yaml` - Must contain `eib-mcp-rag` entry
+
+### Tool Count
+- **42 tools total** = 35 EIB tools + 7 gateway management tools
+- Gateway tools: `mcp-find`, `mcp-add`, `mcp-remove`, `mcp-config-set`, `mcp-exec`, `mcp-create-profile`, `code-mode`
+
+---
+
 ## [7.1.5] - Docker MCP Gateway Tool Discovery Fix (January 22, 2026)
 
 ### Fixed

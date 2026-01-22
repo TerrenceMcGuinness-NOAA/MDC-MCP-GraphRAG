@@ -150,14 +150,17 @@ Group=${USER_GROUP}
 Environment=HOME=${USER_HOME}
 Environment=MCP_GATEWAY_AUTH_TOKEN=eib-mcp-gateway-token-2025
 
-# Static mode: Gateway connects to pre-existing container
-# No per-session container spawning = no orphan accumulation
-ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run \\
-    --catalog eib-local.yaml \\
-    --servers eib-mcp-rag \\
+# Dynamic tools mode WITH EIB server auto-loaded:
+# --enable-all-servers: Auto-connect servers from registry.yaml (eib-mcp-rag)
+# --catalog: Use our local catalog for server definitions  
+# No --servers flag: Keeps mcp-find, mcp-add, mcp-remove enabled
+# Reference: Dynamic_MCP_Server_Self_Provisioning wiki page
+ExecStart=${DOCKER_CLI_PLUGINS}/docker-mcp gateway run \\
+    --catalog /root/.docker/mcp/catalogs/eib-local.yaml \\
+    --enable-all-servers \\
     --transport streaming \\
     --port 18888 \\
-    --static=true \\
+    --long-lived \\
     --verbose
 
 # Safety net: Clean up any orphaned containers on stop
