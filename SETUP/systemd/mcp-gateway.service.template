@@ -27,13 +27,16 @@ WorkingDirectory=${USER_HOME}
 # Server registered via 'docker mcp catalog add' + 'docker mcp server enable'
 # Port 18888 to avoid conflicts with common services on RDHPCS systems
 #
-# DYNAMIC TOOLS MODE + EIB AUTO-LOAD:
+# DYNAMIC TOOLS MODE + EIB AUTO-LOAD + FULL MCP CATALOG:
+# --catalog eib-local.yaml: Our custom EIB MCP RAG server definition
+# --additional-catalog docker-mcp.yaml: Full Docker MCP catalog (312 servers)
+#   This enables mcp-find to search and add servers like brave, fetch, arxiv, etc.
 # --enable-all-servers: Auto-connect servers listed in registry.yaml (eib-mcp-rag)
 # No --servers flag: Enables mcp-find, mcp-add, mcp-remove for LLM self-provisioning
-# (e.g., arxiv-mcp-server for paper search, github-mcp-server, etc.)
 # Reference: https://github.com/TerrenceMcGuinness-NOAA/global-workflow/wiki/Dynamic_MCP_Server_Self_Provisioning
 ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run \
     --catalog ${USER_HOME}/.docker/mcp/catalogs/eib-local.yaml \
+    --additional-catalog docker-mcp.yaml \
     --enable-all-servers \
     --transport streaming \
     --port 18888 \

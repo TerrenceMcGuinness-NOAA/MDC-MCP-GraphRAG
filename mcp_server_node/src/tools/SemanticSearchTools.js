@@ -337,7 +337,9 @@ export class SemanticSearchTools {
 
   async getKnowledgeBaseStatus(args) {
     await this.ensureInitialized();
-    const { include_graph = true, include_vector = true } = args;
+    // Coerce string booleans from MCP clients (VS Code passes "true"/"false" as strings)
+    const include_graph = args.include_graph === false || args.include_graph === 'false' ? false : true;
+    const include_vector = args.include_vector === false || args.include_vector === 'false' ? false : true;
 
     try {
       const stats = await this.dataAccess.getStatistics();

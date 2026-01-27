@@ -1,9 +1,9 @@
 # MCP/RAG System - Priority Roadmap
 
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
-**Last Updated**: January 12, 2026  
+**Last Updated**: January 27, 2026  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development - Phase 23 Investigation Complete
+**Status**: Active Development - Phase 26 Complete
 
 ---
 
@@ -11,14 +11,15 @@
 
 | Component | Status | Metrics |
 |-----------|--------|---------|
-| **MCP Server** | ✅ Operational | v7.1.1, 35 tools across 8 modules |
+| **MCP Server** | ✅ Operational | v7.1.8, 35 tools across 8 modules |
 | **ChromaDB** | ✅ Healthy | 12 collections, 14,968 documents |
 | **Neo4j** | ✅ Healthy | 2,744 files, 1,540 functions, 86,189 relationships |
-| **Docker Gateway** | ⚠️ Under Review | Port 18888, Container accumulation issue identified |
+| **Docker Gateway** | ✅ Fixed (Phase 26) | Port 18888, systemd service running |
 | **n8n Workflow** | ✅ Operational | Port 5678, MCP Gateway integration |
 | **SDD Validator** | ✅ Operational | 4 tools, standalone server |
 | **GitLab Registry** | ✅ Ready | `chromadb:v134clean` image pushed |
 | **GitFlow Branches** | ✅ Created | develop, env/dev-ops, env/staging, env/production |
+| **Dynamic Tools** | ⚠️ Reverted | Requires Docker Desktop (Phase 27 planned) |
 
 ---
 
@@ -330,6 +331,43 @@ An AI-assisted development platform for NOAA operational weather systems that:
 **Goal**: Trace execution from shell scripts into compiled code  
 **Status**: SDD complete, BACKLOG  
 **Timeline**: Future - high value but not critical for initial rollout
+
+---
+
+### 🟡 Phase 27: Headless Dynamic MCP Server Discovery
+**Goal**: Enable third-party MCP server discovery (`mcp-find`, `mcp-add`) on headless Linux  
+**Status**: PLANNING  
+**Why**: The v7.1.6 dynamic tools feature was reverted (v7.1.8) because it requires Docker Desktop secrets store (`/.s0` socket) which doesn't exist on headless Linux servers.
+
+**Problem Statement**:
+- `--additional-catalog docker-mcp.yaml` loads official Docker MCP catalog (hundreds of servers)
+- `--enable-all-servers` enables dynamic tools (mcp-find, mcp-add, mcp-remove, etc.)
+- These require Docker Desktop to manage secrets for third-party API keys
+- Headless Linux has no Docker Desktop GUI → no `/.s0` socket → secrets lookup fails
+
+**Lost Capabilities** (from v7.1.6):
+- `mcp-find` - Search for MCP servers in Docker catalog
+- `mcp-add` - Dynamically add MCP servers at runtime  
+- `mcp-remove` - Remove MCP servers
+- `mcp-config-set` - Configure server settings
+- `mcp-exec` - Execute commands on servers
+
+**Potential Solutions**:
+1. **Local secrets file** - Environment variables or YAML file instead of Docker Desktop
+2. **Filtered catalog** - Subset of docker-mcp.yaml with only servers that don't require secrets
+3. **On-demand catalog loading** - Load server definitions only when requested, skip secrets
+4. **Standalone secrets manager** - HashiCorp Vault or similar for headless systems
+5. **Upstream contribution** - Work with Docker MCP Gateway team on headless support
+
+**Deliverables**:
+- [ ] Research Docker MCP Gateway secrets architecture
+- [ ] Prototype local secrets provider
+- [ ] Test filtered catalog approach
+- [ ] Document recommended headless configuration
+- [ ] Submit upstream issue/PR if appropriate
+
+**Timeline**: TBD (after Phase 26 stabilization)  
+**Reference**: Phase 26 SDD (`phase26_docker_mcp_gateway_systemd_fix.md`)
 
 ---
 

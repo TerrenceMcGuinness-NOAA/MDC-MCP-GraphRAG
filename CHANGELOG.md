@@ -1,5 +1,45 @@
 # MCP Server Changelog
 
+## [7.1.8] - Docker MCP Gateway Systemd Service Fix (January 27, 2026)
+
+### Fixed
+- **Systemd service GROUP error (exit code 216)** - Service now starts successfully:
+  - Changed `Group=Terry.McGuinness` to `Group=pwuser` (user's actual primary group)
+  - Root cause: Username does not have a matching group name on this system
+  
+- **Docker Desktop secrets dependency removed**:
+  - Removed `--additional-catalog docker-mcp.yaml` flag
+  - Removed `--enable-all-servers` flag (was causing secrets lookup)
+  - Changed to explicit `--servers eib-mcp-rag` for headless Linux compatibility
+  - Root cause: docker-mcp.yaml catalog requires Docker Desktop secrets store (`/.s0` socket)
+  
+- **xargs compatibility** - Changed `-r` to `--no-run-if-empty` for portability
+
+### Changed
+- `/etc/systemd/system/mcp-gateway.service` - Complete rewrite for headless Linux:
+  - Explicit server list instead of dynamic catalog search
+  - No Docker Desktop dependencies
+  - Proper group configuration
+
+### Verified Working
+- Gateway: `systemctl status mcp-gateway` → `active (running)`
+- Port 18888 listening
+- 35 tools discovered via `docker mcp tools ls`
+- VS Code can call gateway tools (`mcp_eib-mcp-gatew_*`)
+- Bearer token authentication working
+
+### Reverts Dynamic Tools Mode (v7.1.6)
+This fix **reverts the dynamic tools capability** added in v7.1.6:
+- The `--enable-all-servers` and `--additional-catalog docker-mcp.yaml` flags from v7.1.6 require Docker Desktop
+- Third-party MCP server discovery (`mcp-find`, `mcp-add`) is **not available** on headless Linux
+- Future work needed: Alternative approach for dynamic MCP server provisioning without Docker Desktop secrets
+- See: Future Phase for "Headless Dynamic MCP Server Discovery"
+
+### SDD Reference
+- Phase 26: Docker MCP Gateway Systemd Service Fix (`sdd_framework/workflows/phase26_docker_mcp_gateway_systemd_fix.md`)
+
+---
+
 ## [7.1.7] - LangFlow Removal, n8n Consolidation (January 22, 2026)
 
 ### Removed
@@ -27,6 +67,10 @@
 ---
 
 ## [7.1.6] - Dynamic Tools Mode + EIB Auto-Load (January 22, 2026)
+
+> **⚠️ REVERTED in v7.1.8** - This approach requires Docker Desktop secrets store (`/.s0` socket)
+> which is unavailable on headless Linux servers. See v7.1.8 for the fix that reverts to
+> explicit `--servers eib-mcp-rag` mode. Future work needed for alternative dynamic discovery.
 
 ### Fixed
 - **Dynamic tools mode WITH EIB tools** - Both capabilities now work together:
