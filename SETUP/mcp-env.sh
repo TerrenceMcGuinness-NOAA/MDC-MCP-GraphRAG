@@ -47,22 +47,25 @@ export NODE_ENV=production
 export NODE_PATH="${MCP_ROOT}/node_modules"
 
 # Module system initialization (Rocky 9 Architecture)
-# This is a fallback - bash_profile should have already initialized modules
+# Priority: System Lmod (dnf) > /apps Lmod (mount) > Environment Modules
 if ! command -v module >/dev/null 2>&1; then
     # No module system initialized - set one up
-    if [ -f /apps/lmod/lmod/init/bash ]; then
-        # Use system Lmod - temporarily disable unbound variable check
-        # (Lmod init script may reference unset variables like FPATH)
+    if [ -f /usr/share/lmod/lmod/init/bash ]; then
+        # Use system Lmod from dnf package
+        set +u 2>/dev/null || true
+        source /usr/share/lmod/lmod/init/bash
+        set -u 2>/dev/null || true
+        module use /apps/modules/modulefiles &>/dev/null
+    elif [ -f /apps/lmod/lmod/init/bash ]; then
+        # Use Lmod from /apps mount (external HPC environment)
         set +u 2>/dev/null || true
         source /apps/lmod/lmod/init/bash
         set -u 2>/dev/null || true
-        module use /apps/modules/modulefiles 2>/dev/null
-        # DO NOT add Spack hierarchical modules here - they require gcc to be loaded first
-        # Spack modules will be added later in the provisioning script after gcc is loaded
+        module use /apps/modules/modulefiles &>/dev/null
     elif [ -f /usr/share/Modules/init/bash ]; then
-        # Fallback to Environment Modules
+        # Fallback to Environment Modules (can't use Spack Lmod modules)
         source /usr/share/Modules/init/bash
-        module use /apps/modules/modulefiles 2>/dev/null
+        module use /apps/modules/modulefiles &>/dev/null
     fi
 fi
 
@@ -71,38 +74,45 @@ if [ -f /mcp_rag_eib/spack/share/spack/setup-env.sh ]; then
     source /mcp_rag_eib/spack/share/spack/setup-env.sh
 fi
 
-# Python configuration - only load if not already loaded
+# Python configuration - only load if not already loaded AND Spack is provisioned
+# Guard: Check that Spack gcc modules exist before attempting to load
+SPACK_GCC_MODULES="/mcp_rag_eib/spack/share/spack/lmod/linux-rocky9-x86_64/gcc/11.5.0"
+
 if command -v module >/dev/null 2>&1 && ! module list 2>&1 | grep -q python; then
-    # Load gcc to expose compiler-dependent modules (py-* packages from spack)
-    # Then load all ChromaDB and Neo4j dependencies from spack
-    if command -v ml >/dev/null 2>&1; then
-        ml gcc/11.5.0 2>/dev/null || true
-        ml python/3.11 py-pip 2>/dev/null || true
-        # Neo4j driver
-        ml py-neo4j 2>/dev/null || true
-        # ChromaDB dependencies (chromadb itself installed via pip --user)
-        ml py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
-        # Sentence-transformers dependencies
-        ml py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
-        # TODO: py-beautifulsoup4 and py-lxml have gcc-runtime hash conflicts with py-pydantic
-        # The spack builds use gcc-runtime/11.5.0-qa4ruhy but pydantic uses gcc-runtime/11.5.0-kfpu42e
-        # Loading py-lxml causes Lmod to swap gcc-runtime versions, breaking pydantic imports.
-        # WORKAROUND: Install via pip instead (see PIP-ONLY section below)
-        # FUTURE FIX: Rebuild py-lxml and py-beautifulsoup4 with same gcc-runtime as py-pydantic
-        # ml py-beautifulsoup4 py-lxml 2>/dev/null || true  # DISABLED - conflicts
-    else
-        module load gcc/11.5.0 2>/dev/null || true
-        module load python/3.11 py-pip 2>/dev/null || true
-        # Neo4j driver
-        module load py-neo4j 2>/dev/null || true
-        # ChromaDB dependencies (chromadb itself installed via pip --user)
-        module load py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio 2>/dev/null || true
-        # Sentence-transformers dependencies
-        module load py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml 2>/dev/null || true
-        # NOTE: py-beautifulsoup4 and py-lxml have gcc-runtime conflicts with py-pydantic
-        # They are installed via pip --user instead (see PIP-ONLY section below)
-        # module load py-beautifulsoup4 py-lxml 2>/dev/null || true  # DISABLED - conflicts with pydantic
+    # Only attempt Spack module loading if provisioning is complete
+    if [ -d "${SPACK_GCC_MODULES}" ]; then
+        # Load gcc to expose compiler-dependent modules (py-* packages from spack)
+        # Then load all ChromaDB and Neo4j dependencies from spack
+        if command -v ml >/dev/null 2>&1; then
+            ml gcc/11.5.0 &>/dev/null || true
+            ml python/3.11 py-pip &>/dev/null || true
+            # Neo4j driver
+            ml py-neo4j &>/dev/null || true
+            # ChromaDB dependencies (chromadb itself installed via pip --user)
+            ml py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio &>/dev/null || true
+            # Sentence-transformers dependencies
+            ml py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml &>/dev/null || true
+            # TODO: py-beautifulsoup4 and py-lxml have gcc-runtime hash conflicts with py-pydantic
+            # The spack builds use gcc-runtime/11.5.0-qa4ruhy but pydantic uses gcc-runtime/11.5.0-kfpu42e
+            # Loading py-lxml causes Lmod to swap gcc-runtime versions, breaking pydantic imports.
+            # WORKAROUND: Install via pip instead (see PIP-ONLY section below)
+            # FUTURE FIX: Rebuild py-lxml and py-beautifulsoup4 with same gcc-runtime as py-pydantic
+            # ml py-beautifulsoup4 py-lxml &>/dev/null || true  # DISABLED - conflicts
+        else
+            module load gcc/11.5.0 &>/dev/null || true
+            module load python/3.11 py-pip &>/dev/null || true
+            # Neo4j driver
+            module load py-neo4j &>/dev/null || true
+            # ChromaDB dependencies (chromadb itself installed via pip --user)
+            module load py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio &>/dev/null || true
+            # Sentence-transformers dependencies
+            module load py-pillow py-scipy py-numpy py-tokenizers py-tqdm py-pyyaml &>/dev/null || true
+            # NOTE: py-beautifulsoup4 and py-lxml have gcc-runtime conflicts with py-pydantic
+            # They are installed via pip --user instead (see PIP-ONLY section below)
+            # module load py-beautifulsoup4 py-lxml &>/dev/null || true  # DISABLED - conflicts with pydantic
+        fi
     fi
+    # Note: If Spack not provisioned, Python packages will need to be sourced from system or pip
 fi
 
 ################################################################################
