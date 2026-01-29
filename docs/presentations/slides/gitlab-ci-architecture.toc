@@ -1,0 +1,8 @@
+\beamer@sectionintoc {1}{The GitLab CI/CD Paradigm}{3}{0}{1}
+\beamer@sectionintoc {2}{Pipeline Stages}{5}{0}{2}
+\beamer@sectionintoc {3}{Template System}{7}{0}{3}
+\beamer@sectionintoc {4}{Multi-Modality: PR Cases \& CTests}{10}{0}{4}
+\beamer@sectionintoc {5}{Host-Specific Extensibility}{13}{0}{5}
+\beamer@sectionintoc {6}{Conditional Execution}{17}{0}{6}
+\beamer@sectionintoc {7}{Error Handling \& Reporting}{18}{0}{7}
+\beamer@sectionintoc {8}{Summary}{20}{0}{8}

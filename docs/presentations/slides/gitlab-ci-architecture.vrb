@@ -1,0 +1,30 @@
+\frametitle{Questions?}
+
+\begin{center}
+\vspace{0.5cm}
+
+\begin{tikzpicture}
+\node[font=\Huge\bfseries, color=noaablue!30] {?};
+\end{tikzpicture}
+
+\vspace{0.5cm}
+
+{\Large\bfseries Thank you!}
+
+\vspace{0.5cm}
+
+\begin{tabular}{rl}
+\textbf{GitHub:} & \url{github.com/NOAA-EMC/global-workflow} \\
+\textbf{GitLab:} & GitLab vLab (internal) \\
+\textbf{CI Docs:} & \texttt{dev/ci/} directory \\
+\end{tabular}
+
+\vspace{0.8cm}
+
+\fcolorbox{codeborder}{codebg}{\parbox{0.7\textwidth}{\centering
+\small Global Workflow CI/CD Architecture\\
+\textbf{NOAA/EMC Environmental Modeling Center}
+}}
+
+\end{center}
+
