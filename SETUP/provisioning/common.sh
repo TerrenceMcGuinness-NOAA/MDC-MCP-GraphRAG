@@ -159,7 +159,39 @@ wait_for_service() {
 
 # Get the actual user (not root when using sudo)
 get_actual_user() {
-    echo "${SUDO_USER:-${USER:-$(whoami)}}"
+    # 1. Allow explicit override via USER_NAME env var
+    if [[ -n "${USER_NAME:-}" ]]; then
+        echo "${USER_NAME}"
+        return
+    fi
+
+    # 2. Try standard detections
+    local user="${SUDO_USER:-${USER:-$(whoami)}}"
+    
+    # 3. If resolved to root, try to fallback to the configured primary user
+    # This prevents accidental root ownership when running in automation/CI
+    if [[ "${user}" == "root" ]]; then
+        # Try to find user from config without sourcing (avoid side effects)
+        local config_file="${SETUP_DIR}/provisioning/user_config.sh"
+        if [[ -f "${config_file}" ]]; then
+            # Extract first user from PROVISION_USERS array
+            # matches: PROVISION_USERS=( "Terry.McGuinness"
+            local default_user
+            default_user=$(grep -m 1 -oP 'PROVISION_USERS=\(\s*"\K[^"]+' "${config_file}" || true)
+            
+            if [[ -n "${default_user}" ]]; then
+                # Log to stderr so valid output (stdout) is preserved for assignment
+                >&2 echo -e "${YELLOW}[WARN] Detected root user, falling back to default user: ${default_user}${NC}"
+                echo "${default_user}"
+                return
+            fi
+        fi
+        
+        # If no config/fallback found, warn but return root
+        >&2 echo -e "${RED}[WARN] Running as root and could not determine actual user! Files will be owned by root.${NC}"
+    fi
+
+    echo "${user}"
 }
 
 # Get the primary group of a user (handles case where group name != username)
@@ -223,6 +255,39 @@ create_dir_as_user() {
     
     mkdir -p "${dir}"
     chown -R "${ownership}" "${dir}"
+}
+
+# Copy files/directories preserving ownership for target user
+# This is the CORRECT way to copy files in provisioning scripts
+# Usage: copy_as_user "source" "destination"
+copy_as_user() {
+    local src="$1"
+    local dst="$2"
+    local user=$(get_actual_user)
+    local ownership
+    ownership=$(get_ownership "${user}")
+    
+    # Copy as root (which has permissions), then fix ownership
+    cp -r "${src}" "${dst}"
+    chown -R "${ownership}" "${dst}"
+}
+
+# Ensure a path has correct user ownership
+# Usage: ensure_user_ownership "/path/to/fix"
+ensure_user_ownership() {
+    local path="$1"
+    local user=$(get_actual_user)
+    local ownership
+    ownership=$(get_ownership "${user}")
+    
+    if [[ -e "${path}" ]]; then
+        current_owner=$(stat -c '%U:%G' "${path}" 2>/dev/null || echo "unknown")
+        if [[ "${current_owner}" != "${ownership}" ]]; then
+            chown -R "${ownership}" "${path}"
+            return 0  # Fixed
+        fi
+    fi
+    return 1  # No fix needed or path doesn't exist
 }
 
 # Source Spack environment if available
@@ -353,6 +418,7 @@ export -f log_info log_success log_warning log_error log_section log_subsection
 export -f record_result clear_status_file read_all_results
 export -f require_root command_exists service_running wait_for_service
 export -f get_actual_user get_user_group get_ownership run_as_user create_dir_as_user
+export -f copy_as_user ensure_user_ownership
 export -f load_spack_env load_modules
 export -f run_subscript print_summary_report
 
