@@ -1,0 +1,148 @@
+\documentclass[10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{titlesec}
+
+% Tighter margins to ensure 2-page fit
+\geometry{letterpaper, margin=0.6in, top=0.75in, bottom=0.75in}
+
+% Header/Footer setup
+\pagestyle{fancy}
+\setlength{\headheight}{12pt}
+\fancyhf{}
+\rhead{\footnotesize NOAA EMC/EIB -- AI Infrastructure Requirements}
+\lhead{\footnotesize January 29, 2026}
+\cfoot{\footnotesize \thepage}
+
+% Reduce section spacing
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+\titlespacing*{\subsection}{0pt}{6pt}{2pt}
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+
+% Compact title block
+\title{\vspace{-4ex}\textbf{AI-Assisted Development Strategy}\\[0.2ex]\normalsize Requirements Definition \& Platform Integration Analysis\vspace{-2ex}}
+\author{\normalsize Enterprise Infrastructure Branch (EIB)}
+\date{\vspace{-2ex}\normalsize January 29, 2026}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+%==============================================================================
+% PAGE 1: VENDOR-AGNOSTIC REQUIREMENTS
+%==============================================================================
+\section*{Part I: Functional \& Architectural Requirements}
+
+To enable AI-assisted development across NOAA EMC while maintaining security and strict separation of concerns, the infrastructure must meet specific functional capabilities.
+
+\subsection*{1. Dual-Path Capability Requirement}
+The AI-assisted development infrastructure requires two distinct but complementary modes of AI interaction:
+
+\begin{enumerate}[leftmargin=*, label=\textbf{\arabic*.}, itemsep=3pt, topsep=3pt]
+    \item \textbf{Interactive Developer Assistance (Productivity Layer)}
+    \begin{itemize}[label=$\circ$, nosep, leftmargin=1.5em]
+        \item \textbf{Function}: Provides real-time code completion, refactoring, and natural language chat within the Integrated Development Environment (IDE).
+        \item \textbf{Delivery Mechanism}: Editor extension/plugin.
+        \item \textbf{User}: Individual developers and scientists.
+        \item \textbf{Cost Model}: Typically per-seat licensing.
+    \end{itemize}
+    
+    \item \textbf{Programmatic Inference Access (Infrastructure Layer)}
+    \begin{itemize}[label=$\circ$, nosep, leftmargin=1.5em]
+        \item \textbf{Function}: Enables the creation of custom automation pipelines, semantic search systems (RAG), and batch processing tools.
+        \item \textbf{Delivery Mechanism}: Secure API endpoints (REST/SDK).
+        \item \textbf{User}: Internal applications and Critical Infrastructure workflows.
+        \item \textbf{Cost Model}: Consumption-based (pay-per-token).
+    \end{itemize}
+\end{enumerate}
+
+\subsection*{2. Architectural Decoupling Requirement}
+A strict separation of concerns must be maintained between the \textit{commodity intelligence} (the LLM) and the \textit{institutional knowledge} (the Agency Context).
+
+\begin{itemize}[leftmargin=*, itemsep=3pt, topsep=3pt]
+    \item \textbf{Layer 1: The Model Provider (Interchangeable)}. The system must allow for the foundation model to be swapped or upgraded without refactoring internal knowledge systems.
+    \item \textbf{Layer 2: The Context Provider (Agency-Owned)}. Critical agency knowledge (compliance standards, HPC configurations, legacy code graphs) must reside in a government-controlled "Context Layer" (e.g., RAG/Graph database).
+    \item \textbf{Integration Protocol}. The connection between the IDE assistant (Layer 1) and the Context (Layer 2) must use standard, open protocols (e.g., Model Context Protocol) to ensure vendor neutrality.
+\end{itemize}
+
+\subsection*{3. Security \& Compliance Standards}
+\begin{enumerate}[leftmargin=*, itemsep=2pt, topsep=3pt]
+    \item \textbf{FedRAMP Authorization}: Solutions must hold current FedRAMP authorization (Moderate baseline minimum; High preferred for sensitive systems).
+    \item \textbf{Data Privacy}: The vendor must architecturally guarantee that government code snippets and prompts are \textbf{not} used for model training or service improvements.
+    \item \textbf{Access Control}: API access must integrate with enterprise identity management for auditability.
+\end{enumerate}
+
+\newpage
+
+%==============================================================================
+% PAGE 2: COMPARATIVE ANALYSIS
+%==============================================================================
+\section*{Part II: Platform Integration Analysis}
+
+This section delineates the functional relationship between the distinct vendor offerings and explains the architectural analogy for IDE integration.
+
+\subsection*{Comparing the Platforms}
+
+There is a fundamental functional distinction between the leading solution categories. One functions primarily as an \textit{editor utility}, while the other functions as a \textit{cloud infrastructure service}.
+
+\vspace{1em}
+\noindent
+\begin{tabular}{|p{0.3\textwidth}|p{0.3\textwidth}|p{0.3\textwidth}|}
+\hline
+\rowcolor{gray!15}
+\textbf{Feature Dimensions} & \textbf{GitHub Copilot} & \textbf{AWS Bedrock} \\
+\hline
+\textbf{Primary Classification} & \textbf{SaaS Productivity Tool} & \textbf{Cloud API Service} \\
+\hline
+\textbf{Core Deliverable} & An IDE Extension that "sits in the editor" to assist the human. & Raw API endpoints for building applications (RAG, Agents). \\
+\hline
+\textbf{Model Access} & Managed access to specific models (GPT-4, Claude) wrapped in a chat interface. & Direct programmatic access to a library of models (Llama, Titan, Claude). \\
+\hline
+\textbf{API availability} & \textbf{NO.} Does not provide API keys for custom app development. & \textbf{YES.} Designed specifically for custom app development. \\
+\hline
+\end{tabular}
+
+\subsection*{The IDE Analogy: Copilot vs. Q Developer}
+
+A common misconception is that selecting AWS as a provider means losing the "in-editor" assistant experience. In reality, both ecosystems provide functionally analogous plugins for Visual Studio Code.
+
+\vspace{1em}
+\noindent\fbox{\parbox{0.95\textwidth}{
+\textbf{The Architectural Analogy}\\
+\vspace{0.3em}
+\textit{The \textbf{Amazon Q Developer} plugin is to the AWS Cloud}\\[0.1em]
+\textit{what the \textbf{GitHub Copilot} plugin is to the Microsoft/OpenAI Cloud.}
+}}
+
+\vspace{1em}
+
+\subsubsection*{1. Functional Parity in the IDE}
+Both plugins install into VS Code and occupy the exact same "Sidebar" real estate. They both offer:
+\begin{itemize}[nosep, topsep=2pt, leftmargin=1.5em]
+    \item Inline code completion ("ghost text").
+    \item Chat windows for natural language questions.
+    \item Vulnerability scanning and refactoring tools.
+\end{itemize}
+
+\subsubsection*{2. Agnostic Integration with NOAA Context (MCP)}
+Crucially, our custom "Context Layer" (the EIB MCP-RAG Server) connects to the \textit{editor}, not the specific vendor cloud.
+
+\begin{itemize}[nosep, topsep=2pt, leftmargin=1.5em]
+    \item If a developer uses \textbf{GitHub Copilot}, the plugin queries the local MCP server to retrieve NOAA EE2 standards.
+    \item If a developer uses \textbf{Amazon Q Developer}, the plugin \textit{also} queries the local MCP server to retrieve the exact same NOAA EE2 standards.
+\end{itemize}
+
+\vspace{1em}
+\textbf{Conclusion}: The choice of backend provider (AWS vs. GitHub) dictates which \textit{foundation model} generates the answer (e.g., Claude via Bedrock vs. GPT-4 via GitHub), but it does \textbf{not} dictate availability of NOAA institutional knowledge. Both plugins can equally leverage the agency's custom RAG infrastructure.
+
+\end{document}
