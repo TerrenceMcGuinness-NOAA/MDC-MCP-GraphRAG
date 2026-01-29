@@ -135,3 +135,6 @@ htmlcov/
 *.model
 *.bin
 *.weights
+
+# Copilot CLI session state (symlink to ~/.copilot)
+.copilot/

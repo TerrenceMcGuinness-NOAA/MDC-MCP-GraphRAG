@@ -156,12 +156,15 @@ run_foreground() {
     stop_gateway
     
     log_info "Starting gateway in foreground on port ${PORT}..."
+    log_info "Catalogs: eib-local + docker-mcp (312 servers)"
     log_info "Press Ctrl+C to stop"
     echo ""
     
     export MCP_GATEWAY_AUTH_TOKEN="${AUTH_TOKEN}"
     exec docker mcp gateway run \
-        --servers eib-mcp-rag \
+        --catalog ~/.docker/mcp/catalogs/eib-local.yaml \
+        --additional-catalog docker-mcp.yaml \
+        --enable-all-servers \
         --transport streaming \
         --port "${PORT}" \
         --long-lived \

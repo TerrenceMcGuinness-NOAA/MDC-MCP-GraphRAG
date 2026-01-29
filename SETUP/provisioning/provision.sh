@@ -44,6 +44,7 @@ declare -a SCRIPTS=(
     "12-static-mode-gateway.sh:Phase 23 Static Mode (Production)"
     "13-container-cleanup.sh:Smart Container Cleanup Timer"
     "14-final-ownership.sh:Final Ownership Correction"
+    "15-github-copilot-cli.sh:GitHub Copilot CLI"
 )
 
 ################################################################################
