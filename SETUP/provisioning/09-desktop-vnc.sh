@@ -235,7 +235,8 @@ After=network.target
 [Service]
 Type=simple
 User=%i
-Group=%i
+# Note: Group removed - systemd uses user's primary group automatically
+# Group=%i was causing failures when username != group (e.g., pwuser group)
 WorkingDirectory=/home/%i
 
 # Defaults (override in /etc/kasmvnc/%i.conf)

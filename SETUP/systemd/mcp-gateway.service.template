@@ -29,14 +29,11 @@ WorkingDirectory=${USER_HOME}
 #
 # DYNAMIC TOOLS MODE + EIB AUTO-LOAD + FULL MCP CATALOG:
 # --catalog eib-local.yaml: Our custom EIB MCP RAG server definition
-# --additional-catalog docker-mcp.yaml: Full Docker MCP catalog (312 servers)
-#   This enables mcp-find to search and add servers like brave, fetch, arxiv, etc.
 # --enable-all-servers: Auto-connect servers listed in registry.yaml (eib-mcp-rag)
 # No --servers flag: Enables mcp-find, mcp-add, mcp-remove for LLM self-provisioning
 # Reference: https://github.com/TerrenceMcGuinness-NOAA/global-workflow/wiki/Dynamic_MCP_Server_Self_Provisioning
 ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run \
     --catalog ${USER_HOME}/.docker/mcp/catalogs/eib-local.yaml \
-    --additional-catalog docker-mcp.yaml \
     --enable-all-servers \
     --transport streaming \
     --port 18888 \
@@ -44,8 +41,9 @@ ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run \
     --verbose
 
 # Clean up orphaned containers on stop (safety net)
-ExecStopPost=-/usr/bin/docker ps -q --filter "label=docker-mcp-name=eib-mcp-rag" | xargs -r docker stop
-ExecStopPost=-/usr/bin/docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag" | xargs -r docker rm
+# Note: Wrapped in bash -c to support pipes in systemd
+ExecStopPost=/bin/bash -c "/usr/bin/docker ps -q --filter 'label=docker-mcp-name=eib-mcp-rag' | xargs -r docker stop"
+ExecStopPost=/bin/bash -c "/usr/bin/docker ps -aq --filter 'label=docker-mcp-name=eib-mcp-rag' | xargs -r docker rm"
 
 Restart=on-failure
 RestartSec=10
