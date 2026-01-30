@@ -1,0 +1,8 @@
+\contentsline {table}{\numberline {1}{\ignorespaces Global Workflow Supported HPC Platforms\relax }}{8}{table.caption.5}%
+\contentsline {table}{\numberline {2}{\ignorespaces Intel MPI Tuning Parameters\relax }}{10}{table.caption.6}%
+\contentsline {table}{\numberline {3}{\ignorespaces Cray MPICH Tuning Parameters\relax }}{10}{table.caption.7}%
+\contentsline {table}{\numberline {4}{\ignorespaces OpenMP Stack Configuration by Platform\relax }}{11}{table.caption.8}%
+\contentsline {table}{\numberline {5}{\ignorespaces Job Resource Variables\relax }}{11}{table.caption.9}%
+\contentsline {table}{\numberline {6}{\ignorespaces APRUN Variables by Job Step\relax }}{11}{table.caption.10}%
+\contentsline {table}{\numberline {7}{\ignorespaces Network Fabric Specifications\relax }}{12}{table.caption.11}%
+\contentsline {table}{\numberline {8}{\ignorespaces CFP vs. Slurm Multi-Prog Comparison\relax }}{14}{table.caption.12}%
