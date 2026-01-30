@@ -1,0 +1,229 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyperFirstAtBeginDocument{\AtBeginDocument}
+\HyperFirstAtBeginDocument{\ifx\hyper@anchor\@undefined
+\global\let\oldcontentsline\contentsline
+\gdef\contentsline#1#2#3#4{\oldcontentsline{#1}{#2}{#3}}
+\global\let\oldnewlabel\newlabel
+\gdef\newlabel#1#2{\newlabelxx{#1}#2}
+\gdef\newlabelxx#1#2#3#4#5#6{\oldnewlabel{#1}{{#2}{#3}}}
+\AtEndDocument{\ifx\hyper@anchor\@undefined
+\let\contentsline\oldcontentsline
+\let\newlabel\oldnewlabel
+\fi}
+\fi}
+\global\let\hyper@last\relax 
+\gdef\HyperFirstAtBeginDocument#1{#1}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{5}{section.1}\protected@file@percent }
+\newlabel{sec:introduction}{{1}{5}{Introduction}{section.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1}The Resource Configuration Challenge}{5}{subsection.1.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces NOAA HPC Platform Characteristics (2025)\relax }}{5}{table.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:platforms}{{1}{5}{NOAA HPC Platform Characteristics (2025)\relax }{table.caption.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}Historical Context}{5}{subsection.1.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Timeline of resource configuration approaches at NOAA/EMC\relax }}{6}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:timeline}{{1}{6}{Timeline of resource configuration approaches at NOAA/EMC\relax }{figure.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.3}Scope and Methodology}{6}{subsection.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Resource Specification Paradigms}{6}{section.2}\protected@file@percent }
+\newlabel{sec:paradigms}{{2}{6}{Resource Specification Paradigms}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Architectural Overview}{6}{subsection.2.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Architectural comparison: \textsc  {CROW}{} (left) performs resolution at YAML parse time; \textsc  {Global-Workflow}{} (right) resolves at shell evaluation time\relax }}{7}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:architecture}{{2}{7}{Architectural comparison: \crow {} (left) performs resolution at YAML parse time; \gw {} (right) resolves at shell evaluation time\relax }{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}CROW: Declarative Resource Tables}{7}{subsection.2.2}\protected@file@percent }
+\newlabel{sec:crow-tables}{{2.2}{7}{CROW: Declarative Resource Tables}{subsection.2.2}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.1}The Type System}{7}{subsubsection.2.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces \textsc  {CROW}{} Custom YAML Tags\relax }}{7}{table.caption.5}\protected@file@percent }
+\newlabel{tab:crow-tags}{{2}{7}{\crow {} Custom YAML Tags\relax }{table.caption.5}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.2}Resource Table Structure}{8}{subsubsection.2.2.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}\textsc  {CROW}{} GFS Resource Table (from \texttt  {default\_resources.yaml})}{8}{lstlisting.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.3}EnKF Resource Tables}{8}{subsubsection.2.2.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}\textsc  {CROW}{} EnKF Resource Table}{8}{lstlisting.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.4}JobRequest Construction}{9}{subsubsection.2.2.4}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}\textsc  {CROW}{} JobRequest Pattern}{9}{lstlisting.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.5}Downstream Resource Tables}{9}{subsubsection.2.2.5}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4}\textsc  {CROW}{} Downstream Resources}{10}{lstlisting.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Global-Workflow: Imperative Configuration}{10}{subsection.2.3}\protected@file@percent }
+\newlabel{sec:gw-config}{{2.3}{10}{Global-Workflow: Imperative Configuration}{subsection.2.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.1}Configuration Hierarchy}{10}{subsubsection.2.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Three-level \textsc  {Global-Workflow}{} configuration hierarchy\relax }}{10}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:gw-hierarchy}{{3}{10}{Three-level \gw {} configuration hierarchy\relax }{figure.caption.6}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.2}Base Resource Configuration}{10}{subsubsection.2.3.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {5}\textsc  {Global-Workflow}{} Base Resource Configuration (\texttt  {config.resources})}{10}{lstlisting.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.3}Platform-Specific Overrides}{12}{subsubsection.2.3.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {6}Platform Override (\texttt  {config.resources.HERA})}{12}{lstlisting.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.4}Platform Environment Files}{12}{subsubsection.2.3.4}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {7}HERA Platform Environment (\texttt  {env/HERA.env})}{12}{lstlisting.7}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {8}WCOSS2 Platform Environment (\texttt  {env/WCOSS2.env})}{13}{lstlisting.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.3.5}ecFlow Job Script Integration}{13}{subsubsection.2.3.5}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {9}ecFlow Job Script Header}{13}{lstlisting.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}MPI Execution Patterns}{14}{section.3}\protected@file@percent }
+\newlabel{sec:mpi}{{3}{14}{MPI Execution Patterns}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}The SPMD/MPMD Dichotomy}{14}{subsection.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces SPMD (single program) vs MPMD (multiple programs) execution models\relax }}{14}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:spmd-mpmd}{{4}{14}{SPMD (single program) vs MPMD (multiple programs) execution models\relax }{figure.caption.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}CROW: Abstract Parallelism Layer}{14}{subsection.3.2}\protected@file@percent }
+\newlabel{sec:crow-parallel}{{3.2}{14}{CROW: Abstract Parallelism Layer}{subsection.3.2}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.1}Platform Definition}{14}{subsubsection.3.2.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {10}\textsc  {CROW}{} Hera Platform Configuration}{14}{lstlisting.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.2}WCOSS Configuration (Historical)}{15}{subsubsection.3.2.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {11}\textsc  {CROW}{} WCOSS Dell P3 Configuration}{15}{lstlisting.11}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces \textsc  {CROW}{} Resource Resolution\relax }}{16}{algorithm.1}\protected@file@percent }
+\newlabel{alg:crow-resolution}{{1}{16}{\crow {} Resource Resolution\relax }{algorithm.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Global-Workflow: MPMD Wrapper System}{16}{subsection.3.3}\protected@file@percent }
+\newlabel{sec:gw-mpmd}{{3.3}{16}{Global-Workflow: MPMD Wrapper System}{subsection.3.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.3.1}MPMD Execution Architecture}{16}{subsubsection.3.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces \textsc  {Global-Workflow}{} \textsc  {MPMD}{} execution flow through \texttt  {run\_mpmd.sh}\relax }}{16}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:mpmd-flow}{{5}{16}{\gw {} \mpmd {} execution flow through \texttt {run\_mpmd.sh}\relax }{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.3.2}Command File Generation}{16}{subsubsection.3.3.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {12}\texttt  {run\_mpmd.sh} Core Functions}{16}{lstlisting.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.3.3}CFP (Coupled Framework Parallelism)}{18}{subsubsection.3.3.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {13}CFP Command File Format}{18}{lstlisting.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Launcher Abstraction Comparison}{18}{subsection.3.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Launcher Abstraction Comparison\relax }}{18}{table.caption.9}\protected@file@percent }
+\newlabel{tab:launcher-compare}{{3}{18}{Launcher Abstraction Comparison\relax }{table.caption.9}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Comparative Analysis}{18}{section.4}\protected@file@percent }
+\newlabel{sec:comparison}{{4}{18}{Comparative Analysis}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Code Organization}{18}{subsection.4.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces File Organization Comparison\relax }}{19}{table.caption.10}\protected@file@percent }
+\newlabel{tab:file_organization}{{4}{19}{File Organization Comparison\relax }{table.caption.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Adding a New Resolution}{19}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}CROW Approach}{19}{subsubsection.4.2.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {14}Adding C1152 to \textsc  {CROW}{}}{19}{lstlisting.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}Global-Workflow Approach}{19}{subsubsection.4.2.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {15}Adding C1152 to \textsc  {Global-Workflow}{}}{19}{lstlisting.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Adding a New HPC Platform}{20}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.1}CROW Approach}{20}{subsubsection.4.3.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {16}New Platform in \textsc  {CROW}{}}{20}{lstlisting.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.3.2}Global-Workflow Approach}{21}{subsubsection.4.3.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {17}New Platform Environment (\texttt  {env/AWS.env})}{21}{lstlisting.17}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {18}Platform Resource Overrides (\texttt  {config.resources.AWS})}{21}{lstlisting.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Validation Capabilities}{22}{subsection.4.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Validation Feature Comparison\relax }}{22}{table.caption.11}\protected@file@percent }
+\newlabel{tab:validation}{{5}{22}{Validation Feature Comparison\relax }{table.caption.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Error Handling Patterns}{22}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.1}CROW: Fail-Fast}{22}{subsubsection.4.5.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {19}\textsc  {CROW}{} Error Handling}{22}{lstlisting.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.2}Global-Workflow: Defensive Defaults}{22}{subsubsection.4.5.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {20}\textsc  {Global-Workflow}{} Default Handling}{22}{lstlisting.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Maintenance Metrics}{23}{subsection.4.6}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Lines of Code for Resource Configuration\relax }}{23}{table.caption.12}\protected@file@percent }
+\newlabel{tab:loc}{{6}{23}{Lines of Code for Resource Configuration\relax }{table.caption.12}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Change Propagation Analysis\relax }}{23}{table.caption.13}\protected@file@percent }
+\newlabel{tab:propagation}{{7}{23}{Change Propagation Analysis\relax }{table.caption.13}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Resource Tuple Semantics}{23}{section.5}\protected@file@percent }
+\newlabel{sec:semantics}{{5}{23}{Resource Tuple Semantics}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}CROW Tuple Format}{23}{subsection.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces \textsc  {CROW}{} Tuple Field Semantics\relax }}{23}{table.caption.14}\protected@file@percent }
+\newlabel{tab:crow-tuple}{{8}{23}{\crow {} Tuple Field Semantics\relax }{table.caption.14}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Global-Workflow Variables}{24}{subsection.5.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {21}\textsc  {Global-Workflow}{} Resource Variables}{24}{lstlisting.21}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Semantic Comparison}{24}{subsection.5.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Resource Parameter Mapping\relax }}{24}{table.caption.15}\protected@file@percent }
+\newlabel{tab:param-mapping}{{9}{24}{Resource Parameter Mapping\relax }{table.caption.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Thread Configuration Semantics}{24}{subsection.5.4}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {22}\textsc  {CROW}{} Thread Semantics}{24}{lstlisting.22}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {23}\textsc  {Global-Workflow}{} Thread Calculation}{25}{lstlisting.23}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Execution Flow Comparison}{25}{section.6}\protected@file@percent }
+\newlabel{sec:execution}{{6}{25}{Execution Flow Comparison}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}CROW Execution Path}{25}{subsection.6.1}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces \textsc  {CROW}{} Configuration Resolution\relax }}{25}{algorithm.2}\protected@file@percent }
+\newlabel{alg:crow-exec}{{2}{25}{\crow {} Configuration Resolution\relax }{algorithm.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Global-Workflow Execution Path}{26}{subsection.6.2}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces \textsc  {Global-Workflow}{} Configuration Resolution\relax }}{26}{algorithm.3}\protected@file@percent }
+\newlabel{alg:gw-exec}{{3}{26}{\gw {} Configuration Resolution\relax }{algorithm.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Execution Timeline Comparison}{26}{subsection.6.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Error detection timing: \textsc  {CROW}{} catches errors at compile time; \textsc  {Global-Workflow}{} at runtime\relax }}{26}{figure.caption.16}\protected@file@percent }
+\newlabel{fig:error-timing}{{6}{26}{Error detection timing: \crow {} catches errors at compile time; \gw {} at runtime\relax }{figure.caption.16}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Memory and Thread Configuration}{27}{section.7}\protected@file@percent }
+\newlabel{sec:memory-threads}{{7}{27}{Memory and Thread Configuration}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Memory Specification Models}{27}{subsection.7.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Per-rank vs per-node memory allocation\relax }}{27}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:memory-model}{{7}{27}{Per-rank vs per-node memory allocation\relax }{figure.caption.17}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.1}CROW Memory Specification}{27}{subsubsection.7.1.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {24}\textsc  {CROW}{} Memory Options}{27}{lstlisting.24}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.1.2}Global-Workflow Memory}{27}{subsubsection.7.1.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {25}\textsc  {Global-Workflow}{} Memory Handling}{27}{lstlisting.25}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}OpenMP Thread Management}{28}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.1}Thread Calculation}{28}{subsubsection.7.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Thread Configuration Examples by Platform\relax }}{28}{table.caption.18}\protected@file@percent }
+\newlabel{tab:thread-examples}{{10}{28}{Thread Configuration Examples by Platform\relax }{table.caption.18}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.2}CROW Thread Semantics}{28}{subsubsection.7.2.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {26}\textsc  {CROW}{} Thread Specification}{28}{lstlisting.26}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {27}\textsc  {CROW}{} max Thread Calculation}{29}{lstlisting.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {7.2.3}Global-Workflow Thread Management}{29}{subsubsection.7.2.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {28}\textsc  {Global-Workflow}{} Thread Configuration}{29}{lstlisting.28}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Hybrid MPI+OpenMP Topology}{30}{subsection.7.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Hybrid MPI+OpenMP layout: 6 ranks across 2 nodes with 4 threads each\relax }}{30}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:hybrid-topology}{{8}{30}{Hybrid MPI+OpenMP layout: 6 ranks across 2 nodes with 4 threads each\relax }{figure.caption.19}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Error Handling and Validation}{30}{section.8}\protected@file@percent }
+\newlabel{sec:error-handling}{{8}{30}{Error Handling and Validation}{section.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}CROW: Fail-Fast Philosophy}{30}{subsection.8.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {29}\textsc  {CROW}{} Comprehensive Error Handling}{30}{lstlisting.29}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}Global-Workflow: Defensive Programming}{31}{subsection.8.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {30}\textsc  {Global-Workflow}{} Defensive Error Handling}{31}{lstlisting.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3}Error Detection Timing}{32}{subsection.8.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces When Errors Are Detected\relax }}{32}{table.caption.20}\protected@file@percent }
+\newlabel{tab:error-timing}{{11}{32}{When Errors Are Detected\relax }{table.caption.20}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4}Error Message Quality}{32}{subsection.8.4}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {31}\textsc  {CROW}{} Error Message Example}{32}{lstlisting.31}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {32}\textsc  {Global-Workflow}{} Error Message Example}{32}{lstlisting.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}Practical Implications}{32}{section.9}\protected@file@percent }
+\newlabel{sec:practical}{{9}{32}{Practical Implications}{section.9}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.1}Developer Experience}{32}{subsection.9.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.1.1}Debugging Workflow}{32}{subsubsection.9.1.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {33}\textsc  {CROW}{} Debug Workflow}{33}{lstlisting.33}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {34}\textsc  {Global-Workflow}{} Debug Workflow}{33}{lstlisting.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.1.2}Onboarding Metrics}{34}{subsubsection.9.1.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces Developer Onboarding Time Estimates\relax }}{34}{table.caption.21}\protected@file@percent }
+\newlabel{tab:onboarding}{{12}{34}{Developer Onboarding Time Estimates\relax }{table.caption.21}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2}Maintenance Burden}{34}{subsection.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.2.1}Lines of Code Analysis}{34}{subsubsection.9.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces Detailed Lines of Code Comparison\relax }}{34}{table.caption.22}\protected@file@percent }
+\newlabel{tab:loc-detail}{{13}{34}{Detailed Lines of Code Comparison\relax }{table.caption.22}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.2.2}Change Frequency Analysis}{34}{subsubsection.9.2.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces Configuration Change Frequency (2023-2024)\relax }}{35}{table.caption.23}\protected@file@percent }
+\newlabel{tab:change-freq}{{14}{35}{Configuration Change Frequency (2023-2024)\relax }{table.caption.23}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.3}Testing Implications}{35}{subsection.9.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.3.1}CROW Testing}{35}{subsubsection.9.3.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {35}\textsc  {CROW}{} Test Patterns}{35}{lstlisting.35}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.3.2}Global-Workflow Testing}{36}{subsubsection.9.3.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {36}\textsc  {Global-Workflow}{} Test Patterns}{36}{lstlisting.36}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10}Comprehensive Feature Matrix}{37}{section.10}\protected@file@percent }
+\newlabel{sec:matrix}{{10}{37}{Comprehensive Feature Matrix}{section.10}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Comprehensive Feature Comparison Matrix\relax }}{38}{table.caption.24}\protected@file@percent }
+\newlabel{tab:summary}{{15}{38}{Comprehensive Feature Comparison Matrix\relax }{table.caption.24}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {11}Recommendations}{39}{section.11}\protected@file@percent }
+\newlabel{sec:recommendations}{{11}{39}{Recommendations}{section.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1}Architectural Recommendation: Hybrid Approach}{39}{subsection.11.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Recommended hybrid architecture combining declarative specification with imperative execution\relax }}{39}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:hybrid-arch}{{9}{39}{Recommended hybrid architecture combining declarative specification with imperative execution\relax }{figure.caption.25}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.2}Specific Recommendations}{39}{subsection.11.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {11.2.1}Recommendation 1: Standard Schema Language}{39}{subsubsection.11.2.1}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {37}Proposed Standard Schema Resource Definition}{39}{lstlisting.37}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {11.2.2}Recommendation 2: Explicit Compilation Step}{40}{subsubsection.11.2.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {38}Example Compiled Output}{40}{lstlisting.38}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {11.2.3}Recommendation 3: Preserve MPMD Infrastructure}{40}{subsubsection.11.2.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {39}Enhanced MPMD Integration}{41}{lstlisting.39}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {11.2.4}Recommendation 4: Validation Pipeline}{41}{subsubsection.11.2.4}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces Recommended Validation Pipeline\relax }}{42}{algorithm.4}\protected@file@percent }
+\newlabel{alg:validation}{{4}{42}{Recommended Validation Pipeline\relax }{algorithm.4}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {11.2.5}Recommendation 5: Future Infrastructure Requirements}{42}{subsubsection.11.2.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Future Infrastructure Requirements\relax }}{42}{table.caption.26}\protected@file@percent }
+\newlabel{tab:future}{{16}{42}{Future Infrastructure Requirements\relax }{table.caption.26}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.3}Migration Strategy}{42}{subsection.11.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.4}Summary of Recommendations}{43}{subsection.11.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12}Conclusion}{43}{section.12}\protected@file@percent }
+\newlabel{sec:conclusion}{{12}{43}{Conclusion}{section.12}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.1}Key Findings}{43}{subsection.12.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.2}Verdict: Context-Dependent Choice}{44}{subsection.12.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.3}Path Forward}{44}{subsection.12.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.4}Future Work}{44}{subsection.12.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {A}CROW Custom Tag Reference}{45}{appendix.A}\protected@file@percent }
+\newlabel{app:crow-tags}{{A}{45}{CROW Custom Tag Reference}{appendix.A}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {17}{\ignorespaces \textsc  {CROW}{} Custom YAML Tag Reference\relax }}{45}{table.caption.29}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B}Global-Workflow APRUN Variables}{46}{appendix.B}\protected@file@percent }
+\newlabel{app:aprun}{{B}{46}{Global-Workflow APRUN Variables}{appendix.B}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {18}{\ignorespaces \textsc  {Global-Workflow}{} APRUN Variable Reference\relax }}{46}{table.caption.30}\protected@file@percent }
+\gdef \@abspage@last{46}
