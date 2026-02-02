@@ -135,14 +135,38 @@ DOCKER_CLI_PLUGINS="${USER_HOME}/.docker/cli-plugins"
 # Create plugins directory
 run_as_user "${USER_NAME}" "mkdir -p ${DOCKER_CLI_PLUGINS}"
 
-# Install plugin
-cp "${MCP_GATEWAY_REPO}/docker-mcp" "${DOCKER_CLI_PLUGINS}/docker-mcp"
-chmod +x "${DOCKER_CLI_PLUGINS}/docker-mcp"
-chown "$(get_ownership "${USER_NAME}")" "${DOCKER_CLI_PLUGINS}/docker-mcp"
+# Check if plugin needs updating (idempotent)
+PLUGIN_INSTALLED="${DOCKER_CLI_PLUGINS}/docker-mcp"
+PLUGIN_BUILT="${MCP_GATEWAY_REPO}/docker-mcp"
+
+if [[ -f "${PLUGIN_INSTALLED}" ]]; then
+    # Compare checksums to see if update needed
+    INSTALLED_SUM=$(md5sum "${PLUGIN_INSTALLED}" 2>/dev/null | awk '{print $1}' || echo "none")
+    BUILT_SUM=$(md5sum "${PLUGIN_BUILT}" 2>/dev/null | awk '{print $1}' || echo "new")
+    
+    if [[ "${INSTALLED_SUM}" == "${BUILT_SUM}" ]]; then
+        log_info "Plugin already up-to-date, skipping install"
+    else
+        # Try to copy, handling "Text file busy" if gateway is running
+        if cp "${PLUGIN_BUILT}" "${PLUGIN_INSTALLED}" 2>/dev/null; then
+            chmod +x "${PLUGIN_INSTALLED}"
+            chown "$(get_ownership "${USER_NAME}")" "${PLUGIN_INSTALLED}"
+            log_success "Plugin updated: ${PLUGIN_INSTALLED}"
+        else
+            log_warning "Plugin in use (gateway running), will use existing version"
+        fi
+    fi
+else
+    # Fresh install
+    cp "${PLUGIN_BUILT}" "${PLUGIN_INSTALLED}"
+    chmod +x "${PLUGIN_INSTALLED}"
+    chown "$(get_ownership "${USER_NAME}")" "${PLUGIN_INSTALLED}"
+    log_success "Plugin installed: ${PLUGIN_INSTALLED}"
+fi
 
 # Verify installation
 if run_as_user "${USER_NAME}" "docker mcp --version" &>/dev/null; then
-    log_success "Plugin installed: ${DOCKER_CLI_PLUGINS}/docker-mcp"
+    log_success "Plugin verified: $(run_as_user "${USER_NAME}" "docker mcp --version 2>&1" | head -1)"
 else
     log_warning "Plugin installed but 'docker mcp' command not working yet"
 fi
@@ -360,8 +384,67 @@ systemctl daemon-reload
 systemctl enable mcp-gateway.service
 
 log_success "MCP Gateway systemd service configured"
-log_info "  Start with: sudo systemctl start mcp-gateway"
-log_info "  Status: sudo systemctl status mcp-gateway"
+
+################################################################################
+# Start Gateway Service (Idempotent)
+################################################################################
+
+log_subsection "Starting MCP Gateway Service"
+
+# Check if gateway is already running and healthy
+GATEWAY_HEALTHY=false
+
+if systemctl is-active --quiet mcp-gateway.service; then
+    # Service is running, check if port is responding
+    if ss -tlnp 2>/dev/null | grep -q ":18888"; then
+        # Port is listening, verify MCP protocol response
+        HEALTH_CHECK=$(curl -s --max-time 5 "http://localhost:18888/mcp" \
+            -H "Authorization: Bearer eib-mcp-gateway-token-2025" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"healthcheck","version":"1.0"}}}' 2>/dev/null || echo "")
+        
+        if echo "${HEALTH_CHECK}" | grep -q '"protocolVersion"'; then
+            GATEWAY_HEALTHY=true
+            log_success "Gateway already running and healthy on port 18888"
+        else
+            log_warning "Gateway running but not responding to MCP protocol, restarting..."
+        fi
+    else
+        log_warning "Gateway service active but port 18888 not listening, restarting..."
+    fi
+else
+    log_info "Gateway service not running, starting..."
+fi
+
+# Start or restart if not healthy
+if [[ "${GATEWAY_HEALTHY}" == false ]]; then
+    systemctl restart mcp-gateway.service
+    
+    # Wait for startup (up to 15 seconds)
+    log_info "Waiting for gateway to start..."
+    for i in {1..15}; do
+        sleep 1
+        if ss -tlnp 2>/dev/null | grep -q ":18888"; then
+            # Verify MCP response
+            HEALTH_CHECK=$(curl -s --max-time 3 "http://localhost:18888/mcp" \
+                -H "Authorization: Bearer eib-mcp-gateway-token-2025" \
+                -H "Content-Type: application/json" \
+                -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"healthcheck","version":"1.0"}}}' 2>/dev/null || echo "")
+            
+            if echo "${HEALTH_CHECK}" | grep -q '"protocolVersion"'; then
+                log_success "Gateway started and responding on port 18888"
+                GATEWAY_HEALTHY=true
+                break
+            fi
+        fi
+        printf "."
+    done
+    echo ""
+    
+    if [[ "${GATEWAY_HEALTHY}" == false ]]; then
+        log_warning "Gateway may not be fully healthy - check: systemctl status mcp-gateway"
+    fi
+fi
 
 ################################################################################
 # Summary
@@ -394,13 +477,10 @@ else
 fi
 
 log_info ""
-log_info "Start the gateway service:"
-log_info "  sudo systemctl start mcp-gateway"
-log_info "  sudo systemctl status mcp-gateway"
-log_info ""
-log_info "Or run manually:"
-log_info "  export MCP_GATEWAY_AUTH_TOKEN=\"eib-mcp-gateway-token-2025\""
-log_info "  docker mcp gateway run --servers eib-mcp-rag --transport streaming --port 18888 --long-lived --verbose"
+log_info "Gateway management:"
+log_info "  Status:  sudo systemctl status mcp-gateway"
+log_info "  Restart: sudo systemctl restart mcp-gateway"
+log_info "  Logs:    sudo journalctl -u mcp-gateway -f"
 log_info ""
 log_info "Verify tools available:"
 log_info "  docker mcp tools ls"
@@ -410,5 +490,9 @@ log_info "  1. SSH tunnel: ssh -L 18888:localhost:18888 user@server -N"
 log_info "  2. VS Code mcp.json: type=http, url=http://localhost:18888/mcp"
 log_info "  3. Bearer token: eib-mcp-gateway-token-2025"
 
-record_result "11-docker-mcp-gateway.sh" "success" "${TOOL_COUNT} tools"
+if [[ "${GATEWAY_HEALTHY}" == true ]]; then
+    record_result "11-docker-mcp-gateway.sh" "success" "${TOOL_COUNT} tools, gateway running"
+else
+    record_result "11-docker-mcp-gateway.sh" "warning" "${TOOL_COUNT} tools, gateway may need manual start"
+fi
 exit 0

@@ -79,7 +79,7 @@ A strict separation of concerns must be maintained between the \textit{commodity
 \begin{enumerate}[leftmargin=*, itemsep=2pt, topsep=3pt]
     \item \textbf{FedRAMP Authorization}: Solutions must hold current FedRAMP authorization (Moderate baseline minimum; High preferred for sensitive systems).
     \item \textbf{Data Privacy}: The vendor must architecturally guarantee that government code snippets and prompts are \textbf{not} used for model training or service improvements.
-    \item \textbf{Access Control}: API access must integrate with enterprise identity management for auditability.
+    \item \textbf{Access Control}: The vendor's API must support enterprise identity providers (SAML/OAuth/OIDC) for centralized credential management and usage auditing.
 \end{enumerate}
 
 \newpage
