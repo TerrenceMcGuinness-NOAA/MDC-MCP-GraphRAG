@@ -9,11 +9,27 @@
 # Hostname included only if <= 10 characters
 # If no suffix provided, generates a random 6-character alphanumeric string
 #
+# Environment Variables:
+#   VSCODE_SERVER_DIR - Directory for VS Code server files (default: $HOME)
+#                       Set this if $HOME has limited storage
+#                       Example: export VSCODE_SERVER_DIR=/scratch/$USER/vscode
+#
 # Prerequisites: VS Code with tunnel support (code --version >= 1.80)
 #   - System install: /usr/bin/code (preferred)
 #   - Or standalone CLI: https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64
 ################################################################################
 set -e
+
+# VS Code server directory - use env var or default to HOME
+VSCODE_DIR="${VSCODE_SERVER_DIR:-${HOME}}"
+
+# Set VS Code's native environment variables for alternate storage
+if [[ "${VSCODE_DIR}" != "${HOME}" ]]; then
+    mkdir -p "${VSCODE_DIR}"
+    export VSCODE_CLI_DATA_DIR="${VSCODE_DIR}/.vscode-cli"
+    export VSCODE_SERVER_DIR="${VSCODE_DIR}/.vscode-server"
+    echo "[INFO] VS Code server files: ${VSCODE_DIR}"
+fi
 
 # Get the first name from username (e.g., Anna.Smoot -> Anna)
 FIRST_NAME="${USER%%.*}"
@@ -32,8 +48,8 @@ else
     SERVER_NAME="pw_${FIRST_NAME}_${SUFFIX}"
 fi
 
-# Output file for tunnel logs
-OUTPUT_FILE="${HOME}/${SERVER_NAME}.out"
+# Output file for tunnel logs (use VSCODE_DIR to keep logs with server files)
+OUTPUT_FILE="${VSCODE_DIR}/${SERVER_NAME}.out"
 
 # Find VS Code CLI - prefer system install, fallback to local
 find_code() {
@@ -87,8 +103,13 @@ cat <<EOF
 Server Name: ${SERVER_NAME}
 VS Code CLI: ${CODE_CLI}
 Output File: ${OUTPUT_FILE}
-------------------------------------------
 EOF
+
+if [[ "${VSCODE_DIR}" != "${HOME}" ]]; then
+    echo "Server Dir:  ${VSCODE_DIR}"
+fi
+
+echo "------------------------------------------"
 
 # Start tunnel in background
 nohup "${CODE_CLI}" tunnel --name "${SERVER_NAME}" --accept-server-license-terms > "${OUTPUT_FILE}" 2>&1 &
@@ -101,5 +122,7 @@ Commands:
   cat ${OUTPUT_FILE}              # View logs
   code tunnel status              # Check status
   code tunnel kill                # Stop tunnel
-  sleep 3 && grep -oE 'https://[^[:space:]]+' ${OUTPUT_FILE}  # Get URL
+
+Get URL (wait ~3s for tunnel to start):
+  sed 's/\x1b\[[0-9;]*m//g' ${OUTPUT_FILE} | grep -oE 'https://[^[:space:]]+'
 EOF
