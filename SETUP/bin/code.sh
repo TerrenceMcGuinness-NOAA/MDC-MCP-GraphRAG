@@ -122,7 +122,4 @@ Commands:
   cat ${OUTPUT_FILE}              # View logs
   code tunnel status              # Check status
   code tunnel kill                # Stop tunnel
-
-Get URL (wait ~3s for tunnel to start):
-  sed 's/\x1b\[[0-9;]*m//g' ${OUTPUT_FILE} | grep -oE 'https://[^[:space:]]+'
 EOF
