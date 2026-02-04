@@ -291,6 +291,16 @@ export const RELATIONSHIP_TYPES = {
     }
   },
 
+  // v8: J-Job execution relationship
+  EXECUTES: {
+    type: 'EXECUTES',
+    description: 'J-Job executes an ex-script',
+    properties: {
+      lineNumber: { type: 'INTEGER', required: false },
+      callerFunction: { type: 'STRING', required: false }
+    }
+  },
+
   DEFINES: {
     type: 'DEFINES',
     description: 'File defines Function/Class',

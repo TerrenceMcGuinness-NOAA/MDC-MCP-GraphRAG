@@ -1,5 +1,130 @@
 # MCP Server Changelog
 
+## [7.2.0] - Phase 27E: Unified MPNet Embeddings (February 4, 2026)
+
+### Added
+- **Unified MPNet embeddings (768-dim) across Python and Node.js**
+  - New `src/utils/embeddings.js` module using `@xenova/transformers`
+  - Consistent `all-mpnet-base-v2` model for best semantic search quality
+  - `embed()`, `embedBatch()`, `queryWithEmbeddings()` functions
+  - Pre-computed embeddings for queries (avoids dimension mismatch)
+
+- **Enhanced `get_job_details` tool with embedding-based search**
+  - Semantic search fallback when exact match not found
+  - MPNet embeddings for ChromaDB queries
+  - Returns category, system, and relevance scores
+
+### Changed
+- **OperationalTools.js v2.1.0**: Now uses MPNet embeddings module
+- **ingest_jjobs_v8.py**: Re-ingested with 768-dim MPNet embeddings
+- **jjobs-v8-0-0 collection**: 700 documents with MPNet embeddings
+
+### Deleted
+- 9 old ChromaDB collections (v4, v5, v6 versions) - cleaned up ~10K stale documents
+- Kept: `global-workflow-docs-v7-0-0`, `code-with-context-v7-0-0`, `ee2-standards-v5-0-0-enhanced`, `jjobs-v8-0-0`
+
+### Tech Notes
+- Installed `@xenova/transformers` for Node.js ONNX-based inference
+
+---
+
+## [7.2.1] - ONNX Segfault Fixed (February 4, 2026)
+
+### Fixed
+- **ONNX Runtime segfault on process exit - ROOT CAUSE IDENTIFIED AND FIXED**
+  - **Cause**: Conflicting `onnxruntime-node` versions in dependency tree
+    - `@xenova/transformers@2.17.2` → `onnxruntime-node@1.14.0`
+    - `@chroma-core/default-embed@0.1.9` → `@huggingface/transformers@3.8.1` → `onnxruntime-node@1.21.0`
+  - Two incompatible native binaries loaded = segfault during cleanup
+  - **Fix**: Removed unused `@chroma-core/default-embed` from package.json
+  - Package count reduced: 448 → 237 dependencies
+  - Single ONNX version now: `onnxruntime-node@1.14.0`
+  - Exit code now 0 (was 139/SIGSEGV)
+
+### Changed
+- **package.json**: Removed `@chroma-core/default-embed` dependency (never imported)
+- **embeddings.js**: Removed unnecessary 50ms delay workaround
+
+---
+
+## [7.1.10] - Phase 27C: J-Job ChromaDB Ingestion (February 4, 2026)
+
+### Added
+- **Phase 27C: J-Job ChromaDB ingestion with structured metadata**
+  - New `ingest_jjobs_v8.py` script for J-Job semantic search
+  - New ChromaDB collection `jjobs-v8-0-0` with 700 documents from 89 J-Jobs
+  - Structured metadata extraction:
+    - `job_name` from `jjob_header.sh -e` parameter
+    - `category`/`subcategory`/`system` classification (gdas/gfs/gefs/global)
+    - `config_files` from `jjob_header.sh -c` parameter
+    - `inputs`/`outputs` from file checks and mkdir patterns
+    - `environment_variables` from export statements
+    - `com_templates` from declare_from_tmpl patterns
+  - Semantic chunking: full document + section-based chunks
+  - Query test: "fit2obs verification" → Returns JGDAS_FIT2OBS (correct)
+  - File created: `mcp_server_node/scripts/ingest_jjobs_v8.py`
+
+### Validated
+- `jjobs-v8-0-0` collection created with 700 documents
+- Query "fit2obs verification" correctly returns JGDAS_FIT2OBS job
+- All 89 J-Jobs ingested (0 errors)
+- Metadata extraction stats: 22 inputs, 86 outputs, 225 env vars
+
+### SDD Reference
+- Phase 27C: J-Job ChromaDB Ingestion (✅ COMPLETE)
+- Progress: 27A, 27B, 27C, 27D complete; 27E, 27F, 27G pending
+
+---
+
+## [7.1.9] - Phase 27: J-Job RAG Enhancement (February 4, 2026)
+
+### Added
+- **Phase 27A: Path resolution fix for `dev/` directory structure**
+  - `describe_component` now searches `dev/jobs/`, `dev/scripts/`, `dev/parm/config/gfs/`, `dev/parm/config/gcafs/`, `dev/job_cards/`
+  - Resolves issue where J-Jobs couldn't be found after global-workflow repository restructuring
+  - File modified: `mcp_server_node/src/tools/WorkflowInfoTools.js`
+
+- **Phase 27D: Search filter for `list_job_scripts` tool**
+  - New `search` parameter to filter job scripts by name substring
+  - New `verification` category for validation/stats jobs (fit2obs, verf, cyclone, stat)
+  - File modified: `mcp_server_node/src/tools/OperationalTools.js`
+
+- **Enhanced `mcp_health_check` with functional validation tests**
+  - New `functional: true` parameter runs 5 effectiveness tests:
+    1. Path Resolution - Can `describe_component` find J-Jobs in `dev/jobs/`?
+    2. Search Filter - Does `list_job_scripts` filter by search term?
+    3. Search Relevance - Does `search_documentation` return relevant results?
+    4. Graph Relationships - Does Neo4j have code relationships?
+    5. J-Job Content - Are J-Jobs indexed in ChromaDB?
+  - Reports PASS/PARTIAL/FAIL with specific remediation guidance
+  - File modified: `mcp_server_node/src/UnifiedMCPServer.js`
+
+- **Phase 27B: Enhanced Neo4j Shell Script Ingestion (v8 preparation)**
+  - CodeStructureIngester now discovers J-Jobs in `dev/jobs/` (89 files, no extension)
+  - CodeStructureIngester now discovers ex-scripts in `dev/scripts/` (41 `.sh` files)
+  - J-Job parser captures: task name, config files, ex-script executions
+  - New `JJob` label for Neo4j File nodes with J-Job metadata
+  - New `EXECUTES` relationship: J-Job → ex-script
+  - Enhanced shell parser patterns:
+    - `jjob_header.sh -e "<task>" -c "<configs>"` extraction
+    - `${SCRIPTS*}/*.sh` ex-script execution detection
+  - Files modified: `CodeStructureIngester.js`, `GraphSchema.js`
+
+### Changed
+- Health checks now distinguish between **infrastructure health** (connectivity, counts) and **tool effectiveness** (actual query results)
+- Previous health checks could report "HEALTHY" when tools were ineffective for real queries
+
+### Validated
+- `describe_component JGDAS_FIT2OBS` → Found at `dev/jobs/`, returned 2928 bytes content
+- `list_job_scripts({ search: 'fit2obs' })` → Returns 1 result (filtered from 89 total)
+- `list_job_scripts({ category: 'verification' })` → Returns 9 verification jobs
+
+### SDD Reference
+- Phase 27: J-Job and Script RAG Enhancement (`sdd_framework/workflows/phase27_jjob_script_rag_enhancement.md`)
+- Status: Phases 27A, 27B, 27D complete; 27C, 27E, 27F, 27G pending
+
+---
+
 ## [7.1.8] - Docker MCP Gateway Systemd Service Fix (January 27, 2026)
 
 ### Fixed

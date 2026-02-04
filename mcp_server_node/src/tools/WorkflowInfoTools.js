@@ -301,7 +301,17 @@ export class WorkflowInfoTools {
       }
 
       // Priority 2: Filesystem-based lookup (local mode only)
+      // Phase 27A: Extended paths to include dev/ structure (repository refactoring)
       const searchPaths = [
+        // Primary paths: dev/ structure (current repository layout)
+        path.join(this.workflowRoot, 'dev', 'jobs', component),
+        path.join(this.workflowRoot, 'dev', 'scripts', component),
+        path.join(this.workflowRoot, 'dev', 'parm', component),
+        path.join(this.workflowRoot, 'dev', 'parm', 'config', 'gfs', component),
+        path.join(this.workflowRoot, 'dev', 'parm', 'config', 'gcafs', component),
+        path.join(this.workflowRoot, 'dev', 'job_cards', component),
+        path.join(this.workflowRoot, 'dev', 'job_cards', 'rocoto', component),
+        // Secondary paths: legacy structure (fallback)
         path.join(this.workflowRoot, 'jobs', component),
         path.join(this.workflowRoot, 'scripts', component),
         path.join(this.workflowRoot, 'ush', component),

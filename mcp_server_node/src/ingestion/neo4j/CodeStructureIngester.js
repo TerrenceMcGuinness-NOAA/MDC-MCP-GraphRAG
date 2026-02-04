@@ -35,7 +35,10 @@ export class CodeStructureIngester {
       classesCreated: 0,
       importsCreated: 0,
       callsCreated: 0,
-      definesCreated: 0
+      definesCreated: 0,
+      // v8: J-Job specific stats
+      jjobsProcessed: 0,
+      execScriptsLinked: 0
     };
   }
 
@@ -80,6 +83,11 @@ export class CodeStructureIngester {
       console.log(`Import relationships: ${this.stats.importsCreated}`);
       console.log(`Call relationships: ${this.stats.callsCreated}`);
       console.log(`Defines relationships: ${this.stats.definesCreated}`);
+      // v8: J-Job stats
+      if (this.stats.jjobsProcessed > 0) {
+        console.log(`J-Jobs processed: ${this.stats.jjobsProcessed}`);
+        console.log(`Ex-script links: ${this.stats.execScriptsLinked}`);
+      }
       console.log(`Processing time: ${elapsed}s`);
       
       return this.stats;
@@ -114,7 +122,11 @@ export class CodeStructureIngester {
         : path.join(this.rootDir, searchPath);
       
       try {
-        const discovered = await this.findFilesRecursive(absolutePath, targetExtensions);
+        // v8: Special handling for dev/jobs which contains extensionless J-Jobs
+        const isJJobDir = searchPath.includes('dev/jobs');
+        const discovered = await this.findFilesRecursive(absolutePath, targetExtensions, { 
+          includeJJobs: isJJobDir && language === 'shell' 
+        });
         files.push(...discovered);
       } catch (error) {
         console.warn(`Warning: Could not search ${absolutePath}: ${error.message}`);
@@ -134,7 +146,13 @@ export class CodeStructureIngester {
       case 'python':
         return ['scripts', 'ush/python'];
       case 'shell':
-        return ['scripts', 'ush'];
+        // v8: Include dev/ directory structure (post-refactoring)
+        return [
+          'dev/jobs',       // J-Jobs (JGDAS_*, JGFS_*, JGLOBAL_*)
+          'dev/scripts',    // ex-scripts (exgdas_*, exgfs_*)
+          'scripts',        // Legacy location
+          'ush'             // Utility shell scripts
+        ];
       case 'fortran':
         return ['sorc/gdas.cd', 'sorc/ufs_model.fd'];
       default:
@@ -146,9 +164,12 @@ export class CodeStructureIngester {
    * Recursively find files with target extensions
    * @param {string} dir - Directory to search (absolute)
    * @param {string[]} extensions - File extensions to match
+   * @param {Object} options - Search options
+   * @param {boolean} options.includeJJobs - Include J-Job files (no extension, starts with J)
    * @returns {Promise<string[]>} - Array of matching file paths
    */
-  async findFilesRecursive(dir, extensions) {
+  async findFilesRecursive(dir, extensions, options = {}) {
+    const { includeJJobs = false } = options;
     const files = [];
     
     try {
@@ -160,12 +181,18 @@ export class CodeStructureIngester {
         if (entry.isDirectory()) {
           // Skip hidden directories and common excludes
           if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
-            const subFiles = await this.findFilesRecursive(fullPath, extensions);
+            const subFiles = await this.findFilesRecursive(fullPath, extensions, options);
             files.push(...subFiles);
           }
         } else if (entry.isFile()) {
           const ext = path.extname(entry.name);
+          
+          // Match by extension
           if (extensions.includes(ext)) {
+            files.push(fullPath);
+          }
+          // v8: Also match J-Job files (start with J, no extension, executable shell scripts)
+          else if (includeJJobs && ext === '' && entry.name.match(/^J[A-Z]+/)) {
             files.push(fullPath);
           }
         }
@@ -295,14 +322,26 @@ export class CodeStructureIngester {
     const functions = [];
     const sources = [];
     const calls = [];
+    const execScripts = [];  // v8: Track ex-script executions
+    const metadata = {};     // v8: J-Job metadata
     
     // Split into lines for line number tracking
     const lines = content.split('\n');
+    const fileName = path.basename(filePath);
+    
+    // v8: Detect if this is a J-Job (starts with J, no extension)
+    const isJJob = /^J[A-Z]+/.test(fileName) && !path.extname(filePath);
     
     // Regex patterns
     const functionPattern1 = /^function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*\)\s*\{?/; // function name() {
     const functionPattern2 = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*\)\s*\{/; // name() {
     const sourcePattern = /^\s*(?:source|\.)\s+["']?([^"'\s]+)["']?/; // source file or . file
+    
+    // v8: J-Job specific patterns
+    const jjobHeaderPattern = /source.*jjob_header\.sh.*-e\s*["']?([^"'\s]+)["']?.*-c\s*["']?([^"']+)["']?/;
+    const exScriptPattern = /\$\{SCRIPT[S]?[a-zA-Z_]*\}\/([a-zA-Z_][a-zA-Z0-9_]*\.sh)/;
+    const exScriptPattern2 = /\$\{SCR[a-zA-Z_]*\}\/([a-zA-Z_][a-zA-Z0-9_]*\.sh)/;
+    const exScriptDirectPattern = /["']?\$\{[A-Z_]+\}\/?(ex[a-z0-9_]+\.sh)["']?/;
     
     // Track current function context
     let currentFunction = null;
@@ -315,6 +354,43 @@ export class CodeStructureIngester {
       // Skip comments and empty lines
       if (line.trim().startsWith('#') || line.trim() === '') {
         continue;
+      }
+      
+      // v8: Check for jjob_header.sh sourcing (captures task and config names)
+      if (isJJob) {
+        const jjobMatch = line.match(jjobHeaderPattern);
+        if (jjobMatch) {
+          metadata.task = jjobMatch[1];
+          metadata.configs = jjobMatch[2].split(/\s+/);
+          sources.push({
+            file: 'jjob_header.sh',
+            line_number: lineNumber,
+            type: 'jjob_header',
+            task: jjobMatch[1],
+            configs: jjobMatch[2]
+          });
+          continue;
+        }
+        
+        // v8: Check for ex-script executions
+        const exMatch = line.match(exScriptPattern) || 
+                        line.match(exScriptPattern2) || 
+                        line.match(exScriptDirectPattern);
+        if (exMatch) {
+          const exScript = exMatch[1];
+          execScripts.push({
+            script: exScript,
+            line_number: lineNumber,
+            caller_function: currentFunction?.name || null
+          });
+          // Also add as a call for relationship tracking
+          calls.push({
+            callee: exScript.replace('.sh', ''),
+            line_number: lineNumber,
+            caller_function: currentFunction?.name || '_main_',
+            call_type: 'ex_script'
+          });
+        }
       }
       
       // Check for function definitions
@@ -345,16 +421,18 @@ export class CodeStructureIngester {
         }
       }
       
-      // Check for source/. commands
-      match = line.match(sourcePattern);
-      if (match) {
-        const sourcedFile = match[1];
-        sources.push({
-          file: sourcedFile,
-          line_number: lineNumber,
-          type: line.trim().startsWith('.') ? 'dot' : 'source',
-          caller_function: currentFunction?.name || null
-        });
+      // Check for source/. commands (skip if already captured as jjob_header)
+      if (!line.includes('jjob_header')) {
+        match = line.match(sourcePattern);
+        if (match) {
+          const sourcedFile = match[1];
+          sources.push({
+            file: sourcedFile,
+            line_number: lineNumber,
+            type: line.trim().startsWith('.') ? 'dot' : 'source',
+            caller_function: currentFunction?.name || null
+          });
+        }
       }
       
       // Check for function calls (simplified - matches word followed by arguments)
@@ -399,11 +477,16 @@ export class CodeStructureIngester {
       classes: [], // Shell has no classes
       imports: sources, // Treat source commands as imports
       calls: calls,
+      // v8: J-Job specific fields
+      is_jjob: isJJob,
+      exec_scripts: execScripts,
+      metadata: metadata,
       stats: {
         num_functions: functions.length,
         num_classes: 0,
         num_imports: sources.length,
-        num_calls: calls.length
+        num_calls: calls.length,
+        num_exec_scripts: execScripts.length
       }
     };
   }
@@ -426,16 +509,22 @@ export class CodeStructureIngester {
    * @param {boolean} verbose - Verbose logging
    */
   async ingestFileStructure(parseResult, language, verbose) {
-    const { file_path, functions, classes, imports, calls } = parseResult;
+    const { file_path, functions, classes, imports, calls, is_jjob, exec_scripts, metadata } = parseResult;
     const relativePath = path.relative(this.rootDir, file_path);
     
     if (verbose) {
-      console.log(`  ✓ ${relativePath} (${functions?.length || 0} functions, ${classes?.length || 0} classes)`);
+      const jjobLabel = is_jjob ? ' [J-JOB]' : '';
+      console.log(`  ✓ ${relativePath}${jjobLabel} (${functions?.length || 0} functions, ${exec_scripts?.length || 0} ex-scripts)`);
     }
     
     // Create or match File node
     const fileId = generateNodeId('File', file_path);
-    await this.ensureFileNode(fileId, file_path, relativePath, language);
+    await this.ensureFileNode(fileId, file_path, relativePath, language, { is_jjob, metadata });
+    
+    // v8: Track J-Job count
+    if (is_jjob) {
+      this.stats.jjobsProcessed++;
+    }
     
     // Create Function nodes
     if (functions && functions.length > 0) {
@@ -451,7 +540,7 @@ export class CodeStructureIngester {
       this.stats.definesCreated += classes.length;
     }
     
-    // Create Import relationships
+    // Create Import relationships (includes source commands for shell)
     if (imports && imports.length > 0) {
       await this.createImportRelationships(fileId, imports);
       this.stats.importsCreated += imports.length;
@@ -462,6 +551,12 @@ export class CodeStructureIngester {
       await this.createCallRelationships(fileId, calls, functions, classes);
       this.stats.callsCreated += calls.length;
     }
+    
+    // v8: Create ex-script execution relationships for J-Jobs
+    if (is_jjob && exec_scripts && exec_scripts.length > 0) {
+      await this.createExScriptRelationships(fileId, exec_scripts);
+      this.stats.execScriptsLinked += exec_scripts.length;
+    }
   }
 
   /**
@@ -470,23 +565,78 @@ export class CodeStructureIngester {
    * @param {string} absolutePath - Absolute file path
    * @param {string} relativePath - Path relative to rootDir
    * @param {string} language - Programming language
+   * @param {Object} options - Additional options for J-Jobs
    */
-  async ensureFileNode(fileId, absolutePath, relativePath, language) {
+  async ensureFileNode(fileId, absolutePath, relativePath, language, options = {}) {
+    const { is_jjob = false, metadata = {} } = options;
+    
+    // v8: J-Jobs get additional labels and properties
+    if (is_jjob) {
+      const query = `
+        MERGE (f:File:JJob {id: $fileId})
+        SET f.path = $relativePath,
+            f.absolutePath = $absolutePath,
+            f.language = $language,
+            f.isJJob = true,
+            f.task = $task,
+            f.configs = $configs,
+            f.lastUpdated = datetime()
+        RETURN f
+      `;
+      
+      await this.client.runWriteQuery(query, {
+        fileId,
+        relativePath,
+        absolutePath,
+        language,
+        task: metadata.task || null,
+        configs: metadata.configs || []
+      });
+    } else {
+      const query = `
+        MERGE (f:File {id: $fileId})
+        SET f.path = $relativePath,
+            f.absolutePath = $absolutePath,
+            f.language = $language,
+            f.lastUpdated = datetime()
+        RETURN f
+      `;
+      
+      await this.client.runWriteQuery(query, {
+        fileId,
+        relativePath,
+        absolutePath,
+        language
+      });
+    }
+  }
+
+  /**
+   * v8: Create EXECUTES relationships from J-Job to ex-scripts
+   * @param {string} fileId - J-Job file node ID
+   * @param {Object[]} execScripts - Array of ex-script executions
+   */
+  async createExScriptRelationships(fileId, execScripts) {
     const query = `
-      MERGE (f:File {id: $fileId})
-      SET f.path = $relativePath,
-          f.absolutePath = $absolutePath,
-          f.language = $language,
-          f.lastUpdated = datetime()
-      RETURN f
+      MATCH (jjob:File {id: $fileId})
+      UNWIND $execScripts AS exec
+      MERGE (exScript:File {path: exec.script})
+      ON CREATE SET exScript.id = 'file_' + exec.script,
+                   exScript.language = 'shell',
+                   exScript.lastUpdated = datetime()
+      MERGE (jjob)-[r:EXECUTES]->(exScript)
+      SET r.lineNumber = exec.line_number,
+          r.callerFunction = exec.caller_function
     `;
     
-    await this.client.runWriteQuery(query, {
-      fileId,
-      relativePath,
-      absolutePath,
-      language
-    });
+    try {
+      await this.client.runWriteQuery(query, {
+        fileId,
+        execScripts
+      });
+    } catch (error) {
+      console.warn(`Warning: Could not create ex-script relationships: ${error.message}`);
+    }
   }
 
   /**

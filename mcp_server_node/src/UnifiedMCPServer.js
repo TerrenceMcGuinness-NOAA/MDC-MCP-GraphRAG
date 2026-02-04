@@ -195,6 +195,11 @@ class UnifiedMCPServer {
             type: 'boolean',
             description: 'Run deep validation including sample queries (slower but more thorough)',
             default: false
+          },
+          functional: {
+            type: 'boolean',
+            description: 'Run functional tests to validate tool effectiveness (tests actual tool queries)',
+            default: false
           }
         }
       },
@@ -299,9 +304,10 @@ class UnifiedMCPServer {
    * - Data accessibility (collection count)
    * - Data population (document count)
    * - Query capability (optional deep check)
+   * - Tool effectiveness (optional functional check)
    */
   async healthCheck(args = {}) {
-    const { detailed = false, deep = false } = args;
+    const { detailed = false, deep = false, functional = false } = args;
     
     let status = `# Server Health Check\n\n`;
     const checks = [];
@@ -509,6 +515,200 @@ class UnifiedMCPServer {
       status += `- Modular tool organization (5 modules)\n`;
       status += `- No duplicate tools (21 unique tools)\n`;
       status += `- **Empirical health validation (v3.5.1+)**\n`;
+    }
+
+    // Functional validation tests (run actual tool queries to verify effectiveness)
+    if (functional) {
+      status += `\n## Functional Validation\n\n`;
+      status += `Testing actual tool effectiveness with sample queries...\n\n`;
+      
+      const functionalTests = [];
+      
+      // Test 1: Can describe_component find J-Jobs in dev/jobs/?
+      if (this.workflowInfoTools) {
+        try {
+          const result = await this.workflowInfoTools.describeComponent({ 
+            component: 'JGDAS_FIT2OBS', 
+            show_content: false 
+          });
+          const found = result?.content?.[0]?.text?.includes('dev/jobs/') || 
+                        result?.content?.[0]?.text?.includes('JGDAS_FIT2OBS');
+          functionalTests.push({
+            name: 'Path Resolution (dev/jobs/)',
+            tool: 'describe_component',
+            query: 'JGDAS_FIT2OBS',
+            passed: found,
+            details: found ? 'Found J-Job in dev/jobs/' : 'J-Job not found - check path configuration'
+          });
+        } catch (error) {
+          functionalTests.push({
+            name: 'Path Resolution (dev/jobs/)',
+            tool: 'describe_component',
+            query: 'JGDAS_FIT2OBS',
+            passed: false,
+            details: `Error: ${error.message}`
+          });
+        }
+      }
+      
+      // Test 2: Can list_job_scripts filter by search term?
+      if (this.operationalTools) {
+        try {
+          const result = await this.operationalTools.listJobScripts({ 
+            search: 'fit2obs',
+            format: 'summary'
+          });
+          const text = result?.content?.[0]?.text || '';
+          const foundFit2obs = text.includes('JGDAS_FIT2OBS') || text.includes('1 jobs');
+          const filtered = !text.includes('89 jobs') && !text.includes('Total: 89');
+          functionalTests.push({
+            name: 'Search Filter (list_job_scripts)',
+            tool: 'list_job_scripts',
+            query: 'search: fit2obs',
+            passed: foundFit2obs && filtered,
+            details: foundFit2obs && filtered 
+              ? 'Search filter working correctly' 
+              : 'Search filter may not be filtering results'
+          });
+        } catch (error) {
+          functionalTests.push({
+            name: 'Search Filter (list_job_scripts)',
+            tool: 'list_job_scripts',
+            query: 'search: fit2obs',
+            passed: false,
+            details: `Error: ${error.message}`
+          });
+        }
+      }
+      
+      // Test 3: Does search_documentation return relevant results?
+      if (this.semanticSearchTools?.isInitialized) {
+        try {
+          const result = await this.semanticSearchTools.searchDocumentation({ 
+            query: 'global forecast system initialization',
+            max_results: 3
+          });
+          const text = result?.content?.[0]?.text || '';
+          const hasResults = text.includes('Search Results') && !text.includes('No results');
+          const relevantContent = text.toLowerCase().includes('forecast') || 
+                                  text.toLowerCase().includes('gfs') ||
+                                  text.toLowerCase().includes('workflow');
+          functionalTests.push({
+            name: 'Search Relevance',
+            tool: 'search_documentation',
+            query: 'global forecast system initialization',
+            passed: hasResults && relevantContent,
+            details: hasResults && relevantContent 
+              ? 'Semantic search returning relevant results'
+              : hasResults 
+                ? 'Results found but relevance unclear'
+                : 'No results found - check ChromaDB ingestion'
+          });
+        } catch (error) {
+          functionalTests.push({
+            name: 'Search Relevance',
+            tool: 'search_documentation',
+            query: 'global forecast system initialization',
+            passed: false,
+            details: `Error: ${error.message}`
+          });
+        }
+      }
+      
+      // Test 4: Does Neo4j have code relationships?
+      if (this.codeAnalysisTools) {
+        try {
+          const result = await this.codeAnalysisTools.findCallersCallees({ 
+            function_name: 'forecast',
+            depth: 1 
+          });
+          const text = result?.content?.[0]?.text || '';
+          const hasRelationships = text.includes('Callers') || text.includes('Callees') || 
+                                   text.includes('relationships');
+          const notEmpty = !text.includes('not found') && !text.includes('No callers');
+          functionalTests.push({
+            name: 'Graph Relationships (Neo4j)',
+            tool: 'find_callers_callees',
+            query: 'function: forecast',
+            passed: hasRelationships,
+            details: hasRelationships && notEmpty
+              ? 'Neo4j returning code relationships'
+              : hasRelationships
+                ? 'Neo4j connected but limited relationships found'
+                : 'Neo4j may not have code indexed'
+          });
+        } catch (error) {
+          functionalTests.push({
+            name: 'Graph Relationships (Neo4j)',
+            tool: 'find_callers_callees',
+            query: 'function: forecast',
+            passed: false,
+            details: `Error: ${error.message}`
+          });
+        }
+      }
+      
+      // Test 5: J-Job content in ChromaDB? Search for specific J-Job content
+      if (this.semanticSearchTools?.isInitialized) {
+        try {
+          const result = await this.semanticSearchTools.searchDocumentation({ 
+            query: 'JGDAS_FIT2OBS fit to observations verification prepbufr',
+            max_results: 5
+          });
+          const text = result?.content?.[0]?.text || '';
+          const hasJJobContent = text.includes('JGDAS') || text.includes('FIT2OBS') || 
+                                 text.includes('fit2obs') || text.includes('prepbufr');
+          functionalTests.push({
+            name: 'J-Job Content in ChromaDB',
+            tool: 'search_documentation',
+            query: 'JGDAS_FIT2OBS fit to observations',
+            passed: hasJJobContent,
+            details: hasJJobContent 
+              ? 'J-Job content indexed in ChromaDB'
+              : 'J-Jobs NOT in ChromaDB - run Phase 27C ingestion'
+          });
+        } catch (error) {
+          functionalTests.push({
+            name: 'J-Job Content in ChromaDB',
+            tool: 'search_documentation',
+            query: 'JGDAS_FIT2OBS fit to observations',
+            passed: false,
+            details: `Error: ${error.message}`
+          });
+        }
+      }
+      
+      // Format functional test results
+      const passedCount = functionalTests.filter(t => t.passed).length;
+      const totalTests = functionalTests.length;
+      const functionalStatus = passedCount === totalTests ? 'PASS' : 
+                               passedCount >= totalTests / 2 ? 'PARTIAL' : 'FAIL';
+      
+      status += `| Test | Tool | Status | Details |\n`;
+      status += `|------|------|--------|--------|\n`;
+      functionalTests.forEach(test => {
+        status += `| ${test.name} | \`${test.tool}\` | ${test.passed ? '[PASS]' : '[FAIL]'} | ${test.details} |\n`;
+      });
+      status += `\n**Functional Status**: ${functionalStatus} (${passedCount}/${totalTests} tests passed)\n`;
+      
+      // Add remediation guidance for failed tests
+      const failedTests = functionalTests.filter(t => !t.passed);
+      if (failedTests.length > 0) {
+        status += `\n### Remediation Required\n\n`;
+        for (const test of failedTests) {
+          if (test.name.includes('Path Resolution')) {
+            status += `- **${test.name}**: Update WorkflowInfoTools.js searchPaths to include \`dev/jobs/\`\n`;
+          } else if (test.name.includes('Search Filter')) {
+            status += `- **${test.name}**: Check OperationalTools.js list_job_scripts implementation\n`;
+          } else if (test.name.includes('Search Relevance')) {
+            status += `- **${test.name}**: Verify ChromaDB collections and run documentation ingestion\n`;
+          } else if (test.name.includes('Graph Relationships')) {
+            status += `- **${test.name}**: Run Neo4j code ingestion for global-workflow repository\n`;
+          } else if (test.name.includes('J-Job Content')) {
+            status += `- **${test.name}**: Run Phase 27C J-Job ChromaDB ingestion (see phase27_jjob_script_rag_enhancement.md)\n`;
+          }
+        }
+      }
     }
 
     return status;
