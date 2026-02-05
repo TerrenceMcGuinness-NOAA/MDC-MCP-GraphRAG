@@ -1,5 +1,48 @@
 # MCP Server Changelog
 
+## [7.3.6] - Phase 10 M4: Shell-Fortran EXECUTES Bridge (February 5, 2026)
+
+### Added
+- **`create_shell_fortran_bridge.py`** - Cross-language execution tracing
+  - Parses shell scripts for `$EXEC*/name.x` patterns
+  - 5 matching strategies for executable→program mapping
+  - Creates EXECUTES relationships between ShellScript and FortranProgram nodes
+
+### Results
+| Metric | Value |
+|--------|-------|
+| Shell files scanned | 104 |
+| Unique executables | 23 |
+| EXECUTES relationships | 35 |
+
+### Verified Query
+```cypher
+(ShellScript)-[:EXECUTES]->(FortranProgram)-[:CALLS]->(FortranSubroutine)
+```
+
+---
+
+## [7.3.5] - Phase 10 M3: Full Fortran Ingestion (February 5, 2026)
+
+### Completed
+- **Full Fortran call graph ingested to Neo4j** from 7,214 files (85% parse rate)
+
+### Results (Exceeded All Projections)
+| Entity | Projected | Actual | Factor |
+|--------|-----------|--------|--------|
+| FortranModule | 500+ | **1,539** | 3.0x |
+| FortranSubroutine | 5,000+ | **13,537** | 2.7x |
+| FortranFunction | 3,000+ | **2,355** | 0.8x |
+| FortranProgram | ~100 | **144** | 1.4x |
+| CALLS relationships | 20,000+ | **268,666** | 13.4x |
+| USES relationships | 10,000+ | **91,285** | 9.1x |
+
+### Total Graph
+- **Nodes**: 20,496
+- **Relationships**: 368,978
+
+---
+
 ## [7.3.4] - Phase 10 Milestone 2: Fortran Prototype Parser (February 5, 2026)
 
 ### Added

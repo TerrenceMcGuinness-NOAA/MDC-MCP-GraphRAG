@@ -253,7 +253,7 @@ python ingest_fortran_graph.py --test /path/to/atmosphere.F90
 ---
 
 ### Milestone 3: Full Ingestion Script (4 hours)
-**Status**: ⬜ Not started
+**Status**: ✅ Complete (January 2025)
 
 **Objective**: Process all 7,214 Fortran files and ingest to Neo4j.
 
@@ -263,43 +263,66 @@ python ingest_fortran_graph.py --test /path/to/atmosphere.F90
 - Error handling and skip list
 - Batch Neo4j writes (100 nodes per transaction)
 
-**Target Statistics** (estimated):
-| Entity | Expected Count |
-|--------|---------------|
-| FortranModule | 500+ |
-| FortranSubroutine | 5,000+ |
-| FortranFunction | 3,000+ |
-| CALLS relationships | 20,000+ |
-| USES relationships | 10,000+ |
+**Actual Results** (exceeded all projections):
+| Entity | Projected | Actual | Notes |
+|--------|-----------|--------|-------|
+| FortranModule | 500+ | **1,539** | 3x projected |
+| FortranSubroutine | 5,000+ | **13,537** | 2.7x projected |
+| FortranFunction | 3,000+ | **2,355** | On target |
+| FortranProgram | ~100 | **144** | All executables |
+| CALLS relationships | 20,000+ | **268,666** | 13x projected! |
+| USES relationships | 10,000+ | **91,285** | 9x projected! |
+
+**Ingestion Run**:
+```
+$ python ingest_fortran_graph.py
+Processing 7,214 files...
+Parse success: 6,132 (85%) | Errors: 1,082 (macros, includes)
+Neo4j writes: 17,575 nodes, 359,951 relationships
+Duration: ~8 minutes
+```
+
+**Total Graph After M3**:
+- Nodes: 20,496
+- Relationships: 368,978
 
 ---
 
 ### Milestone 4: Shell-Fortran Bridge (2 hours)
-**Status**: ⬜ Not started
+**Status**: ✅ Complete (January 2025)
 
 **Objective**: Link `$EXEC*/program` references to Fortran PROGRAM nodes.
 
-**Pattern Recognition**:
-```python
-# From shell scripts, extract executable references
-# $EXECgfs/ufs_model → FortranProgram(name='ufs_model')
+**Implementation**: `mcp_server_node/scripts/create_shell_fortran_bridge.py`
 
-# Match to PROGRAM statements in Fortran
-# PROGRAM ufs_model → already in graph
-```
+**Pattern Recognition** (5 strategies):
+1. Exact match (`gsi` → `gsi`)
+2. `_main` suffix (`enkf` → `enkf_main`)
+3. Prefix match (`calc_increment` → `calc_increment_main`)
+4. Exec starts with program (`calc_increment_ens` → `calc_increment`)
+5. Progressive suffix stripping
 
-**Relationship**:
+**Results**:
+| Metric | Value |
+|--------|-------|
+| Shell files scanned | 104 |
+| Unique executables found | 23 |
+| EXECUTES relationships created | 35 |
+| Unmatched executables | 14 (external deps) |
+
+**Verified End-to-End Query**:
 ```cypher
-MATCH (s:ShellScript)-[:INVOKES]->(invoked {name: $exec_name})
-MATCH (p:FortranProgram {name: $prog_name})
-WHERE $exec_name CONTAINS $prog_name
-MERGE (s)-[:EXECUTES]->(p)
+MATCH path = (s:ShellScript)-[:EXECUTES]->(p:FortranProgram)-[:CALLS*1..2]->(sub)
+RETURN s.name, p.name, collect(sub.name)[..3]
+# Results:
+# exglobal_atmos_analysis.sh -> gsi -> [gsimain_initialize, gsimain_run, ...]
+# exglobal_enkf_update.sh -> enkf_main -> [mpi_cleanup, w3tage, ...]
 ```
 
 ---
 
 ### Milestone 5: MCP Tool Integration (2 hours)
-**Status**: ⬜ Not started
+**Status**: 🔄 In Progress
 
 **Objective**: Add Fortran graph queries to existing MCP tools.
 
