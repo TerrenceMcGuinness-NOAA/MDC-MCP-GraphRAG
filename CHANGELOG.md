@@ -1,5 +1,26 @@
 # MCP Server Changelog
 
+## [7.3.4] - Phase 10 Milestone 2: Fortran Prototype Parser (February 5, 2026)
+
+### Added
+- **`ingest_fortran_graph.py`** - Complete Fortran ingestion script
+  - Uses fparser2 with FortranFileReader (key M1 discovery)
+  - Extracts: Modules, Subroutines, Functions, Programs
+  - Extracts: CALL statements, USE statements
+  - Neo4j integration with dry-run mode
+  - CLI: `--test FILE`, `--sample`, `--dry-run`
+
+### Validated (100-file sample)
+- **Parse success rate**: 84%
+- **Entities extracted**: 48 modules, 319 subroutines, 122 functions
+- **Relationships**: 1,905 CALLS, 697 USES
+
+### Projected (7,214 files)
+- **CALLS**: ~139,000 relationships
+- **USES**: ~51,000 relationships
+
+---
+
 ## [7.3.3] - Phase 10 Milestone 1: fparser Integration (February 5, 2026)
 
 ### Added

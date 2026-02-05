@@ -163,11 +163,26 @@ tree = parser(reader)  # NOT parser(content)
 ---
 
 ### Milestone 2: Prototype Parser (2 hours)
-**Status**: ⬜ Not started
+**Status**: ✅ COMPLETE (February 5, 2026)
 
 **Objective**: Parse a single Fortran file and extract AST nodes.
 
-**File**: `mcp_server_node/scripts/ingest_fortran_graph.py`
+**File**: `mcp_server_node/scripts/ingest_fortran_graph.py` ✅ Created
+
+**Validation Results** (100-file sample):
+| Metric | Result |
+|--------|--------|
+| Success Rate | **84%** |
+| Modules | 48 |
+| Subroutines | 319 |
+| Functions | 122 |
+| Programs | 7 |
+| CALL statements | 1,905 |
+| USE statements | 697 |
+
+**Projected for 7,214 files**:
+- CALLS: **~139,000**
+- USES: **~51,000**
 
 **Prototype Code**:
 ```python
