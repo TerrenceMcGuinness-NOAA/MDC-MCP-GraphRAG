@@ -160,7 +160,34 @@ export class CodeAnalysisTools {
       this.findCallersCallees.bind(this)
     );
 
-    console.error('[OK] Registered 4 Code Analysis tools');
+    // Tool 5: Find Environment Variable Dependencies
+    server.registerTool(
+      'find_env_dependencies',
+      'Find all scripts that depend on or export a specific environment variable (uses Neo4j graph)',
+      {
+        type: 'object',
+        properties: {
+          variable_name: {
+            type: 'string',
+            description: 'Name of the environment variable (e.g., HOMEgfs, DATAROOT, RUN)'
+          },
+          show_exports: {
+            type: 'boolean',
+            description: 'Include scripts that export this variable',
+            default: true
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum number of results to return',
+            default: 50
+          }
+        },
+        required: ['variable_name']
+      },
+      this.findEnvDependencies.bind(this)
+    );
+
+    console.error('[OK] Registered 5 Code Analysis tools');
   }
 
   /**
@@ -477,18 +504,44 @@ export class CodeAnalysisTools {
     const { function_name, file_path, include_source = false } = args;
 
     try {
-      let result = `# Function Analysis: ${function_name}\n\n`;
+      // First try function graph (Python/Fortran)
+      let callers = await this.dataAccess.graphDB.findCallers(function_name);
+      let callChain = await this.dataAccess.graphDB.traceCallChain(function_name, 1);
+      
+      // If no function results, try shell script graph
+      let isShellScript = false;
+      if (callers.length === 0 && (!callChain || callChain.length === 0)) {
+        const scriptCallers = await this.dataAccess.graphDB.findScriptCallers(function_name);
+        const scriptChain = await this.dataAccess.graphDB.traceScriptChain(function_name, 2);
+        
+        if (scriptCallers.length > 0 || (scriptChain && scriptChain.length > 0)) {
+          isShellScript = true;
+          callers = scriptCallers;
+          callChain = scriptChain;
+        }
+      }
+      
+      const entityType = isShellScript ? 'Shell Script' : 'Function';
+      let result = `# ${entityType} Analysis: ${function_name}\n\n`;
+      
+      if (isShellScript) {
+        result += `*Showing shell script call tree (J-Jobs, ex-scripts, ush)*\n\n`;
+      }
 
-      // Find callers (upstream - what calls this function)
-      const callers = await this.dataAccess.graphDB.findCallers(function_name);
+      // Find callers (upstream - what sources/calls this)
       result += `## Callers (${callers.length})\n`;
-      result += `*Functions that call ${function_name}*\n\n`;
+      result += `*${isShellScript ? 'Scripts that source/invoke' : 'Functions that call'} ${function_name}*\n\n`;
 
       if (callers.length > 0) {
         for (const caller of callers.slice(0, 15)) {
-          result += `- **\`${caller.name || caller}\`**`;
-          if (caller.file) {
-            result += ` in \`${caller.file}\``;
+          const name = caller.name || caller.callerName || caller;
+          const file = caller.file || caller.callerFile;
+          result += `- **\`${name}\`**`;
+          if (file) {
+            result += ` in \`${file}\``;
+          }
+          if (caller.relationship) {
+            result += ` [${caller.relationship}]`;
           }
           if (caller.lineNumber) {
             result += ` (line ${caller.lineNumber})`;
@@ -499,20 +552,25 @@ export class CodeAnalysisTools {
           result += `\n*... and ${callers.length - 15} more callers*\n`;
         }
       } else {
-        result += `*No callers found - this may be an entry point or unused function*\n`;
+        result += `*No callers found - this may be an entry point*\n`;
       }
 
-      // Find callees (downstream - what this function calls)
+      // Find callees (downstream - what this sources/calls)
       result += `\n## Callees\n`;
-      result += `*Functions called by ${function_name}*\n\n`;
-
-      const callChain = await this.dataAccess.graphDB.traceCallChain(function_name, 1);
+      result += `*${isShellScript ? 'Scripts sourced/invoked by' : 'Functions called by'} ${function_name}*\n\n`;
       
       if (callChain && callChain.length > 0) {
         for (const call of callChain.slice(0, 15)) {
-          result += `- **\`${call.callee || call.name}\`**`;
+          const name = call.callee || call.name;
+          result += `- **\`${name}\`**`;
           if (call.file) {
             result += ` in \`${call.file}\``;
+          }
+          if (call.type) {
+            result += ` [${call.type}]`;
+          }
+          if (call.depth) {
+            result += ` (depth: ${call.depth})`;
           }
           result += `\n`;
         }
@@ -520,13 +578,42 @@ export class CodeAnalysisTools {
           result += `\n*... and ${callChain.length - 15} more callees*\n`;
         }
       } else {
-        result += `*No callees found - this is a leaf function*\n`;
+        result += `*No callees found - this is a leaf ${isShellScript ? 'script' : 'function'}*\n`;
+      }
+      
+      // Environment dependencies for shell scripts
+      if (isShellScript) {
+        try {
+          const envDeps = await this.dataAccess.graphDB.findScriptEnvDeps(function_name);
+          if (envDeps && envDeps.length > 0) {
+            result += `\n## Environment Variables\n`;
+            result += `*Variables this script exports or depends on*\n\n`;
+            
+            const exports = envDeps.filter(e => e.relationship === 'EXPORTS');
+            const depends = envDeps.filter(e => e.relationship === 'DEPENDS_ON_ENV');
+            
+            if (exports.length > 0) {
+              result += `**Exports:** `;
+              result += exports.slice(0, 10).map(e => `\`${e.envVar}\``).join(', ');
+              if (exports.length > 10) result += ` (+${exports.length - 10} more)`;
+              result += `\n`;
+            }
+            if (depends.length > 0) {
+              result += `**Depends on:** `;
+              result += depends.slice(0, 10).map(e => `\`${e.envVar}\``).join(', ');
+              if (depends.length > 10) result += ` (+${depends.length - 10} more)`;
+              result += `\n`;
+            }
+          }
+        } catch (envError) {
+          // Ignore env lookup errors
+        }
       }
 
       // Complexity analysis
       result += `\n## Complexity Analysis\n\n`;
-      result += `- **Fan-in:** ${callers.length} (functions calling this)\n`;
-      result += `- **Fan-out:** ${callChain ? callChain.length : 0} (functions this calls)\n`;
+      result += `- **Fan-in:** ${callers.length} (${isShellScript ? 'scripts calling this' : 'functions calling this'})\n`;
+      result += `- **Fan-out:** ${callChain ? callChain.length : 0} (${isShellScript ? 'scripts this calls' : 'functions this calls'})\n`;
       
       const complexity = (callers.length * (callChain ? callChain.length : 0));
       result += `- **Complexity Score:** ${complexity}\n`;
@@ -536,7 +623,7 @@ export class CodeAnalysisTools {
       } else if (complexity > 20) {
         result += `\n[WARN]  **Moderate complexity** - Review for simplification\n`;
       } else {
-        result += `\n[OK] **Low complexity** - Well-scoped function\n`;
+        result += `\n[OK] **Low complexity** - Well-scoped ${isShellScript ? 'script' : 'function'}\n`;
       }
 
       return {
@@ -552,6 +639,119 @@ export class CodeAnalysisTools {
         content: [{
           type: 'text',
           text: `Error finding callers/callees: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Tool Implementation: Find Environment Variable Dependencies
+   * Queries Neo4j graph for scripts that depend on or export a variable
+   */
+  async findEnvDependencies(args) {
+    await this.ensureInitialized();
+
+    const { variable_name, show_exports = true, limit = 50 } = args;
+    const limitVal = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 500);  // Clamp 1-500
+
+    try {
+      let result = `# Environment Variable Analysis: ${variable_name}\n\n`;
+      
+      // Query scripts that depend on this variable
+      // Note: LIMIT embedded in query string (not parameter) to avoid Neo4j float conversion
+      const dependsQuery = `
+        MATCH (s:ShellScript)-[:DEPENDS_ON_ENV]->(e:EnvironmentVariable {name: $varName})
+        RETURN s.name as script, s.path as path, s.type as type, s.category as category
+        ORDER BY s.type, s.name
+        LIMIT ${limitVal}
+      `;
+      
+      const dependents = await this.dataAccess.graphDB.query(dependsQuery, { 
+        varName: variable_name
+      });
+      
+      result += `## Scripts Depending on \`${variable_name}\` (${dependents.length})\n\n`;
+      
+      if (dependents.length > 0) {
+        // Group by type
+        const byType = {};
+        for (const dep of dependents) {
+          const type = dep.type || 'unknown';
+          if (!byType[type]) byType[type] = [];
+          byType[type].push(dep);
+        }
+        
+        for (const [type, scripts] of Object.entries(byType)) {
+          result += `### ${type} (${scripts.length})\n`;
+          for (const script of scripts.slice(0, 20)) {
+            result += `- **\`${script.script}\`**`;
+            if (script.path) result += ` - \`${script.path}\``;
+            if (script.category) result += ` [${script.category}]`;
+            result += `\n`;
+          }
+          if (scripts.length > 20) {
+            result += `*... and ${scripts.length - 20} more*\n`;
+          }
+          result += `\n`;
+        }
+      } else {
+        result += `*No scripts found depending on this variable*\n\n`;
+      }
+      
+      // Query scripts that export this variable
+      if (show_exports) {
+        const exportsQuery = `
+          MATCH (s:ShellScript)-[r:EXPORTS]->(e:EnvironmentVariable {name: $varName})
+          RETURN s.name as script, s.path as path, s.type as type, r.line as line, e.default_value as value
+          ORDER BY s.type, s.name
+          LIMIT ${limitVal}
+        `;
+        
+        const exporters = await this.dataAccess.graphDB.query(exportsQuery, { 
+          varName: variable_name
+        });
+        
+        result += `## Scripts Exporting \`${variable_name}\` (${exporters.length})\n\n`;
+        
+        if (exporters.length > 0) {
+          for (const exp of exporters.slice(0, 20)) {
+            result += `- **\`${exp.script}\`**`;
+            if (exp.path) result += ` - \`${exp.path}\``;
+            if (exp.line) result += ` (line ${exp.line})`;
+            if (exp.value && exp.value.length < 50) result += ` = \`${exp.value}\``;
+            result += `\n`;
+          }
+          if (exporters.length > 20) {
+            result += `*... and ${exporters.length - 20} more*\n`;
+          }
+        } else {
+          result += `*No scripts found exporting this variable*\n`;
+        }
+      }
+      
+      // Summary
+      result += `\n## Summary\n\n`;
+      result += `- **Total dependencies:** ${dependents.length} scripts\n`;
+      result += `- **Impact level:** ${dependents.length > 50 ? 'HIGH' : dependents.length > 20 ? 'MEDIUM' : 'LOW'}\n`;
+      
+      if (dependents.length > 50) {
+        result += `\n[WARN] This variable is widely used - changes will have broad impact\n`;
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: result
+        }]
+      };
+
+    } catch (error) {
+      console.error('Error finding env dependencies:', error);
+      return {
+        content: [{
+          type: 'text',
+          text: `Error finding env dependencies: ${error.message}`
         }],
         isError: true
       };

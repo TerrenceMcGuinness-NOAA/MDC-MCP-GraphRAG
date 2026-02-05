@@ -225,11 +225,12 @@ class UnifiedMCPServer {
     info += `- get_system_configs - Platform configurations\n`;
     info += `- describe_component - File system-based component info\n\n`;
 
-    info += `### Code Analysis Tools (4 tools - graph DB)\n`;
+    info += `### Code Analysis Tools (5 tools - graph DB)\n`;
     info += `- analyze_code_structure - File/function/class analysis\n`;
     info += `- find_dependencies - Dependency mapping\n`;
     info += `- trace_execution_path - Call chain tracing\n`;
-    info += `- find_callers_callees - Relationship analysis\n\n`;
+    info += `- find_callers_callees - Relationship analysis\n`;
+    info += `- find_env_dependencies - Environment variable usage across scripts\n\n`;
 
     if (this.options.enableRAG) {
       info += `### Semantic Search Tools (6 tools - vector + graph hybrid)\n`;

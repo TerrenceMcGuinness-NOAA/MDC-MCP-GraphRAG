@@ -561,16 +561,16 @@ export class WorkflowExecutor {
       if (target === 'all' || target === 'documentation') {
         scripts.push({
           name: 'ingest_documentation',
-          script: 'ingest_documentation_v7.py',
-          collection: 'global-workflow-docs-v7-0-0'
+          script: 'ingest_documentation_v8.py',
+          collection: 'global-workflow-docs-v8-0-0'
         });
       }
       
       if (target === 'all' || target === 'code') {
         scripts.push({
           name: 'ingest_code',
-          script: 'ingest_code_v7.py',
-          collection: 'code-with-context-v7-0-0'
+          script: 'ingest_code_v8.py',
+          collection: 'code-with-context-v8-0-0'
         });
       }
       
@@ -578,7 +578,7 @@ export class WorkflowExecutor {
         scripts.push({
           name: 'ingest_ee2',
           script: 'ingest_ee2_v7.py',
-          collection: 'ee2-standards-v5-0-0-enhanced'  // Use existing collection (run ingest_ee2_v7.py to upgrade to v7)
+          collection: 'ee2-standards-v5-0-0-enhanced'  // EE2 already using MPNet 768-dim
         });
       }
 

@@ -81,7 +81,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collection = 'global-workflow-docs-v7-0-0',  // v7.0.0: Consistent collection naming
+      collection = 'global-workflow-docs-v8-0-0',  // v8.0.0: MPNet embeddings
       nResults = 10,
       includeGraphContext = true,
       includeDependencies = true,
@@ -240,7 +240,7 @@ export class UnifiedDataAccess {
       if (includeSemanticSimilar && fileInfo.length > 0) {
         try {
           similarCode = await this.vectorDB.query(
-            'code-with-context-v7-0-0',  // v7.0.0: Consistent naming
+            'code-with-context-v8-0-0',  // v8.0.0: MPNet embeddings
             identifier,
             { nResults: 5 }
           );
@@ -279,8 +279,8 @@ export class UnifiedDataAccess {
     }
 
     const {
-      // v7.0.0 for docs, v5.0.0 for EE2 (until ee2-standards-v7-0-0 is ingested)
-      collections = ['global-workflow-docs-v7-0-0', 'ee2-standards-v5-0-0-enhanced'],
+      // v8.0.0 for docs, v5.0.0 for EE2 (already MPNet)
+      collections = ['global-workflow-docs-v8-0-0', 'ee2-standards-v5-0-0-enhanced'],
       nResults = 10,
       enrichWithGraph = true
     } = options;
@@ -359,7 +359,7 @@ export class UnifiedDataAccess {
         // Search for documentation about these modules
         const docQuery = moduleNames.slice(0, 3).join(' ');
         documentation = await this.vectorDB.query(
-          'global-workflow-docs-v7-0-0',  // v7.0.0: Consistent naming
+          'global-workflow-docs-v8-0-0',  // v8.0.0: MPNet embeddings
           docQuery,
           { nResults: 5 }
         );
@@ -416,7 +416,7 @@ export class UnifiedDataAccess {
           .map(async (fn) => {
             try {
               const results = await this.vectorDB.query(
-                'code-with-context-v7-0-0',  // v7.0.0: Consistent naming
+                'code-with-context-v8-0-0',  // v8.0.0: MPNet embeddings
                 fn,
                 { nResults: 1 }
               );

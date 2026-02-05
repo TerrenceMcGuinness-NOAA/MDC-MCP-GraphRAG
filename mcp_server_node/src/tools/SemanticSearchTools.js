@@ -399,8 +399,32 @@ export class SemanticSearchTools {
           }
         }
         
-        // Determine health based on actual data
-        const isHealthy = (stats.graph.fileCount || 0) > 0 && totalRelationships > 0;
+        // Try to get shell script stats (Phase 27B)
+        try {
+          if (this.dataAccess.graphDB && this.dataAccess.graphDB.getScriptGraphStats) {
+            const scriptStats = await this.dataAccess.graphDB.getScriptGraphStats();
+            if (scriptStats.totalScripts > 0) {
+              output += `\n### Shell Script Graph (Phase 27B)\n`;
+              output += `- **Total Scripts:** ${scriptStats.totalScripts}\n`;
+              output += `  - J-Jobs: ${scriptStats.jJobs}\n`;
+              output += `  - Ex-Scripts: ${scriptStats.exScripts}\n`;
+              output += `  - USH Scripts: ${scriptStats.ushScripts}\n`;
+              output += `- **Environment Variables:** ${scriptStats.envVars}\n`;
+              output += `- **Script Relationships:**\n`;
+              output += `  - SOURCES: ${scriptStats.sourcesRels}\n`;
+              output += `  - INVOKES: ${scriptStats.invokesRels}\n`;
+              output += `  - EXPORTS: ${scriptStats.exportsRels}\n`;
+              output += `  - DEPENDS_ON_ENV: ${scriptStats.dependsRels}\n`;
+            }
+          }
+        } catch (scriptError) {
+          // Shell script stats not available, ignore
+        }
+        
+        // Determine health based on actual data - include shell scripts as valid data
+        const hasCodeGraph = (stats.graph.fileCount || 0) > 0;
+        const hasScriptGraph = totalRelationships > 0;
+        const isHealthy = hasCodeGraph || hasScriptGraph;
         output += `- **Status:** ${isHealthy ? '[OK] Healthy' : '[ERROR] Unhealthy'}\n\n`;
       }
 
@@ -436,8 +460,8 @@ export class SemanticSearchTools {
           const stats = await this.dataAccess.getStatistics();
           
           if (stats.vector && stats.vector.collections) {
-            // Get the v7 collection document count
-            const v7Count = stats.vector.collections['global-workflow-docs-v7-0-0'] || 0;
+            // Get the v8 collection document count
+            const v8Count = stats.vector.collections['global-workflow-docs-v8-0-0'] || 0;
             
             // Query the collection for source breakdown
             const chromaUrl = process.env.CHROMADB_URL || process.env.CHROMA_SERVER_URL || 'http://localhost:8080';
@@ -445,16 +469,16 @@ export class SemanticSearchTools {
             const tenant = 'default_tenant';
             const database = 'default_database';
             
-            // Get collections to find v7 ID
+            // Get collections to find v8 ID
             const collsResp = await fetch(`${baseUrl}/tenants/${tenant}/databases/${database}/collections`);
             if (collsResp.ok) {
               const collections = await collsResp.json();
-              const v7Coll = collections.find(c => c.name === 'global-workflow-docs-v7-0-0');
+              const v8Coll = collections.find(c => c.name === 'global-workflow-docs-v8-0-0');
               
-              if (v7Coll) {
+              if (v8Coll) {
                 // Sample documents to get source breakdown
                 const sampleResp = await fetch(
-                  `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${v7Coll.id}/get`,
+                  `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${v8Coll.id}/get`,
                   {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -474,8 +498,8 @@ export class SemanticSearchTools {
                   }
                   
                   chromaStats = {
-                    collectionName: 'global-workflow-docs-v7-0-0',
-                    totalDocuments: v7Count,
+                    collectionName: 'global-workflow-docs-v8-0-0',
+                    totalDocuments: v8Count,
                     sampledDocuments: sampleData.metadatas?.length || 0,
                     sourceBreakdown: sourceCounter
                   };

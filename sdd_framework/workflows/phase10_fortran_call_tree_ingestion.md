@@ -1,10 +1,41 @@
 # Phase 10: Fortran Call Tree Ingestion Workflow
 
-**SDD Version**: 1.0  
+**SDD Version**: 2.0  
 **Created**: December 4, 2025  
+**Updated**: February 5, 2026  
 **Author**: Terrence McGuinness / Claude Opus 4.5  
-**Status**: BACKLOG  
-**Priority**: Future - After containerization and deployment
+**Status**: IN PROGRESS  
+**Priority**: HIGH - Core capability for complete code tracing
+
+## Vision Alignment
+
+This phase implements the **Fortran call graph** portion of the unified codebase analysis capability:
+- **Upstream**: Phase 27B (Shell Script Graph) ✅ COMPLETE
+- **Downstream**: Phase 22 (GraphRAG Validation), Phase 24 (True GraphRAG)
+- **Convergence**: Shell → Fortran → complete executable tracing
+
+---
+
+## Quick Start Execution Checklist
+
+```bash
+# Step 1: Install fparser2
+pip install fparser
+
+# Step 2: Verify installation
+python -c "from fparser.two.parser import ParserFactory; print('[OK] fparser2 ready')"
+
+# Step 3: Run ingestion (once script is created)
+cd /mcp_rag_eib/eib-mcp-rag-server
+python mcp_server_node/scripts/ingest_fortran_graph.py
+
+# Step 4: Verify in Neo4j
+docker exec neo4j cypher-shell -u neo4j -p gfsworkflow2025 \
+  "MATCH (n:FortranSubroutine) RETURN count(n)"
+
+# Step 5: Test MCP query
+# find_callers_callees function_name:"atmosphere_init" include_fortran:true
+```
 
 ---
 
@@ -33,25 +64,291 @@ Combined: "EE2 compliance for functions called by JSEAICE_ANALYSIS" → Graph tr
 
 ## Prerequisites
 
-- [ ] Neo4j operational (currently: ✅ running)
-- [ ] Fortran source available in supported_repos/
-- [ ] gfortran or Intel Fortran with dump capabilities
-- [ ] Python script for parsing compiler output
+- [x] Neo4j operational (currently: ✅ running with Phase 27B shell graph)
+- [x] Fortran source available in supported_repos/ (7,214 files)
+- [x] Fortran already in ChromaDB (58,761 docs with subroutine extraction)
+- [ ] fparser2 installed (`pip install fparser`)
+- [ ] Python script for AST parsing and Neo4j ingestion
 
 ---
 
-## Phase 8 Steps
+## Current State Assessment (February 2026)
 
-### Step 1: Identify Fortran Sources
+| Component | Status | Count |
+|-----------|--------|-------|
+| **ChromaDB** (semantic) | ✅ Complete | 48K+ Fortran docs |
+| **Neo4j Shell Graph** | ✅ Complete | 384 scripts, 9K relationships |
+| **Neo4j Fortran Graph** | ❌ Not started | 0 nodes |
 
-**Objective**: Catalog all Fortran files in target repositories.
+**Gap**: We can search Fortran semantically but cannot trace CALL/USE relationships.
 
-**Actions**:
+---
+
+## Tool Selection: fparser2
+
+After evaluating options, **fparser2** is the selected tool:
+
+| Tool | Pros | Cons | Decision |
+|------|------|------|----------|
+| **fparser2** | Pure Python, full AST, F2008 support | Slower than compiled | ✅ **Selected** |
+| gfortran dumps | Fast, accurate | Requires compilation | ❌ Skip |
+| tree-sitter | Very fast | Less complete F2008 | ❌ Future option |
+| FORD | Built-in graphs | Heavy, doc-focused | ❌ Skip |
+
+**Why fparser2**:
+1. No compilation needed (just parsing)
+2. Direct Python integration with Neo4j driver
+3. Full access to AST nodes with line numbers
+4. Handles Fortran 2003/2008 (what UFS uses)
+
+---
+
+## Neo4j Schema Extension
+
+### New Node Types
+
+```cypher
+(:FortranModule {name, file_path, line_start, line_end})
+(:FortranSubroutine {name, file_path, line_start, line_end, in_module})
+(:FortranFunction {name, file_path, return_type, line_start, line_end})
+(:FortranProgram {name, file_path, executable_name})
+```
+
+### New Relationships
+
+```cypher
+(module)-[:CONTAINS]->(subroutine|function)
+(caller)-[:CALLS {line: N}]->(callee)
+(code)-[:USES {only: [...]}]->(module)
+(program)-[:ENTRY_POINT]->()  -- marks main entry
+```
+
+### Shell → Fortran Bridge
+
+```cypher
+-- Link shell INVOKES to Fortran PROGRAM
+MATCH (s:ShellScript)-[:INVOKES]->(ex {name: $exec_name})
+MATCH (p:FortranProgram {executable_name: $exec_name})
+MERGE (s)-[:EXECUTES]->(p)
+```
+
+---
+
+## Implementation Plan
+
+### Milestone 1: Environment Setup (1 hour)
+**Status**: ✅ COMPLETE (February 5, 2026)
+
+| Task | Command | Validation | Result |
+|------|---------|------------|--------|
+| Install fparser2 | `spack install py-fparser@0.2.0` | Import works | ✅ |
+| Verify Neo4j access | `cypher-shell -u neo4j` | Returns prompt | ✅ |
+| Count Fortran sources | `find ... -name "*.F90"` | 5,613 files | ✅ |
+| Test parse rate | 100-file sample | **85% success** | ✅ |
+
+**Key Discovery**: Must use `FortranFileReader` instead of raw string:
+```python
+from fparser.common.readfortran import FortranFileReader
+reader = FortranFileReader(filepath, ignore_comments=True)
+tree = parser(reader)  # NOT parser(content)
+```
+
+**Projected Extraction** (from 85-file sample):
+- CALL statements: **~169,000** (target was 15K)
+- USE statements: **~40,000** (target was 5K)
+
+**Environment Updated**:
+- Added `module load py-fparser` to `SETUP/mcp-env.sh`
+
+---
+
+### Milestone 2: Prototype Parser (2 hours)
+**Status**: ⬜ Not started
+
+**Objective**: Parse a single Fortran file and extract AST nodes.
+
+**File**: `mcp_server_node/scripts/ingest_fortran_graph.py`
+
+**Prototype Code**:
+```python
+#!/usr/bin/env python3
+"""Phase 10: Fortran Call Graph Ingestion using fparser2"""
+
+from fparser.two.parser import ParserFactory
+from fparser.two.utils import walk
+from fparser.two import Fortran2003 as f2003
+import os
+
+def parse_fortran_file(filepath: str) -> dict:
+    """Parse a Fortran file and extract structure."""
+    parser = ParserFactory().create(std='f2008')
+    
+    with open(filepath, 'r', errors='ignore') as f:
+        content = f.read()
+    
+    try:
+        tree = parser(content)
+    except Exception as e:
+        return {'error': str(e), 'file': filepath}
+    
+    result = {
+        'file': filepath,
+        'modules': [],
+        'subroutines': [],
+        'functions': [],
+        'programs': [],
+        'calls': [],
+        'uses': [],
+    }
+    
+    # Extract modules
+    for node in walk(tree, f2003.Module_Stmt):
+        name = str(node.items[1])
+        result['modules'].append({'name': name})
+    
+    # Extract subroutines
+    for node in walk(tree, f2003.Subroutine_Stmt):
+        name = str(node.items[1])
+        result['subroutines'].append({'name': name})
+    
+    # Extract functions
+    for node in walk(tree, f2003.Function_Stmt):
+        name = str(node.items[1])
+        result['functions'].append({'name': name})
+    
+    # Extract CALL statements
+    for node in walk(tree, f2003.Call_Stmt):
+        callee = str(node.items[0])
+        result['calls'].append({'callee': callee})
+    
+    # Extract USE statements
+    for node in walk(tree, f2003.Use_Stmt):
+        module_name = str(node.items[2])
+        result['uses'].append({'module': module_name})
+    
+    return result
+```
+
+**Validation**:
 ```bash
-# Find all Fortran sources in seaice-concentration
-find supported_repos/ -name "*.f" -o -name "*.f90" -o -name "*.F" -o -name "*.F90" | tee fortran_sources.txt
+python ingest_fortran_graph.py --test /path/to/atmosphere.F90
+# Should output: modules, subroutines, calls, uses
+```
 
-# Categorize by repository
+---
+
+### Milestone 3: Full Ingestion Script (4 hours)
+**Status**: ⬜ Not started
+
+**Objective**: Process all 7,214 Fortran files and ingest to Neo4j.
+
+**Features**:
+- Parallel processing (multiprocessing.Pool)
+- Progress tracking (tqdm)
+- Error handling and skip list
+- Batch Neo4j writes (100 nodes per transaction)
+
+**Target Statistics** (estimated):
+| Entity | Expected Count |
+|--------|---------------|
+| FortranModule | 500+ |
+| FortranSubroutine | 5,000+ |
+| FortranFunction | 3,000+ |
+| CALLS relationships | 20,000+ |
+| USES relationships | 10,000+ |
+
+---
+
+### Milestone 4: Shell-Fortran Bridge (2 hours)
+**Status**: ⬜ Not started
+
+**Objective**: Link `$EXEC*/program` references to Fortran PROGRAM nodes.
+
+**Pattern Recognition**:
+```python
+# From shell scripts, extract executable references
+# $EXECgfs/ufs_model → FortranProgram(name='ufs_model')
+
+# Match to PROGRAM statements in Fortran
+# PROGRAM ufs_model → already in graph
+```
+
+**Relationship**:
+```cypher
+MATCH (s:ShellScript)-[:INVOKES]->(invoked {name: $exec_name})
+MATCH (p:FortranProgram {name: $prog_name})
+WHERE $exec_name CONTAINS $prog_name
+MERGE (s)-[:EXECUTES]->(p)
+```
+
+---
+
+### Milestone 5: MCP Tool Integration (2 hours)
+**Status**: ⬜ Not started
+
+**Objective**: Add Fortran graph queries to existing MCP tools.
+
+**Enhancements to `find_callers_callees`**:
+```javascript
+// Extend to query Fortran graph
+if (nodeType === 'fortran') {
+  query = `
+    MATCH (f:FortranSubroutine {name: $name})-[:CALLS*1..${depth}]->(called)
+    RETURN called.name, called.file_path
+  `;
+}
+```
+
+**New Tool: `trace_execution_path` enhancement**:
+```javascript
+// Full trace: J-job → shell → Fortran
+MATCH path = (j:ShellScript {type: 'j-job'})-[:SOURCES|INVOKES*]->(s:ShellScript)
+                -[:EXECUTES]->(p:FortranProgram)-[:CALLS*1..5]->(f)
+WHERE j.name = $job_name
+RETURN path
+```
+
+---
+
+### Milestone 6: Validation & Documentation (1 hour)
+**Status**: ⬜ Not started
+
+**Validation Queries**:
+```cypher
+-- Count Fortran nodes
+MATCH (n) WHERE n:FortranModule OR n:FortranSubroutine 
+RETURN labels(n)[0], count(*)
+
+-- Verify CALLS relationships
+MATCH ()-[r:CALLS]->() RETURN count(r)
+
+-- Test shell→Fortran bridge
+MATCH (s:ShellScript)-[:EXECUTES]->(p:FortranProgram)
+RETURN s.name, p.name LIMIT 10
+
+-- Full trace test
+MATCH path = (j:ShellScript {name: 'JGLOBAL_FORECAST'})-[:SOURCES|INVOKES*1..3]->
+              ()-[:EXECUTES]->(p:FortranProgram)-[:CALLS*1..3]->(f)
+RETURN path LIMIT 1
+```
+
+---
+
+## Execution Timeline
+
+| Milestone | Duration | Dependency | Owner |
+|-----------|----------|------------|-------|
+| 1. Environment Setup | 1 hour | None | Agent |
+| 2. Prototype Parser | 2 hours | M1 | Agent |
+| 3. Full Ingestion | 4 hours | M2 | Agent |
+| 4. Shell-Fortran Bridge | 2 hours | M3 | Agent |
+| 5. MCP Integration | 2 hours | M4 | Agent |
+| 6. Validation | 1 hour | M5 | Agent |
+| **Total** | **12 hours** | | |
+
+---
+
+## Original Phase 8 Steps (Legacy Reference)
 wc -l fortran_sources.txt
 ```
 
@@ -261,25 +558,29 @@ User: "What Fortran functions are called when JSEAICE_ANALYSIS runs?"
 
 ---
 
-## Deliverables
+## Deliverables (Updated February 2026)
 
-| Deliverable | Location | Status |
-|-------------|----------|--------|
-| Fortran source catalog | `fortran_sources.txt` | ⬜ |
-| Parser script | `scripts/parse_fortran_structure.py` | ⬜ |
-| Neo4j ingestion script | `scripts/ingest_fortran_to_neo4j.py` | ⬜ |
-| Shell-Fortran linker | `scripts/link_shell_to_fortran.py` | ⬜ |
-| MCP tools (4) | `src/tools/FortranAnalysisTools.js` | ⬜ |
-| Integration tests | `test/test_fortran_graph.js` | ⬜ |
+| Deliverable | Location | Milestone | Status |
+|-------------|----------|-----------|--------|
+| fparser2 installed | Python environment | M1 | ⬜ |
+| Fortran parser prototype | `scripts/ingest_fortran_graph.py` | M2 | ⬜ |
+| Full ingestion with Neo4j | `scripts/ingest_fortran_graph.py` | M3 | ⬜ |
+| Shell-Fortran bridge | Same script | M4 | ⬜ |
+| Enhanced MCP tools | `src/tools/CodeAnalysisTools.js` | M5 | ⬜ |
+| Validation report | This SDD (updated) | M6 | ⬜ |
 
 ---
 
-## Success Criteria
+## Success Criteria (Quantitative)
 
-1. **Graph Coverage**: >90% of Fortran CALL statements represented as edges
-2. **Shell Linkage**: All `$EXEC` references linked to Fortran programs
-3. **Query Response**: Call tree queries return in <500ms
-4. **Hybrid Queries**: Can trace J-job → Fortran → EE2 standards in single workflow
+| Metric | Target | Validation Query |
+|--------|--------|------------------|
+| Fortran nodes ingested | >8,000 | `MATCH (n:FortranSubroutine) RETURN count(n)` |
+| CALLS relationships | >15,000 | `MATCH ()-[r:CALLS]->() RETURN count(r)` |
+| USES relationships | >5,000 | `MATCH ()-[r:USES]->() RETURN count(r)` |
+| Shell→Fortran links | >50 | `MATCH (s:ShellScript)-[:EXECUTES]->(p:FortranProgram) RETURN count(*)` |
+| Query response time | <500ms | Measure `trace_execution_path` |
+| Parse success rate | >95% | Errors / total files |
 
 ---
 

@@ -444,6 +444,93 @@ export class GraphDatabase {
     return value;
   }
 
+  // ============================================================================
+  // SHELL SCRIPT GRAPH METHODS (Phase 27B)
+  // ============================================================================
+
+  /**
+   * Find scripts that source/invoke a specific script
+   * @param {string} scriptName - Name of the shell script (e.g., JGFS_ATMOS_ANALYSIS)
+   * @returns {Promise<Array>} Scripts that source or invoke this script
+   */
+  async findScriptCallers(scriptName) {
+    const cypher = `
+      MATCH (caller:ShellScript)-[r:SOURCES|INVOKES]->(s:ShellScript)
+      WHERE s.name CONTAINS $scriptName OR s.path CONTAINS $scriptName
+      RETURN caller.name as name,
+             caller.path as file,
+             caller.type as type,
+             type(r) as relationship,
+             r.line as lineNumber
+      ORDER BY caller.type, caller.name
+    `;
+    return this.query(cypher, { scriptName });
+  }
+
+  /**
+   * Find scripts that are sourced/invoked by a script
+   * @param {string} scriptName - Name of the shell script
+   * @param {number} depth - Maximum depth to trace (default: 2)
+   * @returns {Promise<Array>} Scripts sourced or invoked by this script
+   */
+  async traceScriptChain(scriptName, depth = 2) {
+    const cypher = `
+      MATCH (s:ShellScript)
+      WHERE s.name CONTAINS $scriptName OR s.path CONTAINS $scriptName
+      MATCH path = (s)-[:SOURCES|INVOKES*1..${depth}]->(target:ShellScript)
+      RETURN DISTINCT target.name as name,
+             target.path as file,
+             target.type as type,
+             length(path) as depth
+      ORDER BY depth, target.type, target.name
+      LIMIT 100
+    `;
+    return this.query(cypher, { scriptName });
+  }
+
+  /**
+   * Find environment variables a script depends on
+   * @param {string} scriptName - Name of the shell script
+   * @returns {Promise<Array>} Environment variables used by this script
+   */
+  async findScriptEnvDeps(scriptName) {
+    const cypher = `
+      MATCH (s:ShellScript)-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable)
+      WHERE s.name CONTAINS $scriptName OR s.path CONTAINS $scriptName
+      RETURN s.name as script,
+             e.name as envVar,
+             e.default_value as defaultValue,
+             type(head([(s)-[r]->(e) | r])) as relationship
+      ORDER BY e.name
+    `;
+    return this.query(cypher, { scriptName });
+  }
+
+  /**
+   * Get shell script graph statistics
+   * @returns {Promise<object>} Graph statistics for shell scripts
+   */
+  async getScriptGraphStats() {
+    const queries = {
+      totalScripts: 'MATCH (s:ShellScript) RETURN count(s) as count',
+      jJobs: "MATCH (s:ShellScript {type: 'j-job'}) RETURN count(s) as count",
+      exScripts: "MATCH (s:ShellScript {type: 'ex-script'}) RETURN count(s) as count",
+      ushScripts: "MATCH (s:ShellScript {type: 'ush-script'}) RETURN count(s) as count",
+      envVars: 'MATCH (e:EnvironmentVariable) RETURN count(e) as count',
+      sourcesRels: 'MATCH ()-[r:SOURCES]->() RETURN count(r) as count',
+      invokesRels: 'MATCH ()-[r:INVOKES]->() RETURN count(r) as count',
+      exportsRels: 'MATCH ()-[r:EXPORTS]->() RETURN count(r) as count',
+      dependsRels: 'MATCH ()-[r:DEPENDS_ON_ENV]->() RETURN count(r) as count'
+    };
+
+    const stats = {};
+    for (const [key, cypher] of Object.entries(queries)) {
+      const result = await this.query(cypher, {});
+      stats[key] = result[0]?.count || 0;
+    }
+    return stats;
+  }
+
   /**
    * Get metrics for monitoring
    * @returns {object} Current metrics

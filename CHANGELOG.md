@@ -1,5 +1,119 @@
 # MCP Server Changelog
 
+## [7.3.3] - Phase 10 Milestone 1: fparser Integration (February 5, 2026)
+
+### Added
+- **py-fparser@0.2.0** installed via Spack for Fortran AST parsing
+- **Spack requirements documentation** (`SETUP/provisioning/spack-packages.md`)
+  - Documents all required Spack packages with install commands
+  - Documents pip-only packages (chromadb, sentence-transformers, etc.)
+  - Verification commands included
+
+### Changed
+- **`SETUP/mcp-env.sh`**: Added `module load py-fparser` to runtime environment
+- **`SETUP/bash_profile_template`**: Added `py-fparser` to module loads
+
+### Validated
+- **fparser2 parse rate**: 85% success on 100-file Global Workflow sample
+- **Key discovery**: Must use `FortranFileReader` (not raw strings)
+- **Projected extraction**: ~169,000 CALL relationships, ~40,000 USE relationships
+
+---
+
+## [7.3.2] - Phase 10 SDD: Fortran Call Tree Ingestion Plan (February 5, 2026)
+
+### Added
+- **Updated Phase 10 SDD** (`phase10_fortran_call_tree_ingestion.md`)
+  - Status changed from BACKLOG to IN PROGRESS
+  - Selected fparser2 as the Fortran parsing tool (pure Python, F2008 support)
+  - Added 6 implementation milestones with time estimates (12 hours total)
+  - Defined Neo4j schema for Fortran nodes:
+    - FortranModule, FortranSubroutine, FortranFunction, FortranProgram
+  - Defined relationships: CALLS, USES, CONTAINS, EXECUTES (shell→Fortran bridge)
+  - Added quantitative success criteria with validation queries
+  - Added Quick Start Execution Checklist
+
+### Planned Capability
+Once implemented, enables full execution tracing:
+```
+J-Job → Shell Script → Fortran Program → Subroutine Call Tree
+```
+
+Example query:
+```cypher
+MATCH path = (j:ShellScript {name: 'JGLOBAL_FORECAST'})-[:SOURCES|INVOKES*1..3]->
+              ()-[:EXECUTES]->(p:FortranProgram)-[:CALLS*1..5]->(f:FortranSubroutine)
+RETURN path
+```
+
+---
+
+## [7.3.1] - New find_env_dependencies MCP Tool (February 5, 2026)
+
+### Added
+- **`find_env_dependencies` MCP tool** - Query Neo4j for environment variable usage
+  - Find all scripts that depend on a specific variable (e.g., `HOMEgfs`, `DATAROOT`)
+  - Find all scripts that export a variable
+  - Groups results by script type (j-job, ex-script, ush-script)
+  - Shows impact level (HIGH/MEDIUM/LOW based on dependency count)
+  - Uses Neo4j DEPENDS_ON_ENV and EXPORTS relationships from Phase 27B
+
+### Changed
+- Code Analysis Tools: Updated count from 4 to 5 tools
+
+### Usage
+```
+find_env_dependencies variable_name:"HOMEgfs"
+find_env_dependencies variable_name:"DATAROOT" show_exports:true
+```
+
+---
+
+## [7.3.0] - Phase 27B: Shell Script Neo4j Graph (February 5, 2026)
+
+### Added
+- **Full shell script call tree in Neo4j**
+  - New `ingest_shell_graph_v8.py` script for shell script graph ingestion
+  - Created 384 ShellScript nodes (89 J-Jobs, 131 ex-scripts, USH scripts)
+  - Created 2,473 EnvironmentVariable nodes
+  - Created 9,027 relationships:
+    - SOURCES (244): script sourcing relationships (`source`, `.`)
+    - INVOKES (345): script execution relationships (`${HOMEgfs}/scripts/`)
+    - EXPORTS (1,182): environment variable exports
+    - DEPENDS_ON_ENV (7,192): environment variable dependencies
+    - DEFINES (63): shell function definitions
+    - READS_CONFIG (1): config file reads
+
+- **Enhanced `find_callers_callees` MCP tool**
+  - Now queries both Function graph (Python/Fortran) AND ShellScript graph
+  - Automatically detects script type and shows appropriate relationships
+  - Shows environment variable exports/dependencies for shell scripts
+  - Works with J-Job names (e.g., `JGFS_ATMOS_ANALYSIS`)
+
+- **Enhanced `get_knowledge_base_status` MCP tool**
+  - Added Phase 27B Shell Script Graph section
+  - Shows script type breakdown (J-Jobs, Ex-Scripts, USH)
+  - Shows relationship type breakdown
+  - Updated health check: graph healthy if relationships > 0 (not just File nodes)
+
+- **New GraphDatabase methods**
+  - `findScriptCallers()`: Find scripts that source/invoke a script
+  - `traceScriptChain()`: Trace call chain through shell scripts
+  - `findScriptEnvDeps()`: Find environment variables a script depends on
+  - `getScriptGraphStats()`: Get shell script graph statistics
+
+### Fixed
+- **Neo4j password hardcoding**: Changed default from `gfsworkflow2025` to `password`
+  - Matches container `NEO4J_AUTH=neo4j/password` setting
+  - Fixed in `GraphDatabase.js`
+
+### Tech Notes
+- Shell script parser extracts: source statements, script invocations, exports, env deps
+- Script type detection: j-job, ex-script, ush-script based on path
+- Category detection: forecast, analysis, verification, etc. based on name patterns
+
+---
+
 ## [7.2.0] - Phase 27E: Unified MPNet Embeddings (February 4, 2026)
 
 ### Added

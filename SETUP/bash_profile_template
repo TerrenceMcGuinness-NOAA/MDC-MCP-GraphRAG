@@ -75,7 +75,7 @@ if [ -f /usr/share/lmod/lmod/init/bash ]; then
         ml gcc/11.5.0 &>/dev/null || true
         
         # Load Python and essential packages for ChromaDB/MCP
-        ml python/3.11 py-pip py-pydantic py-neo4j &>/dev/null || true
+        ml python/3.11 py-pip py-pydantic py-neo4j py-fparser &>/dev/null || true
     fi
     
     # Load legacy TCL modules (rocoto, contrib) - these don't depend on Spack
@@ -87,7 +87,7 @@ elif [ -f /apps/lmod/lmod/init/bash ]; then
     . /apps/lmod/lmod/init/bash
     module use /apps/modules/modulefiles &>/dev/null
     [ -d "${SPACK_LMOD_CORE}" ] && module use "${SPACK_LMOD_CORE}" &>/dev/null
-    ml gcc/11.5.0 python/3.11 py-pip py-pydantic py-neo4j &>/dev/null || true
+    ml gcc/11.5.0 python/3.11 py-pip py-pydantic py-neo4j py-fparser &>/dev/null || true
     ml rocoto contrib &>/dev/null || true
     
 elif [ -f /usr/share/Modules/init/bash ]; then

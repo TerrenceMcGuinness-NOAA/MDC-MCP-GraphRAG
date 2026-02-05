@@ -103,6 +103,8 @@ if command -v module >/dev/null 2>&1 && ! module list 2>&1 | grep -q python; the
             module load python/3.11 py-pip &>/dev/null || true
             # Neo4j driver
             module load py-neo4j &>/dev/null || true
+            # Fortran parser for Phase 10 call tree ingestion
+            module load py-fparser &>/dev/null || true
             # ChromaDB dependencies (chromadb itself installed via pip --user)
             module load py-pydantic py-idna py-httpx py-requests py-certifi py-anyio py-sniffio &>/dev/null || true
             # Sentence-transformers dependencies

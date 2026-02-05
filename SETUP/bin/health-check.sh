@@ -48,7 +48,7 @@ if [[ -n "${MEMORY_USAGE}" ]]; then
 fi
 
 # Check 4: ChromaDB connectivity (from container perspective)
-if ! docker exec "${CONTAINER_NAME}" curl -sf "http://172.17.0.1:8080/api/v2/heartbeat" > /dev/null 2>&1; then
+if ! docker exec "${CONTAINER_NAME}" curl -sf "http://172.17.0.1:18080/api/v2/heartbeat" > /dev/null 2>&1; then
     log "WARN: ChromaDB heartbeat failed from container"
 fi
 
