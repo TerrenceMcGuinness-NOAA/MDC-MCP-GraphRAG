@@ -3,8 +3,13 @@
 **Version:** 1.0.0  
 **Created:** 2026-01-15  
 **Author:** AI Assistant + Terry McGuinness  
-**Status:** Prospectus (Q2 2026)  
+**Status:** Foundation Document (Superseded by Consolidated Architecture)  
 **Target Quarter:** Q2 2026 (April - June)
+
+> **📋 NOTE:** This document defines the GGSR foundation (Phases 24A-D).
+> For the complete Phase 24 architecture including community summarization (24E),
+> cross-language integration (24F), and agentic tools (24H), see:
+> **[phase24_consolidated_architecture.md](phase24_consolidated_architecture.md)**
 
 ---
 

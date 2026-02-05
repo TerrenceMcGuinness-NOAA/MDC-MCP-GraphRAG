@@ -1,5 +1,42 @@
 # MCP Server Changelog
 
+## [7.3.7] - Phase 24: GraphRAG Architecture Consolidation (February 5, 2026)
+
+### Added
+- **Consolidated Phase 24 Architecture** (`phase24_consolidated_architecture.md`)
+  - Reconciles three supplement documents into coherent roadmap
+  - Defines sub-phases 24A through 24J
+  - Updated Neo4j statistics: 368K relationships (post-Phase 10)
+
+- **Phase 24F: Cross-Language Integration** (new sub-phase)
+  - Leverages Phase 10 Fortran graph for GGSR
+  - Shell→Fortran EXECUTES relationship traversal
+  - End-to-end trace: J-Job → Shell → Fortran → Subroutine
+
+- **Phase 24G: Benchmark & Validation** (new sub-phase)
+  - Defines success criteria before agentic tool deployment
+  - 50-query test corpus across local/global/trace categories
+  - Go/no-go gate for Phase 24H
+
+### Changed
+- Renamed Phase 24 files for consistency:
+  - `Phase24E _HierarchicalCommunit.md` → `phase24e_hierarchical_communities.md`
+  - `phase24h_supplement_graphRAG.md` → `phase24h_agentic_tool_surface.md`
+
+### Architecture Overview
+```
+Phase 24: True GraphRAG Fusion (Q2-Q4 2026)
+├── 24A-D: GGSR Foundation (Q2)
+├── 24E: Community Summarization (Q2-Q3)
+├── 24F: Cross-Language Integration (Q2-Q3) [NEW]
+├── 24G: Benchmark Validation (Q3) [NEW]
+├── 24H: Agentic Tool Surface (Q3)
+├── 24I: Learned Graph Embeddings (Q4)
+└── 24J: Subgraph Retrieval (Q4)
+```
+
+---
+
 ## [7.3.6] - Phase 10 M4: Shell-Fortran EXECUTES Bridge (February 5, 2026)
 
 ### Added
