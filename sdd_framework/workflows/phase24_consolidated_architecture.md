@@ -48,10 +48,14 @@ Phase 24: True GraphRAG Fusion
 │   │   ├── 24E-3: Dual Retrieval Router (Local/Global)
 │   │   └── 24E-4: Incremental Update Pipeline
 │   │
-│   └── 24F: Cross-Language Graph Integration [NEW] [Weeks 13-16]
-│       ├── 24F-1: Fortran CALLS/USES traversal integration
-│       ├── 24F-2: Shell→Fortran EXECUTES path queries
-│       └── 24F-3: End-to-end trace: J-Job→Shell→Fortran→Subroutine
+│   └── 24F: Cross-Language Graph Integration [NEW] [Weeks 13-18]
+│       ├── 24F-0: Python Graph Ingestion (Neo4j) [Weeks 13-14]
+│       │   ├── PythonModule, PythonClass, PythonFunction nodes
+│       │   ├── IMPORTS, CALLS, INHERITS, DEFINES relationships
+│       │   └── Target: 716 Python files in global-workflow
+│       ├── 24F-1: Fortran CALLS/USES traversal integration [Weeks 15-16]
+│       ├── 24F-2: Shell→Fortran→Python EXECUTES path queries [Week 17]
+│       └── 24F-3: End-to-end trace: J-Job→Shell→Fortran/Python→Function [Week 18]
 │
 ├── Q3 2026: Agent Surface (Weeks 17-24)
 │   ├── 24G: Benchmark & Validation [NEW]   [Weeks 17-18]
@@ -78,17 +82,23 @@ Phase 24: True GraphRAG Fusion
 
 | Metric | Original Spec | Current (Feb 2026) | Growth |
 |--------|---------------|-------------------|--------|
-| Total Nodes | ~3,000 | **20,496** | 6.8x |
-| Total Relationships | 86,189 | **368,978** | 4.3x |
+| Total Nodes | ~3,000 | **20,496** | →24K+ (24F) |
+| Total Relationships | 86,189 | **368,978** | →400K+ (24F) |
 | CALLS (Fortran) | 0 | **268,666** | New |
 | USES (Fortran) | 0 | **91,285** | New |
 | EXECUTES (Shell→Fortran) | 0 | **35** | New |
-| Language Coverage | Shell only | Shell + Fortran | +Fortran |
+| **PythonModule** | 0 | 0 | **→200+ (24F-0)** |
+| **PythonClass** | 0 | 0 | **→150+ (24F-0)** |
+| **PythonFunction** | 0 | 0 | **→2,500+ (24F-0)** |
+| **IMPORTS (Python)** | 0 | 0 | **→3,000+ (24F-0)** |
+| Language Coverage | Shell only | Shell + Fortran | +Python (24F) |
 
 **Impact on Phase 24:**
 - GGSR traversal now spans **cross-language boundaries**
 - Community detection will find Fortran subsystems (GSI, UFS, etc.)
 - Path queries can trace: `(J-Job)-[:SOURCES]->(shell)-[:EXECUTES]->(Fortran)-[:CALLS*]->(subroutine)`
+- **24F-0 Python ingestion** will add: workflow tasks, pygfs utilities, setup scripts
+- Complete trace: `J-Job → Shell → Fortran/Python → Function/Subroutine`
 
 ### ChromaDB Collections
 
@@ -176,9 +186,110 @@ async classifyQuery(query) {
 }
 ```
 
-### 4.3 Cross-Language Trace (24F)
+### 4.3 Python Graph Ingestion (24F-0)
 
-Leveraging Phase 10 Fortran ingestion:
+**Objective**: Ingest 716 Python files from global-workflow into Neo4j graph.
+
+**Pre-requisites** (Already Complete):
+- `parse-python-ast.py` - AST parser extracting functions, classes, imports, calls
+- `ingest_fortran_graph.py` - Pattern to follow for Neo4j ingestion
+
+**Implementation**: Create `ingest_python_graph.py`
+
+**Target Directories**:
+| Path | Purpose | Est. Files |
+|------|---------|------------|
+| `workflow/rocoto/*.py` | Rocoto XML generators, task definitions | ~50 |
+| `ush/python/pygfs/*.py` | Core GFS Python utilities | ~100 |
+| `dev/workflow/setup_expt.py` | Experiment configuration | ~20 |
+| `sorc/*/python/*.py` | Component-specific utilities | ~546 |
+
+**Node Types**:
+```cypher
+(:PythonModule {name, file_path, docstring})
+(:PythonClass {name, file_path, line_number, base_classes[], decorators[]})
+(:PythonFunction {name, file_path, line_number, parameters[], is_async, is_method, class_name})
+```
+
+**Relationship Types**:
+```cypher
+(mod)-[:DEFINES]->(func|class)
+(class)-[:INHERITS]->(base_class)
+(func)-[:CALLS]->(other_func)
+(mod)-[:IMPORTS]->(other_mod)
+(shell)-[:INVOKES]->(python_script)  // Shell→Python bridge
+```
+
+**Script Pseudocode**:
+```python
+#!/usr/bin/env python3
+"""
+ingest_python_graph.py - Parse Python files and create Neo4j graph
+
+Uses existing parse-python-ast.py for AST extraction.
+Follows same patterns as ingest_fortran_graph.py.
+"""
+
+from neo4j import GraphDatabase
+import subprocess
+import json
+
+PYTHON_PATHS = [
+    "workflow/rocoto",
+    "ush/python/pygfs", 
+    "dev/workflow",
+]
+
+def parse_python_file(file_path):
+    """Call parse-python-ast.py and return JSON"""
+    result = subprocess.run(
+        ['python3', 'parse-python-ast.py', file_path],
+        capture_output=True, text=True
+    )
+    return json.loads(result.stdout)[0]
+
+def create_nodes(tx, parsed):
+    """Create PythonModule, PythonClass, PythonFunction nodes"""
+    # Create module node
+    tx.run("""
+        MERGE (m:PythonModule {file_path: $file_path})
+        SET m.name = $name
+    """, file_path=parsed['file_path'], name=Path(parsed['file_path']).stem)
+    
+    # Create class nodes
+    for cls in parsed['classes']:
+        tx.run("""
+            MERGE (c:PythonClass {name: $name, file_path: $file_path})
+            SET c.line_number = $line, c.base_classes = $bases
+        """, ...)
+    
+    # Create function nodes
+    for func in parsed['functions']:
+        tx.run("""
+            MERGE (f:PythonFunction {name: $name, file_path: $file_path})
+            SET f.line_number = $line, f.parameters = $params
+        """, ...)
+
+def create_relationships(tx, parsed):
+    """Create IMPORTS, CALLS, INHERITS, DEFINES relationships"""
+    ...
+```
+
+**Validation Targets**:
+| Metric | Target |
+|--------|--------|
+| PythonModule nodes | >150 |
+| PythonClass nodes | >100 |
+| PythonFunction nodes | >2,000 |
+| IMPORTS relationships | >2,500 |
+| CALLS relationships | >5,000 |
+| Parse success rate | >95% |
+
+---
+
+### 4.4 Cross-Language Trace (24F)
+
+Leveraging Phase 10 Fortran + 24F-0 Python ingestion:
 
 ```cypher
 // End-to-end execution trace: J-Job → Shell → Fortran → Subroutine
@@ -189,6 +300,21 @@ MATCH path = (job:ShellScript {type: 'j-job'})
 WHERE job.name =~ '(?i).*JGFS_FORECAST.*'
 RETURN path
 LIMIT 20
+
+// Shell → Python workflow path (24F-0)
+MATCH path = (shell:ShellScript)-[:INVOKES]->(py:PythonModule)
+  -[:DEFINES]->(func:PythonFunction)
+  -[:CALLS]->(other:PythonFunction)
+RETURN path
+LIMIT 20
+
+// Cross-language: Rocoto Python → Shell → Fortran
+MATCH path = (task:PythonClass {name: 'AtmosAnalysis'})
+  <-[:DEFINES]-(mod:PythonModule)
+  -[:GENERATES]->(shell:ShellScript)
+  -[:EXECUTES]->(prog:FortranProgram)
+RETURN path
+```
 
 // Example result:
 // JGFS_FORECAST → exglobal_forecast.sh → EXECUTES → ufs_model → 
@@ -262,14 +388,19 @@ const PHASE24_TOOLS = {
 ### Extended Schema for Cross-Language Communities
 
 ```cypher
-// Community detection should include Fortran nodes
+// Community detection should include Fortran AND Python nodes
 CALL gds.graph.project(
   'codeGraph',
-  ['ShellScript', 'File', 'FortranModule', 'FortranSubroutine', 'FortranFunction', 'FortranProgram'],
+  ['ShellScript', 'File', 'FortranModule', 'FortranSubroutine', 'FortranFunction', 'FortranProgram',
+   'PythonModule', 'PythonClass', 'PythonFunction'],
   {
     CALLS: { orientation: 'UNDIRECTED' },
     USES: { orientation: 'UNDIRECTED' },
+    IMPORTS: { orientation: 'UNDIRECTED' },
+    INHERITS: { orientation: 'UNDIRECTED' },
+    DEFINES: { orientation: 'UNDIRECTED' },
     EXECUTES: { orientation: 'UNDIRECTED' },
+    INVOKES: { orientation: 'UNDIRECTED' },
     SOURCES: { orientation: 'UNDIRECTED' },
     DEPENDS_ON: { orientation: 'UNDIRECTED' }
   }
@@ -279,7 +410,10 @@ CALL gds.graph.project(
 // - L1: GSI analysis (gsi.x, gsimain_*, related subroutines)
 // - L1: EnKF system (enkf_main, update modules)
 // - L1: UFS model (ufs_model, atmosphere_*, dynamics)
+// - L1: Rocoto workflow (Python task classes) [NEW from 24F-0]
+// - L1: PyGFS utilities (Python helper functions) [NEW from 24F-0]
 // - L2: Data Assimilation subsystem (GSI + EnKF)
+// - L2: Workflow orchestration (Python + Shell) [NEW from 24F-0]
 // - L2: Forecast subsystem (UFS + post-processing)
 // - L3: GFS Workflow (all subsystems)
 ```
@@ -288,16 +422,20 @@ CALL gds.graph.project(
 
 ```javascript
 const CROSS_LANGUAGE_SUMMARY_PROMPT = `
-You are analyzing a code community that may span multiple languages (Shell, Fortran).
+You are analyzing a code community that may span multiple languages (Shell, Fortran, Python).
 
 ## Community Members
 Shell scripts: {{shell_scripts}}
+Python modules: {{python_modules}}
+Python classes: {{python_classes}}
 Fortran modules: {{fortran_modules}}
 Fortran programs: {{fortran_programs}}
 Fortran subroutines: {{fortran_subroutines}}
 
 ## Key Relationships
 Shell → Fortran (EXECUTES): {{executes_relations}}
+Shell → Python (INVOKES): {{invokes_relations}}
+Python → Python (IMPORTS/CALLS): {{python_calls}}
 Fortran → Fortran (CALLS): {{calls_relations}}
 Fortran → Module (USES): {{uses_relations}}
 
@@ -305,10 +443,11 @@ Fortran → Module (USES): {{uses_relations}}
 Generate a technical summary capturing:
 
 1. **Purpose**: What computational task does this community perform?
-2. **Entry Points**: Which shell scripts invoke which Fortran programs?
-3. **Core Algorithms**: What are the key Fortran subroutines?
-4. **Data Flow**: How does data move from shell setup through Fortran computation?
-5. **HPC Patterns**: What parallelization strategies are used (MPI, OpenMP)?
+2. **Entry Points**: Which shell scripts invoke which Fortran programs or Python modules?
+3. **Core Algorithms**: What are the key Fortran subroutines or Python functions?
+4. **Data Flow**: How does data move from shell setup through computation?
+5. **Orchestration**: How do Python workflow classes coordinate shell/Fortran execution?
+6. **HPC Patterns**: What parallelization strategies are used (MPI, OpenMP, multiprocessing)?
 
 Keep under 400 words. Be specific about scientific computing aspects.
 `;
@@ -328,7 +467,10 @@ Keep under 400 words. Be specific about scientific computing aspects.
 | **Q2-Q3** | | | |
 | 9-12 | 24E-1,2 | Community detection + summaries | 24D, Neo4j GDS |
 | 13-14 | 24E-3 | Dual retrieval router | 24E-2 |
-| 13-16 | 24F | Cross-language path queries | Phase 10 ✓ |
+| 13-14 | 24F-0 | **Python graph ingestion (Neo4j)** | parse-python-ast.py ✓ |
+| 15-16 | 24F-1 | Fortran CALLS/USES integration | Phase 10 ✓ |
+| 17 | 24F-2 | Cross-language path queries | 24F-0, 24F-1 |
+| 18 | 24F-3 | End-to-end J-Job traces | 24F-2 |
 | 15-16 | 24E-4 | Incremental update pipeline | 24E-3 |
 | **Q3 2026** | | | |
 | 17-18 | 24G | Benchmark: GGSR vs baseline | 24D, 24E |
@@ -411,10 +553,12 @@ phase24h_agentic_tool_surface.md      (rename, drop "supplement")
 
 ## 12. Next Actions
 
-1. **Immediate**: Rename files per §11 naming convention
-2. **Phase 10 M5**: Update MCP tools to leverage Fortran graph (enables 24F)
-3. **24A Kickoff**: Begin Cypher traversal query development
-4. **Neo4j GDS**: Verify GDS plugin available for community detection
+1. **Immediate (24F-0 Kickoff)**: Create `ingest_python_graph.py` using `parse-python-ast.py`
+2. **24F-0 Validation**: Ingest 716 Python files, verify node/relationship counts
+3. **Rename files** per §11 naming convention
+4. **Phase 10 M5**: Update MCP tools to leverage Fortran graph (enables 24F)
+5. **24A Kickoff**: Begin Cypher traversal query development  
+6. **Neo4j GDS**: Verify GDS plugin available for community detection
 
 ---
 
