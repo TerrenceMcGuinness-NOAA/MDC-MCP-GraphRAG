@@ -545,4 +545,124 @@ export class GraphDatabase {
       }
     };
   }
+
+  // ============================================================================
+  // FORTRAN GRAPH METHODS (Phase 10 M5)
+  // ============================================================================
+
+  /**
+   * Find Fortran subroutines/functions that call a specific subroutine
+   * @param {string} name - Name of the Fortran subroutine/function
+   * @returns {Promise<Array>} Fortran entities that call this
+   */
+  async findFortranCallers(name) {
+    const cypher = `
+      MATCH (caller)-[c:CALLS]->(target)
+      WHERE (target:FortranSubroutine OR target:FortranFunction OR target:FortranProgram)
+        AND target.name =~ $pattern
+      RETURN caller.name as callerName,
+             caller.filepath as callerFile,
+             labels(caller)[0] as callerType,
+             'CALLS' as relationship
+      ORDER BY callerName
+      LIMIT 100
+    `;
+    return this.query(cypher, { pattern: `(?i).*${name}.*` });
+  }
+
+  /**
+   * Trace Fortran call chain (CALLS relationships)
+   * @param {string} name - Name of the Fortran entity
+   * @param {number} depth - Maximum depth (default: 3)
+   * @returns {Promise<Array>} Call chain
+   */
+  async traceFortranCallChain(name, depth = 3) {
+    const depthInt = Math.min(Math.max(parseInt(depth, 10) || 3, 1), 10);
+    const cypher = `
+      MATCH (start)
+      WHERE (start:FortranSubroutine OR start:FortranFunction OR start:FortranProgram)
+        AND start.name =~ $pattern
+      MATCH path = (start)-[:CALLS*1..${depthInt}]->(called)
+      RETURN start.name as source,
+             called.name as callee,
+             called.filepath as file,
+             labels(called)[0] as calleeType,
+             length(path) as depth
+      ORDER BY depth, callee
+      LIMIT 100
+    `;
+    return this.query(cypher, { pattern: `(?i).*${name}.*` });
+  }
+
+  /**
+   * Find Fortran modules used by a subroutine/program (USES relationships)
+   * @param {string} name - Name of the Fortran entity
+   * @returns {Promise<Array>} Modules used
+   */
+  async findFortranModuleUses(name) {
+    const cypher = `
+      MATCH (user)-[:USES]->(mod:FortranModule)
+      WHERE user.name =~ $pattern
+      RETURN user.name as userName,
+             mod.name as moduleName,
+             mod.filepath as moduleFile
+      ORDER BY moduleName
+      LIMIT 50
+    `;
+    return this.query(cypher, { pattern: `(?i).*${name}.*` });
+  }
+
+  /**
+   * Trace cross-language execution path: Shell → EXECUTES → Fortran → CALLS
+   * @param {string} scriptName - Name of the shell script or J-Job
+   * @param {number} fortranDepth - Depth to trace into Fortran (default: 3)
+   * @returns {Promise<Array>} Cross-language execution path
+   */
+  async traceCrossLanguagePath(scriptName, fortranDepth = 3) {
+    const depthInt = Math.min(Math.max(parseInt(fortranDepth, 10) || 3, 1), 10);
+    const cypher = `
+      MATCH (shell:ShellScript)
+      WHERE shell.name =~ $pattern
+      OPTIONAL MATCH shellPath = (shell)-[:SOURCES|INVOKES*0..2]->(exScript:ShellScript)
+      OPTIONAL MATCH (exScript)-[:EXECUTES]->(prog:FortranProgram)
+      OPTIONAL MATCH fortranPath = (prog)-[:CALLS*1..${depthInt}]->(sub)
+      WITH shell, exScript, prog, sub,
+           CASE WHEN shellPath IS NULL THEN 0 ELSE length(shellPath) END as shellDepth,
+           CASE WHEN fortranPath IS NULL THEN 0 ELSE length(fortranPath) END as fortranDepth
+      RETURN DISTINCT 
+             shell.name as sourceScript,
+             exScript.name as executingScript,
+             prog.name as fortranProgram,
+             sub.name as fortranSubroutine,
+             labels(sub)[0] as subroutineType,
+             shellDepth,
+             fortranDepth
+      ORDER BY shellDepth, fortranDepth
+      LIMIT 200
+    `;
+    return this.query(cypher, { pattern: `(?i).*${scriptName}.*` });
+  }
+
+  /**
+   * Get Fortran graph statistics
+   * @returns {Promise<object>} Fortran graph statistics
+   */
+  async getFortranGraphStats() {
+    const queries = {
+      modules: 'MATCH (n:FortranModule) RETURN count(n) as count',
+      subroutines: 'MATCH (n:FortranSubroutine) RETURN count(n) as count',
+      functions: 'MATCH (n:FortranFunction) RETURN count(n) as count',
+      programs: 'MATCH (n:FortranProgram) RETURN count(n) as count',
+      callsRels: 'MATCH ()-[r:CALLS]->() WHERE NOT type(r) = "CALLS_SHELL" RETURN count(r) as count',
+      usesRels: 'MATCH ()-[r:USES]->() RETURN count(r) as count',
+      executesRels: 'MATCH ()-[r:EXECUTES]->() RETURN count(r) as count'
+    };
+
+    const stats = {};
+    for (const [key, cypher] of Object.entries(queries)) {
+      const result = await this.query(cypher, {});
+      stats[key] = result[0]?.count || 0;
+    }
+    return stats;
+  }
 }

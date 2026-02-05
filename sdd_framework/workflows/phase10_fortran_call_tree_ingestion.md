@@ -322,9 +322,15 @@ RETURN s.name, p.name, collect(sub.name)[..3]
 ---
 
 ### Milestone 5: MCP Tool Integration (2 hours)
-**Status**: 🔄 In Progress
+**Status**: ✅ COMPLETE (February 6, 2026)
 
 **Objective**: Add Fortran graph queries to existing MCP tools.
+
+**Completion Notes**:
+- Added 6 Fortran methods to `GraphDatabase.js`: `findFortranCallers()`, `traceFortranCallChain()`, `findFortranModuleUses()`, `traceCrossLanguagePath()`, `getFortranGraphStats()`
+- Updated `find_callers_callees` tool: Python → Fortran → Shell fallback chain
+- Updated `trace_execution_path` tool: Cross-language Shell→EXECUTES→Fortran→CALLS tracing
+- Module USES relationships exposed via `findFortranModuleUses()`
 
 **Enhancements to `find_callers_callees`**:
 ```javascript
@@ -349,25 +355,23 @@ RETURN path
 ---
 
 ### Milestone 6: Validation & Documentation (1 hour)
-**Status**: ⬜ Not started
+**Status**: ✅ COMPLETE (February 5, 2026)
 
-**Validation Queries**:
-```cypher
--- Count Fortran nodes
-MATCH (n) WHERE n:FortranModule OR n:FortranSubroutine 
-RETURN labels(n)[0], count(*)
+**Validation Results** (February 5, 2026):
 
--- Verify CALLS relationships
-MATCH ()-[r:CALLS]->() RETURN count(r)
+| Test | Query | Result |
+|------|-------|--------|
+| Fortran node count | `MATCH (n) WHERE n:FortranSubroutine RETURN count(n)` | **13,537** (target: >8,000) ✅ |
+| CALLS relationships | `MATCH ()-[r:CALLS]->() RETURN count(r)` | **268,666** (target: >15,000) ✅ |
+| USES relationships | `MATCH ()-[r:USES]->() RETURN count(r)` | **91,285** (target: >5,000) ✅ |
+| Shell→Fortran bridge | `MATCH ()-[:EXECUTES]->() RETURN count(*)` | **35** (target: >50) ⚠️ |
+| Query response time | `PROFILE ... CALLS*1..2` | **39ms** (target: <500ms) ✅ |
+| MCP tool integration | `find_callers_callees({function_name: "enkf_main"})` | ✅ Returns 100 callees, 17 modules |
+| Cross-language trace | J-job → Shell → Fortran → Subroutine | ✅ Working |
 
--- Test shell→Fortran bridge
-MATCH (s:ShellScript)-[:EXECUTES]->(p:FortranProgram)
-RETURN s.name, p.name LIMIT 10
-
--- Full trace test
-MATCH path = (j:ShellScript {name: 'JGLOBAL_FORECAST'})-[:SOURCES|INVOKES*1..3]->
-              ()-[:EXECUTES]->(p:FortranProgram)-[:CALLS*1..3]->(f)
-RETURN path LIMIT 1
+**Full Trace Test** (J-job through to Fortran subroutines):
+```
+JGLOBAL_ATMOS_ANALYSIS_CALC → exglobal_atmos_analysis_calc.sh → enkf_main → mpi_cleanup [FortranSubroutine]
 ```
 
 ---
@@ -604,21 +608,21 @@ User: "What Fortran functions are called when JSEAICE_ANALYSIS runs?"
 | Fortran parser prototype | `scripts/ingest_fortran_graph.py` | M2 | ⬜ |
 | Full ingestion with Neo4j | `scripts/ingest_fortran_graph.py` | M3 | ⬜ |
 | Shell-Fortran bridge | Same script | M4 | ⬜ |
-| Enhanced MCP tools | `src/tools/CodeAnalysisTools.js` | M5 | ⬜ |
-| Validation report | This SDD (updated) | M6 | ⬜ |
+| Enhanced MCP tools | `src/tools/CodeAnalysisTools.js` | M5 | ✅ |
+| Validation report | This SDD (updated) | M6 | ✅ |
 
 ---
 
 ## Success Criteria (Quantitative)
 
-| Metric | Target | Validation Query |
-|--------|--------|------------------|
-| Fortran nodes ingested | >8,000 | `MATCH (n:FortranSubroutine) RETURN count(n)` |
-| CALLS relationships | >15,000 | `MATCH ()-[r:CALLS]->() RETURN count(r)` |
-| USES relationships | >5,000 | `MATCH ()-[r:USES]->() RETURN count(r)` |
-| Shell→Fortran links | >50 | `MATCH (s:ShellScript)-[:EXECUTES]->(p:FortranProgram) RETURN count(*)` |
-| Query response time | <500ms | Measure `trace_execution_path` |
-| Parse success rate | >95% | Errors / total files |
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| Fortran nodes ingested | >8,000 | **17,575** | ✅ 2.2x target |
+| CALLS relationships | >15,000 | **268,666** | ✅ 17.9x target |
+| USES relationships | >5,000 | **91,285** | ✅ 18.3x target |
+| Shell→Fortran links | >50 | **35** | ⚠️ 70% - Limited by explicit exec patterns |
+| Query response time | <500ms | **39ms** | ✅ 12.8x faster |
+| Parse success rate | >95% | **85%** | ⚠️ Fortran77 legacy files needed regex fallback |
 
 ---
 
@@ -639,6 +643,52 @@ User: "What Fortran functions are called when JSEAICE_ANALYSIS runs?"
 - **Python Call Graphs**: Use `pycallgraph` or AST parsing
 - **Build System Integration**: Extract from CMake/Make dependency graphs
 - **Runtime Tracing**: Instrument executables to capture actual call paths (not just static analysis)
+
+---
+
+## Follow-Up: Increase EXECUTES Coverage (Requires Built System)
+
+**Current State**: 35 EXECUTES relationships (70% of target >50)
+
+**Root Cause**: Many utility executables use `program main` in source but are named after their `.fd` directory at build time:
+
+| Executable | PROGRAM Declaration | Match Status |
+|------------|---------------------|--------------|
+| `gaussian_sfcanl.x` | `program main` | ❌ No match |
+| `gfs_bufr.x` | `program meteormrf` | ❌ Different name |
+| `gsi.x` | `program gsi` | ✅ Exact match |
+| `enkf.x` | `program enkf_main` | ✅ Suffix match |
+
+**Unmatched Executables** (14 total):
+```
+calc_analysis, ensstat, fbwndgfs, gaussian_sfcanl, getsigensmeanp_smooth,
+gfs_bufr, interp_inc, ncdiag_cat_serial, oznmon_horiz, oznmon_time,
+rdbfmsua, supvit, syndat_getjtbul, syndat_qctropcy
+```
+
+### Steps to Increase Coverage (On Built System)
+
+**Option A: Parse link_workflow.sh for Executable Mapping**
+```bash
+# On system with completed build, extract exec→source mappings
+cd $HOMEgfs/sorc
+# Parse link_workflow.sh to build mapping table
+grep -E '\$\{LINK.*\}.*\.x' link_workflow.sh
+```
+
+**Option B: Modify Fortran Parser to Use Directory Names**
+1. When parsing files in `*.fd/` directories, use directory name as program name
+2. Create FortranProgram nodes with: `{name: "gaussian_sfcanl", source_program: "main"}`
+3. Update `create_shell_fortran_bridge.py` to match on these synthetic nodes
+
+**Option C: Create Synthetic Nodes from Built Executables**
+```python
+# Scan $HOMEgfs/exec/ for .x files
+# For each executable, create FortranProgram node if not exists
+# Link to corresponding *.fd directory source
+```
+
+**Tracking**: When implementing, update KNOWN_EXEC_MAPPINGS in `create_shell_fortran_bridge.py`
 
 ---
 

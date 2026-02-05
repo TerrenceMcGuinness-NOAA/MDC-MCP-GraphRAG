@@ -411,68 +411,162 @@ export class CodeAnalysisTools {
     const { function_name, file_path, max_depth = 3, include_callers = false } = args;
 
     try {
-      let result = `# Execution Path Trace: ${function_name}\n\n`;
-
-      // Find the function first
-      const functions = file_path
+      let graphType = 'function'; // 'function', 'fortran', 'shell', or 'cross-language'
+      
+      // Find the entity - try Python function first
+      let functions = file_path
         ? await this.dataAccess.graphDB.findFileFunctions(file_path)
         : await this.dataAccess.graphDB.query(
             'MATCH (f:FUNCTION {name: $name}) RETURN f LIMIT 5',
             { name: function_name }
           );
+      
+      // If no Python function, try Fortran (Phase 10 M5)
+      if (!functions || functions.length === 0) {
+        const fortranEntity = await this.dataAccess.graphDB.query(
+          `MATCH (f) WHERE (f:FortranSubroutine OR f:FortranFunction OR f:FortranModule OR f:FortranProgram)
+           AND toLower(f.name) CONTAINS toLower($name)
+           RETURN f, labels(f)[0] as entityType LIMIT 5`,
+          { name: function_name }
+        );
+        if (fortranEntity && fortranEntity.length > 0) {
+          graphType = 'fortran';
+          functions = fortranEntity;
+        }
+      }
+      
+      // If still nothing, try shell script
+      if (!functions || functions.length === 0) {
+        const shellScript = await this.dataAccess.graphDB.query(
+          `MATCH (s:ShellScript) WHERE toLower(s.name) CONTAINS toLower($name)
+           RETURN s LIMIT 5`,
+          { name: function_name }
+        );
+        if (shellScript && shellScript.length > 0) {
+          graphType = 'shell';
+          functions = shellScript;
+        }
+      }
 
       if (!functions || functions.length === 0) {
         return {
           content: [{
             type: 'text',
-            text: `Function "${function_name}" not found.\n\nTry using \`analyze_code_structure\` first to find available functions.`
+            text: `Entity "${function_name}" not found in function, Fortran, or shell script graphs.\n\nTry using \`analyze_code_structure\` first to find available entities.`
           }]
         };
       }
+      
+      // Set up labels based on graph type
+      const typeLabels = {
+        function: { entity: 'Function', calls: 'function calls' },
+        fortran: { entity: 'Fortran', calls: 'Fortran calls' },
+        shell: { entity: 'Shell Script', calls: 'script invocations' }
+      };
+      const labels = typeLabels[graphType] || typeLabels.function;
+      
+      let result = `# Execution Path Trace: ${function_name}\n\n`;
+      result += `*Entity type: ${labels.entity}*\n\n`;
 
-      // Trace call chain from this function
+      // Trace call chain based on graph type
       result += `## Call Chain (What ${function_name} calls)\n\n`;
-      const callChain = await this.dataAccess.graphDB.traceCallChain(
-        function_name,
-        max_depth
-      );
+      
+      let callChain;
+      if (graphType === 'fortran') {
+        callChain = await this.dataAccess.graphDB.traceFortranCallChain(function_name, max_depth);
+      } else if (graphType === 'shell') {
+        callChain = await this.dataAccess.graphDB.traceScriptChain(function_name, max_depth);
+        
+        // For shell scripts, also check for cross-language paths to Fortran
+        const crossLangPath = await this.dataAccess.graphDB.traceCrossLanguagePath(function_name, max_depth);
+        if (crossLangPath && crossLangPath.length > 0) {
+          // Filter to only show entries with actual Fortran programs
+          const validPaths = crossLangPath.filter(p => p.fortranProgram);
+          if (validPaths.length > 0) {
+            result += `### Cross-Language Path (Shell → Fortran)\n`;
+            result += `*Shell script executes Fortran code via EXECUTES relationship*\n\n`;
+            
+            for (const step of validPaths.slice(0, 15)) {
+              const script = step.executingScript || step.sourceScript;
+              result += `- \`${script}\` —[EXECUTES]→ \`${step.fortranProgram}\``;
+              if (step.fortranSubroutine) {
+                result += ` —[CALLS]→ \`${step.fortranSubroutine}\``;
+                if (step.subroutineType) result += ` [${step.subroutineType}]`;
+              }
+              result += `\n`;
+            }
+            if (validPaths.length > 15) {
+              result += `*... and ${validPaths.length - 15} more paths*\n`;
+            }
+            result += `\n`;
+          }
+        }
+      } else {
+        callChain = await this.dataAccess.graphDB.traceCallChain(function_name, max_depth);
+      }
 
       if (callChain && callChain.length > 0) {
-        result += `Traced ${callChain.length} function calls:\n\n`;
+        result += `Traced ${callChain.length} ${labels.calls}:\n\n`;
         for (const call of callChain.slice(0, 20)) {
           const indent = '  '.repeat((call.depth || 1) - 1);
-          result += `${indent}${call.depth}. \`${call.callee || call.name}\``;
-          if (call.file) {
-            result += ` (in ${call.file})`;
-          }
+          const name = call.callee || call.name;
+          const type = call.calleeType || call.type;
+          result += `${indent}${call.depth || 1}. \`${name}\``;
+          if (type && graphType === 'fortran') result += ` [${type}]`;
+          if (call.file) result += ` (in ${call.file})`;
           result += `\n`;
         }
         if (callChain.length > 20) {
           result += `\n*... and ${callChain.length - 20} more calls*\n`;
         }
       } else {
-        result += `*No function calls found or function is a leaf node*\n`;
+        result += `*No ${labels.calls} found or this is a leaf node*\n`;
+      }
+      
+      // Add Fortran module dependencies if applicable
+      if (graphType === 'fortran') {
+        const moduleUses = await this.dataAccess.graphDB.findFortranModuleUses(function_name);
+        if (moduleUses && moduleUses.length > 0) {
+          result += `\n## Module Dependencies (USES)\n\n`;
+          for (const mod of moduleUses.slice(0, 10)) {
+            result += `- \`${mod.moduleName}\``;
+            if (mod.moduleFile) result += ` in \`${mod.moduleFile}\``;
+            result += `\n`;
+          }
+          if (moduleUses.length > 10) {
+            result += `*... and ${moduleUses.length - 10} more modules*\n`;
+          }
+        }
       }
 
       // Optionally include callers
       if (include_callers) {
         result += `\n## Callers (What calls ${function_name})\n\n`;
-        const callers = await this.dataAccess.graphDB.findCallers(function_name);
+        
+        let callers;
+        if (graphType === 'fortran') {
+          callers = await this.dataAccess.graphDB.findFortranCallers(function_name);
+        } else if (graphType === 'shell') {
+          callers = await this.dataAccess.graphDB.findScriptCallers(function_name);
+        } else {
+          callers = await this.dataAccess.graphDB.findCallers(function_name);
+        }
 
         if (callers && callers.length > 0) {
           result += `Found ${callers.length} callers:\n\n`;
           for (const caller of callers.slice(0, 10)) {
-            result += `- \`${caller.name || caller}\``;
-            if (caller.file) {
-              result += ` (in ${caller.file})`;
-            }
+            const name = caller.name || caller.callerName || caller;
+            const type = caller.callerType || caller.type;
+            result += `- \`${name}\``;
+            if (type && graphType === 'fortran') result += ` [${type}]`;
+            if (caller.file || caller.callerFile) result += ` (in ${caller.file || caller.callerFile})`;
             result += `\n`;
           }
           if (callers.length > 10) {
             result += `*... and ${callers.length - 10} more callers*\n`;
           }
         } else {
-          result += `*No callers found - this may be an entry point function*\n`;
+          result += `*No callers found - this may be an entry point*\n`;
         }
       }
 
@@ -504,48 +598,83 @@ export class CodeAnalysisTools {
     const { function_name, file_path, include_source = false } = args;
 
     try {
-      // First try function graph (Python/Fortran)
+      // First try function graph (Python)
       let callers = await this.dataAccess.graphDB.findCallers(function_name);
       let callChain = await this.dataAccess.graphDB.traceCallChain(function_name, 1);
       
-      // If no function results, try shell script graph
-      let isShellScript = false;
+      // Track which graph type we're using
+      let graphType = 'function';
+      
+      // If no function results, try Fortran graph (Phase 10 M5)
+      if (callers.length === 0 && (!callChain || callChain.length === 0)) {
+        const fortranCallers = await this.dataAccess.graphDB.findFortranCallers(function_name);
+        const fortranChain = await this.dataAccess.graphDB.traceFortranCallChain(function_name, 2);
+        
+        if (fortranCallers.length > 0 || (fortranChain && fortranChain.length > 0)) {
+          graphType = 'fortran';
+          callers = fortranCallers;
+          callChain = fortranChain;
+        }
+      }
+      
+      // If still no results, try shell script graph
       if (callers.length === 0 && (!callChain || callChain.length === 0)) {
         const scriptCallers = await this.dataAccess.graphDB.findScriptCallers(function_name);
         const scriptChain = await this.dataAccess.graphDB.traceScriptChain(function_name, 2);
         
         if (scriptCallers.length > 0 || (scriptChain && scriptChain.length > 0)) {
-          isShellScript = true;
+          graphType = 'shell';
           callers = scriptCallers;
           callChain = scriptChain;
         }
       }
       
-      const entityType = isShellScript ? 'Shell Script' : 'Function';
-      let result = `# ${entityType} Analysis: ${function_name}\n\n`;
+      // Set entity type label based on graph type
+      const entityLabels = {
+        function: { name: 'Function', caller: 'Functions that call', callee: 'Functions called by' },
+        fortran: { name: 'Fortran Subroutine/Function', caller: 'Fortran code that calls', callee: 'Fortran code called by' },
+        shell: { name: 'Shell Script', caller: 'Scripts that source/invoke', callee: 'Scripts sourced/invoked by' }
+      };
+      const labels = entityLabels[graphType];
       
-      if (isShellScript) {
+      let result = `# ${labels.name} Analysis: ${function_name}\n\n`;
+      
+      if (graphType === 'fortran') {
+        result += `*Showing Fortran call graph (CALLS/USES relationships)*\n\n`;
+        
+        // Add module usage for Fortran
+        const moduleUses = await this.dataAccess.graphDB.findFortranModuleUses(function_name);
+        if (moduleUses && moduleUses.length > 0) {
+          result += `## Module Dependencies (${moduleUses.length})\n`;
+          result += `*Modules used by ${function_name}*\n\n`;
+          for (const mod of moduleUses.slice(0, 10)) {
+            result += `- **\`${mod.moduleName}\`**`;
+            if (mod.moduleFile) result += ` in \`${mod.moduleFile}\``;
+            result += `\n`;
+          }
+          if (moduleUses.length > 10) {
+            result += `*... and ${moduleUses.length - 10} more modules*\n`;
+          }
+          result += `\n`;
+        }
+      } else if (graphType === 'shell') {
         result += `*Showing shell script call tree (J-Jobs, ex-scripts, ush)*\n\n`;
       }
 
-      // Find callers (upstream - what sources/calls this)
+      // Find callers (upstream)
       result += `## Callers (${callers.length})\n`;
-      result += `*${isShellScript ? 'Scripts that source/invoke' : 'Functions that call'} ${function_name}*\n\n`;
+      result += `*${labels.caller} ${function_name}*\n\n`;
 
       if (callers.length > 0) {
         for (const caller of callers.slice(0, 15)) {
           const name = caller.name || caller.callerName || caller;
           const file = caller.file || caller.callerFile;
+          const type = caller.callerType || caller.type;
           result += `- **\`${name}\`**`;
-          if (file) {
-            result += ` in \`${file}\``;
-          }
-          if (caller.relationship) {
-            result += ` [${caller.relationship}]`;
-          }
-          if (caller.lineNumber) {
-            result += ` (line ${caller.lineNumber})`;
-          }
+          if (type && graphType === 'fortran') result += ` [${type}]`;
+          if (file) result += ` in \`${file}\``;
+          if (caller.relationship) result += ` [${caller.relationship}]`;
+          if (caller.lineNumber) result += ` (line ${caller.lineNumber})`;
           result += `\n`;
         }
         if (callers.length > 15) {
@@ -555,34 +684,29 @@ export class CodeAnalysisTools {
         result += `*No callers found - this may be an entry point*\n`;
       }
 
-      // Find callees (downstream - what this sources/calls)
+      // Find callees (downstream)
       result += `\n## Callees\n`;
-      result += `*${isShellScript ? 'Scripts sourced/invoked by' : 'Functions called by'} ${function_name}*\n\n`;
+      result += `*${labels.callee} ${function_name}*\n\n`;
       
       if (callChain && callChain.length > 0) {
         for (const call of callChain.slice(0, 15)) {
           const name = call.callee || call.name;
+          const type = call.calleeType || call.type;
           result += `- **\`${name}\`**`;
-          if (call.file) {
-            result += ` in \`${call.file}\``;
-          }
-          if (call.type) {
-            result += ` [${call.type}]`;
-          }
-          if (call.depth) {
-            result += ` (depth: ${call.depth})`;
-          }
+          if (type && graphType === 'fortran') result += ` [${type}]`;
+          if (call.file) result += ` in \`${call.file}\``;
+          if (call.depth) result += ` (depth: ${call.depth})`;
           result += `\n`;
         }
         if (callChain.length > 15) {
           result += `\n*... and ${callChain.length - 15} more callees*\n`;
         }
       } else {
-        result += `*No callees found - this is a leaf ${isShellScript ? 'script' : 'function'}*\n`;
+        result += `*No callees found - this is a leaf ${labels.name.toLowerCase()}*\n`;
       }
       
       // Environment dependencies for shell scripts
-      if (isShellScript) {
+      if (graphType === 'shell') {
         try {
           const envDeps = await this.dataAccess.graphDB.findScriptEnvDeps(function_name);
           if (envDeps && envDeps.length > 0) {
@@ -612,8 +736,8 @@ export class CodeAnalysisTools {
 
       // Complexity analysis
       result += `\n## Complexity Analysis\n\n`;
-      result += `- **Fan-in:** ${callers.length} (${isShellScript ? 'scripts calling this' : 'functions calling this'})\n`;
-      result += `- **Fan-out:** ${callChain ? callChain.length : 0} (${isShellScript ? 'scripts this calls' : 'functions this calls'})\n`;
+      result += `- **Fan-in:** ${callers.length} (${labels.caller.toLowerCase()} this)\n`;
+      result += `- **Fan-out:** ${callChain ? callChain.length : 0} (${labels.callee.toLowerCase()} this)\n`;
       
       const complexity = (callers.length * (callChain ? callChain.length : 0));
       result += `- **Complexity Score:** ${complexity}\n`;
@@ -623,7 +747,7 @@ export class CodeAnalysisTools {
       } else if (complexity > 20) {
         result += `\n[WARN]  **Moderate complexity** - Review for simplification\n`;
       } else {
-        result += `\n[OK] **Low complexity** - Well-scoped ${isShellScript ? 'script' : 'function'}\n`;
+        result += `\n[OK] **Low complexity** - Well-scoped ${labels.name.toLowerCase()}\n`;
       }
 
       return {

@@ -34,6 +34,55 @@ EXEC_PATTERNS = [
     r'export\s+pgm=["\']?([a-zA-Z0-9_-]+)\.x["\']?',
 ]
 
+# Known executable→FortranProgram mappings from link_workflow.sh
+# Maps executable name (without .x) to the PROGRAM name in source
+# This is needed because many programs use "program main" but are
+# named after their containing *.fd directory at build time
+KNOWN_EXEC_MAPPINGS = {
+    # gfs_utils programs (use various internal names)
+    'gaussian_sfcanl': None,  # program main - no FortranProgram node
+    'gfs_bufr': None,         # program meteormrf - no match
+    'fbwndgfs': None,
+    'supvit': None,
+    'syndat_getjtbul': None,
+    'syndat_maksynrc': None,
+    'syndat_qctropcy': None,
+    'tocsbufr': 'TOCSBUFR',   # matches exactly
+    'overgridid': None,
+    'rdbfmsua': None,
+    'mkgfsawps': None,
+    'tave': None,
+    'vint': None,
+    'webtitle': None,
+    'ensstat': None,
+    
+    # gsi_utils programs
+    'calc_analysis': None,    # program main
+    'calc_increment_ens': 'calc_increment',  # matches base program
+    'calc_increment_ens_ncio': 'calc_increment',
+    'getsfcensmeanp': 'getsfcensmeanp',  # exact match
+    'getsigensmeanp_smooth': None,
+    'interp_inc': None,
+    'recentersigp': 'recentersigp',
+    
+    # gsi_monitor programs
+    'oznmon_horiz': None,
+    'oznmon_time': None,
+    'radmon_angle': None,
+    'radmon_bcoef': None,
+    'radmon_bcor': None,
+    'radmon_time': None,
+    
+    # ufs_utils programs
+    'emcsfc_ice_blend': None,
+    'emcsfc_snow2mdl': None,
+    'global_cycle': None,
+    
+    # Core GSI/EnKF - these have proper PROGRAM names
+    'gsi': 'gsi',
+    'enkf': 'enkf_main',
+}
+
 
 def get_fortran_programs(driver):
     """Fetch all FortranProgram nodes from Neo4j."""
@@ -84,6 +133,7 @@ def match_exec_to_program(exec_name, programs):
     Try to match an executable name to a FortranProgram node.
     
     Matching strategies:
+    0. Check KNOWN_EXEC_MAPPINGS table first (for mismatched names)
     1. Exact match (exec_name == program_name)
     2. Program name ends with _main (enkf -> enkf_main)
     3. Program name starts with exec_name (calc_increment -> calc_increment_main)
@@ -91,6 +141,15 @@ def match_exec_to_program(exec_name, programs):
     5. Normalize underscores and try again
     """
     exec_lower = exec_name.lower()
+    
+    # Strategy 0: Check known mappings table
+    if exec_lower in KNOWN_EXEC_MAPPINGS:
+        mapped_name = KNOWN_EXEC_MAPPINGS[exec_lower]
+        if mapped_name is None:
+            # Known executable but no matching FortranProgram node exists
+            return None
+        if mapped_name.lower() in programs:
+            return programs[mapped_name.lower()]['name']
     
     # Strategy 1: Exact match
     if exec_lower in programs:
