@@ -1,5 +1,23 @@
 # MCP Server Changelog
 
+## [7.3.11] - Phase 24F-0: Python Graph Ingestion (February 7, 2026)
+
+### Added
+- **`ingest_python_graph.py`** - Full Python AST → Neo4j graph ingestion pipeline (Phase 24F-0)
+  - Inline Python AST parser (mirrors `parse-python-ast.py`, no subprocess overhead)
+  - Creates PythonModule (362), PythonClass (220), PythonFunction (2376) nodes
+  - Creates DEFINES (2596), IMPORTS (3170), CALLS, INHERITS (139) relationships
+  - Shell→Python INVOKES bridge (auto-creates when ShellScript nodes present)
+  - CLI modes: `--test`, `--sample`, `--dry-run`, `--skip-bridge`
+  - 100% parse success rate across 362 Python files
+  - Phase 24F-0 targets met: 362/200 modules, 220/150 classes, 3170/3000 imports
+
+### Changed
+- **Neo4j graph** - Now includes Python layer alongside Fortran/Shell:
+  - Total nodes: 37,283 (was ~20,500 pre-Python)
+  - Total relationships: 475,817 (was ~369,000 pre-Python)
+  - Top inherited classes: Task (23 subclasses), Analysis (24), ObsBuilder (12)
+
 ## [7.3.10] - Neo4j Provisioning Consolidation (February 6, 2026)
 
 ### Fixed
