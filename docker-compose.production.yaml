@@ -121,15 +121,33 @@ services:
         max-size: "100m"
         max-file: "10"
 
+# CRITICAL: All volumes use bind mounts to persistent storage on /mcp_rag_eib
+# /var/lib/docker/volumes/ is ephemeral on VMs and will be lost on reprovisioning
 volumes:
   chromadb-production-data:
-    name: chromadb-production-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/chromadb
   neo4j-production-data:
-    name: neo4j-production-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/data
   neo4j-production-logs:
-    name: neo4j-production-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/logs
   mcp-server-production-logs:
-    name: mcp-server-production-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/mcp-server/logs
 
 networks:
   default:

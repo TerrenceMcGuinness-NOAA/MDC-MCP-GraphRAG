@@ -30,6 +30,8 @@ DIRS=(
     # "${DATA_ROOT}/langflow"  # REMOVED - LangFlow deprecated, using n8n
     "${DATA_ROOT}/n8n"  # n8n workflow automation (docker-compose.devops.yaml)
     "${DATA_ROOT}/ecflow"
+    "${DATA_ROOT}/mcp-server"       # MCP server container logs
+    "${DATA_ROOT}/mcp-server/logs"  # Bind mount target for all compose environments
     "${ETC_ROOT}"
     "${CACHE_ROOT}"
     "${CACHE_ROOT}/npm"

@@ -112,15 +112,33 @@ services:
 # ============================================================================
 # Volumes
 # ============================================================================
+# CRITICAL: All volumes use bind mounts to persistent storage on /mcp_rag_eib
+# /var/lib/docker/volumes/ is ephemeral on VMs and will be lost on reprovisioning
 volumes:
   chromadb-data:
-    name: mcp-chromadb-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/chromadb
   neo4j-data:
-    name: mcp-neo4j-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/data
   neo4j-logs:
-    name: mcp-neo4j-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/logs
   mcp-logs:
-    name: mcp-server-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/mcp-server/logs
 
 # ============================================================================
 # Networks

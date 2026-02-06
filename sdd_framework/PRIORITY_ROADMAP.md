@@ -1,25 +1,27 @@
 # MCP/RAG System - Priority Roadmap
 
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
-**Last Updated**: January 27, 2026  
+**Last Updated**: February 6, 2026  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development - Phase 26 Complete
+**Status**: Active Development - Phase 10 & 27A-F Complete, v7.3.10
 
 ---
 
-## 🟢 Current System Status (January 2026)
+## 🟢 Current System Status (February 2026)
 
 | Component | Status | Metrics |
-|-----------|--------|---------|
-| **MCP Server** | ✅ Operational | v7.1.8, 35 tools across 8 modules |
-| **ChromaDB** | ✅ Healthy | 12 collections, 14,968 documents |
-| **Neo4j** | ✅ Healthy | 2,744 files, 1,540 functions, 86,189 relationships |
+|-----------|--------|---------||
+| **MCP Server** | ✅ Operational | v7.3.10, 39 tools across 9 modules |
+| **ChromaDB** | ✅ Healthy | 4 collections (cleaned), MPNet 768-dim embeddings |
+| **Neo4j** | ✅ Healthy | 20,496 nodes, 369,013 relationships (incl. Fortran) |
+| **Fortran Graph** | ✅ Complete (Phase 10) | 17,575 Fortran nodes, 268K CALLS, 91K USES |
+| **Shell Graph** | ✅ Complete (Phase 27B) | 384 scripts, 9,027 relationships |
 | **Docker Gateway** | ✅ Fixed (Phase 26) | Port 18888, systemd service running |
 | **n8n Workflow** | ✅ Operational | Port 5678, MCP Gateway integration |
 | **SDD Validator** | ✅ Operational | 4 tools, standalone server |
 | **GitLab Registry** | ✅ Ready | `chromadb:v134clean` image pushed |
 | **GitFlow Branches** | ✅ Created | develop, env/dev-ops, env/staging, env/production |
-| **Dynamic Tools** | ⚠️ Reverted | Requires Docker Desktop (Phase 27 planned) |
+| **Dynamic Tools** | ⚠️ Reverted | Requires Docker Desktop (headless issue) |
 
 ---
 
@@ -154,18 +156,23 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 | Capability | Status | Evidence |
 |------------|--------|----------|
-| Semantic documentation search | ✅ Operational | ChromaDB with 14,856 documents (12 collections) |
-| Code structure analysis | ✅ Operational | Neo4j graph database (85,894 relationships) |
+| Semantic documentation search | ✅ Operational | ChromaDB with MPNet 768-dim embeddings (4 collections) |
+| Code structure analysis | ✅ Operational | Neo4j graph: 20,496 nodes, 369,013 relationships |
+| Fortran call tree tracing | ✅ Complete | Phase 10: 17,575 nodes, 268K CALLS, 91K USES |
+| Shell script graph | ✅ Complete | Phase 27B: 384 scripts, 9,027 relationships |
+| Cross-language tracing | ✅ Complete | J-Job → Shell → Fortran → Subroutine chains |
 | EE2 compliance scanning | ✅ Demonstrated | seaice-concentration, EVS audits complete |
 | SME-guided AI corrections | ✅ Implemented | 56 MCP directives preventing false positives |
-| MCP tool integration | ✅ Working | 38 tools across 8 modules |
-| SDD Workflow Framework | ✅ Operational | 30 workflows defined, supervised execution |
+| MCP tool integration | ✅ Working | 39 tools across 9 modules |
+| SDD Workflow Framework | ✅ Operational | 45+ workflows defined, supervised execution |
 | SDD Validator Server | ✅ Operational | 4 tools: sdd_validate, framework_integrity, development_status, bootstrap_progress |
 | Docker MCP Gateway | ✅ Complete | Phase 11E - Streamable HTTP on port 18888 |
 | n8n Workflow Automation | ✅ Complete | Phase 11E - Replaces LangFlow |
 | Container Registry | ✅ Ready | GitLab Registry with custom chromadb image |
 | GitFlow DevOps | ✅ Complete | 4 environment branches configured |
 | ISD Approval Gates | ✅ Complete | Phase 4B - 3 approval providers, persistent state |
+| J-Job RAG search | ✅ Complete | Phase 27C: 700 documents, structured metadata |
+| Environment variable tracing | ✅ Complete | Phase 27B: 2,473 env vars, `find_env_dependencies` tool |
 | Bootstrap Capability | 🔒 ON HOLD | Infrastructure ready, awaiting Phase 4C USD |
 
 ---
@@ -300,22 +307,24 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ---
 
-### 🟢 Phase 24: Graph-Guided Speculative Retrieval (Q2 2026)
-**Goal**: Move from tool-assisted RAG to inference-integrated RAG  
-**Status**: PROSPECTUS  
-**SDD**: `phase24_graph_guided_speculative_retrieval.md`  
-**Implements**: [ADVANCED_FUTURE_WORK.md §3](../docs/development/ADVANCED_FUTURE_WORK.md#3-true-graphrag-fusion) Phases 1-2
+### 🟢 Phase 24: Graph-Guided Speculative Retrieval (Q2-Q4 2026)
+**Goal**: Move from tool-assisted RAG to inference-integrated RAG (True GraphRAG)  
+**Status**: ARCHITECTURE CONSOLIDATED (February 5, 2026)  
+**SDD**: `phase24_consolidated_architecture.md`  
+**Implements**: [ADVANCED_FUTURE_WORK.md §3](../docs/development/ADVANCED_FUTURE_WORK.md#3-true-graphrag-fusion)
 
 **Key Innovation**: Pre-load graph neighborhood into context BEFORE user asks follow-up questions
 
-**Deliverables**:
-- [ ] Entity extraction and Neo4j linking module
-- [ ] Cypher traversal queries (1-2 hop neighborhoods)
-- [ ] Relationship weight matrix (CALLS=1.0, SOURCES=0.95, etc.)
-- [ ] Token budget management (4K-8K speculative context)
-- [ ] MCP tool integration (`speculative_search_documentation`)
+**Sub-phases** (consolidated from 3 supplement documents):
+- [ ] **24A-D**: GGSR Foundation (Q2 2026)
+- [ ] **24E**: Hierarchical Community Summarization (Q2-Q3)
+- [ ] **24F**: Cross-Language Integration - leverages Phase 10 Fortran graph (Q2-Q3)
+- [ ] **24G**: Benchmark & Validation - 50-query test corpus (Q3)
+- [ ] **24H**: Agentic Tool Surface (Q3)
+- [ ] **24I**: Learned Graph Embeddings (Q4)
+- [ ] **24J**: Subgraph Retrieval (Q4)
 
-**Timeline**: 10 weeks (Q2 2026)  
+**Foundation**: Phase 10 Fortran graph (368K relationships) provides the cross-language data  
 **Depends On**: Phase 22 (validation framework for benchmarking)
 
 ---
@@ -327,46 +336,45 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ---
 
-### ⚪ Phase 10: Fortran Call Tree Ingestion
+### ✅ Phase 10: Fortran Call Tree Ingestion (COMPLETE)
 **Goal**: Trace execution from shell scripts into compiled code  
-**Status**: SDD complete, BACKLOG  
-**Timeline**: Future - high value but not critical for initial rollout
+**Status**: COMPLETE - February 5, 2026 (all 6 milestones)  
+**SDD**: `phase10_fortran_call_tree_ingestion.md`
+
+**Results** (exceeded all projections):
+- 17,575 Fortran nodes (modules, subroutines, functions, programs)
+- 268,666 CALLS relationships, 91,285 USES relationships
+- 35 Shell→Fortran EXECUTES cross-language links
+- Query response time: 39ms (12.8x faster than 500ms target)
+- MCP tools enhanced: `find_callers_callees`, `trace_execution_path`
+
+**Unlocks**: Phase 24F Cross-Language Integration for GraphRAG
 
 ---
 
-### 🟡 Phase 27: Headless Dynamic MCP Server Discovery
+### ✅ Phase 27A-F: J-Job RAG Enhancement & Graph Ingestion (COMPLETE)
+**Goal**: Full-stack RAG enhancement for J-Jobs with shell and Fortran graph support  
+**Status**: COMPLETE - February 4-5, 2026  
+**SDD**: `phase27_jjob_script_rag_enhancement.md`
+
+**Sub-phases delivered**:
+- [x] **27A**: Path resolution fix for `dev/` directory restructuring
+- [x] **27B**: Shell script Neo4j graph (384 nodes, 9,027 relationships)
+- [x] **27C**: J-Job ChromaDB ingestion (700 documents, structured metadata)
+- [x] **27D**: Search filter for `list_job_scripts` tool
+- [x] **27E**: Unified MPNet 768-dim embeddings (ONNX segfault fixed)
+- [x] **27F**: v8 ingestion scripts with Fortran support
+
+**New tools**: `find_env_dependencies` (environment variable graph queries)
+
+---
+
+### 🟡 Phase 27G: Headless Dynamic MCP Server Discovery
 **Goal**: Enable third-party MCP server discovery (`mcp-find`, `mcp-add`) on headless Linux  
 **Status**: PLANNING  
-**Why**: The v7.1.6 dynamic tools feature was reverted (v7.1.8) because it requires Docker Desktop secrets store (`/.s0` socket) which doesn't exist on headless Linux servers.
+**Why**: The v7.1.6 dynamic tools feature was reverted (v7.1.8) because it requires Docker Desktop secrets store
 
-**Problem Statement**:
-- `--additional-catalog docker-mcp.yaml` loads official Docker MCP catalog (hundreds of servers)
-- `--enable-all-servers` enables dynamic tools (mcp-find, mcp-add, mcp-remove, etc.)
-- These require Docker Desktop to manage secrets for third-party API keys
-- Headless Linux has no Docker Desktop GUI → no `/.s0` socket → secrets lookup fails
-
-**Lost Capabilities** (from v7.1.6):
-- `mcp-find` - Search for MCP servers in Docker catalog
-- `mcp-add` - Dynamically add MCP servers at runtime  
-- `mcp-remove` - Remove MCP servers
-- `mcp-config-set` - Configure server settings
-- `mcp-exec` - Execute commands on servers
-
-**Potential Solutions**:
-1. **Local secrets file** - Environment variables or YAML file instead of Docker Desktop
-2. **Filtered catalog** - Subset of docker-mcp.yaml with only servers that don't require secrets
-3. **On-demand catalog loading** - Load server definitions only when requested, skip secrets
-4. **Standalone secrets manager** - HashiCorp Vault or similar for headless systems
-5. **Upstream contribution** - Work with Docker MCP Gateway team on headless support
-
-**Deliverables**:
-- [ ] Research Docker MCP Gateway secrets architecture
-- [ ] Prototype local secrets provider
-- [ ] Test filtered catalog approach
-- [ ] Document recommended headless configuration
-- [ ] Submit upstream issue/PR if appropriate
-
-**Timeline**: TBD (after Phase 26 stabilization)  
+**Timeline**: TBD  
 **Reference**: Phase 26 SDD (`phase26_docker_mcp_gateway_systemd_fix.md`)
 
 ---
@@ -378,8 +386,8 @@ An AI-assisted development platform for NOAA operational weather systems that:
 │                    Production Stack                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ MCP Server  │  │  ChromaDB   │  │   Neo4j     │          │
-│  │ (Node.js)   │  │ v134clean   │  │   5.15.0    │          │
-│  │  38 Tools   │  │ 14,856 docs │  │ 85K+ rels   │          │
+│  │ (Node.js)   │  │ v134clean   │  │  5-community│          │
+│  │  39 Tools   │  │ MPNet 768d  │  │ 369K rels   │          │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
 │         └────────────────┼────────────────┘                  │
 │                          │                                   │
@@ -403,8 +411,8 @@ An AI-assisted development platform for NOAA operational weather systems that:
 ┌─────────────────────────────────────────────────────────────┐
 │           4 MCP Servers (Separation of Concerns)            │
 ├─────────────────────────────────────────────────────────────┤
-│  eib-mcp-rag-full     │ Full 38 tools, RAG enabled          │
-│  eib-mcp-gateway      │ Docker container, 34 tools          │
+│  eib-mcp-rag-full     │ Full 39 tools, RAG enabled          │
+│  eib-mcp-gateway      │ Docker container, 35 tools          │
 │  global-workflow-core │ Neo4j only, fast code analysis      │
 │  eib-sdd-validator    │ 4 SDD framework tools               │
 └─────────────────────────────────────────────────────────────┘
@@ -447,10 +455,11 @@ An AI-assisted development platform for NOAA operational weather systems that:
 - **Measurable**: Track adoption and productivity metrics
 - **Scalable**: Add more repositories to knowledge base
 
-### Long-Term Benefits (Phases 8-10)
-- **Deep tracing**: Understand Fortran call chains from shell scripts
+### Long-Term Benefits (Phases 8-24)
+- **Deep tracing**: Fortran call chains from shell scripts (**DELIVERED** - Phase 10)
 - **Multi-modal**: Query architecture diagrams, not just text
 - **Institutional knowledge**: Capture SME expertise in machine-readable form
+- **True GraphRAG**: Inference-integrated retrieval with speculative pre-fetch (Phase 24)
 
 ---
 
@@ -480,10 +489,10 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 ## Next Actions
 
-1. **Immediate**: Phase 4B - Interactive Supervised Execution
-2. **This Week**: ApprovalProvider interface implementation
-3. **Next Week**: Integration with `execute_sdd_workflow_supervised`
-4. **Ongoing**: Document runbooks, gather user feedback
+1. **Immediate**: Phase 4C - USD Sub-Agent Dispatch
+2. **Near-term**: Phase 22 - Validation & Benchmarking Subsystem
+3. **Q2 2026**: Phase 24A-D - GGSR Foundation (True GraphRAG)
+4. **Ongoing**: Phase 13 - GitLab CI/CD Pipeline, production hardening
 
 ---
 
@@ -491,21 +500,24 @@ An AI-assisted development platform for NOAA operational weather systems that:
 
 | Workflow | Status | Purpose |
 |----------|--------|--------|
-| phase24_graph_guided_speculative_retrieval | 🟢 PROSPECTUS | GraphRAG: speculative pre-fetch (Q2 2026) |
-| phase23_static_mode_multiuser_gateway | ⚠️ REVISED | Multi-user gateway (Hybrid Architecture recommended) |
+| phase24_consolidated_architecture | 🟢 ARCHITECTURE | GraphRAG: 10 sub-phases 24A-J (Q2-Q4 2026) |
+| phase23_static_mode_multiuser_gateway | ✅ Complete | Smart container cleanup + hybrid architecture |
 | phase22_validation_benchmarking_subsystem | 🟡 PLANNING | Empirical validation framework |
 | phase11e_n8n_workflow_automation | ✅ Complete | n8n MCP integration |
 | phase12_devops_gitflow_containerization | ✅ Complete | GitFlow + containers |
 | phase4b_interactive_supervised_execution | ✅ Complete | ISD approval gates |
 | phase4c_isd_usd_architecture | 🟡 PLANNED | USD sub-agent dispatch |
 | phase4d_multi_tenant_sdd_workspaces | 🟡 PLANNED | Multi-user workspace scaling |
-| phase10_fortran_call_tree_ingestion | 📋 SDD Ready | Fortran analysis |
+| phase10_fortran_call_tree_ingestion | ✅ Complete | Fortran call tree (17K nodes, 369K rels) |
 | phase8_multimodal_embeddings_workflow | 📋 SDD Ready | Image/diagram ingestion |
 | phase9_metrics_comparative_analysis | 📋 SDD Ready | Productivity metrics |
 | ee2_enhanced_embeddings_workflow | ✅ Complete | EE2 standards ingestion |
 | v7_collection_upgrade_workflow | ✅ Complete | v7 collection migration |
 | bootstrap_capability_workflow | 📋 Blocked | Awaiting Phase 4C USD |
-| *...and 18 more* | Various | See sdd_framework/workflows/ |
+| phase24_consolidated_architecture | 🟢 ARCHITECTURE | GraphRAG sub-phases 24A-24J |
+| phase26_docker_mcp_gateway_systemd_fix | ✅ Complete | Gateway systemd fix |
+| phase27_jjob_script_rag_enhancement | ✅ Complete | 27A-F: J-Job RAG + graphs |
+| *...and 15 more* | Various | See sdd_framework/workflows/ |
 
 ---
 

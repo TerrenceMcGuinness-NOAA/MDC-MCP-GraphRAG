@@ -37,11 +37,12 @@ services:
   #     - mcp-rag-network
 
   # Neo4j Graph Database - Graph RAG for GFS structural relationships
+  # Contains Phase 10 Fortran call tree data (368K relationships, Feb 2026)
   # Web UI: http://localhost:7474
   # Bolt: bolt://localhost:7687
   neo4j:
-    image: neo4j:5.15.0
-    container_name: global-workflow-neo4j
+    image: neo4j:5-community
+    container_name: neo4j
     hostname: neo4j
     ports:
       - "7474:7474"  # HTTP (Neo4j Browser)
@@ -53,14 +54,13 @@ services:
       - neo4j-plugins:/plugins
     environment:
       - NEO4J_AUTH=neo4j/gfsworkflow2025
-      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_PLUGINS=["apoc"]
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
       - NEO4J_apoc_import_file_use__neo4j__config=true
-      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
-      - NEO4J_dbms_memory_heap_initial__size=1G
-      - NEO4J_dbms_memory_heap_max__size=4G
-      - NEO4J_dbms_memory_pagecache_size=2G
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p gfsworkflow2025 'RETURN 1' || exit 1"]
@@ -189,6 +189,9 @@ volumes:
       o: bind
       device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/n8n
   
+  # Neo4j data: Bind-mounted to persistent storage on /mcp_rag_eib
+  # Contains Phase 10 Fortran call tree graph data (20K nodes, 369K rels)
+  # CRITICAL: Must use bind mount, NOT Docker named volume (/var/lib is ephemeral on VMs)
   neo4j-data:
     driver: local
     driver_opts:

@@ -106,17 +106,39 @@ services:
       timeout: 10s
       retries: 3
 
+# CRITICAL: All volumes use bind mounts to persistent storage on /mcp_rag_eib
+# /var/lib/docker/volumes/ is ephemeral on VMs and will be lost on reprovisioning
 volumes:
   chromadb-devops-data:
-    name: chromadb-devops-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/chromadb
   neo4j-devops-data:
-    name: neo4j-devops-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/data
   neo4j-devops-logs:
-    name: neo4j-devops-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/logs
   mcp-server-devops-logs:
-    name: mcp-server-devops-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/mcp-server/logs
   n8n-devops-data:
-    name: n8n-devops-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/n8n
 
 networks:
   default:

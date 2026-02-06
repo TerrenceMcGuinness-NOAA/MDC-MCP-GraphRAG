@@ -101,15 +101,33 @@ services:
           cpus: '1'
           memory: 2G
 
+# CRITICAL: All volumes use bind mounts to persistent storage on /mcp_rag_eib
+# /var/lib/docker/volumes/ is ephemeral on VMs and will be lost on reprovisioning
 volumes:
   chromadb-staging-data:
-    name: chromadb-staging-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/chromadb
   neo4j-staging-data:
-    name: neo4j-staging-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/data
   neo4j-staging-logs:
-    name: neo4j-staging-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/neo4j/logs
   mcp-server-staging-logs:
-    name: mcp-server-staging-logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PERSISTENT_ROOT:-/mcp_rag_eib}/data/mcp-server/logs
 
 networks:
   default:

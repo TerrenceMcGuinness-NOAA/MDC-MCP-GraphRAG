@@ -1,5 +1,36 @@
 # MCP Server Changelog
 
+## [7.3.10] - Neo4j Provisioning Consolidation (February 6, 2026)
+
+### Fixed
+- **Neo4j container configuration** - Consolidated two conflicting Neo4j containers into single compose-managed instance
+  - Root cause: Standalone `neo4j` container (created Feb 5 for Phase 10 ingestion) diverged from compose-managed `global-workflow-neo4j`
+  - Standalone held all Phase 10 Fortran data (1.4 GB); compose container had stale 13 MB database
+  - Compose container crashed on start (exit code 3) due to `graph-data-science` plugin incompatibility with Neo4j 5.26.20
+
+### Changed
+- **`SETUP/docker-compose.yml`**:
+  - Image: `neo4j:5.15.0` → `neo4j:5-community` (tracks latest 5.x community)
+  - Container name: `global-workflow-neo4j` → `neo4j` (matches standalone convention)
+  - Plugins: Removed `graph-data-science` (GDS 2.6.9 incompatible with Neo4j 5.26.20 community)
+  - Memory: Adjusted heap from 1G–4G to 512m–1G (matching working config)
+  - Volume: Changed `neo4j-data` from bind mount to external Docker volume `neo4j_data` (preserves Phase 10 data)
+
+- **`SETUP/provisioning/08-services.sh`**:
+  - Ensures external Docker volume `neo4j_data` exists before compose up
+  - Removes stale `global-workflow-neo4j` containers that conflict with new `neo4j` name
+  - Removed `data/` from directory creation (data lives in Docker volume, not bind mount)
+
+### Removed
+- **`graph-data-science.jar`** from `/mcp_rag_eib/data/neo4j/plugins/` — 60 MB incompatible JAR was preventing Neo4j startup even after removing from compose env
+- Stale containers: `global-workflow-neo4j` (old compose), `neo4j` (standalone) — replaced by single compose-managed `neo4j`
+
+### Verified
+- All Phase 10 Fortran graph data intact: 20,496 nodes, 369,013 relationships
+- Neo4j healthy via compose: `docker compose up -d neo4j` from SETUP/
+
+---
+
 ## [7.3.9] - Phase 10 M6: Validation Complete (February 5, 2026)
 
 ### Validated

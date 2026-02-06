@@ -34,15 +34,29 @@ log_subsection "Neo4j Graph Database"
 
 NEO4J_DATA="${DATA_ROOT}/neo4j"
 
-# Ensure Neo4j directories exist
-mkdir -p "${NEO4J_DATA}"/{data,logs,import,plugins}
+# Ensure Neo4j support directories exist (data is in Docker volume neo4j_data)
+mkdir -p "${NEO4J_DATA}"/{logs,import,plugins}
 chown -R "${USER_OWNERSHIP}" "${NEO4J_DATA}"
 
-# Start Neo4j
+# Ensure the external Docker volume exists (contains Phase 10 Fortran graph data)
+if ! docker volume inspect neo4j_data &>/dev/null; then
+    log_warning "Docker volume 'neo4j_data' not found - creating empty volume"
+    docker volume create neo4j_data
+fi
+
+# Remove stale containers that conflict with the compose-managed 'neo4j' container
+for stale in "global-workflow-neo4j"; do
+    if docker ps -a --format '{{.Names}}' | grep -q "^${stale}$"; then
+        log_info "Removing stale container: ${stale}"
+        docker rm -f "${stale}" 2>/dev/null || true
+    fi
+done
+
+# Start Neo4j via compose
 log_info "Starting Neo4j container..."
 docker compose up -d neo4j || {
-    log_warning "Neo4j start failed, trying to build first..."
-    docker compose build neo4j
+    log_warning "Neo4j start failed, retrying after removing conflicting container..."
+    docker rm -f neo4j 2>/dev/null || true
     docker compose up -d neo4j
 }
 
