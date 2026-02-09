@@ -1,5 +1,25 @@
 # MCP Server Changelog
 
+## [7.4.1] - Phase 24D Hardening + Env Variable CSV Export (February 9, 2026)
+
+### Fixed
+- **GGSR timeout guard** in `find_env_dependencies` — wrapped `GraphGuidedRetrieval.retrieve()` in `Promise.race` with 15-second timeout and isolated try-catch. Core graph results always return regardless of GGSR enrichment status. (Commit `4b1a994`)
+
+### Added
+- **EnvironmentVariable graph ingestion** (`ingest_env_variables.py`) — parses 218 shell scripts, creates 2,730 `EnvironmentVariable` nodes with 9,077 relationships (EXPORTS, SETS, DEPENDS_ON_ENV) in Neo4j. Supports `--dry-run`, `--test FILE`, `--var NAME`, `--stats`, `--sample` modes. EE2 standard tagging for 30+ NCO-standard variables. (Phase 24 Gap 1)
+- **Graph-to-vector enrichment** (`enrichGraphResults()` in `UnifiedDataAccess.js`) — reverse hybrid query: Neo4j entity names → ChromaDB content lookup. Wired into `find_env_dependencies`. (Phase 24 Gap 2)
+- **MCP-sourced env variable CSV** — 28 curated variables exported via 24 `find_env_dependencies` MCP tool calls with full context (classification, subsystem, exporters, dependents, descriptions)
+
+### Fixed
+- **ShellScript→CodeFile schema fix** — all Cypher queries in `CodeAnalysisTools.js` and `GraphDatabase.js` updated from non-existent `ShellScript` label to `CodeFile` with correct property names (`type` → `script_type`)
+- **Docker ChromaDB mount** — added `After=mcp_rag_eib.mount` and `Requires=mcp_rag_eib.mount` to `SETUP/chromadb-docker.service`; fixed `/chroma/chroma` → `/data` volume path in all compose files
+
+### Infrastructure
+- Neo4j graph: 484,901 relationships, 20K+ nodes (post-env-var ingestion)
+- ChromaDB: 5 collections, 60,404 documents
+- MCP tools: 42 registered, all HEALTHY
+- Commits: `8fdfc7b` (v7.4.0 bulk), `4b1a994` (timeout fix)
+
 ## [7.11.0] - Phase 24H: Agentic MCP Tool Surface (February 10, 2026)
 
 ### Added
