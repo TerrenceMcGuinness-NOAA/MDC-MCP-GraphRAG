@@ -45,7 +45,7 @@ services:
   # Neo4j Graph Database (Staging)
   # ============================================================================
   neo4j:
-    image: neo4j:5-community
+    image: neo4j:5.26.20-community
     container_name: neo4j-staging
     ports:
       - "7474:7474"
@@ -55,7 +55,8 @@ services:
       - neo4j-staging-logs:/logs
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_STAGING_PASSWORD:-staging_secure_password}
-      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_PLUGINS=["apoc","graph-data-science"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
       - NEO4J_dbms_memory_heap_initial__size=1G
       - NEO4J_dbms_memory_heap_max__size=2G
     healthcheck:

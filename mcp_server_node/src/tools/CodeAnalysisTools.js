@@ -41,10 +41,11 @@ export class CodeAnalysisTools {
     // Phase 28A: Initialize GGSR traversal prototypes
     if (this.dataAccess.graphDB) {
       this.ggsr = new GGSRTraversalPrototypes(this.dataAccess.graphDB);
-      // Phase 24D: Initialize GraphGuidedRetrieval fusion engine
+      // Phase 24D+24E: Initialize GraphGuidedRetrieval fusion engine
       this.retrieval = new GraphGuidedRetrieval({
         dataAccess: this.dataAccess,
-        ggsr: this.ggsr
+        ggsr: this.ggsr,
+        vectorDB: this.dataAccess.vectorDB || null
       });
     }
     
@@ -353,7 +354,7 @@ export class CodeAnalysisTools {
           tokenBudget: token_budget, maxResults: 15, hops: 1,
           semanticLabel: 'key functions'
         });
-        analysis += ctx.ggsrSection + ctx.semanticSection;
+        analysis += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
       }
 
       return {
@@ -443,7 +444,7 @@ export class CodeAnalysisTools {
         const ctx = await this.retrieval.retrieveDependency(target, [target], {
           tokenBudget: token_budget
         });
-        result += ctx.ggsrSection + ctx.semanticSection;
+        result += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
       }
 
       return {
@@ -659,7 +660,7 @@ export class CodeAnalysisTools {
               tokenBudget: token_budget, maxResults: 15, hops: 1,
               semanticLabel: 'key entities'
             });
-            result += ctx.ggsrSection + ctx.semanticSection;
+            result += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
           }
         } catch (ggsrError) {
           console.error('[WARN] GGSR weighted traversal failed:', ggsrError.message);
@@ -673,7 +674,7 @@ export class CodeAnalysisTools {
           const ctx = await this.retrieval.retrieve(null, semanticKeys, {
             tokenBudget: token_budget, semanticLabel: 'key entities'
           });
-          result += ctx.semanticSection;
+          result += ctx.semanticSection + (ctx.communitySection || '');
         }
       }
 
@@ -913,7 +914,7 @@ export class CodeAnalysisTools {
           function_name, rawResults, semanticKeys,
           { fileType: graphType, semanticLabel: 'key entities' }
         );
-        result += ctx.ggsrSection + ctx.semanticSection;
+        result += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
       }
 
       return {
@@ -1051,7 +1052,7 @@ export class CodeAnalysisTools {
           fileType: 'env-variable',
           semanticLabel: 'key scripts'
         });
-        result += ctx.ggsrSection + ctx.semanticSection;
+        result += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
       }
 
       return {

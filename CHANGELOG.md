@@ -1,5 +1,36 @@
 # MCP Server Changelog
 
+## [7.9.0] - Phase 24E: Hierarchical Community Summaries (February 9, 2026)
+
+### Added
+- **Neo4j GDS 2.13.7 integration** — Pinned all compose files to `neo4j:5.26.20-community` for GDS compatibility
+  - Added `graph-data-science` to `NEO4J_PLUGINS` across 5 compose files
+  - Added `gds.*` to `dbms.security.procedures.unrestricted`
+  - 446 GDS procedures available (Leiden, Louvain, PageRank, etc.)
+
+- **Community detection** (`CommunityDetection.js`) — Phase 24E-1:
+  - Leiden algorithm over multi-language graph (Fortran + Python + Shell)
+  - Projects 25,352 nodes, 779K relationships into GDS
+  - Detects 3,847 communities at 4 hierarchical levels (modularity 0.81)
+  - Writes `communityId` back to Neo4j nodes
+  - Full pipeline: project → detect → stats → cleanup in ~860ms
+
+- **Community summaries** (`CommunitySummarizer.js`) — Phase 24E-2:
+  - Template-based summary generation from node metadata and relationships
+  - Keyword pattern matching for purpose inference (16 domain patterns)
+  - 72 summaries (communities with 3+ members) stored in ChromaDB `community-summaries` collection
+  - Semantic search: "atmospheric data assimilation" → GSW ocean, CRTM radiative transfer
+
+- **Query router** — Phase 24E-3:
+  - `classifyQuery()` → LOCAL | GLOBAL | TRACE | HYBRID
+  - `retrieveGlobal()` — searches community summaries for system-level queries
+  - Wired into `retrieve()` — GLOBAL/HYBRID queries automatically include community context
+  - All 5 CodeAnalysisTools now output `communitySection` when relevant
+
+### Infrastructure
+- Pinned Neo4j to 5.26.20-community across all compose files (5-community rolling tag
+  pulled 5.26.21 which has no GDS release yet)
+
 ## [7.8.0] - Phase 24F-2/F-3: Cross-Language Bridge & Traces (February 9, 2026)
 
 ### Added

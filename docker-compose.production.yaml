@@ -50,7 +50,7 @@ services:
   # Neo4j Graph Database (Production)
   # ============================================================================
   neo4j:
-    image: neo4j:5-community
+    image: neo4j:5.26.20-community
     container_name: neo4j-production
     ports:
       - "7474:7474"
@@ -60,7 +60,8 @@ services:
       - neo4j-production-logs:/logs
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PRODUCTION_PASSWORD}
-      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_PLUGINS=["apoc","graph-data-science"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
       - NEO4J_dbms_memory_heap_initial__size=2G
       - NEO4J_dbms_memory_heap_max__size=4G
       - NEO4J_dbms_memory_pagecache_size=2G

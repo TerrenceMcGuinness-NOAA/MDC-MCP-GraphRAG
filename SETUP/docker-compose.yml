@@ -41,7 +41,7 @@ services:
   # Web UI: http://localhost:7474
   # Bolt: bolt://localhost:7687
   neo4j:
-    image: neo4j:5-community
+    image: neo4j:5.26.20-community
     container_name: neo4j
     hostname: neo4j
     ports:
@@ -54,11 +54,11 @@ services:
       - neo4j-plugins:/plugins
     environment:
       - NEO4J_AUTH=neo4j/gfsworkflow2025
-      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_PLUGINS=["apoc","graph-data-science"]
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
       - NEO4J_apoc_import_file_use__neo4j__config=true
-      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
       - NEO4J_dbms_memory_heap_initial__size=512m
       - NEO4J_dbms_memory_heap_max__size=1G
       # Allow unencrypted bolt when browser is served over HTTPS (SSH tunnels, KasmVNC)
