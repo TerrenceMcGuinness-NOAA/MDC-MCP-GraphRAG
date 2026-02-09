@@ -1,5 +1,34 @@
 # MCP Server Changelog
 
+## [7.10.0] - Phase 24G: Benchmark & Validation (February 9, 2026)
+
+### Added
+- **Benchmark corpus** (`evaluation/benchmark_corpus.json`) — 50 queries across 5 categories:
+  - 10 LOCAL (entity-specific: callers, callees, modules)
+  - 10 GLOBAL (system-level: architecture, subsystems, patterns)
+  - 10 TRACE (execution paths, call chains)
+  - 10 CROSS-LANGUAGE (shell→Fortran→Python traces)
+  - 10 COMPARATIVE (entity comparisons, pattern differences)
+  - All expected results verified against live Neo4j graph data
+
+- **Automated benchmark runner** (`evaluation/benchmark_runner.js`) — 4 system configurations:
+  - Baseline: vector-only ChromaDB search
+  - GGSR: graph neighborhood traversal only
+  - GGSR+Community: graph + community summaries
+  - Full: GGSR + Community + cross-language traces
+  - Captures: hit rate, P50/P95 latency, per-category breakdown
+  - Outputs structured JSON results + markdown report
+
+### Results
+- **Full GraphRAG: 60% hit rate** vs 40% baseline (+20pp improvement)
+- **Cross-language: 100%** (30% baseline) — validates Phase 24F bridge edges
+- **Trace queries: 60%** (10% baseline) — graph traversal excels
+- **P95 latency: 120ms** (target <1000ms) — 8.3x headroom
+- **GO decision** for Phase 24H (agentic tool surface)
+
+### Known Gap
+- Global queries: 40% (baseline 80%) — template-based community summaries need LLM upgrade
+
 ## [7.9.0] - Phase 24E: Hierarchical Community Summaries (February 9, 2026)
 
 ### Added

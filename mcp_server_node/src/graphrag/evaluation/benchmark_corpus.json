@@ -1,0 +1,362 @@
+{
+  "version": "1.1.0",
+  "description": "Phase 24G benchmark corpus — 50 queries across 5 categories for GraphRAG validation. Expectations verified against live Neo4j graph.",
+  "created": "2026-02-09",
+  "categories": ["local", "global", "trace", "cross_language", "comparative"],
+  "queries": [
+    {
+      "id": "L01", "category": "local",
+      "query": "What does setuprad call?",
+      "entity": "setuprad",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["qc_irsnd", "nc_diag_data2d", "nc_diag_metadata"]
+    },
+    {
+      "id": "L02", "category": "local",
+      "query": "What does gsi call?",
+      "entity": "gsi",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["gsimain_finalize", "timer_pri", "die"]
+    },
+    {
+      "id": "L03", "category": "local",
+      "query": "What does contents_binary_diag_ call?",
+      "entity": "contents_binary_diag_",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_comm_size", "mpi_gather", "mpi_gatherv"]
+    },
+    {
+      "id": "L04", "category": "local",
+      "query": "What calls init_vars_?",
+      "entity": "init_vars_",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["get_zderivs", "getprs_horiz", "getvvel"]
+    },
+    {
+      "id": "L05", "category": "local",
+      "query": "What modules use gridmod?",
+      "entity": "gridmod",
+      "expectedRelType": "USES",
+      "expectedInResults": ["compact_dlat", "update_netcdf_mass4ens", "load_prsges_enspro"]
+    },
+    {
+      "id": "L06", "category": "local",
+      "query": "What does rocoto_viewer import?",
+      "entity": "rocoto_viewer",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["get_rocoto_commands", "main", "print_exc"]
+    },
+    {
+      "id": "L07", "category": "local",
+      "query": "What does enkf_main call?",
+      "entity": "enkf_main",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_initialize", "w3tagb", "init_rad"]
+    },
+    {
+      "id": "L08", "category": "local",
+      "query": "What does getsfcensmeanp call?",
+      "entity": "getsfcensmeanp",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_finalize", "w3tage", "mpi_barrier"]
+    },
+    {
+      "id": "L09", "category": "local",
+      "query": "What does calc_increment_main call?",
+      "entity": "calc_increment_main",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["calc_increment"]
+    },
+    {
+      "id": "L10", "category": "local",
+      "query": "What does ocnicepost do?",
+      "entity": "ocnicepost",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["ocnicepost"]
+    },
+
+    {
+      "id": "G01", "category": "global",
+      "query": "How does atmospheric data assimilation work in GFS?",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["assimilation", "observation", "analysis"]
+    },
+    {
+      "id": "G02", "category": "global",
+      "query": "Explain the post-processing pipeline architecture",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["post", "product", "output"]
+    },
+    {
+      "id": "G03", "category": "global",
+      "query": "What is the ocean modeling subsystem used for?",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["ocean", "gsw", "water"]
+    },
+    {
+      "id": "G04", "category": "global",
+      "query": "Overview of the ensemble Kalman filter system",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["ensemble", "kalman", "enkf"]
+    },
+    {
+      "id": "G05", "category": "global",
+      "query": "How does the Python workflow automation work?",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["python", "workflow", "task"]
+    },
+    {
+      "id": "G06", "category": "global",
+      "query": "Describe the CRTM radiative transfer functionality",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["crtm", "radiative", "transfer"]
+    },
+    {
+      "id": "G07", "category": "global",
+      "query": "Summarize the configuration and initialization code",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["config", "setup", "init"]
+    },
+    {
+      "id": "G08", "category": "global",
+      "query": "What is the forecast model architecture?",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["forecast", "model", "dynamics"]
+    },
+    {
+      "id": "G09", "category": "global",
+      "query": "Explain the MPI communication patterns in GFS",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["mpi", "parallel", "communication"]
+    },
+    {
+      "id": "G10", "category": "global",
+      "query": "Overview of I/O and file operations in the codebase",
+      "entity": null,
+      "expectedRelType": null,
+      "expectedCommunityKeywords": ["file", "read", "write"]
+    },
+
+    {
+      "id": "T01", "category": "trace",
+      "query": "Trace the GSI analysis call chain",
+      "entity": "gsi",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["gsimain_finalize", "timer_pri"]
+    },
+    {
+      "id": "T02", "category": "trace",
+      "query": "Trace execution path of enkf_main",
+      "entity": "enkf_main",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_initialize", "w3tagb"]
+    },
+    {
+      "id": "T03", "category": "trace",
+      "query": "Trace the calc_increment call chain",
+      "entity": "calc_increment_main",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["calc_increment"]
+    },
+    {
+      "id": "T04", "category": "trace",
+      "query": "Follow the call chain from contents_binary_diag_",
+      "entity": "contents_binary_diag_",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_gather", "mpi_comm_size"]
+    },
+    {
+      "id": "T05", "category": "trace",
+      "query": "Trace the radiance processing chain from setuprad",
+      "entity": "setuprad",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["qc_irsnd", "nc_diag_data2d"]
+    },
+    {
+      "id": "T06", "category": "trace",
+      "query": "Trace the getsfcensmeanp program execution",
+      "entity": "getsfcensmeanp",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_finalize", "mpi_barrier"]
+    },
+    {
+      "id": "T07", "category": "trace",
+      "query": "Trace what init_vars_ calls",
+      "entity": "init_vars_",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["get_zderivs", "getprs_horiz"]
+    },
+    {
+      "id": "T08", "category": "trace",
+      "query": "Trace what uses gridmod module",
+      "entity": "gridmod",
+      "expectedRelType": "USES",
+      "expectedInResults": ["compact_dlat", "update_netcdf_mass4ens"]
+    },
+    {
+      "id": "T09", "category": "trace",
+      "query": "Trace how ocnicepost processes data",
+      "entity": "ocnicepost",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["ocnicepost"]
+    },
+    {
+      "id": "T10", "category": "trace",
+      "query": "Trace the rocoto_viewer execution path",
+      "entity": "rocoto_viewer",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["get_rocoto_commands", "main"]
+    },
+
+    {
+      "id": "X01", "category": "cross_language",
+      "query": "What Fortran executables does exglobal_atmos_analysis.sh run?",
+      "entity": "exglobal_atmos_analysis",
+      "expectedRelType": "EXECUTES",
+      "expectedInResults": ["gsi", "calc_increment_main"]
+    },
+    {
+      "id": "X02", "category": "cross_language",
+      "query": "What Python scripts does exglobal_atmos_analysis invoke?",
+      "entity": "exglobal_atmos_analysis",
+      "expectedRelType": "INVOKES",
+      "expectedInResults": ["calcinc_gfs"]
+    },
+    {
+      "id": "X03", "category": "cross_language",
+      "query": "What Fortran does exgdas_enkf_post.sh execute?",
+      "entity": "exgdas_enkf_post",
+      "expectedRelType": "EXECUTES",
+      "expectedInResults": ["getsfcensmeanp"]
+    },
+    {
+      "id": "X04", "category": "cross_language",
+      "query": "What Python scripts are invoked by analysis calc?",
+      "entity": "exglobal_atmos_analysis_calc",
+      "expectedRelType": "INVOKES",
+      "expectedInResults": ["calcinc_gfs", "calcanl_gfs"]
+    },
+    {
+      "id": "X05", "category": "cross_language",
+      "query": "Trace from exglobal_atmos_analysis through to Fortran",
+      "entity": "exglobal_atmos_analysis",
+      "expectedRelType": "EXECUTES",
+      "expectedInResults": ["gsi"]
+    },
+    {
+      "id": "X06", "category": "cross_language",
+      "query": "What does analysis calc script call in Python and Fortran?",
+      "entity": "exglobal_atmos_analysis_calc",
+      "expectedRelType": "INVOKES",
+      "expectedInResults": ["calcanl_gfs", "calcanl_gcafs"]
+    },
+    {
+      "id": "X07", "category": "cross_language",
+      "query": "Find cross-language dependencies from pygfs",
+      "entity": "pygfs.__init__",
+      "expectedRelType": "IMPORTS",
+      "expectedInResults": ["task.marine_recenter", "task.fetch"]
+    },
+    {
+      "id": "X08", "category": "cross_language",
+      "query": "What shell scripts invoke Python workflow modules?",
+      "entity": "exglobal_atmos_analysis",
+      "expectedRelType": "INVOKES",
+      "expectedInResults": ["calcinc_gfs"]
+    },
+    {
+      "id": "X09", "category": "cross_language",
+      "query": "Cross-language trace from enkf post-processing",
+      "entity": "exgdas_enkf_post",
+      "expectedRelType": "EXECUTES",
+      "expectedInResults": ["getsfcensmeanp"]
+    },
+    {
+      "id": "X10", "category": "cross_language",
+      "query": "What languages does the analysis pipeline span?",
+      "entity": "exglobal_atmos_analysis",
+      "expectedRelType": "EXECUTES",
+      "expectedInResults": ["gsi", "calcinc_gfs"]
+    },
+
+    {
+      "id": "C01", "category": "comparative",
+      "query": "Compare GSI and EnKF analysis approaches",
+      "entity": "gsi",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["gsimain_finalize", "gsi"]
+    },
+    {
+      "id": "C02", "category": "comparative",
+      "query": "Difference between contents_binary_diag_ and contents_netcdf_diag_",
+      "entity": "contents_binary_diag_",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_gather", "contents_binary_diag_"]
+    },
+    {
+      "id": "C03", "category": "comparative",
+      "query": "Difference between calc_increment and calc_increment_ncio",
+      "entity": "calc_increment",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["calc_increment"]
+    },
+    {
+      "id": "C04", "category": "comparative",
+      "query": "Compare init_vars_ and final_vars_ subroutines",
+      "entity": "init_vars_",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["get_zderivs", "init_vars_"]
+    },
+    {
+      "id": "C05", "category": "comparative",
+      "query": "How do setuprad and setupaod differ?",
+      "entity": "setuprad",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["qc_irsnd", "setuprad"]
+    },
+    {
+      "id": "C06", "category": "comparative",
+      "query": "Compare MPI usage in enkf_main vs getsfcensmeanp",
+      "entity": "enkf_main",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["mpi_initialize", "enkf_main"]
+    },
+    {
+      "id": "C07", "category": "comparative",
+      "query": "Compare what gsi and calc_increment_main programs call",
+      "entity": "gsi",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["gsimain_finalize", "gsi"]
+    },
+    {
+      "id": "C08", "category": "comparative",
+      "query": "Compare calcinc_gfs and calcanl_gfs Python scripts",
+      "entity": "calcinc_gfs",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["exit", "locals", "calcinc_gfs"]
+    },
+    {
+      "id": "C09", "category": "comparative",
+      "query": "How do gridmod and constants modules compare in usage?",
+      "entity": "gridmod",
+      "expectedRelType": "USES",
+      "expectedInResults": ["compact_dlat", "gridmod"]
+    },
+    {
+      "id": "C10", "category": "comparative",
+      "query": "Compare rocoto_viewer and wxflow Python modules",
+      "entity": "rocoto_viewer",
+      "expectedRelType": "CALLS",
+      "expectedInResults": ["get_rocoto_commands", "rocoto_viewer"]
+    }
+  ]
+}

@@ -58,10 +58,11 @@ Phase 24: True GraphRAG Fusion
 │       └── 24F-3: End-to-end trace: J-Job→Shell→Fortran/Python→Function [Week 18]  ✅ Done (crossLanguageTrace)
 │
 ├── Q3 2026: Agent Surface (Weeks 17-24)
-│   ├── 24G: Benchmark & Validation [NEW]   [Weeks 17-18]
-│   │   ├── Baseline: Current tool-assisted RAG
-│   │   ├── Comparison: GGSR (24D) vs GGSR+Community (24E)
-│   │   └── Metrics: Query count, latency, accuracy
+│   ├── 24G: Benchmark & Validation [NEW]   [Weeks 17-18]  ✅ Done (v7.10.0)
+│   │   ├── 50-query corpus (5 categories) verified against live graph
+│   │   ├── 4 system configs: Baseline→GGSR→+Community→Full
+│   │   ├── Result: 60% vs 40% baseline (+20pp), cross-lang 100%
+│   │   └── GO decision for Phase 24H
 │   │
 │   └── 24H: Agentic MCP Tool Surface       [Weeks 19-24]
 │       ├── 24H-1: Discovery Tools (get_code_context, find_similar)
@@ -473,7 +474,7 @@ Keep under 400 words. Be specific about scientific computing aspects.
 | 18 | 24F-3 | End-to-end J-Job traces | 24F-2 |
 | 15-16 | 24E-4 | Incremental update pipeline | 24E-3 |
 | **Q3 2026** | | | |
-| 17-18 | 24G | Benchmark: GGSR vs baseline | 24D, 24E |
+| 17-18 | 24G | Benchmark: GGSR vs baseline ✅ 60% vs 40% | 24D, 24E |
 | 19-20 | 24H-1 | Discovery tools | 24D, 24E |
 | 21-22 | 24H-2 | Impact analysis tools | 24H-1 |
 | 23-24 | 24H-3,4 | Session state + integration | 24H-2 |

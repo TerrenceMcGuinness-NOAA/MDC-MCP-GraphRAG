@@ -319,7 +319,7 @@ An AI-assisted development platform for NOAA operational weather systems that:
 - [x] **24A-D**: GGSR Foundation — ✅ Complete (v7.5.0–v7.7.0)
 - [x] **24E**: Hierarchical Community Summarization — ✅ Complete (v7.9.0, 3847 communities, Leiden+GDS)
 - [x] **24F**: Cross-Language Integration — ✅ Complete (v7.8.0, 3 EXECUTES + 4 INVOKES bridges)
-- [ ] **24G**: Benchmark & Validation - 50-query test corpus (Q3)
+- [x] **24G**: Benchmark & Validation — ✅ Complete (v7.10.0, 60% vs 40% baseline, GO for 24H)
 - [ ] **24H**: Agentic Tool Surface (Q3)
 - [ ] **24I**: Learned Graph Embeddings (Q4)
 - [ ] **24J**: Subgraph Retrieval (Q4)
@@ -494,7 +494,8 @@ An AI-assisted development platform for NOAA operational weather systems that:
 3. ~~**Immediate**: Phase 24B+24C - Weight Tuning & Token Budget~~ ✅ Complete (v7.6.0)
 4. ~~**Next**: Phase 24D - GraphGuidedRetrieval class~~ ✅ Complete (v7.7.0)
 5. ~~**Next**: Phase 24F-2/F-3 - Cross-language bridge~~ ✅ Complete (v7.8.0)
-6. **Next**: Phase 24E - Hierarchical Community Summaries / Phase 24G - Benchmarking / Phase 24H - Agentic Tools
+6. ~~**Next**: Phase 24E - Hierarchical Community Summaries / Phase 24G - Benchmarking~~ ✅ Complete
+7. **Next**: Phase 24H - Agentic Tools (GO decision from 24G benchmarks)
 7. **Near-term**: Phase 22 - Validation & Benchmarking Subsystem
 7. **Ongoing**: Phase 13 - GitLab CI/CD Pipeline, production hardening
 

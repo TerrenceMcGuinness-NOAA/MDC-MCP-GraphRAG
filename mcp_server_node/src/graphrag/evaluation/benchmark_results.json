@@ -1,0 +1,1505 @@
+{
+  "systems": {
+    "baseline": {
+      "hitRate": "40.0%",
+      "hits": 20,
+      "total": 50,
+      "errors": 0,
+      "p50LatencyMs": 46,
+      "p95LatencyMs": 72,
+      "avgLatencyMs": 46
+    },
+    "ggsr": {
+      "hitRate": "40.0%",
+      "hits": 20,
+      "total": 50,
+      "errors": 0,
+      "p50LatencyMs": 70,
+      "p95LatencyMs": 114,
+      "avgLatencyMs": 59
+    },
+    "ggsr_community": {
+      "hitRate": "48.0%",
+      "hits": 24,
+      "total": 50,
+      "errors": 0,
+      "p50LatencyMs": 70,
+      "p95LatencyMs": 120,
+      "avgLatencyMs": 67
+    },
+    "full": {
+      "hitRate": "60.0%",
+      "hits": 30,
+      "total": 50,
+      "errors": 0,
+      "p50LatencyMs": 60,
+      "p95LatencyMs": 120,
+      "avgLatencyMs": 64
+    }
+  },
+  "perQuery": [
+    {
+      "id": "L01",
+      "category": "local",
+      "query": "What does setuprad call?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 60,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 67,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 139,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 140,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "L02",
+      "category": "local",
+      "query": "What does gsi call?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 24,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 19,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 23,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 22,
+          "resultCount": 6
+        }
+      }
+    },
+    {
+      "id": "L03",
+      "category": "local",
+      "query": "What does contents_binary_diag_ call?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 35,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 61,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 55,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 63,
+          "resultCount": 12
+        }
+      }
+    },
+    {
+      "id": "L04",
+      "category": "local",
+      "query": "What calls init_vars_?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 51,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 48,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 46,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 46,
+          "resultCount": 12
+        }
+      }
+    },
+    {
+      "id": "L05",
+      "category": "local",
+      "query": "What modules use gridmod?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 57,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 69,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 77,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 59,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "L06",
+      "category": "local",
+      "query": "What does rocoto_viewer import?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 36,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 78,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 104,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 112,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "L07",
+      "category": "local",
+      "query": "What does enkf_main call?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 45,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 96,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 81,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 73,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "L08",
+      "category": "local",
+      "query": "What does getsfcensmeanp call?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 42,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 70,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 49,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 74,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "L09",
+      "category": "local",
+      "query": "What does calc_increment_main call?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 59,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 93,
+          "resultCount": 13
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 94,
+          "resultCount": 13
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 72,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "L10",
+      "category": "local",
+      "query": "What does ocnicepost do?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 51,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 71,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 77,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 60,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "G01",
+      "category": "global",
+      "query": "How does atmospheric data assimilation work in GFS?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 57,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 56,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 59,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "G02",
+      "category": "global",
+      "query": "Explain the post-processing pipeline architecture",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 36,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 37,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 39,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "G03",
+      "category": "global",
+      "query": "What is the ocean modeling subsystem used for?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 39,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 40,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 40,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "G04",
+      "category": "global",
+      "query": "Overview of the ensemble Kalman filter system",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 34,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 34,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 35,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "G05",
+      "category": "global",
+      "query": "How does the Python workflow automation work?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 36,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 36,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 37,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "G06",
+      "category": "global",
+      "query": "Describe the CRTM radiative transfer functionality",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 35,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 36,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 36,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "G07",
+      "category": "global",
+      "query": "Summarize the configuration and initialization code",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 38,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 39,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 39,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "G08",
+      "category": "global",
+      "query": "What is the forecast model architecture?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 15,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        }
+      }
+    },
+    {
+      "id": "G09",
+      "category": "global",
+      "query": "Explain the MPI communication patterns in GFS",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 15,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 1,
+          "resultCount": 0
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 1,
+          "resultCount": 0
+        }
+      }
+    },
+    {
+      "id": "G10",
+      "category": "global",
+      "query": "Overview of I/O and file operations in the codebase",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 52,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 0,
+          "resultCount": 0
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 52,
+          "resultCount": 3
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 53,
+          "resultCount": 3
+        }
+      }
+    },
+    {
+      "id": "T01",
+      "category": "trace",
+      "query": "Trace the GSI analysis call chain",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 20,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 17,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 19,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 21,
+          "resultCount": 6
+        }
+      }
+    },
+    {
+      "id": "T02",
+      "category": "trace",
+      "query": "Trace execution path of enkf_main",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 34,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 67,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 62,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 75,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "T03",
+      "category": "trace",
+      "query": "Trace the calc_increment call chain",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 42,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 76,
+          "resultCount": 13
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 58,
+          "resultCount": 13
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 78,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "T04",
+      "category": "trace",
+      "query": "Follow the call chain from contents_binary_diag_",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 46,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 88,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 107,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 144,
+          "resultCount": 12
+        }
+      }
+    },
+    {
+      "id": "T05",
+      "category": "trace",
+      "query": "Trace the radiance processing chain from setuprad",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 82,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 68,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 84,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 90,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "T06",
+      "category": "trace",
+      "query": "Trace the getsfcensmeanp program execution",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 35,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 82,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 74,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 75,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "T07",
+      "category": "trace",
+      "query": "Trace what init_vars_ calls",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 28,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 49,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 47,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 55,
+          "resultCount": 12
+        }
+      }
+    },
+    {
+      "id": "T08",
+      "category": "trace",
+      "query": "Trace what uses gridmod module",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 46,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 50,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 56,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 50,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "T09",
+      "category": "trace",
+      "query": "Trace how ocnicepost processes data",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 46,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 76,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 70,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 47,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "T10",
+      "category": "trace",
+      "query": "Trace the rocoto_viewer execution path",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 52,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 70,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 84,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 76,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X01",
+      "category": "cross_language",
+      "query": "What Fortran executables does exglobal_atmos_analysis.sh run?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 77,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 119,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 123,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 111,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X02",
+      "category": "cross_language",
+      "query": "What Python scripts does exglobal_atmos_analysis invoke?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 62,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 93,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 77,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 99,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X03",
+      "category": "cross_language",
+      "query": "What Fortran does exgdas_enkf_post.sh execute?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 70,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 101,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 102,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 70,
+          "resultCount": 9
+        }
+      }
+    },
+    {
+      "id": "X04",
+      "category": "cross_language",
+      "query": "What Python scripts are invoked by analysis calc?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 53,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 80,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 88,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 65,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X05",
+      "category": "cross_language",
+      "query": "Trace from exglobal_atmos_analysis through to Fortran",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 67,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 74,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 101,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 93,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X06",
+      "category": "cross_language",
+      "query": "What does analysis calc script call in Python and Fortran?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 55,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 84,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 84,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 60,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X07",
+      "category": "cross_language",
+      "query": "Find cross-language dependencies from pygfs",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 41,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 110,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 101,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 107,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X08",
+      "category": "cross_language",
+      "query": "What shell scripts invoke Python workflow modules?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 29,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 114,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 120,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 120,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "X09",
+      "category": "cross_language",
+      "query": "Cross-language trace from enkf post-processing",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 26,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 75,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 86,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 81,
+          "resultCount": 9
+        }
+      }
+    },
+    {
+      "id": "X10",
+      "category": "cross_language",
+      "query": "What languages does the analysis pipeline span?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 36,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 91,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 87,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 82,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "C01",
+      "category": "comparative",
+      "query": "Compare GSI and EnKF analysis approaches",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 33,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 16,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 16,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 15,
+          "resultCount": 6
+        }
+      }
+    },
+    {
+      "id": "C02",
+      "category": "comparative",
+      "query": "Difference between contents_binary_diag_ and contents_netcdf_diag_",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 51,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 74,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 79,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 57,
+          "resultCount": 12
+        }
+      }
+    },
+    {
+      "id": "C03",
+      "category": "comparative",
+      "query": "Difference between calc_increment and calc_increment_ncio",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 41,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 80,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 79,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 38,
+          "resultCount": 11
+        }
+      }
+    },
+    {
+      "id": "C04",
+      "category": "comparative",
+      "query": "Compare init_vars_ and final_vars_ subroutines",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 57,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 56,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 50,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 50,
+          "resultCount": 12
+        }
+      }
+    },
+    {
+      "id": "C05",
+      "category": "comparative",
+      "query": "How do setuprad and setupaod differ?",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 72,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 86,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 63,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 89,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "C06",
+      "category": "comparative",
+      "query": "Compare MPI usage in enkf_main vs getsfcensmeanp",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 62,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 81,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 68,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 70,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "C07",
+      "category": "comparative",
+      "query": "Compare what gsi and calc_increment_main programs call",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 49,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 41,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 42,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 42,
+          "resultCount": 6
+        }
+      }
+    },
+    {
+      "id": "C08",
+      "category": "comparative",
+      "query": "Compare calcinc_gfs and calcanl_gfs Python scripts",
+      "results": {
+        "baseline": {
+          "hit": true,
+          "latencyMs": 69,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 117,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 101,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 63,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "C09",
+      "category": "comparative",
+      "query": "How do gridmod and constants modules compare in usage?",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 46,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": true,
+          "latencyMs": 54,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": true,
+          "latencyMs": 54,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": true,
+          "latencyMs": 58,
+          "resultCount": 15
+        }
+      }
+    },
+    {
+      "id": "C10",
+      "category": "comparative",
+      "query": "Compare rocoto_viewer and wxflow Python modules",
+      "results": {
+        "baseline": {
+          "hit": false,
+          "latencyMs": 40,
+          "resultCount": 10
+        },
+        "ggsr": {
+          "hit": false,
+          "latencyMs": 72,
+          "resultCount": 15
+        },
+        "ggsr_community": {
+          "hit": false,
+          "latencyMs": 74,
+          "resultCount": 15
+        },
+        "full": {
+          "hit": false,
+          "latencyMs": 47,
+          "resultCount": 15
+        }
+      }
+    }
+  ],
+  "timestamp": "2026-02-09T20:16:35.127Z",
+  "byCategory": {
+    "local": {
+      "baseline": {
+        "hitRate": "20%",
+        "hits": 2,
+        "total": 10
+      },
+      "ggsr": {
+        "hitRate": "50%",
+        "hits": 5,
+        "total": 10
+      },
+      "ggsr_community": {
+        "hitRate": "50%",
+        "hits": 5,
+        "total": 10
+      },
+      "full": {
+        "hitRate": "40%",
+        "hits": 4,
+        "total": 10
+      }
+    },
+    "global": {
+      "baseline": {
+        "hitRate": "80%",
+        "hits": 8,
+        "total": 10
+      },
+      "ggsr": {
+        "hitRate": "0%",
+        "hits": 0,
+        "total": 10
+      },
+      "ggsr_community": {
+        "hitRate": "40%",
+        "hits": 4,
+        "total": 10
+      },
+      "full": {
+        "hitRate": "40%",
+        "hits": 4,
+        "total": 10
+      }
+    },
+    "trace": {
+      "baseline": {
+        "hitRate": "10%",
+        "hits": 1,
+        "total": 10
+      },
+      "ggsr": {
+        "hitRate": "50%",
+        "hits": 5,
+        "total": 10
+      },
+      "ggsr_community": {
+        "hitRate": "50%",
+        "hits": 5,
+        "total": 10
+      },
+      "full": {
+        "hitRate": "60%",
+        "hits": 6,
+        "total": 10
+      }
+    },
+    "cross_language": {
+      "baseline": {
+        "hitRate": "30%",
+        "hits": 3,
+        "total": 10
+      },
+      "ggsr": {
+        "hitRate": "10%",
+        "hits": 1,
+        "total": 10
+      },
+      "ggsr_community": {
+        "hitRate": "10%",
+        "hits": 1,
+        "total": 10
+      },
+      "full": {
+        "hitRate": "100%",
+        "hits": 10,
+        "total": 10
+      }
+    },
+    "comparative": {
+      "baseline": {
+        "hitRate": "60%",
+        "hits": 6,
+        "total": 10
+      },
+      "ggsr": {
+        "hitRate": "90%",
+        "hits": 9,
+        "total": 10
+      },
+      "ggsr_community": {
+        "hitRate": "90%",
+        "hits": 9,
+        "total": 10
+      },
+      "full": {
+        "hitRate": "60%",
+        "hits": 6,
+        "total": 10
+      }
+    }
+  }
+}
