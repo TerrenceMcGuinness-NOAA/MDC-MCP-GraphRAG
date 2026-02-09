@@ -10,22 +10,22 @@
 
 services:
   # ChromaDB Vector Database - DISABLED (Running as systemd service on host)
-  # Service: chromadb-persistent.service
+  # Service: chromadb-persistent.service (requires mcp_rag_eib.mount)
   # Port: 8080 on host
   # Data: /mcp_rag_eib/data/chromadb
+  # NOTE: chromadb/chroma:latest uses /data as persist path (not /chroma/chroma)
   # chromadb:
   #   image: chromadb/chroma:latest
   #   container_name: global-workflow-chromadb
   #   hostname: chromadb
   #   ports:
-  #     - "8000:8000"
+  #     - "8080:8000"
   #   volumes:
-  #     - chromadb-data:/chroma/chroma
+  #     - chromadb-data:/data
   #   environment:
-  #     - CHROMA_SERVER_HTTP_PORT=8000
-  #     - CHROMA_SERVER_HOST=0.0.0.0
-  #     - PERSIST_DIRECTORY=/chroma/chroma
-  #     - TELEMETRY_DISABLED=1
+  #     - IS_PERSISTENT=TRUE
+  #     - PERSIST_DIRECTORY=/data
+  #     - ANONYMIZED_TELEMETRY=FALSE
   #   restart: unless-stopped
   #   healthcheck:
   #     test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]

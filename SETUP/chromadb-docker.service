@@ -1,8 +1,11 @@
 [Unit]
 Description=ChromaDB Vector Database Server (Docker)
-After=docker.service
-Requires=docker.service
+After=docker.service mcp_rag_eib.mount
+Requires=docker.service mcp_rag_eib.mount
 Documentation=https://docs.trychroma.com/
+# CRITICAL: Must wait for persistent disk mount before starting.
+# Without this, the bind mount targets the ephemeral root filesystem
+# instead of /dev/nvme2n1 persistent storage. (Fix: Feb 9, 2026)
 
 [Service]
 Type=simple

@@ -158,6 +158,80 @@ export class UnifiedDataAccess {
   }
 
   /**
+   * Graph-to-Vector enrichment: Fetch ChromaDB content for graph-discovered nodes
+   * 
+   * This is the "reverse hybrid query" — takes Neo4j node names/paths and fetches
+   * semantic content from ChromaDB to provide context alongside graph structure.
+   * 
+   * Use cases:
+   *   - find_env_dependencies: enrich script names with descriptions/content
+   *   - find_callers_callees: add semantic context to bare function names
+   *   - analyze_code_structure: attach content snippets to graph node results
+   * 
+   * @param {Array<string>} identifiers - Node names, file paths, or script names from graph
+   * @param {object} options - Enrichment options
+   * @returns {Promise<Map<string, object>>} Map of identifier -> {content, metadata}
+   * @version 1.0.0  Phase 24 Gap 2
+   */
+  async enrichGraphResults(identifiers, options = {}) {
+    if (!this.connected) {
+      await this.connect();
+    }
+
+    const {
+      collection = 'code-with-context-v8-0-0',
+      nResultsPerQuery = 2,
+      maxIdentifiers = 15,    // Limit concurrent queries
+      includeContent = true
+    } = options;
+
+    this.metrics.vectorQueries++;
+
+    const enrichmentMap = new Map();
+    const queryBatch = identifiers.slice(0, maxIdentifiers);
+
+    try {
+      const results = await Promise.all(
+        queryBatch.map(async (identifier) => {
+          try {
+            // Query ChromaDB for content matching this graph node
+            const vectorHits = await this.vectorDB.query(
+              collection,
+              identifier,
+              { nResults: nResultsPerQuery }
+            );
+
+            if (vectorHits && vectorHits.length > 0) {
+              const best = vectorHits[0];
+              return {
+                identifier,
+                content: includeContent ? (best.document || best.content || '').substring(0, 500) : null,
+                metadata: best.metadata || {},
+                score: best.score || best.distance,
+                found: true
+              };
+            }
+            return { identifier, found: false };
+          } catch (err) {
+            return { identifier, found: false, error: err.message };
+          }
+        })
+      );
+
+      for (const r of results) {
+        if (r.found) {
+          enrichmentMap.set(r.identifier, r);
+        }
+      }
+
+      return enrichmentMap;
+    } catch (error) {
+      console.error('[WARN] Graph-to-vector enrichment failed:', error.message);
+      return enrichmentMap; // Return empty map, don't break the tool
+    }
+  }
+
+  /**
    * Find code with dependencies (graph-first approach)
    * @param {string} identifier - Function/class/file name
    * @param {object} options - Query options

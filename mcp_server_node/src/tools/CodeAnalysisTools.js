@@ -438,7 +438,7 @@ export class CodeAnalysisTools {
       // If still nothing, try shell script
       if (!functions || functions.length === 0) {
         const shellScript = await this.dataAccess.graphDB.query(
-          `MATCH (s:ShellScript) WHERE toLower(s.name) CONTAINS toLower($name)
+          `MATCH (s:CodeFile) WHERE s.language = 'shell' AND toLower(s.name) CONTAINS toLower($name)
            RETURN s LIMIT 5`,
           { name: function_name }
         );
@@ -785,9 +785,9 @@ export class CodeAnalysisTools {
       // Query scripts that depend on this variable
       // Note: LIMIT embedded in query string (not parameter) to avoid Neo4j float conversion
       const dependsQuery = `
-        MATCH (s:ShellScript)-[:DEPENDS_ON_ENV]->(e:EnvironmentVariable {name: $varName})
-        RETURN s.name as script, s.path as path, s.type as type, s.category as category
-        ORDER BY s.type, s.name
+        MATCH (s:CodeFile)-[:DEPENDS_ON_ENV]->(e:EnvironmentVariable {name: $varName})
+        RETURN s.name as script, s.path as path, s.script_type as type, s.language as language
+        ORDER BY s.script_type, s.name
         LIMIT ${limitVal}
       `;
       
@@ -826,9 +826,9 @@ export class CodeAnalysisTools {
       // Query scripts that export this variable
       if (show_exports) {
         const exportsQuery = `
-          MATCH (s:ShellScript)-[r:EXPORTS]->(e:EnvironmentVariable {name: $varName})
-          RETURN s.name as script, s.path as path, s.type as type, r.line as line, e.default_value as value
-          ORDER BY s.type, s.name
+          MATCH (s:CodeFile)-[r:EXPORTS]->(e:EnvironmentVariable {name: $varName})
+          RETURN s.name as script, s.path as path, s.script_type as type, r.line as line, r.value as value
+          ORDER BY s.script_type, s.name
           LIMIT ${limitVal}
         `;
         
@@ -854,13 +854,55 @@ export class CodeAnalysisTools {
         }
       }
       
-      // Summary
+      // Summary with EE2 metadata
+      const metaQuery = `
+        MATCH (e:EnvironmentVariable {name: $varName})
+        RETURN e.is_ee2_standard as isEE2, e.is_home_model as isHome, e.first_seen_in as firstSeen
+      `;
+      const meta = await this.dataAccess.graphDB.query(metaQuery, { varName: variable_name });
+      
       result += `\n## Summary\n\n`;
+      if (meta && meta.length > 0) {
+        const m = meta[0];
+        const tags = [];
+        if (m.isEE2) tags.push('EE2 Standard');
+        if (m.isHome) tags.push('HOMEmodel');
+        if (tags.length > 0) result += `- **Classification:** ${tags.join(', ')}\n`;
+        if (m.firstSeen) result += `- **First seen in:** \`${m.firstSeen}\`\n`;
+      }
       result += `- **Total dependencies:** ${dependents.length} scripts\n`;
       result += `- **Impact level:** ${dependents.length > 50 ? 'HIGH' : dependents.length > 20 ? 'MEDIUM' : 'LOW'}\n`;
       
       if (dependents.length > 50) {
         result += `\n[WARN] This variable is widely used - changes will have broad impact\n`;
+      }
+
+      // Gap 2: Graph-to-Vector enrichment — fetch semantic context for key scripts
+      try {
+        const keyScripts = [
+          ...dependents.slice(0, 5).map(d => d.script),
+        ];
+        if (keyScripts.length > 0) {
+          const enrichment = await this.dataAccess.enrichGraphResults(keyScripts, {
+            collection: 'code-with-context-v8-0-0',
+            nResultsPerQuery: 1,
+            maxIdentifiers: 8
+          });
+          
+          if (enrichment.size > 0) {
+            result += `\n## Semantic Context\n`;
+            result += `*Content snippets from vector store for key scripts*\n\n`;
+            for (const [name, data] of enrichment) {
+              if (data.content && data.content.length > 20) {
+                result += `### \`${name}\`\n`;
+                result += `${data.content.substring(0, 300)}${data.content.length > 300 ? '...' : ''}\n\n`;
+              }
+            }
+          }
+        }
+      } catch (enrichError) {
+        // Non-fatal: graph results are sufficient without vector enrichment
+        console.error('[WARN] Vector enrichment failed:', enrichError.message);
       }
 
       return {

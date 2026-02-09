@@ -19,8 +19,10 @@ services:
     ports:
       - "8080:8000"
     volumes:
-      - chromadb-devops-data:/chroma/chroma
+      - chromadb-devops-data:/data
     environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/data
       - CHROMA_HOST=0.0.0.0
       - CHROMA_PORT=8000
       - ANONYMIZED_TELEMETRY=false

@@ -495,12 +495,12 @@ export class GraphDatabase {
    */
   async findScriptEnvDeps(scriptName) {
     const cypher = `
-      MATCH (s:ShellScript)-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable)
+      MATCH (s:CodeFile)-[rel:DEPENDS_ON_ENV|EXPORTS|SETS]->(e:EnvironmentVariable)
       WHERE s.name CONTAINS $scriptName OR s.path CONTAINS $scriptName
       RETURN s.name as script,
              e.name as envVar,
-             e.default_value as defaultValue,
-             type(head([(s)-[r]->(e) | r])) as relationship
+             e.is_ee2_standard as isEE2,
+             type(rel) as relationship
       ORDER BY e.name
     `;
     return this.query(cypher, { scriptName });
@@ -512,10 +512,10 @@ export class GraphDatabase {
    */
   async getScriptGraphStats() {
     const queries = {
-      totalScripts: 'MATCH (s:ShellScript) RETURN count(s) as count',
-      jJobs: "MATCH (s:ShellScript {type: 'j-job'}) RETURN count(s) as count",
-      exScripts: "MATCH (s:ShellScript {type: 'ex-script'}) RETURN count(s) as count",
-      ushScripts: "MATCH (s:ShellScript {type: 'ush-script'}) RETURN count(s) as count",
+      totalScripts: "MATCH (s:CodeFile) WHERE s.language = 'shell' RETURN count(s) as count",
+      jJobs: "MATCH (s:CodeFile {script_type: 'j-job'}) RETURN count(s) as count",
+      exScripts: "MATCH (s:CodeFile {script_type: 'ex-script'}) RETURN count(s) as count",
+      ushScripts: "MATCH (s:CodeFile {script_type: 'ush'}) RETURN count(s) as count",
       envVars: 'MATCH (e:EnvironmentVariable) RETURN count(e) as count',
       sourcesRels: 'MATCH ()-[r:SOURCES]->() RETURN count(r) as count',
       invokesRels: 'MATCH ()-[r:INVOKES]->() RETURN count(r) as count',

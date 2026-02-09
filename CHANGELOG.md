@@ -1,5 +1,77 @@
 # MCP Server Changelog
 
+## [7.4.0] - Phase 24 Gap 1+2: EnvironmentVariable Graph & Graph-to-Vector Enrichment (February 9, 2026)
+
+### Added
+- **EnvironmentVariable node schema in Neo4j** (Gap 1 - Phase 24):
+  - New `(:EnvironmentVariable)` label with properties: `name`, `is_ee2_standard`, `is_home_model`, `first_seen_in`
+  - New relationship types: `(:CodeFile)-[:EXPORTS]->(:EnvironmentVariable)`, `(:CodeFile)-[:SETS]->(:EnvironmentVariable)`, `(:CodeFile)-[:DEPENDS_ON_ENV]->(:EnvironmentVariable)`
+  - 2,730 EnvironmentVariable nodes created from 218 shell scripts
+  - 9,077 total relationships (1,669 EXPORTS + 1,401 SETS + 6,007 DEPENDS_ON_ENV)
+  - 18 EE2 standard variables tagged (DATA, RUN, PDY, DATAROOT, KEEPDATA, etc.)
+  - 2 HOMEmodel variables tagged (HOMEgfs, HOMEobsproc)
+
+- **`ingest_env_variables.py`** ingestion script (`mcp_server_node/scripts/`):
+  - Parses `export VAR=value`, `VAR=value`, `${VAR}`, `$VAR` patterns from shell scripts
+  - Mixed-case variable support (HOMEgfs, cyc, envir, pgm, etc.)
+  - EE2 standard variable tagging per NCO standards Table 1
+  - HOMEmodel pattern recognition (`^HOME[a-z]+$`)
+  - Modes: `--dry-run`, `--test FILE`, `--sample`, `--var NAME`, `--stats`
+  - Scans: jobs, dev/jobs, ush, scripts, parm/config, env, ecf directories
+
+- **Graph-to-Vector enrichment** (`enrichGraphResults()`) in `UnifiedDataAccess.js` (Gap 2):
+  - Reverse hybrid query: takes Neo4j graph node names → fetches ChromaDB content
+  - Parallel ChromaDB queries with configurable batch size (`maxIdentifiers`)
+  - Non-fatal: returns empty map if vector DB unavailable
+  - Wired into `find_env_dependencies` tool for semantic context section
+
+### Fixed
+- **`find_env_dependencies` MCP tool returned 0 results** (Critical):
+  - **Root cause**: Cypher queries used `(:ShellScript)` label which never existed in Neo4j. Shell scripts are `(:CodeFile {language: 'shell'})`
+  - **Fix**: Updated all Cypher in `CodeAnalysisTools.js` and `GraphDatabase.js`: `ShellScript` → `CodeFile`, property `type` → `script_type`
+  - **Result**: `HOMEgfs` now returns 109 dependents, 2 exporters, with `HOMEmodel` classification
+
+- **`trace_execution_path` shell fallback query** also used `ShellScript` → fixed to `CodeFile`
+
+- **`getScriptGraphStats()` in `GraphDatabase.js`**: Updated all 4 queries from `ShellScript` to `CodeFile` with correct property names
+
+### Changed
+- **`CodeAnalysisTools.js`**: `findEnvDependencies()` now includes EE2 metadata (classification, first_seen_in) in summary output
+- **`GraphDatabase.js`**: `findScriptEnvDeps()` updated to include `SETS` relationship type and `is_ee2_standard` property
+
+## [7.3.12] - ChromaDB Persistent Volume Mount Fix (February 9, 2026)
+
+### Fixed
+- **ChromaDB Docker bind mount race condition** (Critical - 0 collections visible):
+  - **Problem**: ChromaDB container started at boot (13:43:13) before persistent disk `/dev/nvme2n1` was mounted at `/mcp_rag_eib` (13:43:18), 5-second race
+  - **Root Cause**: `chromadb-persistent.service` depended on `docker.service` but NOT on `mcp_rag_eib.mount`. Docker evaluated `-v /mcp_rag_eib/data/chromadb:/data:Z` against the empty ephemeral root filesystem (`/dev/nvme0n1p4`), creating a fresh 168KB SQLite DB instead of binding to the 478MB persistent one
+  - **Evidence**: Container `/data` on `/dev/nvme0n1p4` (249G ephemeral), host data on `/dev/nvme2n1` (516G persistent). Inodes confirmed different files
+  - **Fix**: Added `mcp_rag_eib.mount` to `After=` and `Requires=` in systemd unit
+  - **Result**: All 4 collections restored (code-with-context-v8, jjobs-v8, global-workflow-docs-v8, ee2-standards-v5-enhanced)
+
+- **Docker compose ChromaDB mount path mismatch** (3 files):
+  - **Problem**: devops, staging, and production compose files mounted to `/chroma/chroma` (old ChromaDB path). Current `chromadb/chroma:latest` uses `/data` as persist directory
+  - **Fix**: Updated volume destination from `/chroma/chroma` to `/data` in all compose files. Added `IS_PERSISTENT=TRUE` and `PERSIST_DIRECTORY=/data` environment variables
+  - **Note**: This is the same issue documented in v3.5.1 (Nov 30, 2025) but the compose files were never updated to match
+
+### Changed
+- **`SETUP/chromadb-docker.service`**:
+  - Added `After=mcp_rag_eib.mount` and `Requires=mcp_rag_eib.mount` to `[Unit]`
+  - Ensures persistent disk is mounted before container starts
+  - Installed to `/etc/systemd/system/chromadb-persistent.service`
+
+- **`docker-compose.devops.yaml`**: ChromaDB volume `/chroma/chroma` → `/data`, added persistence env vars
+- **`docker-compose.staging.yaml`**: ChromaDB volume `/chroma/chroma` → `/data`, added persistence env vars
+- **`docker-compose.production.yaml`**: ChromaDB volume `/chroma/chroma` → `/data`, added persistence env vars
+- **`SETUP/docker-compose.yml`**: Updated commented-out ChromaDB section with correct mount path and env vars
+
+### Lessons Learned
+- VM boot ordering: systemd services depending on cloud-attached disks MUST have explicit mount unit dependencies
+- `docker inspect` can show a bind mount configuration that appears correct but is bound to the wrong filesystem if the mount point changed after container start
+- n8n and Neo4j also failed to start for the same reason (logged `"no such file or directory"` at 13:43:13)
+
+---
+
 ## [7.3.11] - Phase 24F-0: Python Graph Ingestion (February 7, 2026)
 
 ### Added
