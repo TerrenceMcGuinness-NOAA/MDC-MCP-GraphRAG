@@ -1,5 +1,106 @@
 # MCP Server Changelog
 
+## [7.6.0] - Phase 24B+24C: GGSR Weight Tuning & Token Budget (February 9, 2026)
+
+### Added
+- **MCP tool call logging** (`BaseServer.js`) — Phase 24B-1:
+  - Session-aware JSONL logger for sequential tool call analysis
+  - Logs: timestamp, sessionId, sequence, toolName, entityArg, latencyMs
+  - Non-blocking — logging never fails the tool call
+  - Output: `mcp_server_node/logs/tool-calls.jsonl`
+
+- **Synthetic evaluation set** (`graphrag/evaluation/ggsr_eval_chains.json`) — Phase 24B-2:
+  - 24 curated LLM tool call chains across 9 categories
+  - Categories: fortran (8), env (6), cross-language (3), structural (2), imports (1), shell (1), proximity (1), documentation (1), metadata (1)
+  - Each chain: tool₁(entity₁) → tool₂(entity₂) → expected_relationship_type
+
+- **GGSR prediction scorer** (`graphrag/evaluation/ggsr_weight_scorer.js`) — Phase 24B-3:
+  - Scores GGSR predictions against eval chains
+  - Metrics: hit rate, top-K precision, relationship type accuracy
+  - Per-category breakdown and per-chain detail
+  - Auto-tune mode (`--tune`): grid search ±0.1 per weight
+
+- **Token estimation** (`GGSRTraversalPrototypes.js`) — Phase 24C-1:
+  - `estimateTokens(text)` — word-count heuristic (words × 1.3)
+  - `_estimateRowTokens(neighbor)` — per-row token cost for GGSR tables
+
+- **Budget-aware neighborhood** (`GGSRTraversalPrototypes.js`) — Phase 24C-2:
+  - `budgetAwareNeighborhood(entity, { tokenBudget, hops })` — truncates results at token limit
+  - Returns: `usedTokens`, `remainingBudget`, `droppedCount`, `budgetExhausted`
+  - Highest-scored neighbors kept first; lower-scored dropped when budget exceeded
+
+- **`token_budget` parameter** on all 5 CodeAnalysisTools — Phase 24C-3:
+  - Default: 4000 tokens. Lower = more precise, higher = more coverage
+  - Reports token usage in output: `Tokens: 193/200`
+  - Displays warning when budget exhausted with drop count
+
+### Tested
+- **GGSR weight evaluation** (24 chains against live 485K-rel Neo4j):
+  - Hit rate: 52.4% (11/21 chains with graph neighbors)
+  - Top-K precision: 47.6% (10/21 in top-10)
+  - Fortran: 75% hit rate | Env: 33% | Structural: 100%
+  - Auto-tuner: current weights confirmed optimal for eval set
+- **Token budget validation** (live Neo4j + ChromaDB):
+  - Budget 200: 193/200 used, 13 neighbors dropped (budget exhausted) ✅
+  - Budget 4000: 462/4000 used, full results ✅
+  - Budget 16000: 294/16000 used, full results ✅
+- **Unit tests**: 7/19 passed — no regressions (identical to baseline)
+
+## [7.5.0] - Phase 28: Immediate GraphRAG Acceleration (February 9, 2026)
+
+### Added
+- **GGSR Traversal Prototypes** (`mcp_server_node/src/graphrag/GGSRTraversalPrototypes.js`) — Phase 28A:
+  - `oneHopNeighborhood()` — 1-hop weighted Cypher traversal with relationship type scoring
+  - `twoHopNeighborhood()` — 2-hop traversal with hop decay (0.5× per hop)
+  - `fortranWeightedTraversal()` — Fortran-specific CALLS (1.0) / USES (0.7) weighted chain
+  - `scoreResults()` — tool-agnostic GGSR scoring for any relationship results
+  - `formatWeightedTable()` — formatted markdown table output for scored results
+  - Static weight matrix: 23 relationship types from CALLS=1.0 to CONTRIBUTED_TO=0.3
+  - Latency benchmarking with <100ms target per Phase 24A spec
+
+- **`include_weights` parameter for `trace_execution_path`** — Phase 28B:
+  - New boolean option (default: **true**) enables GGSR weighted traversal output
+  - Fortran entities: full `fortranWeightedTraversal()` with CALLS/USES chains
+  - Shell/generic entities: `oneHopNeighborhood()` with weighted scoring
+  - Reports latency and <100ms target compliance
+  - Set `include_weights: false` to restore pre-Phase 28 behavior
+
+- **GGSR weighted traversal wired into all 5 CodeAnalysisTools**:
+  - `analyze_code_structure` — 1-hop GGSR neighborhood for structural entities
+  - `find_dependencies` — 2-hop GGSR neighborhood for dependency graph
+  - `trace_execution_path` — Fortran weighted traversal + generic 1-hop for shell/Python
+  - `find_callers_callees` — GGSR scoring of caller/callee results by relationship type
+  - `find_env_dependencies` — 1-hop GGSR neighborhood for env variable entities
+
+- **Graph-to-vector enrichment for all 5 CodeAnalysisTools** — Phase 28C:
+  - All tools use `enrichGraphResults()` with `code-with-context-v8-0-0` collection
+  - Non-fatal: graph results still returned if vector DB unavailable
+
+### Changed
+- **`CodeAnalysisTools.js`**: Imports and initializes `GGSRTraversalPrototypes` module
+- **`GGSRTraversalPrototypes.js`**: `_buildFlexiblePattern()` matches entities with or without file extension while preserving `fileType` metadata (python, shell, fortran, etc.) through GGSR results
+- **`formatWeightedTable()`**: Displays `Source type:` header when fileType is available — downstream tools know the language context of scored entities
+- **SDD**: New `phase28_immediate_graphrag_acceleration.md` workflow document
+- **PRIORITY_ROADMAP.md**: Added Phase 28 to immediate priorities and inventory
+
+### Fixed
+- **Neo4j LIMIT float parameter error** in `GGSRTraversalPrototypes.js`: Neo4j rejects `$limit` passed as JS float (`20.0`). Fixed by embedding integer directly in Cypher string
+- **Entity name normalization**: File extensions (`.py`, `.sh`, `.f90`) stripped before GGSR regex queries — nodes in Neo4j lack extensions
+
+### Tested
+- **Live GGSR validation** (against 485K-relationship Neo4j):
+  - 1-hop neighborhood: 10 results, 82ms (PASS <100ms target)
+  - 2-hop neighborhood: 15 results (2 hop1, 13 hop2), 58ms (PASS)
+  - Fortran weighted traversal: 11 CALLS + 10 USES, 85ms (PASS)
+  - Weight matrix verified: 23 relationship types scored correctly
+- **All 5 CodeAnalysisTools with GGSR** (live Neo4j + ChromaDB):
+  - `find_dependencies("exglobal_forecast.py")`: GGSR ✅ | Semantic ✅
+  - `find_callers_callees("UFS_init")`: GGSR ✅ | Semantic ✅
+  - `analyze_code_structure("scripts/exglobal_forecast.py")`: GGSR ✅
+  - `trace_execution_path("atms_spatial_average")`: GGSR ✅ (Fortran weighted)
+  - `find_env_dependencies("HOMEgfs")`: GGSR ✅ | Semantic ✅
+- **Unit tests**: 7/19 passed, 10 failed, 2 skipped — **no regressions** (identical to pre-Phase 28 baseline)
+
 ## [7.4.0] - Phase 24 Gap 1+2: EnvironmentVariable Graph & Graph-to-Vector Enrichment (February 9, 2026)
 
 ### Added

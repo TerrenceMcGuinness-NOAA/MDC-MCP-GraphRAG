@@ -490,9 +490,12 @@ An AI-assisted development platform for NOAA operational weather systems that:
 ## Next Actions
 
 1. **Immediate**: Phase 4C - USD Sub-Agent Dispatch
-2. **Near-term**: Phase 22 - Validation & Benchmarking Subsystem
-3. **Q2 2026**: Phase 24A-D - GGSR Foundation (True GraphRAG)
-4. **Ongoing**: Phase 13 - GitLab CI/CD Pipeline, production hardening
+2. ~~**Immediate**: Phase 28 - GraphRAG Acceleration~~ ✅ Complete (v7.5.0)
+3. ~~**Immediate**: Phase 24B+24C - Weight Tuning & Token Budget~~ ✅ Complete (v7.6.0)
+4. **Next**: Phase 24D - GraphGuidedRetrieval class (core fusion engine)
+5. **Next**: Phase 24F-0 - Python graph ingestion (716 files → Neo4j)
+6. **Near-term**: Phase 22 - Validation & Benchmarking Subsystem
+7. **Ongoing**: Phase 13 - GitLab CI/CD Pipeline, production hardening
 
 ---
 
@@ -517,6 +520,7 @@ An AI-assisted development platform for NOAA operational weather systems that:
 | phase24_consolidated_architecture | 🟢 ARCHITECTURE | GraphRAG sub-phases 24A-24J |
 | phase26_docker_mcp_gateway_systemd_fix | ✅ Complete | Gateway systemd fix |
 | phase27_jjob_script_rag_enhancement | ✅ Complete | 27A-F: J-Job RAG + graphs |
+| phase28_immediate_graphrag_acceleration | ✅ Complete | GGSR prototypes + enrichment wiring |
 | *...and 15 more* | Various | See sdd_framework/workflows/ |
 
 ---

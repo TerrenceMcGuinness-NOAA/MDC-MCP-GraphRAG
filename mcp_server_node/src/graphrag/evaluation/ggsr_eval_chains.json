@@ -1,0 +1,271 @@
+{
+  "version": "1.0.0",
+  "description": "Synthetic evaluation chains for GGSR weight tuning (Phase 24B). Each chain represents a sequential pair of MCP tool calls an LLM would make. The expected_relationship is the Neo4j edge type connecting entity1 to entity2.",
+  "chains": [
+    {
+      "id": "fortran-call-chain-1",
+      "category": "fortran",
+      "tool1": "trace_execution_path",
+      "entity1": "atms_spatial_average",
+      "tool2": "find_callers_callees",
+      "entity2": "MODIFY_BEAMWIDTH",
+      "expected_relationship": "CALLS",
+      "expected_weight": 1.0,
+      "rationale": "LLM traces a subroutine, then investigates what it calls"
+    },
+    {
+      "id": "fortran-call-chain-2",
+      "category": "fortran",
+      "tool1": "find_callers_callees",
+      "entity1": "SFFTCB",
+      "tool2": "trace_execution_path",
+      "entity2": "atms_spatial_average",
+      "expected_relationship": "CALLED_BY",
+      "expected_weight": 0.9,
+      "rationale": "LLM finds callers of a utility, then traces the caller"
+    },
+    {
+      "id": "fortran-module-use-1",
+      "category": "fortran",
+      "tool1": "trace_execution_path",
+      "entity1": "atms_spatial_average",
+      "tool2": "find_dependencies",
+      "entity2": "atms_spatial_average_mod",
+      "expected_relationship": "USES",
+      "expected_weight": 0.7,
+      "rationale": "LLM traces subroutine, then checks module dependencies"
+    },
+    {
+      "id": "fortran-module-use-2",
+      "category": "fortran",
+      "tool1": "analyze_code_structure",
+      "entity1": "enkf_main",
+      "tool2": "find_dependencies",
+      "entity2": "iso_fortran_env",
+      "expected_relationship": "USES",
+      "expected_weight": 0.7,
+      "rationale": "LLM analyzes EnKF main, then looks at standard module usage"
+    },
+    {
+      "id": "shell-source-chain-1",
+      "category": "shell",
+      "tool1": "analyze_code_structure",
+      "entity1": "exglobal_forecast",
+      "tool2": "trace_execution_path",
+      "entity2": "exglobal_forecast",
+      "expected_relationship": "CALLS",
+      "expected_weight": 1.0,
+      "rationale": "LLM analyzes forecast script, then traces its execution"
+    },
+    {
+      "id": "shell-env-dep-1",
+      "category": "env",
+      "tool1": "analyze_code_structure",
+      "entity1": "exgfs_atmos_products",
+      "tool2": "find_env_dependencies",
+      "entity2": "HOMEgfs",
+      "expected_relationship": "DEPENDS_ON_ENV",
+      "expected_weight": 0.8,
+      "rationale": "LLM analyzes script, then checks env variable usage"
+    },
+    {
+      "id": "shell-env-dep-2",
+      "category": "env",
+      "tool1": "find_env_dependencies",
+      "entity1": "HOMEgfs",
+      "tool2": "find_env_dependencies",
+      "entity2": "DATAROOT",
+      "expected_relationship": "DEPENDS_ON_ENV",
+      "expected_weight": 0.8,
+      "rationale": "LLM checks one env var, then checks related standard var"
+    },
+    {
+      "id": "env-export-chain-1",
+      "category": "env",
+      "tool1": "find_env_dependencies",
+      "entity1": "PDY",
+      "tool2": "analyze_code_structure",
+      "entity2": "exglobal_forecast",
+      "expected_relationship": "EXPORTS",
+      "expected_weight": 0.6,
+      "rationale": "LLM checks env var, then examines script that exports it"
+    },
+    {
+      "id": "cross-lang-execute-1",
+      "category": "cross-language",
+      "tool1": "trace_execution_path",
+      "entity1": "exglobal_forecast",
+      "tool2": "find_callers_callees",
+      "entity2": "UFS_init",
+      "expected_relationship": "EXECUTES",
+      "expected_weight": 1.0,
+      "rationale": "LLM traces shell script, then examines Fortran program it launches"
+    },
+    {
+      "id": "cross-lang-execute-2",
+      "category": "cross-language",
+      "tool1": "analyze_code_structure",
+      "entity1": "exgfs_atmos_products",
+      "tool2": "trace_execution_path",
+      "entity2": "wgrib2",
+      "expected_relationship": "INVOKES",
+      "expected_weight": 0.9,
+      "rationale": "LLM analyzes post-processing script, then traces invoked tool"
+    },
+    {
+      "id": "dep-imports-1",
+      "category": "imports",
+      "tool1": "find_dependencies",
+      "entity1": "exglobal_forecast",
+      "tool2": "find_dependencies",
+      "entity2": "main",
+      "expected_relationship": "IMPORTS",
+      "expected_weight": 0.7,
+      "rationale": "LLM checks imports chain"
+    },
+    {
+      "id": "same-dir-1",
+      "category": "proximity",
+      "tool1": "analyze_code_structure",
+      "entity1": "exgfs_atmos_products",
+      "tool2": "analyze_code_structure",
+      "entity2": "exgfs_pmgr",
+      "expected_relationship": "SAME_DIRECTORY",
+      "expected_weight": 0.4,
+      "rationale": "LLM checks one script, then checks nearby script in same dir"
+    },
+    {
+      "id": "fortran-defines-1",
+      "category": "fortran",
+      "tool1": "find_callers_callees",
+      "entity1": "atms_spatial_average",
+      "tool2": "analyze_code_structure",
+      "entity2": "atms_spatial_average_mod",
+      "expected_relationship": "DEFINES",
+      "expected_weight": 0.65,
+      "rationale": "LLM examines subroutine, then looks at defining module"
+    },
+    {
+      "id": "env-sets-1",
+      "category": "env",
+      "tool1": "find_env_dependencies",
+      "entity1": "KEEPDATA",
+      "tool2": "analyze_code_structure",
+      "entity2": "exglobal_forecast",
+      "expected_relationship": "SETS",
+      "expected_weight": 0.5,
+      "rationale": "LLM checks env var, then examines script that sets it"
+    },
+    {
+      "id": "fortran-deep-trace-1",
+      "category": "fortran",
+      "tool1": "trace_execution_path",
+      "entity1": "atms_spatial_average",
+      "tool2": "trace_execution_path",
+      "entity2": "SFFTCF",
+      "expected_relationship": "CALLS",
+      "expected_weight": 1.0,
+      "expected_hop": 2,
+      "rationale": "LLM traces deep Fortran call chain — 2-hop CALLS"
+    },
+    {
+      "id": "fortran-deep-trace-2",
+      "category": "fortran",
+      "tool1": "trace_execution_path",
+      "entity1": "MODIFY_BEAMWIDTH",
+      "tool2": "find_callers_callees",
+      "entity2": "MODIFY_BEAMWIDTH_atms",
+      "expected_relationship": "CALLS",
+      "expected_weight": 1.0,
+      "rationale": "LLM traces beamwidth modifier, then checks variant"
+    },
+    {
+      "id": "env-broad-1",
+      "category": "env",
+      "tool1": "find_env_dependencies",
+      "entity1": "COMROOT",
+      "tool2": "find_env_dependencies",
+      "entity2": "DMPDIR",
+      "expected_relationship": "DEPENDS_ON_ENV",
+      "expected_weight": 0.8,
+      "rationale": "LLM investigates data path variables sequentially"
+    },
+    {
+      "id": "cross-lang-source-1",
+      "category": "cross-language",
+      "tool1": "trace_execution_path",
+      "entity1": "exglobal_forecast",
+      "tool2": "analyze_code_structure",
+      "entity2": "parm",
+      "expected_relationship": "SOURCES",
+      "expected_weight": 0.95,
+      "rationale": "LLM traces script, then checks sourced config"
+    },
+    {
+      "id": "doc-ref-1",
+      "category": "documentation",
+      "tool1": "analyze_code_structure",
+      "entity1": "exglobal_forecast",
+      "tool2": "search_documentation",
+      "entity2": "forecast configuration",
+      "expected_relationship": "DOC_REFERENCES",
+      "expected_weight": 0.6,
+      "rationale": "LLM analyzes code, then searches for related docs"
+    },
+    {
+      "id": "authored-1",
+      "category": "metadata",
+      "tool1": "analyze_code_structure",
+      "entity1": "exglobal_forecast",
+      "tool2": "analyze_code_structure",
+      "entity2": "exglobal_atmos_products",
+      "expected_relationship": "AUTHORED_BY",
+      "expected_weight": 0.3,
+      "rationale": "LLM checks same-author scripts — low signal, validates floor weight"
+    },
+    {
+      "id": "fortran-call-chain-3",
+      "category": "fortran",
+      "tool1": "find_callers_callees",
+      "entity1": "c_f_pointer",
+      "tool2": "find_callers_callees",
+      "entity2": "atms_spatial_average",
+      "expected_relationship": "CALLED_BY",
+      "expected_weight": 0.9,
+      "rationale": "LLM checks intrinsic callers, then examines the caller"
+    },
+    {
+      "id": "contains-1",
+      "category": "structural",
+      "tool1": "analyze_code_structure",
+      "entity1": "exglobal_forecast",
+      "tool2": "find_callers_callees",
+      "entity2": "main",
+      "expected_relationship": "CONTAINS",
+      "expected_weight": 0.5,
+      "rationale": "LLM analyzes module, then drills into contained function"
+    },
+    {
+      "id": "env-ee2-chain-1",
+      "category": "env",
+      "tool1": "find_env_dependencies",
+      "entity1": "DATA",
+      "tool2": "find_env_dependencies",
+      "entity2": "RUN",
+      "expected_relationship": "DEPENDS_ON_ENV",
+      "expected_weight": 0.8,
+      "rationale": "LLM checks EE2 standard vars in sequence"
+    },
+    {
+      "id": "inherits-1",
+      "category": "structural",
+      "tool1": "analyze_code_structure",
+      "entity1": "AtmAnalysis",
+      "tool2": "analyze_code_structure",
+      "entity2": "Analysis",
+      "expected_relationship": "INHERITS",
+      "expected_weight": 0.7,
+      "rationale": "LLM examines class, then checks base class"
+    }
+  ]
+}

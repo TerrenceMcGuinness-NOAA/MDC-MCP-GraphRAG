@@ -18,12 +18,20 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
+import { appendFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const TOOL_CALL_LOG = join(__dirname, '..', '..', 'logs', 'tool-calls.jsonl');
 
 export class BaseServer {
   constructor(name, version, capabilities = {}) {
     this.serverName = name;
     this.serverVersion = version;
     this.tools = new Map();
+    this.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this.callSequence = 0;
     this.server = new Server(
       {
         name: this.serverName,
@@ -80,7 +88,23 @@ export class BaseServer {
 
       try {
         const tool = this.tools.get(name);
+        const startMs = Date.now();
         const result = await tool.handler(args);
+        const latencyMs = Date.now() - startMs;
+
+        // Phase 24B: Log tool call for GGSR weight tuning
+        try {
+          const entityArg = args.function_name || args.file_path || args.target || args.variable_name || args.query || null;
+          const logEntry = JSON.stringify({
+            ts: new Date().toISOString(),
+            sid: this.sessionId,
+            seq: ++this.callSequence,
+            tool: name,
+            entity: entityArg,
+            latencyMs
+          }) + '\n';
+          appendFileSync(TOOL_CALL_LOG, logEntry);
+        } catch (_) { /* logging must never fail the tool call */ }
         
         // Check if result is already in MCP format (has 'content' array)
         if (result && typeof result === 'object' && Array.isArray(result.content)) {
