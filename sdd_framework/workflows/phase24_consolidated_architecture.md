@@ -64,11 +64,11 @@ Phase 24: True GraphRAG Fusion
 │   │   ├── Result: 60% vs 40% baseline (+20pp), cross-lang 100%
 │   │   └── GO decision for Phase 24H
 │   │
-│   └── 24H: Agentic MCP Tool Surface       [Weeks 19-24]
-│       ├── 24H-1: Discovery Tools (get_code_context, find_similar)
-│       ├── 24H-2: Impact Analysis (get_change_impact, trace_data_flow)
-│       ├── 24H-3: Session State (checkpoint, resume)
-│       └── 24H-4: Integration & Documentation
+│   └── 24H: Agentic MCP Tool Surface       [Weeks 19-24]  ✅ Done (v7.11.0)
+│       ├── 24H-1: Discovery Tools (get_code_context, search_architecture, find_similar_code)  ✅
+│       ├── 24H-2: Impact + Trace Tools (get_change_impact, trace_data_flow)  ✅
+│       ├── 24H-3: Session State (checkpoint, resume) — deferred (persistence design TBD)
+│       └── 24H-4: Integration & Documentation — deferred (post-validation)
 │
 └── Q4 2026: Advanced (Future)
     ├── 24I: Learned Graph Embeddings (node2vec, GNN)

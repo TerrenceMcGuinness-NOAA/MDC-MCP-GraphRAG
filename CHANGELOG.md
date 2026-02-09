@@ -1,5 +1,26 @@
 # MCP Server Changelog
 
+## [7.11.0] - Phase 24H: Agentic MCP Tool Surface (February 10, 2026)
+
+### Added
+- **5 new GraphRAG MCP tools** (`GraphRAGTools.js`) — purpose-built agentic tools exposing the full Phase 24A-G stack:
+  - `get_code_context` — single-call full context: GGSR neighborhood + community summary + callers/callees
+  - `search_architecture` — semantic search over community summaries for global/holistic queries
+  - `find_similar_code` — ChromaDB similarity search with configurable threshold + graph enrichment
+  - `get_change_impact` — reverse traversal blast radius with risk scoring and recommendations
+  - `trace_data_flow` — cross-language execution traces (Shell→Fortran→Python) + shortest path
+- Registered in `UnifiedMCPServer.js` — total tool count: 44 (39 existing + 5 new)
+
+### Fixed
+- Indirect impact query replaced variable-length path (`*2..3`) with explicit 2-hop join to prevent combinatorial explosion on 485K relationships
+- Guard added to skip indirect query when direct dependents exceed 100 (safety valve)
+
+### Technical Notes
+- Tools use lazy initialization pattern — GraphRAG infrastructure created on first call
+- All tools follow MCP response format: `{ content: [{ type: 'text', text: '...' }] }`
+- `get_change_impact` risk scoring: directCount/20 + indirectCount/50 + changeType weights
+- Test baseline maintained: 8 passed, 10 failed (pre-existing), 2 skipped
+
 ## [7.10.0] - Phase 24G: Benchmark & Validation (February 9, 2026)
 
 ### Added

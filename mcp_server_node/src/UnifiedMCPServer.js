@@ -36,6 +36,7 @@ import { CodeAnalysisTools } from './tools/CodeAnalysisTools.js';
 import { OperationalTools } from './tools/OperationalTools.js';
 import { GitHubTools } from './tools/GitHubTools.js';
 import { SDDWorkflowTools } from './tools/SDDWorkflowTools.js';
+import { GraphRAGTools } from './tools/GraphRAGTools.js';
 import { UnifiedDataAccess } from './data/UnifiedDataAccess.js';
 import { logEnvironment, MCP_ENV } from './config/environment.js';
 import path from 'path';
@@ -87,6 +88,9 @@ class UnifiedMCPServer {
       this.dataAccess,  // Connected to unified data access layer
       null              // healthMonitor (uses dataAccess.healthCheck internally)
     );
+
+    // Initialize GraphRAG Tools (Phase 24H: Agentic tool surface)
+    this.graphRAGTools = new GraphRAGTools();
 
     this.registerAllTools();
   }
@@ -151,6 +155,14 @@ class UnifiedMCPServer {
       console.error('[MCP] SDD Workflow tools registered');
     } catch (error) {
       console.error(`[WARN] SDD Workflow tools registration failed: ${error.message}`);
+    }
+
+    // Register GraphRAG agentic tools (5 tools) - Phase 24H
+    try {
+      this.graphRAGTools.registerWith(this.server);
+      console.error('[MCP] GraphRAG tools registered');
+    } catch (error) {
+      console.error(`[WARN] GraphRAG tools registration failed: ${error.message}`);
     }
 
     // Register utility tools (2 tools)
