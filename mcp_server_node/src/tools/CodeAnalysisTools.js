@@ -17,12 +17,14 @@
 
 import { UnifiedDataAccess } from '../data/UnifiedDataAccess.js';
 import { GGSRTraversalPrototypes } from '../graphrag/GGSRTraversalPrototypes.js';
+import { GraphGuidedRetrieval } from '../graphrag/GraphGuidedRetrieval.js';
 
 export class CodeAnalysisTools {
   constructor(dataAccess = null) {
     this.dataAccess = dataAccess;  // Accept injected dependency for testing
     this.isInitialized = !!dataAccess;  // Already initialized if dataAccess provided
-    this.ggsr = null;  // Phase 28A: GGSR traversal prototypes
+    this.ggsr = null;      // Phase 28A: GGSR traversal prototypes
+    this.retrieval = null;  // Phase 24D: GraphGuidedRetrieval fusion engine
   }
 
   /**
@@ -34,11 +36,16 @@ export class CodeAnalysisTools {
     console.error('[INIT] Initializing Code Analysis Tools...');
     
     this.dataAccess = new UnifiedDataAccess();
-    await this.dataAccess.connect();  // Fixed: connect() not initialize()
+    await this.dataAccess.connect();
     
     // Phase 28A: Initialize GGSR traversal prototypes
     if (this.dataAccess.graphDB) {
       this.ggsr = new GGSRTraversalPrototypes(this.dataAccess.graphDB);
+      // Phase 24D: Initialize GraphGuidedRetrieval fusion engine
+      this.retrieval = new GraphGuidedRetrieval({
+        dataAccess: this.dataAccess,
+        ggsr: this.ggsr
+      });
     }
     
     this.isInitialized = true;
@@ -338,51 +345,15 @@ export class CodeAnalysisTools {
         analysis += `- \`find_callers_callees function_name:"${functions[0].name}"\` - Analyze function relationships\n`;
       }
 
-      // GGSR budget-aware weighted neighborhood for this file's symbols
-      if (this.ggsr) {
-        try {
-          const entityName = file_path.split('/').pop();
-          const neighborhood = await this.ggsr.budgetAwareNeighborhood(entityName, {
-            tokenBudget: token_budget, maxResults: 15, hops: 1
-          });
-          if (neighborhood.count > 0) {
-            const scored = this.ggsr.scoreResults(
-              neighborhood.neighbors.map(n => ({ name: n.neighbor, relType: n.relType, depth: n.hop }))
-            );
-            analysis += this.ggsr.formatWeightedTable(scored, { maxRows: 15, fileType: neighborhood.fileType });
-            analysis += `*Latency: ${neighborhood.latencyMs}ms | Tokens: ${neighborhood.usedTokens}/${token_budget}*\n`;
-            if (neighborhood.budgetExhausted) {
-              analysis += `*Budget exhausted — ${neighborhood.droppedCount} lower-scored neighbors omitted*\n`;
-            }
-          }
-        } catch (ggsrError) {
-          console.error('[WARN] GGSR neighborhood failed:', ggsrError.message);
-        }
-      }
-
-      // Phase 28C: Graph-to-vector enrichment
-      try {
-        const keyIdentifiers = functions.slice(0, 5).map(f => f.name).filter(Boolean);
-        if (keyIdentifiers.length > 0) {
-          const enrichment = await this.dataAccess.enrichGraphResults(keyIdentifiers, {
-            collection: 'code-with-context-v8-0-0',
-            nResultsPerQuery: 1,
-            maxIdentifiers: 8
-          });
-
-          if (enrichment.size > 0) {
-            analysis += `\n## Semantic Context\n`;
-            analysis += `*Content snippets from vector store for key functions*\n\n`;
-            for (const [name, data] of enrichment) {
-              if (data.content && data.content.length > 20) {
-                analysis += `### \`${name}\`\n`;
-                analysis += `${data.content.substring(0, 300)}${data.content.length > 300 ? '...' : ''}\n\n`;
-              }
-            }
-          }
-        }
-      } catch (enrichError) {
-        console.error('[WARN] Vector enrichment failed:', enrichError.message);
+      // Phase 24D: Unified GGSR + semantic retrieval
+      if (this.retrieval) {
+        const entityName = file_path.split('/').pop();
+        const semanticKeys = functions.slice(0, 5).map(f => f.name).filter(Boolean);
+        const ctx = await this.retrieval.retrieve(entityName, semanticKeys, {
+          tokenBudget: token_budget, maxResults: 15, hops: 1,
+          semanticLabel: 'key functions'
+        });
+        analysis += ctx.ggsrSection + ctx.semanticSection;
       }
 
       return {
@@ -467,50 +438,12 @@ export class CodeAnalysisTools {
         }
       }
 
-      // GGSR budget-aware weighted neighborhood for dependency graph
-      if (this.ggsr) {
-        try {
-          const neighborhood = await this.ggsr.budgetAwareNeighborhood(target, {
-            tokenBudget: token_budget, maxResults: 20, hops: 2
-          });
-          if (neighborhood.count > 0) {
-            const scored = this.ggsr.scoreResults(
-              neighborhood.neighbors.map(n => ({ name: n.name, relType: n.relType, depth: n.hop }))
-            );
-            result += this.ggsr.formatWeightedTable(scored, { maxRows: 20, fileType: neighborhood.fileType });
-            result += `*Hop1: ${neighborhood.hop1Count || 0} | Hop2: ${neighborhood.hop2Count || 0} | Latency: ${neighborhood.latencyMs}ms | Tokens: ${neighborhood.usedTokens}/${token_budget}*\n`;
-            if (neighborhood.budgetExhausted) {
-              result += `*Budget exhausted — ${neighborhood.droppedCount} lower-scored neighbors omitted*\n`;
-            }
-          }
-        } catch (ggsrError) {
-          console.error('[WARN] GGSR neighborhood failed:', ggsrError.message);
-        }
-      }
-
-      // Phase 28C: Graph-to-vector enrichment
-      try {
-        const keyTargets = [target];
-        if (keyTargets.length > 0) {
-          const enrichment = await this.dataAccess.enrichGraphResults(keyTargets, {
-            collection: 'code-with-context-v8-0-0',
-            nResultsPerQuery: 1,
-            maxIdentifiers: 8
-          });
-
-          if (enrichment.size > 0) {
-            result += `\n## Semantic Context\n`;
-            result += `*Content snippets from vector store*\n\n`;
-            for (const [name, data] of enrichment) {
-              if (data.content && data.content.length > 20) {
-                result += `### \`${name}\`\n`;
-                result += `${data.content.substring(0, 300)}${data.content.length > 300 ? '...' : ''}\n\n`;
-              }
-            }
-          }
-        }
-      } catch (enrichError) {
-        console.error('[WARN] Vector enrichment failed:', enrichError.message);
+      // Phase 24D: Unified GGSR + semantic retrieval (2-hop for dependencies)
+      if (this.retrieval) {
+        const ctx = await this.retrieval.retrieveDependency(target, [target], {
+          tokenBudget: token_budget
+        });
+        result += ctx.ggsrSection + ctx.semanticSection;
       }
 
       return {
@@ -719,50 +652,29 @@ export class CodeAnalysisTools {
               }
               result += `\n**CALLS:** ${weighted.callCount} | **USES:** ${weighted.usesCount}\n`;
             }
-          } else {
-            // Shell scripts and Python functions: budget-aware 1-hop weighted neighborhood
-            const neighborhood = await this.ggsr.budgetAwareNeighborhood(function_name, {
-              tokenBudget: token_budget, maxResults: 15, hops: 1
+          } else if (this.retrieval) {
+            // Phase 24D: Non-Fortran uses unified retrieval (1-hop)
+            const semanticKeys = callChain ? callChain.slice(0, 5).map(c => c.callee || c.name).filter(Boolean) : [];
+            const ctx = await this.retrieval.retrieve(function_name, semanticKeys, {
+              tokenBudget: token_budget, maxResults: 15, hops: 1,
+              semanticLabel: 'key entities'
             });
-            if (neighborhood.count > 0) {
-              const scored = this.ggsr.scoreResults(
-                neighborhood.neighbors.map(n => ({ name: n.neighbor, relType: n.relType, depth: n.hop }))
-              );
-              result += this.ggsr.formatWeightedTable(scored, { maxRows: 15, fileType: neighborhood.fileType });
-              result += `*Latency: ${neighborhood.latencyMs}ms | Tokens: ${neighborhood.usedTokens}/${token_budget}*\n`;
-            }
+            result += ctx.ggsrSection + ctx.semanticSection;
           }
         } catch (ggsrError) {
           console.error('[WARN] GGSR weighted traversal failed:', ggsrError.message);
         }
       }
 
-      // Phase 28C: Graph-to-vector enrichment
-      try {
-        const keyEntities = [];
-        if (callChain && callChain.length > 0) {
-          keyEntities.push(...callChain.slice(0, 5).map(c => c.callee || c.name).filter(Boolean));
-        }
-        if (keyEntities.length > 0) {
-          const enrichment = await this.dataAccess.enrichGraphResults(keyEntities, {
-            collection: 'code-with-context-v8-0-0',
-            nResultsPerQuery: 1,
-            maxIdentifiers: 8
+      // Fortran path: semantic enrichment only (GGSR handled by fortranWeightedTraversal above)
+      if (include_weights && graphType === 'fortran' && this.retrieval) {
+        const semanticKeys = callChain ? callChain.slice(0, 5).map(c => c.callee || c.name).filter(Boolean) : [];
+        if (semanticKeys.length > 0) {
+          const ctx = await this.retrieval.retrieve(null, semanticKeys, {
+            tokenBudget: token_budget, semanticLabel: 'key entities'
           });
-
-          if (enrichment.size > 0) {
-            result += `\n## Semantic Context\n`;
-            result += `*Content snippets from vector store for key entities*\n\n`;
-            for (const [name, data] of enrichment) {
-              if (data.content && data.content.length > 20) {
-                result += `### \`${name}\`\n`;
-                result += `${data.content.substring(0, 300)}${data.content.length > 300 ? '...' : ''}\n\n`;
-              }
-            }
-          }
+          result += ctx.semanticSection;
         }
-      } catch (enrichError) {
-        console.error('[WARN] Vector enrichment failed:', enrichError.message);
       }
 
       return {
@@ -945,64 +857,34 @@ export class CodeAnalysisTools {
         result += `\n[OK] **Low complexity** - Well-scoped ${labels.name.toLowerCase()}\n`;
       }
 
-      // GGSR weighted scoring for callers and callees
-      if (this.ggsr) {
-        try {
-          const rawResults = [];
-          for (const c of callers.slice(0, 15)) {
+      // Phase 24D: GGSR scoring for callers/callees + semantic enrichment
+      if (this.retrieval) {
+        const rawResults = [];
+        for (const c of callers.slice(0, 15)) {
+          rawResults.push({
+            name: c.name || c.callerName || c,
+            relType: c.relationship || (graphType === 'fortran' ? 'CALLS' : graphType === 'shell' ? 'SOURCES' : 'CALLS'),
+            depth: 1
+          });
+        }
+        if (callChain) {
+          for (const c of callChain.slice(0, 15)) {
             rawResults.push({
-              name: c.name || c.callerName || c,
-              relType: c.relationship || (graphType === 'fortran' ? 'CALLS' : graphType === 'shell' ? 'SOURCES' : 'CALLS'),
-              depth: 1
+              name: c.callee || c.name,
+              relType: graphType === 'fortran' ? 'CALLS' : graphType === 'shell' ? 'INVOKES' : 'CALLS',
+              depth: c.depth || 1
             });
           }
-          if (callChain) {
-            for (const c of callChain.slice(0, 15)) {
-              rawResults.push({
-                name: c.callee || c.name,
-                relType: graphType === 'fortran' ? 'CALLS' : graphType === 'shell' ? 'INVOKES' : 'CALLS',
-                depth: c.depth || 1
-              });
-            }
-          }
-          if (rawResults.length > 0) {
-            const scored = this.ggsr.scoreResults(rawResults);
-            result += this.ggsr.formatWeightedTable(scored, { maxRows: 20, fileType: graphType });
-          }
-        } catch (ggsrError) {
-          console.error('[WARN] GGSR scoring failed:', ggsrError.message);
         }
-      }
-
-      // Phase 28C: Graph-to-vector enrichment for callers/callees
-      try {
-        const keyEntities = [];
-        if (callers.length > 0) {
-          keyEntities.push(...callers.slice(0, 3).map(c => c.name || c.callerName || c).filter(s => typeof s === 'string'));
-        }
-        if (callChain && callChain.length > 0) {
-          keyEntities.push(...callChain.slice(0, 3).map(c => c.callee || c.name).filter(Boolean));
-        }
-        if (keyEntities.length > 0) {
-          const enrichment = await this.dataAccess.enrichGraphResults(keyEntities, {
-            collection: 'code-with-context-v8-0-0',
-            nResultsPerQuery: 1,
-            maxIdentifiers: 8
-          });
-
-          if (enrichment.size > 0) {
-            result += `\n## Semantic Context\n`;
-            result += `*Content snippets from vector store for key entities*\n\n`;
-            for (const [name, data] of enrichment) {
-              if (data.content && data.content.length > 20) {
-                result += `### \`${name}\`\n`;
-                result += `${data.content.substring(0, 300)}${data.content.length > 300 ? '...' : ''}\n\n`;
-              }
-            }
-          }
-        }
-      } catch (enrichError) {
-        console.error('[WARN] Vector enrichment failed:', enrichError.message);
+        const semanticKeys = [
+          ...callers.slice(0, 3).map(c => c.name || c.callerName || c).filter(s => typeof s === 'string'),
+          ...(callChain ? callChain.slice(0, 3).map(c => c.callee || c.name).filter(Boolean) : [])
+        ];
+        const ctx = await this.retrieval.retrieveFortranScored(
+          function_name, rawResults, semanticKeys,
+          { fileType: graphType, semanticLabel: 'key entities' }
+        );
+        result += ctx.ggsrSection + ctx.semanticSection;
       }
 
       return {
@@ -1132,53 +1014,15 @@ export class CodeAnalysisTools {
         result += `\n[WARN] This variable is widely used - changes will have broad impact\n`;
       }
 
-      // GGSR weighted scoring for env variable dependency graph
-      if (this.ggsr) {
-        try {
-          const neighborhood = await this.ggsr.budgetAwareNeighborhood(variable_name, {
-            tokenBudget: token_budget, maxResults: 15, hops: 1
-          });
-          if (neighborhood.count > 0) {
-            const scored = this.ggsr.scoreResults(
-              neighborhood.neighbors.map(n => ({ name: n.neighbor, relType: n.relType, depth: n.hop }))
-            );
-            result += this.ggsr.formatWeightedTable(scored, { maxRows: 15, fileType: neighborhood.fileType || 'env-variable' });
-            result += `*Latency: ${neighborhood.latencyMs}ms | Tokens: ${neighborhood.usedTokens}/${token_budget}*\n`;
-            if (neighborhood.budgetExhausted) {
-              result += `*Budget exhausted — ${neighborhood.droppedCount} lower-scored neighbors omitted*\n`;
-            }
-          }
-        } catch (ggsrError) {
-          console.error('[WARN] GGSR neighborhood failed:', ggsrError.message);
-        }
-      }
-
-      // Gap 2: Graph-to-Vector enrichment — fetch semantic context for key scripts
-      try {
-        const keyScripts = [
-          ...dependents.slice(0, 5).map(d => d.script),
-        ];
-        if (keyScripts.length > 0) {
-          const enrichment = await this.dataAccess.enrichGraphResults(keyScripts, {
-            collection: 'code-with-context-v8-0-0',
-            nResultsPerQuery: 1,
-            maxIdentifiers: 8
-          });
-          
-          if (enrichment.size > 0) {
-            result += `\n## Semantic Context\n`;
-            result += `*Content snippets from vector store for key scripts*\n\n`;
-            for (const [name, data] of enrichment) {
-              if (data.content && data.content.length > 20) {
-                result += `### \`${name}\`\n`;
-                result += `${data.content.substring(0, 300)}${data.content.length > 300 ? '...' : ''}\n\n`;
-              }
-            }
-          }
-        }
-      } catch (enrichError) {
-        // Non-fatal: graph results are sufficient without vector enrichment
-        console.error('[WARN] Vector enrichment failed:', enrichError.message);
+      // Phase 24D: Unified GGSR + semantic retrieval for env variables
+      if (this.retrieval) {
+        const semanticKeys = dependents.slice(0, 5).map(d => d.script);
+        const ctx = await this.retrieval.retrieve(variable_name, semanticKeys, {
+          tokenBudget: token_budget, maxResults: 15, hops: 1,
+          fileType: 'env-variable',
+          semanticLabel: 'key scripts'
+        });
+        result += ctx.ggsrSection + ctx.semanticSection;
       }
 
       return {

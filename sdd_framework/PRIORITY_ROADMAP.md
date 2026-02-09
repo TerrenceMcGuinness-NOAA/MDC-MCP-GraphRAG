@@ -492,8 +492,8 @@ An AI-assisted development platform for NOAA operational weather systems that:
 1. **Immediate**: Phase 4C - USD Sub-Agent Dispatch
 2. ~~**Immediate**: Phase 28 - GraphRAG Acceleration~~ ✅ Complete (v7.5.0)
 3. ~~**Immediate**: Phase 24B+24C - Weight Tuning & Token Budget~~ ✅ Complete (v7.6.0)
-4. **Next**: Phase 24D - GraphGuidedRetrieval class (core fusion engine)
-5. **Next**: Phase 24F-0 - Python graph ingestion (716 files → Neo4j)
+4. ~~**Next**: Phase 24D - GraphGuidedRetrieval class~~ ✅ Complete (v7.7.0)
+5. **Next**: Phase 24F-2/F-3 - Cross-language bridge (Shell→Fortran→Python traces)
 6. **Near-term**: Phase 22 - Validation & Benchmarking Subsystem
 7. **Ongoing**: Phase 13 - GitLab CI/CD Pipeline, production hardening
 

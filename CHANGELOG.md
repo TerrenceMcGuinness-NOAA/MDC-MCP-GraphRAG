@@ -1,5 +1,27 @@
 # MCP Server Changelog
 
+## [7.7.0] - Phase 24D: GraphGuidedRetrieval Fusion Engine (February 9, 2026)
+
+### Added
+- **GraphGuidedRetrieval class** (`graphrag/GraphGuidedRetrieval.js`) — Phase 24D:
+  - Core fusion engine: GGSR weighted traversal + ChromaDB semantic enrichment in parallel
+  - `retrieve(entity, semanticKeys, options)` — 1-hop neighborhood + semantic context
+  - `retrieveDependency(entity, semanticKeys, options)` — 2-hop dependency graphs
+  - `retrieveFortranScored(functionName, rawResults, semanticKeys, options)` — pre-scored results
+  - Returns `{ ggsrSection, semanticSection, metadata }` — markdown ready to append
+  - Handles all error modes: Neo4j down, ChromaDB down, both down, null entity
+
+### Changed
+- **CodeAnalysisTools refactored** to use GraphGuidedRetrieval — Phase 24D-4:
+  - Replaced ~227 lines of duplicated GGSR+enrichment boilerplate across 5 tools
+  - All 5 tools now use single `this.retrieval.retrieve()` call pattern
+  - Net reduction: -156 lines (71 added, 227 removed)
+  - Output format preserved — no breaking changes
+
+### Tested
+- Unit tests: 8/19 OK — identical to baseline (no regressions)
+- Live smoke tests: GGSR tables, latency metadata, hop counts all rendering correctly
+
 ## [7.6.0] - Phase 24B+24C: GGSR Weight Tuning & Token Budget (February 9, 2026)
 
 ### Added

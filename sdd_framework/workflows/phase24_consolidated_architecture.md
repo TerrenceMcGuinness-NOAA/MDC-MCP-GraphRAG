@@ -463,7 +463,7 @@ Keep under 400 words. Be specific about scientific computing aspects.
 | 1-2 | 24A | Cypher traversal queries | ✅ **Done (Phase 28)** |
 | 3-4 | 24B | Weight matrix (empirical) | ✅ **Done (Phase 24B)** — 52.4% hit rate, weights confirmed optimal |
 | 5-6 | 24C | Token budget algorithm | ✅ **Done (Phase 24C)** — budgetAwareNeighborhood, all 5 tools |
-| 7-10 | 24D | GraphGuidedRetrieval class | 24C ✅ |
+| 7-10 | 24D | GraphGuidedRetrieval class | ✅ **Done (Phase 24D)** — fusion engine, -156 lines dedup |
 | **Q2-Q3** | | | |
 | 9-12 | 24E-1,2 | Community detection + summaries | 24D, Neo4j GDS |
 | 13-14 | 24E-3 | Dual retrieval router | 24E-2 |
