@@ -1045,14 +1045,26 @@ export class CodeAnalysisTools {
       }
 
       // Phase 24D: Unified GGSR + semantic retrieval for env variables
+      // Wrapped in isolated try-catch so core graph results always return
       if (this.retrieval) {
-        const semanticKeys = dependents.slice(0, 5).map(d => d.script);
-        const ctx = await this.retrieval.retrieve(variable_name, semanticKeys, {
-          tokenBudget: token_budget, maxResults: 15, hops: 1,
-          fileType: 'env-variable',
-          semanticLabel: 'key scripts'
-        });
-        result += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
+        try {
+          const semanticKeys = dependents.slice(0, 5).map(d => d.script);
+          const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('GGSR retrieval timeout')), 15000)
+          );
+          const ctx = await Promise.race([
+            this.retrieval.retrieve(variable_name, semanticKeys, {
+              tokenBudget: token_budget, maxResults: 15, hops: 1,
+              fileType: 'env-variable',
+              semanticLabel: 'key scripts'
+            }),
+            timeout
+          ]);
+          result += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
+        } catch (ggsrErr) {
+          console.error('[WARN] GGSR enrichment failed for env var:', ggsrErr.message);
+          result += `\n*[GGSR enrichment skipped: ${ggsrErr.message}]*\n`;
+        }
       }
 
       return {
