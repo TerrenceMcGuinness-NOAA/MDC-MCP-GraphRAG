@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+"""
+Phase 24F-2: Cross-Language Bridge Edge Ingestion
+
+Creates EXECUTES and INVOKES relationships in Neo4j to connect:
+  - Shell ex-scripts → Fortran executables (EXECUTES)
+  - Shell ex-scripts → Python scripts (INVOKES)
+
+Approach:
+  1. Parse each shell ex-script for .x executable references and .py script references
+  2. Match executable names to FortranProgram nodes (fuzzy: strip .x, match program name)
+  3. Match .py references to PythonModule nodes (by filename)
+  4. Create cross-language edges
+
+Neo4j Schema:
+  (f:File {absolutePath}) -[:EXECUTES {executable, line}]-> (p:FortranProgram {name})
+  (f:File {absolutePath}) -[:INVOKES {script, line}]-> (m:PythonModule {name})
+
+Usage:
+  python ingest_cross_language_bridges.py --dry-run   # Parse only
+  python ingest_cross_language_bridges.py              # Full ingestion
+  python ingest_cross_language_bridges.py --verbose    # With detail
+
+Author: NOAA EMC EIB MCP Team
+Phase: 24F-2
+Version: 1.0.0
+"""
+
+import os
+import re
+import sys
+import argparse
+from pathlib import Path
+from collections import defaultdict
+
+try:
+    from neo4j import GraphDatabase
+except ImportError:
+    print("[WARN] neo4j package not found.")
+    GraphDatabase = None
+
+VERSION = "1.0.0"
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
+
+WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT",
+    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
+
+# Patterns for finding executable invocations in shell scripts
+EXEC_PATTERNS = [
+    # $EXECgfs/name.x or ${EXECgfs}/name.x
+    re.compile(r'\$\{?EXEC\w*\}?/(\w+)\.x'),
+    # ${HOMEgfs}/exec/name.x
+    re.compile(r'\$\{?HOME\w*\}?/exec/(\w+)\.x'),
+    # Direct .x reference after path separator
+    re.compile(r'/(\w+)\.x["\s]'),
+    # pgm=${VARIABLE} where VARIABLE ends in EXEC
+    re.compile(r'pgm=\$\{?(\w*EXEC\w*)\}?'),
+    # APRUN commands referencing executables
+    re.compile(r'APRUN\w*\}\s+"[^"]*?/(\w+)\.x"'),
+    re.compile(r'APRUN\w*\}\s+"[^"]*?/(\w+)"'),
+]
+
+# Patterns for Python script invocations
+PYTHON_PATTERNS = [
+    # ${USHgfs}/script.py or $USHgfs/script.py
+    re.compile(r'\$\{?USH\w*\}?/(\w+\.py)'),
+    # Direct python3 invocation
+    re.compile(r'python3?\s+["\']?(?:\$\{?\w+\}?/)?(\w+\.py)'),
+    # Variable assignment referencing .py
+    re.compile(r'=.*\$\{?\w+\}?/(\w+\.py)'),
+]
+
+# Known mappings: executable binary name → FortranProgram PROGRAM name
+# (because Fortran PROGRAM names don't always match the compiled binary)
+EXEC_TO_PROGRAM = {
+    'gsi': 'gsi',
+    'enkf': 'enkf_main',
+    'calc_increment_ens': 'calc_increment_main',
+    'calc_increment_ens_ncio': 'calc_increment_main',
+    'calc_analysis': None,  # search by fuzzy match
+    'gaussian_sfcanl': None,
+    'interp_inc': None,
+    'enkf_chgres_recenter': None,
+    'enkf_chgres_recenter_nc': None,
+    'getsigensmeanp_smooth': None,
+    'getsfcensmeanp': None,
+    'recentersigp': None,
+    'fbwndgfs': None,
+    'rdbfmsua': None,
+    'chgres_cube': None,
+}
+
+
+def parse_shell_script(file_path):
+    """Parse a shell script for executable and Python references."""
+    executables = []
+    python_scripts = []
+
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            for lineno, line in enumerate(f, 1):
+                stripped = line.strip()
+                if stripped.startswith('#'):
+                    continue
+
+                # Find Fortran executable references
+                for pattern in EXEC_PATTERNS:
+                    for match in pattern.finditer(line):
+                        exe_name = match.group(1)
+                        # Skip variable references like ${GSIEXEC}
+                        if exe_name.endswith('EXEC') or exe_name.endswith('EXEC}'):
+                            continue
+                        executables.append({
+                            'name': exe_name,
+                            'line': lineno,
+                            'context': stripped[:120]
+                        })
+
+                # Find Python script references
+                for pattern in PYTHON_PATTERNS:
+                    for match in pattern.finditer(line):
+                        py_name = match.group(1)
+                        python_scripts.append({
+                            'name': py_name,
+                            'line': lineno,
+                            'context': stripped[:120]
+                        })
+    except Exception as e:
+        print(f"  [ERROR] Failed to parse {file_path}: {e}")
+
+    return {
+        'executables': executables,
+        'python_scripts': python_scripts
+    }
+
+
+def build_fortran_program_index(session):
+    """Build lookup index: lowercase name → FortranProgram node."""
+    result = session.run(
+        'MATCH (p:FortranProgram) RETURN p.name as name, p.file_path as path'
+    )
+    index = {}
+    for rec in result:
+        name = rec['name']
+        if name:
+            index[name.lower()] = {'name': name, 'file_path': rec['path']}
+    return index
+
+
+def build_python_module_index(session):
+    """Build lookup index: filename → PythonModule node."""
+    result = session.run(
+        'MATCH (m:PythonModule) WHERE m.file_path IS NOT NULL RETURN m.name as name, m.file_path as path'
+    )
+    index = {}
+    for rec in result:
+        path = rec['path']
+        if path:
+            filename = Path(path).name
+            index[filename.lower()] = {'name': rec['name'], 'file_path': path}
+    return index
+
+
+def build_file_index(session):
+    """Build lookup index: script basename → File node absolutePath."""
+    result = session.run(
+        'MATCH (f:File) WHERE f.absolutePath ENDS WITH ".sh" AND f.absolutePath CONTAINS "/scripts/ex" '
+        'RETURN f.absolutePath as path'
+    )
+    index = {}
+    for rec in result:
+        path = rec['path']
+        if path:
+            basename = Path(path).name
+            index[basename] = path
+    return index
+
+
+def match_executable(exe_name, fortran_index):
+    """Match an executable name to a FortranProgram node."""
+    lower = exe_name.lower()
+
+    # Direct match
+    if lower in fortran_index:
+        return fortran_index[lower]
+
+    # Known mapping
+    if lower in EXEC_TO_PROGRAM:
+        mapped = EXEC_TO_PROGRAM[lower]
+        if mapped and mapped.lower() in fortran_index:
+            return fortran_index[mapped.lower()]
+
+    # Fuzzy: strip common suffixes/prefixes
+    for suffix in ['_main', '_pmain', 'main']:
+        if (lower + '_' + suffix) in fortran_index:
+            return fortran_index[lower + '_' + suffix]
+        candidate = lower + suffix
+        if candidate in fortran_index:
+            return fortran_index[candidate]
+
+    # Substring match (last resort)
+    for prog_name, prog_data in fortran_index.items():
+        if lower in prog_name or prog_name in lower:
+            return prog_data
+
+    return None
+
+
+def create_executes_edges(session, edges, dry_run=False):
+    """Create EXECUTES relationships between File and FortranProgram nodes."""
+    created = 0
+    for edge in edges:
+        if dry_run:
+            print(f"  [DRY-RUN] EXECUTES: {edge['script']} → {edge['program']} "
+                  f"(exe={edge['executable']}, L{edge['line']})")
+            created += 1
+            continue
+
+        result = session.run('''
+            MATCH (f:File {absolutePath: $script_path})
+            MATCH (p:FortranProgram {name: $program_name})
+            MERGE (f)-[r:EXECUTES]->(p)
+            ON CREATE SET r.executable = $executable, r.line = $line
+            RETURN count(r) as c
+        ''',
+            script_path=edge['script_path'],
+            program_name=edge['program'],
+            executable=edge['executable'],
+            line=edge['line']
+        )
+        if result.single()['c'] > 0:
+            created += 1
+
+    return created
+
+
+def create_invokes_edges(session, edges, dry_run=False):
+    """Create INVOKES relationships between File and PythonModule nodes."""
+    created = 0
+    for edge in edges:
+        if dry_run:
+            print(f"  [DRY-RUN] INVOKES: {edge['script']} → {edge['module']} "
+                  f"(py={edge['py_script']}, L{edge['line']})")
+            created += 1
+            continue
+
+        result = session.run('''
+            MATCH (f:File {absolutePath: $script_path})
+            MATCH (m:PythonModule {file_path: $module_path})
+            MERGE (f)-[r:INVOKES]->(m)
+            ON CREATE SET r.script = $py_script, r.line = $line
+            RETURN count(r) as c
+        ''',
+            script_path=edge['script_path'],
+            module_path=edge['module_path'],
+            py_script=edge['py_script'],
+            line=edge['line']
+        )
+        if result.single()['c'] > 0:
+            created += 1
+
+    return created
+
+
+def run_ingestion(dry_run=False, verbose=False):
+    """Main ingestion: parse shell scripts, match targets, create edges."""
+    print(f"[OK] Cross-Language Bridge Ingestion v{VERSION}")
+    print(f"[OK] WORKFLOW_ROOT: {WORKFLOW_ROOT}")
+    print(f"[OK] Mode: {'DRY-RUN' if dry_run else 'LIVE'}")
+
+    scripts_dir = Path(WORKFLOW_ROOT) / 'scripts'
+    if not scripts_dir.exists():
+        print(f"[ERROR] Scripts directory not found: {scripts_dir}")
+        return
+
+    # Connect to Neo4j (always needed for index lookups)
+    driver = None
+    if GraphDatabase is None:
+        print("[WARN] neo4j package not found — matching will be skipped")
+    else:
+        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+
+    session = driver.session() if driver else None
+
+    session = driver.session() if driver else None
+
+    # Build lookup indices
+    if session:
+        fortran_index = build_fortran_program_index(session)
+        python_index = build_python_module_index(session)
+        file_index = build_file_index(session)
+        print(f"[OK] Indices: {len(fortran_index)} FortranPrograms, "
+              f"{len(python_index)} PythonModules, {len(file_index)} Shell scripts")
+    else:
+        fortran_index = {}
+        python_index = {}
+        file_index = {}
+
+    # Parse all shell ex-scripts
+    shell_scripts = sorted(scripts_dir.glob('ex*.sh'))
+    print(f"[OK] Found {len(shell_scripts)} shell ex-scripts to parse")
+
+    executes_edges = []
+    invokes_edges = []
+    stats = defaultdict(int)
+
+    for script_path in shell_scripts:
+        parsed = parse_shell_script(script_path)
+        basename = script_path.name
+        neo4j_path = file_index.get(basename)
+
+        if verbose:
+            print(f"\n  Parsing: {basename}")
+
+        # Match executables to FortranProgram nodes
+        seen_exes = set()
+        for exe in parsed['executables']:
+            exe_name = exe['name']
+            if exe_name in seen_exes:
+                continue
+            seen_exes.add(exe_name)
+            stats['exe_refs'] += 1
+
+            match = match_executable(exe_name, fortran_index)
+            if match:
+                stats['exe_matched'] += 1
+                edge = {
+                    'script': basename,
+                    'script_path': neo4j_path,
+                    'program': match['name'],
+                    'executable': exe_name,
+                    'line': exe['line']
+                }
+                executes_edges.append(edge)
+                if verbose:
+                    print(f"    [OK] {exe_name} → {match['name']}")
+            else:
+                stats['exe_unmatched'] += 1
+                if verbose:
+                    print(f"    [MISS] {exe_name} — no FortranProgram match")
+
+        # Match Python references to PythonModule nodes
+        seen_pys = set()
+        for py in parsed['python_scripts']:
+            py_name = py['name']
+            if py_name in seen_pys:
+                continue
+            seen_pys.add(py_name)
+            stats['py_refs'] += 1
+
+            match = python_index.get(py_name.lower())
+            if match:
+                stats['py_matched'] += 1
+                edge = {
+                    'script': basename,
+                    'script_path': neo4j_path,
+                    'module': match['name'],
+                    'module_path': match['file_path'],
+                    'py_script': py_name,
+                    'line': py['line']
+                }
+                invokes_edges.append(edge)
+                if verbose:
+                    print(f"    [OK] {py_name} → {match['name']}")
+            else:
+                stats['py_unmatched'] += 1
+                if verbose:
+                    print(f"    [MISS] {py_name} — no PythonModule match")
+
+    # Create edges
+    print(f"\n[OK] === Results ===")
+    print(f"  Executable references: {stats['exe_refs']} "
+          f"(matched: {stats['exe_matched']}, unmatched: {stats['exe_unmatched']})")
+    print(f"  Python references: {stats['py_refs']} "
+          f"(matched: {stats['py_matched']}, unmatched: {stats['py_unmatched']})")
+
+    if executes_edges:
+        created = create_executes_edges(session, executes_edges, dry_run)
+        print(f"  EXECUTES edges created: {created}")
+    else:
+        print(f"  EXECUTES edges: 0 (no matches)")
+
+    if invokes_edges:
+        created = create_invokes_edges(session, invokes_edges, dry_run)
+        print(f"  INVOKES edges created: {created}")
+    else:
+        print(f"  INVOKES edges: 0 (no matches)")
+
+    # Also scan ush/ scripts for Python references
+    ush_dir = Path(WORKFLOW_ROOT) / 'ush'
+    if ush_dir.exists():
+        ush_scripts = sorted(ush_dir.glob('*.sh'))
+        ush_invokes = []
+        for script_path in ush_scripts:
+            parsed = parse_shell_script(script_path)
+            basename = script_path.name
+            neo4j_path = file_index.get(basename)
+            for py in parsed['python_scripts']:
+                py_name = py['name']
+                match = python_index.get(py_name.lower())
+                if match and neo4j_path:
+                    ush_invokes.append({
+                        'script': basename,
+                        'script_path': neo4j_path,
+                        'module': match['name'],
+                        'module_path': match['file_path'],
+                        'py_script': py_name,
+                        'line': py['line']
+                    })
+        if ush_invokes:
+            created = create_invokes_edges(session, ush_invokes, dry_run)
+            print(f"  INVOKES edges from ush/: {created}")
+
+    if session:
+        session.close()
+    if driver:
+        driver.close()
+
+    print(f"\n[OK] Cross-language bridge ingestion complete")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Phase 24F-2: Cross-Language Bridge Edge Ingestion',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python ingest_cross_language_bridges.py --dry-run --verbose
+  python ingest_cross_language_bridges.py
+        """
+    )
+    parser.add_argument('--dry-run', '-n', action='store_true',
+                        help='Parse only, no Neo4j writes')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Show per-script detail')
+    parser.add_argument('--version', action='version',
+                        version=f'%(prog)s {VERSION}')
+    args = parser.parse_args()
+
+    run_ingestion(dry_run=args.dry_run, verbose=args.verbose)
+
+
+if __name__ == '__main__':
+    main()

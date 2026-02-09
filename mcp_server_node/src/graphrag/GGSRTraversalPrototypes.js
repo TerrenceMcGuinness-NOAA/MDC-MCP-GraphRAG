@@ -508,6 +508,108 @@ export class GGSRTraversalPrototypes {
       baseName: parsed.name
     };
   }
+
+  /**
+   * Phase 24F-3: Cross-language trace traversal.
+   * Follows Shell→Fortran (EXECUTES) and Shell→Python (INVOKES) bridges,
+   * then continues into language-specific call chains.
+   *
+   * @param {string} entityName - Starting entity (shell script, Fortran program, Python module)
+   * @param {object} [options]
+   * @param {number} [options.maxDepth=3] - Max depth for language-internal CALLS chains
+   * @param {number} [options.limit=30] - Max results
+   * @returns {Promise<object>} Cross-language trace results
+   */
+  async crossLanguageTrace(entityName, options = {}) {
+    const { maxDepth = 3, limit = 30 } = options;
+    const start = Date.now();
+    const { pattern } = this._buildFlexiblePattern(entityName);
+    const limitVal = Math.floor(Math.min(limit, 100));
+
+    // Query 1: Shell → Fortran → CALLS chain
+    const fortranTraceQuery = `
+      MATCH (shell:File)-[:EXECUTES]->(prog:FortranProgram)
+      WHERE shell.absolutePath =~ $pattern OR prog.name =~ $pattern
+      OPTIONAL MATCH (prog)-[:CALLS*1..${Math.floor(maxDepth)}]->(callee)
+      RETURN shell.absolutePath AS shellPath,
+             prog.name AS program, prog.file_path AS progPath,
+             collect(DISTINCT {name: callee.name, type: head(labels(callee))}) AS callChain
+      LIMIT ${limitVal}
+    `;
+
+    // Query 2: Shell → Python → DEFINES/CALLS chain
+    const pythonTraceQuery = `
+      MATCH (shell:File)-[:INVOKES]->(py:PythonModule)
+      WHERE shell.absolutePath =~ $pattern OR py.name =~ $pattern
+             OR py.file_path =~ $pattern
+      OPTIONAL MATCH (py)-[:DEFINES]->(func:PythonFunction)
+      OPTIONAL MATCH (func)-[:CALLS]->(callee:PythonFunction)
+      RETURN shell.absolutePath AS shellPath,
+             py.name AS module, py.file_path AS modulePath,
+             collect(DISTINCT {name: func.name, type: 'PythonFunction'}) AS functions,
+             collect(DISTINCT {name: callee.name, type: 'PythonFunction'}) AS callees
+      LIMIT ${limitVal}
+    `;
+
+    try {
+      const [fortranResults, pythonResults] = await Promise.all([
+        this.graphDB.query(fortranTraceQuery, { pattern }),
+        this.graphDB.query(pythonTraceQuery, { pattern })
+      ]);
+
+      const traces = [];
+
+      // Process Fortran traces
+      for (const rec of (fortranResults || [])) {
+        const shellName = rec.shellPath ? rec.shellPath.split('/').pop() : null;
+        const callees = (rec.callChain || []).filter(c => c.name);
+        traces.push({
+          type: 'shell-to-fortran',
+          shell: shellName,
+          target: rec.program,
+          targetPath: rec.progPath,
+          chain: callees.map(c => c.name),
+          chainLength: callees.length,
+          weight: RELATIONSHIP_WEIGHTS.EXECUTES
+        });
+      }
+
+      // Process Python traces
+      for (const rec of (pythonResults || [])) {
+        const shellName = rec.shellPath ? rec.shellPath.split('/').pop() : null;
+        const funcs = (rec.functions || []).filter(f => f.name);
+        const calls = (rec.callees || []).filter(c => c.name);
+        traces.push({
+          type: 'shell-to-python',
+          shell: shellName,
+          target: rec.module,
+          targetPath: rec.modulePath,
+          functions: funcs.map(f => f.name),
+          callees: calls.map(c => c.name),
+          weight: RELATIONSHIP_WEIGHTS.INVOKES
+        });
+      }
+
+      const latencyMs = Date.now() - start;
+      return {
+        entity: entityName,
+        traces,
+        traceCount: traces.length,
+        fortranTraces: traces.filter(t => t.type === 'shell-to-fortran').length,
+        pythonTraces: traces.filter(t => t.type === 'shell-to-python').length,
+        latencyMs,
+        meetsTarget: latencyMs < 100
+      };
+    } catch (err) {
+      console.error('[WARN] Cross-language trace failed:', err.message);
+      return {
+        entity: entityName, traces: [], traceCount: 0,
+        fortranTraces: 0, pythonTraces: 0,
+        latencyMs: Date.now() - start, meetsTarget: false,
+        error: err.message
+      };
+    }
+  }
 }
 
 export default GGSRTraversalPrototypes;

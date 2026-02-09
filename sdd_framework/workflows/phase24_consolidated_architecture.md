@@ -49,13 +49,13 @@ Phase 24: True GraphRAG Fusion
 │   │   └── 24E-4: Incremental Update Pipeline
 │   │
 │   └── 24F: Cross-Language Graph Integration [NEW] [Weeks 13-18]
-│       ├── 24F-0: Python Graph Ingestion (Neo4j) [Weeks 13-14]
+│       ├── 24F-0: Python Graph Ingestion (Neo4j) [Weeks 13-14]  ✅ Done (624 modules, 3267 functions)
 │       │   ├── PythonModule, PythonClass, PythonFunction nodes
 │       │   ├── IMPORTS, CALLS, INHERITS, DEFINES relationships
 │       │   └── Target: 716 Python files in global-workflow
-│       ├── 24F-1: Fortran CALLS/USES traversal integration [Weeks 15-16]
-│       ├── 24F-2: Shell→Fortran→Python EXECUTES path queries [Week 17]
-│       └── 24F-3: End-to-end trace: J-Job→Shell→Fortran/Python→Function [Week 18]
+│       ├── 24F-1: Fortran CALLS/USES traversal integration [Weeks 15-16]  ✅ Done (Phase 28)
+│       ├── 24F-2: Shell→Fortran→Python EXECUTES path queries [Week 17]  ✅ Done (3 EXECUTES + 4 INVOKES)
+│       └── 24F-3: End-to-end trace: J-Job→Shell→Fortran/Python→Function [Week 18]  ✅ Done (crossLanguageTrace)
 │
 ├── Q3 2026: Agent Surface (Weeks 17-24)
 │   ├── 24G: Benchmark & Validation [NEW]   [Weeks 17-18]

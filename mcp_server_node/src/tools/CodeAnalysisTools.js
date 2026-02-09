@@ -677,6 +677,35 @@ export class CodeAnalysisTools {
         }
       }
 
+      // Phase 24F-3: Cross-language trace (Shell→Fortran, Shell→Python bridges)
+      if (this.ggsr) {
+        try {
+          const xLang = await this.ggsr.crossLanguageTrace(function_name, { maxDepth: max_depth });
+          if (xLang.traceCount > 0) {
+            result += `\n## Cross-Language Traces\n`;
+            result += `*${xLang.fortranTraces} Fortran | ${xLang.pythonTraces} Python | ${xLang.latencyMs}ms*\n\n`;
+            for (const t of xLang.traces) {
+              if (t.type === 'shell-to-fortran') {
+                result += `### Shell → Fortran: \`${t.shell}\` → \`${t.target}\`\n`;
+                if (t.chain.length > 0) {
+                  result += `CALLS chain: ${t.chain.slice(0, 10).map(c => `\`${c}\``).join(' → ')}`;
+                  if (t.chain.length > 10) result += ` ... (+${t.chain.length - 10} more)`;
+                  result += `\n`;
+                }
+              } else if (t.type === 'shell-to-python') {
+                result += `### Shell → Python: \`${t.shell}\` → \`${t.target}\`\n`;
+                if (t.functions.length > 0) {
+                  result += `Functions: ${t.functions.slice(0, 10).map(f => `\`${f}()\``).join(', ')}\n`;
+                }
+              }
+              result += `\n`;
+            }
+          }
+        } catch (xLangError) {
+          console.error('[WARN] Cross-language trace failed:', xLangError.message);
+        }
+      }
+
       return {
         content: [{
           type: 'text',

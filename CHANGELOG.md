@@ -1,5 +1,28 @@
 # MCP Server Changelog
 
+## [7.8.0] - Phase 24F-2/F-3: Cross-Language Bridge & Traces (February 9, 2026)
+
+### Added
+- **Cross-language bridge ingestion** (`scripts/ingest_cross_language_bridges.py`) — Phase 24F-2:
+  - Parses shell ex-scripts for `.x` executable and `.py` script references
+  - Matches to FortranProgram and PythonModule nodes in Neo4j
+  - Creates EXECUTES (Shell→Fortran) and INVOKES (Shell→Python) relationships
+  - Results: 3 EXECUTES + 4 INVOKES edges (gsi, calc_increment_main, calcinc_gfs, etc.)
+
+- **Cross-language trace traversal** (`GGSRTraversalPrototypes.crossLanguageTrace()`) — Phase 24F-3:
+  - Follows Shell→Fortran (EXECUTES) and Shell→Python (INVOKES) bridges
+  - Continues into language-specific CALLS chains (depth-configurable)
+  - Returns structured traces with shell, target, call chains
+  - Wired into `trace_execution_path` tool — new "Cross-Language Traces" section
+
+### Validated
+- **End-to-end traces working**:
+  - `exglobal_atmos_analysis.sh → gsi → gsimain_finalize → timer_pri → ...` ✅
+  - `exglobal_atmos_analysis.sh → calc_increment_main → calc_increment → ...` ✅
+  - `exglobal_atmos_analysis.sh → calcinc_gfs.py → calcinc_gfs()` ✅
+  - `exglobal_atmos_analysis_calc.sh → calcanl_gfs.py → calcanl_gfs()` ✅
+- Unit tests: 8/19 OK — no regressions
+
 ## [7.7.0] - Phase 24D: GraphGuidedRetrieval Fusion Engine (February 9, 2026)
 
 ### Added
