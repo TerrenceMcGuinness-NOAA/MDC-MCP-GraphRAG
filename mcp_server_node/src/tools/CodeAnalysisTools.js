@@ -475,17 +475,28 @@ export class CodeAnalysisTools {
     const { function_name, file_path, max_depth = 3, include_callers = false, include_weights = true, token_budget = 4000 } = args;
 
     try {
-      let graphType = 'function'; // 'function', 'fortran', 'shell', or 'cross-language'
+      let graphType = 'function'; // 'function', 'fortran', 'shell', 'python', or 'cross-language'
       
-      // Find the entity - try Python function first
+      // Find the entity - try Python function first (Phase 24I)
       let functions = file_path
         ? await this.dataAccess.graphDB.findFileFunctions(file_path)
         : await this.dataAccess.graphDB.query(
-            'MATCH (f:FUNCTION {name: $name}) RETURN f LIMIT 5',
+            'MATCH (f) WHERE (f:Function OR f:PythonFunction) AND f.name = $name RETURN f LIMIT 5',
             { name: function_name }
           );
       
-      // If no Python function, try Fortran (Phase 10 M5)
+      // Check if result is from Python graph
+      if (functions && functions.length > 0 && !file_path) {
+        const pyCheck = await this.dataAccess.graphDB.query(
+          'MATCH (f:PythonFunction {name: $name}) RETURN f LIMIT 1',
+          { name: function_name }
+        );
+        if (pyCheck && pyCheck.length > 0) {
+          graphType = 'python';
+        }
+      }
+      
+      // If no function found, try Fortran (Phase 10 M5)
       if (!functions || functions.length === 0) {
         const fortranEntity = await this.dataAccess.graphDB.query(
           `MATCH (f) WHERE (f:FortranSubroutine OR f:FortranFunction OR f:FortranModule OR f:FortranProgram)
@@ -516,7 +527,7 @@ export class CodeAnalysisTools {
         return {
           content: [{
             type: 'text',
-            text: `Entity "${function_name}" not found in function, Fortran, or shell script graphs.\n\nTry using \`analyze_code_structure\` first to find available entities.`
+            text: `Entity "${function_name}" not found in function, Python, Fortran, or shell script graphs.\n\nTry using \`analyze_code_structure\` first to find available entities.`
           }]
         };
       }
@@ -524,6 +535,7 @@ export class CodeAnalysisTools {
       // Set up labels based on graph type
       const typeLabels = {
         function: { entity: 'Function', calls: 'function calls' },
+        python: { entity: 'Python Function', calls: 'Python calls' },
         fortran: { entity: 'Fortran', calls: 'Fortran calls' },
         shell: { entity: 'Shell Script', calls: 'script invocations' }
       };
@@ -536,7 +548,9 @@ export class CodeAnalysisTools {
       result += `## Call Chain (What ${function_name} calls)\n\n`;
       
       let callChain;
-      if (graphType === 'fortran') {
+      if (graphType === 'python') {
+        callChain = await this.dataAccess.graphDB.tracePythonCallChain(function_name, max_depth);
+      } else if (graphType === 'fortran') {
         callChain = await this.dataAccess.graphDB.traceFortranCallChain(function_name, max_depth);
       } else if (graphType === 'shell') {
         callChain = await this.dataAccess.graphDB.traceScriptChain(function_name, max_depth);
@@ -608,7 +622,9 @@ export class CodeAnalysisTools {
         result += `\n## Callers (What calls ${function_name})\n\n`;
         
         let callers;
-        if (graphType === 'fortran') {
+        if (graphType === 'python') {
+          callers = await this.dataAccess.graphDB.findPythonCallers(function_name);
+        } else if (graphType === 'fortran') {
           callers = await this.dataAccess.graphDB.findFortranCallers(function_name);
         } else if (graphType === 'shell') {
           callers = await this.dataAccess.graphDB.findScriptCallers(function_name);
@@ -735,12 +751,23 @@ export class CodeAnalysisTools {
     const { function_name, file_path, include_source = false, token_budget = 4000 } = args;
 
     try {
-      // First try function graph (Python)
+      // First try unified function graph (includes both Function and PythonFunction via Phase 24I)
       let callers = await this.dataAccess.graphDB.findCallers(function_name);
       let callChain = await this.dataAccess.graphDB.traceCallChain(function_name, 1);
       
       // Track which graph type we're using
       let graphType = 'function';
+      
+      // Detect if results came from Python graph
+      if (callers.length > 0 || (callChain && callChain.length > 0)) {
+        const pyCheck = await this.dataAccess.graphDB.query(
+          'MATCH (f:PythonFunction {name: $name}) RETURN f LIMIT 1',
+          { name: function_name }
+        );
+        if (pyCheck && pyCheck.length > 0) {
+          graphType = 'python';
+        }
+      }
       
       // If no function results, try Fortran graph (Phase 10 M5)
       if (callers.length === 0 && (!callChain || callChain.length === 0)) {
@@ -769,6 +796,7 @@ export class CodeAnalysisTools {
       // Set entity type label based on graph type
       const entityLabels = {
         function: { name: 'Function', caller: 'Functions that call', callee: 'Functions called by' },
+        python: { name: 'Python Function', caller: 'Python functions that call', callee: 'Python functions called by' },
         fortran: { name: 'Fortran Subroutine/Function', caller: 'Fortran code that calls', callee: 'Fortran code called by' },
         shell: { name: 'Shell Script', caller: 'Scripts that source/invoke', callee: 'Scripts sourced/invoked by' }
       };

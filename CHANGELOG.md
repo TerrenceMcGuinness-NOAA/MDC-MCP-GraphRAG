@@ -1,5 +1,26 @@
 # MCP Server Changelog
 
+## [7.12.0] - Phase 24I: Python Workflow Tooling Graph Enhancement (February 10, 2026)
+
+### Added
+- **Python graph support in MCP tools** — `find_callers_callees`, `trace_execution_path`, and `analyze_code_structure` now query `PythonFunction` and `PythonModule` labels alongside existing Function/Fortran/Shell graphs (Phase 24I-M3)
+- **3 new GraphDatabase methods** — `findPythonCallers()`, `tracePythonCallChain()`, `getPythonGraphStats()` for dedicated Python graph queries
+- **67 Shell→Python INVOKES edges** — cross-language edges from J-Jobs and ex-scripts to Python modules via `CodeFile→INVOKES→PythonModule` relationships (Phase 24I-M2)
+- **Python graph type detection** — `findCallersCallees` and `traceExecutionPath` auto-detect Python functions and display "Python Function" entity type
+
+### Fixed
+- **`traceCrossLanguagePath()`** — updated from non-existent `ShellScript` label to `CodeFile` with `language='shell'` filter; now returns `pythonModule` and `pythonFilePath` in results
+- **`findFileFunctions()` / `findFileClasses()`** — now query both `File→Function` and `PythonModule→PythonFunction`/`PythonClass` with property name normalization (`lineNumber` vs `line_number`)
+- **`findCallers()` / `traceCallChain()`** — unified queries now include `PythonFunction` label, returning results for Python functions like `update_configs`
+
+### Removed
+- **1,210 builtin CALLS noise edges** — removed edges to stdlib/builtin functions (`split`, `join`, `get`, `append`, etc.) where target has no `file_path` (Phase 24I-M1)
+
+### Infrastructure
+- Neo4j Python graph: 624 modules, 3,267 functions, 248 classes, 20,050 CALLS edges (post-cleanup)
+- Cross-language edges: 67 INVOKES (Shell→Python), 4 EXECUTES (Shell→Fortran)
+- MCP tools: All 4 code analysis tools now return Python results
+
 ## [7.4.1] - Phase 24D Hardening + Env Variable CSV Export (February 9, 2026)
 
 ### Fixed

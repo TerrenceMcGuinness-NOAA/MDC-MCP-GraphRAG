@@ -150,8 +150,11 @@ export class GraphDatabase {
    * @returns {Promise<Array>} Call chain with relationships
    */
   async traceCallChain(functionName, depth = 3) {
+    // Query both Function and PythonFunction labels (Phase 24I)
     const cypher = `
-      MATCH path = (f:Function {name: $functionName})-[:CALLS*1..${depth}]->(called:Function)
+      MATCH path = (f)-[:CALLS*1..${depth}]->(called)
+      WHERE (f:Function OR f:PythonFunction) AND f.name = $functionName
+        AND (called:Function OR called:PythonFunction)
       RETURN f.name as source,
              [n in nodes(path) | n.name] as callChain,
              length(path) as depth
@@ -167,11 +170,14 @@ export class GraphDatabase {
    * @returns {Promise<Array>} Functions that call this function
    */
   async findCallers(functionName) {
+    // Query both Function and PythonFunction labels (Phase 24I)
     const cypher = `
-      MATCH (caller:Function)-[c:CALLS]->(f:Function {name: $functionName})
-      MATCH (file:File)-[:DEFINES]->(caller)
+      MATCH (caller)-[c:CALLS]->(f)
+      WHERE (f:Function OR f:PythonFunction) AND f.name = $functionName
+      OPTIONAL MATCH (file)-[:DEFINES]->(caller)
+      WHERE file:File OR file:PythonModule
       RETURN caller.name as callerName,
-             file.path as callerFile,
+             COALESCE(file.path, file.file_path) as callerFile,
              c.lineNumber as lineNumber
       ORDER BY callerFile
     `;
@@ -184,14 +190,17 @@ export class GraphDatabase {
    * @returns {Promise<Array>} Functions in the file
    */
   async findFileFunctions(filePath) {
+    // Query both File→Function and PythonModule→PythonFunction (Phase 24I)
     const cypher = `
-      MATCH (f:File {path: $filePath})-[:DEFINES]->(func:Function)
+      MATCH (f)-[:DEFINES]->(func)
+      WHERE ((f:File AND f.path = $filePath) OR (f:PythonModule AND f.file_path = $filePath))
+        AND (func:Function OR func:PythonFunction)
       RETURN func.name as functionName,
-             func.lineNumber as lineNumber,
+             COALESCE(func.lineNumber, func.line_number) as lineNumber,
              func.endLineNumber as endLineNumber,
              func.decorators as decorators,
-             func.async as isAsync
-      ORDER BY func.lineNumber
+             COALESCE(func.async, func.is_async) as isAsync
+      ORDER BY COALESCE(func.lineNumber, func.line_number)
     `;
     return this.query(cypher, { filePath });
   }
@@ -202,14 +211,18 @@ export class GraphDatabase {
    * @returns {Promise<Array>} Classes in the file
    */
   async findFileClasses(filePath) {
+    // Query both File→Class and PythonModule→PythonClass (Phase 24I)
     const cypher = `
-      MATCH (f:File {path: $filePath})-[:DEFINES]->(c:Class)
-      OPTIONAL MATCH (c)-[:HAS_METHOD]->(m:Function)
+      MATCH (f)-[:DEFINES]->(c)
+      WHERE ((f:File AND f.path = $filePath) OR (f:PythonModule AND f.file_path = $filePath))
+        AND (c:Class OR c:PythonClass)
+      OPTIONAL MATCH (c)-[:HAS_METHOD|DEFINES]->(m)
+      WHERE m:Function OR m:PythonFunction
       RETURN c.name as className,
-             c.lineNumber as lineNumber,
-             c.baseClasses as baseClasses,
+             COALESCE(c.lineNumber, c.line_number) as lineNumber,
+             COALESCE(c.baseClasses, c.base_classes) as baseClasses,
              collect(m.name) as methods
-      ORDER BY c.lineNumber
+      ORDER BY COALESCE(c.lineNumber, c.line_number)
     `;
     return this.query(cypher, { filePath });
   }
@@ -547,6 +560,76 @@ export class GraphDatabase {
   }
 
   // ============================================================================
+  // PYTHON GRAPH METHODS (Phase 24I)
+  // ============================================================================
+
+  /**
+   * Find Python functions/modules that call a specific function
+   * @param {string} name - Name of the Python function
+   * @returns {Promise<Array>} Python entities that call this
+   */
+  async findPythonCallers(name) {
+    const cypher = `
+      MATCH (caller:PythonFunction)-[c:CALLS]->(target:PythonFunction)
+      WHERE target.name =~ $pattern
+      OPTIONAL MATCH (mod:PythonModule)-[:DEFINES]->(caller)
+      RETURN caller.name as callerName,
+             COALESCE(mod.file_path, caller.file_path) as callerFile,
+             labels(caller)[0] as callerType,
+             'CALLS' as relationship
+      ORDER BY callerName
+      LIMIT 100
+    `;
+    return this.query(cypher, { pattern: `(?i)${name}` });
+  }
+
+  /**
+   * Trace Python call chain (CALLS relationships)
+   * @param {string} name - Name of the Python function
+   * @param {number} depth - Maximum depth (default: 3)
+   * @returns {Promise<Array>} Call chain
+   */
+  async tracePythonCallChain(name, depth = 3) {
+    const depthInt = Math.min(Math.max(parseInt(depth, 10) || 3, 1), 10);
+    const cypher = `
+      MATCH (start:PythonFunction)
+      WHERE start.name =~ $pattern
+      MATCH path = (start)-[:CALLS*1..${depthInt}]->(called:PythonFunction)
+      RETURN start.name as source,
+             called.name as callee,
+             called.file_path as file,
+             labels(called)[0] as calleeType,
+             length(path) as depth
+      ORDER BY depth, callee
+      LIMIT 100
+    `;
+    return this.query(cypher, { pattern: `(?i)${name}` });
+  }
+
+  /**
+   * Get Python graph statistics
+   * @returns {Promise<object>} Python graph statistics
+   */
+  async getPythonGraphStats() {
+    const queries = {
+      modules: 'MATCH (n:PythonModule) RETURN count(n) as count',
+      functions: 'MATCH (n:PythonFunction) RETURN count(n) as count',
+      classes: 'MATCH (n:PythonClass) RETURN count(n) as count',
+      callsRels: 'MATCH (:PythonFunction)-[r:CALLS]->(:PythonFunction) RETURN count(r) as count',
+      importsRels: 'MATCH (:PythonModule)-[r:IMPORTS]->(:PythonModule) RETURN count(r) as count',
+      invokesRels: 'MATCH ()-[r:INVOKES]->(:PythonModule) RETURN count(r) as count',
+      definesRels: 'MATCH (:PythonModule)-[r:DEFINES]->() RETURN count(r) as count'
+    };
+
+    const stats = {};
+    for (const [key, cypher] of Object.entries(queries)) {
+      const result = await this.query(cypher, {});
+      stats[key] = result[0]?.count || 0;
+    }
+    return stats;
+  }
+
+  // ============================================================================
   // FORTRAN GRAPH METHODS (Phase 10 M5)
   // ============================================================================
 
@@ -620,13 +703,16 @@ export class GraphDatabase {
    */
   async traceCrossLanguagePath(scriptName, fortranDepth = 3) {
     const depthInt = Math.min(Math.max(parseInt(fortranDepth, 10) || 3, 1), 10);
+    // Phase 24I: Include PythonModule in cross-language traversal via CodeFile→INVOKES→PythonModule
     const cypher = `
-      MATCH (shell:ShellScript)
-      WHERE shell.name =~ $pattern
-      OPTIONAL MATCH shellPath = (shell)-[:SOURCES|INVOKES*0..2]->(exScript:ShellScript)
+      MATCH (shell:CodeFile)
+      WHERE shell.language = 'shell' AND (shell.name =~ $pattern OR shell.path =~ $pattern)
+      OPTIONAL MATCH shellPath = (shell)-[:SOURCES|INVOKES*0..2]->(exScript:CodeFile)
+      WHERE exScript.language = 'shell'
       OPTIONAL MATCH (exScript)-[:EXECUTES]->(prog:FortranProgram)
       OPTIONAL MATCH fortranPath = (prog)-[:CALLS*1..${depthInt}]->(sub)
-      WITH shell, exScript, prog, sub,
+      OPTIONAL MATCH (exScript)-[:INVOKES]->(pyMod:PythonModule)
+      WITH shell, exScript, prog, sub, pyMod,
            CASE WHEN shellPath IS NULL THEN 0 ELSE length(shellPath) END as shellDepth,
            CASE WHEN fortranPath IS NULL THEN 0 ELSE length(fortranPath) END as fortranDepth
       RETURN DISTINCT 
@@ -635,6 +721,8 @@ export class GraphDatabase {
              prog.name as fortranProgram,
              sub.name as fortranSubroutine,
              labels(sub)[0] as subroutineType,
+             pyMod.name as pythonModule,
+             pyMod.file_path as pythonFilePath,
              shellDepth,
              fortranDepth
       ORDER BY shellDepth, fortranDepth
