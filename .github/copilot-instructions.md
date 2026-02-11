@@ -35,6 +35,41 @@ curl http://localhost:8080/api/v2/heartbeat            # verify ChromaDB (MUST u
 curl http://localhost:7474                              # verify Neo4j
 ```
 
+### Docker MCP Gateway
+
+The MCP server can run natively (stdio) or via the **Docker MCP Gateway** (Streamable HTTP on port 18888). The gateway spawns containers from the `eib-mcp-rag:latest` Docker image.
+
+**CRITICAL: The Docker image is a snapshot.** Unlike native mode (which runs live source code), the gateway runs code **baked into the image at build time**. Any changes to files under `mcp_server_node/` require an image rebuild before they take effect in gateway mode.
+
+```bash
+# Rebuild after ANY code change
+docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node
+
+# Restart gateway to use new image
+pkill -f "docker-mcp gateway"
+docker stop $(docker ps -q --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
+docker rm $(docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
+MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025" docker mcp gateway run \
+  --catalog eib-local.yaml --servers eib-mcp-rag \
+  --transport streaming --port 18888 --long-lived &
+```
+
+#### What requires an image rebuild
+
+| Changed File/Directory | Baked into Image? | Rebuild? |
+|------------------------|-------------------|----------|
+| `mcp_server_node/src/` (tools, core, data) | Yes | **Yes** |
+| `mcp_server_node/utils/` | Yes | **Yes** |
+| `mcp_server_node/config/` | Yes | **Yes** |
+| `mcp_server_node/phase2_anti_patterns.json` | Yes | **Yes** |
+| `mcp_server_node/package.json` (dependencies) | Yes | **Yes** |
+| `sdd_framework/` | No (volume-mounted) | No |
+| `supported_repos/` | No (volume-mounted) | No |
+| `.vscode/mcp.json` | No (client-side) | No |
+| `~/.docker/mcp/catalogs/eib-local.yaml` | No (gateway config) | No |
+
+**Common pitfall**: Adding/modifying tools in `src/tools/` and testing only via native mode. The gateway will still serve the old tools until rebuilt.
+
 ## Architecture
 
 ### Server Scenarios
