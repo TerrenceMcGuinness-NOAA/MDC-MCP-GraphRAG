@@ -1,0 +1,58 @@
+\contentsline {section}{\numberline {1}Introduction}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Purpose and Scope}{4}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Target Audience}{4}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Document Conventions}{4}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}System Overview}{5}{subsection.1.4}%
+\contentsline {section}{\numberline {2}System Architecture Overview}{5}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Directory Structure}{5}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Component Relationships}{5}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Data Flow Overview}{6}{subsection.2.3}%
+\contentsline {section}{\numberline {3}Application Factory Pattern}{6}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Design Pattern Overview}{6}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Registered Applications}{7}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Factory Implementation}{7}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}AppConfig Base Class}{7}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Task Name Generation Example}{8}{subsection.3.5}%
+\contentsline {section}{\numberline {4}Experiment Definition}{8}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Two Methods of Experiment Definition}{8}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}YAML Case File Structure}{9}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Key Experiment Parameters}{9}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}CLI-Based Experiment Setup}{9}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}CI Case File Categories}{10}{subsection.4.5}%
+\contentsline {section}{\numberline {5}Configuration File System}{10}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Configuration File Categories}{10}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Jinja2 Template Files}{11}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Template Rendering Example}{11}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Hierarchical Config Structure}{12}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Platform Resource Configuration}{13}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Three-Layer Resource Architecture}{13}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Platform Physical Limits}{13}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Resource Definition by Task and Resolution}{13}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Platform Override Example}{14}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Complete Resource Matrix}{15}{subsection.6.5}%
+\contentsline {section}{\numberline {7}Experiment Directory Population}{15}{section.7}%
+\contentsline {subsection}{\numberline {7.1}create\_experiment.py Workflow}{15}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Template Rendering Process}{15}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Resulting EXPDIR Structure}{16}{subsection.7.3}%
+\contentsline {section}{\numberline {8}Rocoto Workflow Generation}{16}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Rocoto Overview}{16}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Task Definition in gfs\_tasks.py}{17}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Dependency Types}{17}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}Generated XML Structure}{17}{subsection.8.4}%
+\contentsline {section}{\numberline {9}Runtime Configuration Sourcing}{18}{section.9}%
+\contentsline {subsection}{\numberline {9.1}jjob\_header.sh Mechanism}{18}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}J-Job Config Specification}{19}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}Config Sourcing Order}{19}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}Environment File Loading}{19}{subsection.9.4}%
+\contentsline {section}{\numberline {10}Complete Worked Example}{20}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Scenario: C384 S2SW Experiment on Hera}{20}{subsection.10.1}%
+\contentsline {subsubsection}{\numberline {10.1.1}Step 1: Define Experiment}{20}{subsubsection.10.1.1}%
+\contentsline {subsubsection}{\numberline {10.1.2}Step 2: Examine YAML Case File}{20}{subsubsection.10.1.2}%
+\contentsline {subsubsection}{\numberline {10.1.3}Step 3: Template Rendering}{20}{subsubsection.10.1.3}%
+\contentsline {subsubsection}{\numberline {10.1.4}Step 4: Application Factory Selection}{21}{subsubsection.10.1.4}%
+\contentsline {subsubsection}{\numberline {10.1.5}Step 5: Workflow XML Generation}{21}{subsubsection.10.1.5}%
+\contentsline {subsubsection}{\numberline {10.1.6}Step 6: Job Execution}{21}{subsubsection.10.1.6}%
+\contentsline {subsubsection}{\numberline {10.1.7}Step 7: Resource Allocation}{22}{subsubsection.10.1.7}%
+\contentsline {section}{\numberline {A}Complete Configuration File Inventory}{22}{appendix.A}%
+\contentsline {section}{\numberline {B}Platform Resource Reference}{23}{appendix.B}%
+\contentsline {section}{\numberline {C}Glossary}{23}{appendix.C}%

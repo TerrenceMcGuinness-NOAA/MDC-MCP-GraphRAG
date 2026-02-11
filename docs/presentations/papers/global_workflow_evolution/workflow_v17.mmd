@@ -1,0 +1,165 @@
+flowchart TB
+    subgraph Marine["🌊 Marine Analysis (NEW)"]
+        direction LR
+        prepoceanobs[prepoceanobs] --> marinebmatinit[marinebmatinit]
+        marinebmatinit --> marinebmat[marinebmat]
+        marinebmat --> marineanlinit[marineanlinit]
+        marineanlinit --> marineanlvar[marineanlvar]
+        marineanlvar --> marineanlchkpt[marineanlchkpt]
+        marineanlchkpt --> marineanlfinal[marineanlfinal]
+    end
+
+    subgraph GDAS["GDAS (6-hourly cycle)"]
+        direction TB
+        gprep[prep] --> gprep_sfc[prep_sfc]
+        gprep_sfc --> ganal[anal]
+        gprep_sfc --> gwaveinit[waveinit]
+        
+        ganal --> ganalcalc[analcalc]
+        ganal -.-> gatmanlinit[atmanlinit]
+        
+        ganalcalc --> ganaldiag[analdiag]
+        gatmanlinit --> gatmanlvar[atmanlvar]
+        gatmanlvar --> gatmanlfv3[atmanlfv3inc]
+        gatmanlfv3 --> gatmanlfinal[atmanlfinal]
+        
+        ganaldiag --> gsfcanl[sfcanl]
+        gsfcanl -.-> gsnowanl[snowanl]
+        gsfcanl --> gstage[stage_ic]
+        
+        gwaveinit --> gaeroanlgenb[aeroanlgenb]
+        gaeroanlgenb --> gaeroanlinit[aeroanlinit]
+        gaeroanlinit --> gaeroanlvar[aeroanlvar]
+        gaeroanlvar --> gaeroanlfinal[aeroanlfinal]
+        
+        gstage --> gatmanlupp[atmanlupp]
+        gatmanlupp --> gatmanlprod[atmanlprod]
+        gatmanlprod --> gfcst[fcst]
+        
+        gfcst --> gatmupp[atmupp]
+        gatmupp --> gatmosprod[atmos_prod]
+        
+        gwaveinit --> gwavepostsbs[wavepostsbs]
+        gwavepostsbs --> gwavepostpnt[wavepostpnt]
+        
+        gatmosprod --> gfit2obs[fit2obs]
+        gatmosprod --> garchvrfy[arch_vrfy]
+        garchvrfy --> gverfozn[verfozn]
+        garchvrfy --> garchtars[arch_tars]
+        garchtars --> gverfrad[verfrad]
+        garchtars --> gcleanup[cleanup]
+        gcleanup --> ganlstat[anlstat]
+    end
+
+    subgraph EnKF["Hybrid EnKF / JEDI Ensemble"]
+        direction TB
+        eobs[eobs] --> ediag[ediag]
+        ediag --> eupd[eupd]
+        
+        eatmensanlinit[atmensanlinit] --> eobs_task[atmensanlobs]
+        eobs_task --> esol_task[atmensanlsol]
+        esol_task --> eletkf[atmensanlletkf]
+        eletkf --> efv3inc[atmensanlfv3inc]
+        efv3inc --> efinal[atmensanlfinal]
+        
+        eupd --> ecen[ecen]
+        ecen --> ecen_fv3[ecen_fv3jedi]
+        
+        ecen_fv3 --> marineanlletkf[marineanlletkf]
+        marineanlletkf --> marineanlecen[marineanlecen]
+        
+        marineanlecen --> esfc[esfc]
+        esfc -.-> esnowanl[esnowanl]
+        
+        esfc --> efcsmn["efmn (N)"]
+        efcsmn --> eposmn["epmn (N)"]
+        eposmn --> echgres[echgres]
+        echgres --> earcvrfy[earc_vrfy]
+        earcvrfy --> earctars[earc_tars]
+        earctars -.-> globusearc[globus_earc]
+    end
+
+    subgraph GFS["GFS (00/06/12/18Z cycles)"]
+        direction TB
+        fetch[fetch] --> fprep[prep]
+        fprep --> fanal[anal]
+        fprep --> fwaveinit[waveinit]
+        
+        fanal --> fanalcalc[analcalc]
+        fanal -.-> fatmanlinit[atmanlinit]
+        
+        fatmanlinit --> fatmanlvar[atmanlvar]
+        fatmanlvar --> fatmanlfv3[atmanlfv3inc]
+        fatmanlfv3 --> fatmanlfinal[atmanlfinal]
+        
+        fanalcalc --> fsfcanl[sfcanl]
+        fsfcanl --> ffcst[fcst]
+        
+        fwaveinit --> fwaveprep[waveprep]
+        fwaveprep --> faeroanlinit[aeroanlinit]
+        faeroanlinit --> faeroanlvar[aeroanlvar]
+        faeroanlvar --> faeroanlfinal[aeroanlfinal]
+        
+        ffcst --> foceanprod[ocean_prod]
+        ffcst --> ficeprod[ice_prod]
+        ffcst --> fatmupp[atmupp]
+        
+        fatmupp --> fgoesupp[goesupp]
+        fatmupp --> fatmosprod[atmos_prod]
+        fatmosprod --> fpostsnd[postsnd]
+        
+        fwaveprep --> fwavepostsbs[wavepostsbs]
+        fwavepostsbs --> fwavepostpnt[wavepostpnt]
+        fwavepostpnt --> fwavegempak[wavegempak]
+        fwavegempak --> fwaveawips[waveawips]
+        
+        fatmosprod --> ftracker[tracker]
+        ftracker --> fgenesis[genesis]
+        fgenesis --> fgenesisfsu[genesis_fsu]
+        fgenesisfsu --> fmetp["metp (N)"]
+        
+        fpostsnd --> fgempak[gempak]
+        fgempak --> fgempakmeta[gempakmeta]
+        fgempakmeta --> fawips[awips_20km]
+        fawips --> ffbwind[fbwind]
+        
+        fmetp --> farchvrfy[arch_vrfy]
+        farchvrfy --> farchtars[arch_tars]
+        farchtars -.-> fglobus[globus_arch]
+        farchtars --> fcleanup[cleanup]
+    end
+
+    %% Cross-region connections
+    gatmanlfinal --> eatmensanlinit
+    efinal --> fatmanlinit
+    marineanlfinal --> marineanlletkf
+
+    %% Cycle logic
+    cyclelogic{run GFS this cycle?}
+    cyclehour[cycle hour +06]
+    GDAS --> cyclelogic
+    cyclelogic --> GFS
+    cyclelogic --> cyclehour
+
+    %% Styling
+    classDef gdas fill:#ADD8E6,stroke:#006494,stroke-width:2px
+    classDef gfs fill:#90EE90,stroke:#228B22,stroke-width:2px
+    classDef enkf fill:#FFFF96,stroke:#FFA500,stroke-width:2px
+    classDef jedi fill:#87CEFA,stroke:#4169E1,stroke-width:2px
+    classDef marine fill:#40E0D0,stroke:#008B8B,stroke-width:2px
+    classDef aerosol fill:#FFD700,stroke:#FF8C00,stroke-width:2px
+    classDef snow fill:#F0F8FF,stroke:#708090,stroke-width:2px
+    classDef wave fill:#C8A2C8,stroke:#800080,stroke-width:2px
+    classDef verify fill:#FFC896,stroke:#FF6347,stroke-width:2px
+    classDef new fill:#98FB98,stroke:#228B22,stroke-width:3px
+
+    class gprep,ganal,ganalcalc,ganaldiag,gsfcanl,gfcst,gatmupp,gatmosprod,garchvrfy gdas
+    class fetch,fprep,fanal,fanalcalc,fsfcanl,ffcst,fatmupp,fatmosprod,fpostsnd,fgempak,fawips,ffbwind,farchvrfy gfs
+    class eobs,ediag,eupd,ecen,esfc,efcsmn,eposmn,echgres,earcvrfy enkf
+    class gatmanlinit,gatmanlvar,gatmanlfv3,gatmanlfinal,fatmanlinit,fatmanlvar,fatmanlfv3,fatmanlfinal,eatmensanlinit,eobs_task,esol_task,eletkf,efv3inc,efinal,ecen_fv3 jedi
+    class prepoceanobs,marinebmatinit,marinebmat,marineanlinit,marineanlvar,marineanlchkpt,marineanlfinal,marineanlletkf,marineanlecen,foceanprod,ficeprod marine
+    class gaeroanlgenb,gaeroanlinit,gaeroanlvar,gaeroanlfinal,faeroanlinit,faeroanlvar,faeroanlfinal aerosol
+    class gsnowanl,esnowanl snow
+    class gwaveinit,gwavepostsbs,gwavepostpnt,fwaveinit,fwaveprep,fwavepostsbs,fwavepostpnt,fwavegempak,fwaveawips wave
+    class gfit2obs,gverfozn,gverfrad,ftracker,fgenesis,fgenesisfsu,fmetp verify
+    class gprep_sfc,gstage,gatmanlupp,gatmanlprod,garchtars,gcleanup,ganlstat,earctars,globusearc,fgoesupp,fgempakmeta,farchtars,fglobus,fcleanup new

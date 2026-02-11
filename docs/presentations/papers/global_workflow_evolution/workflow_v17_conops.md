@@ -1,0 +1,300 @@
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '12px', 'fontFamily': 'arial', 'lineColor': '#333333', 'primaryColor': '#4488CC', 'primaryTextColor': '#000000', 'primaryBorderColor': '#333333', 'secondaryColor': '#88BB44', 'tertiaryColor': '#FFDD44'}, 'flowchart': {'curve': 'basis', 'padding': 4, 'nodeSpacing': 8, 'rankSpacing': 15, 'subGraphTitleMargin': {'top': 2, 'bottom': 2}, 'htmlLabels': true, 'useMaxWidth': false, 'wrappingWidth': 120}}}%%
+flowchart TB
+subgraph GDAS["<b>gdas</b> — Analysis Cycling"]
+direction TB
+gd_fetch(["fetch"]):::stage
+gd_stage_ic(["stage_ic"]):::stage
+gd_prep(["prep"]):::core
+gd_prep_sfc(["prep_sfc"]):::optional
+subgraph GDAS_GSI_ANAL["GSI Analysis"]
+direction TB
+gd_anal(["anal"]):::core
+gd_analcalc(["analcalc"]):::core
+gd_analdiag(["analdiag"]):::core
+end
+subgraph GDAS_JEDI_ANAL["JEDI Atm Analysis"]
+direction TB
+gd_atmanlinit(["atmanlinit"]):::new
+gd_atmanlvar(["atmanlvar"]):::new
+gd_atmanlfv3inc(["atmanlfv3inc"]):::new
+gd_atmanlfinal(["atmanlfinal"]):::new
+end
+subgraph GDAS_MARINE["Marine DA"]
+direction TB
+gd_prepoceanobs(["prepoceanobs"]):::new
+gd_marinebmatinit(["marinebmatinit"]):::new
+gd_marinebmat(["marinebmat"]):::new
+gd_marineanlinit(["marineanlinit"]):::new
+gd_marineanlvar(["marineanlvar"]):::new
+gd_marineanlchkpt(["marineanlchkpt"]):::new
+gd_marineanlfinal(["marineanlfinal"]):::new
+end
+subgraph GDAS_AERO["Aerosol DA"]
+direction TB
+gd_aeroanlgenb(["aeroanlgenb"]):::new
+gd_aeroanlinit(["aeroanlinit"]):::new
+gd_aeroanlvar(["aeroanlvar"]):::new
+gd_aeroanlfinal(["aeroanlfinal"]):::new
+end
+gd_sfcanl(["sfcanl"]):::core
+gd_snowanl(["snowanl"]):::new
+gd_waveinit(["waveinit"]):::wave
+gd_atmanlupp(["atmanlupp"]):::new
+gd_atmanlprod(["atmanlprod"]):::new
+gd_fcst(["<b>fcst</b>"]):::forecast
+gd_atmupp(["atmupp"]):::core
+gd_atmos_prod(["atmos_prod"]):::product
+subgraph GDAS_WAVE["Wave Post"]
+direction TB
+gd_wavepostsbs(["wavepostsbs"]):::wave
+gd_wavepostpnt(["wavepostpnt"]):::wave
+gd_wavepostbndpnt(["wavepostbndpnt"]):::wave
+gd_wavepostbndpntbll(["wavepostbndpntbll"]):::wave
+end
+subgraph GDAS_VRFY["Verification"]
+direction TB
+gd_fit2obs(["fit2obs"]):::verify
+gd_verfozn(["verfozn"]):::verify
+gd_verfrad(["verfrad"]):::verify
+gd_anlstat(["anlstat"]):::verify
+gd_vminmon(["vminmon"]):::verify
+end
+gd_gempak(["gempak"]):::product
+gd_gempakmetancdc(["gempakmetancdc"]):::product
+subgraph GDAS_ARCH["Archive"]
+direction TB
+gd_arch_vrfy(["arch_vrfy"]):::archive
+gd_arch_tars(["arch_tars"]):::archive
+gd_globus_arch(["globus_arch"]):::archive
+gd_cleanup(["cleanup"]):::archive
+end
+gd_fetch --> gd_stage_ic --> gd_prep
+gd_prep --> gd_prep_sfc
+gd_prep --> gd_anal --> gd_analcalc
+gd_anal --> gd_analdiag
+gd_prep --> gd_atmanlinit --> gd_atmanlvar --> gd_atmanlfv3inc --> gd_atmanlfinal
+gd_prep --> gd_prepoceanobs --> gd_marinebmatinit --> gd_marinebmat --> gd_marineanlinit --> gd_marineanlvar --> gd_marineanlchkpt --> gd_marineanlfinal
+gd_atmanlfinal --> gd_sfcanl
+gd_analcalc --> gd_sfcanl
+gd_sfcanl --> gd_snowanl
+gd_aeroanlgenb --> gd_aeroanlinit --> gd_aeroanlvar --> gd_aeroanlfinal
+gd_prep --> gd_waveinit
+gd_atmanlfinal --> gd_atmanlupp --> gd_atmanlprod
+gd_sfcanl --> gd_fcst
+gd_waveinit --> gd_fcst
+gd_aeroanlfinal --> gd_fcst
+gd_fcst --> gd_atmupp --> gd_atmos_prod
+gd_fcst --> gd_wavepostsbs
+gd_fcst --> gd_wavepostpnt
+gd_fcst --> gd_wavepostbndpnt
+gd_fcst --> gd_wavepostbndpntbll
+gd_atmos_prod --> gd_fit2obs
+gd_atmos_prod --> gd_verfozn
+gd_atmos_prod --> gd_verfrad
+gd_atmos_prod --> gd_anlstat
+gd_atmos_prod --> gd_vminmon
+gd_atmos_prod --> gd_gempak --> gd_gempakmetancdc
+gd_atmos_prod --> gd_arch_vrfy --> gd_arch_tars --> gd_globus_arch
+gd_arch_vrfy --> gd_cleanup
+end
+
+subgraph ENKF["<b>enkfgdas</b> — Hybrid Ensemble DA"]
+direction TB
+ek_stage_ic(["stage_ic"]):::stage
+subgraph ENKF_GSI["GSI Hybrid EnKF"]
+direction TB
+ek_eobs(["eobs"]):::core
+ek_ediag(["ediag"]):::core
+ek_eupd(["eupd"]):::core
+end
+subgraph ENKF_JEDI["JEDI Ensemble Analysis"]
+direction TB
+ek_atmensanlinit(["atmensanlinit"]):::new
+ek_atmensanlobs(["atmensanlobs"]):::new
+ek_atmensanlsol(["atmensanlsol"]):::new
+ek_atmensanlletkf(["atmensanlletkf"]):::new
+ek_atmensanlfv3inc(["atmensanlfv3inc"]):::new
+ek_atmensanlfinal(["atmensanlfinal"]):::new
+end
+subgraph ENKF_RECEN["Recentering"]
+direction TB
+ek_ecen(["ecenN"]):::metatask
+ek_ecen_fv3jedi(["ecen_fv3jedi"]):::new
+ek_esfc(["esfc"]):::core
+ek_echgres(["echgres"]):::core
+end
+subgraph ENKF_MARINE["Marine Ensemble"]
+direction TB
+ek_marineanlletkf(["marineanlletkf"]):::new
+ek_marineanlecen(["marineanlecen"]):::new
+end
+ek_esnowanl(["esnowanl"]):::new
+ek_efcs(["efcsN"]):::metatask
+ek_epos(["eposN"]):::metatask
+subgraph ENKF_ARCH["Archive"]
+direction TB
+ek_earc_vrfy(["earc_vrfy"]):::archive
+ek_earc_tars(["earc_tars"]):::archive
+ek_globus_earc(["globus_earc"]):::archive
+ek_cleanup(["cleanup"]):::archive
+end
+ek_stage_ic --> ek_eobs --> ek_ediag
+ek_eobs --> ek_eupd --> ek_ecen
+ek_stage_ic --> ek_atmensanlinit --> ek_atmensanlobs --> ek_atmensanlsol
+ek_atmensanlinit --> ek_atmensanlletkf
+ek_atmensanlsol --> ek_atmensanlfv3inc --> ek_atmensanlfinal --> ek_ecen_fv3jedi
+ek_atmensanlletkf --> ek_atmensanlfv3inc
+ek_marineanlletkf --> ek_marineanlecen
+ek_ecen --> ek_esfc
+ek_ecen_fv3jedi --> ek_esfc
+ek_ecen --> ek_echgres
+ek_esfc --> ek_efcs --> ek_epos
+ek_epos --> ek_earc_vrfy --> ek_earc_tars --> ek_globus_earc
+ek_earc_vrfy --> ek_cleanup
+end
+
+subgraph GFS["<b>gfs</b> — Medium-Range Forecast"]
+direction TB
+gf_prep(["prep"]):::core
+gf_prep_sfc(["prep_sfc"]):::optional
+subgraph GFS_ANAL["GFS Analysis"]
+direction TB
+gf_anal(["anal"]):::core
+gf_analcalc(["analcalc"]):::core
+gf_atmanlinit(["atmanlinit"]):::new
+gf_atmanlvar(["atmanlvar"]):::new
+gf_atmanlfv3inc(["atmanlfv3inc"]):::new
+gf_atmanlfinal(["atmanlfinal"]):::new
+end
+subgraph GFS_AERO["Aerosol DA"]
+direction TB
+gf_aeroanlinit(["aeroanlinit"]):::new
+gf_aeroanlvar(["aeroanlvar"]):::new
+gf_aeroanlfinal(["aeroanlfinal"]):::new
+end
+gf_sfcanl(["sfcanl"]):::core
+gf_waveinit(["waveinit"]):::wave
+gf_atmanlupp(["atmanlupp"]):::new
+gf_atmanlprod(["atmanlprod"]):::new
+gf_fcst(["<b>fcst</b>"]):::forecast
+gf_atmupp(["atmupp"]):::core
+gf_goesupp(["goesupp"]):::new
+gf_atmos_prod(["atmos_prod"]):::product
+gf_ocean_prod(["ocean_prod"]):::new
+gf_ice_prod(["ice_prod"]):::new
+subgraph GFS_WAVE["Wave Post"]
+direction TB
+gf_wavepostsbs(["wavepostsbs"]):::wave
+gf_wavepostbndpnt(["wavepostbndpnt"]):::wave
+gf_wavepostbndpntbll(["wavepostbndpntbll"]):::wave
+gf_wavepostpnt(["wavepostpnt"]):::wave
+gf_wavegempak(["wavegempak"]):::wave
+gf_waveawipsbulls(["waveawipsbulls"]):::wave
+gf_waveawipsgridded(["waveawipsgridded"]):::wave
+end
+subgraph GFS_VRFY["Verification"]
+direction TB
+gf_tracker(["tracker"]):::verify
+gf_genesis(["genesis"]):::verify
+gf_genesis_fsu(["genesis_fsu"]):::verify
+gf_metp(["metpN"]):::metatask
+gf_vminmon(["vminmon"]):::verify
+end
+subgraph GFS_PROD["Products"]
+direction TB
+gf_postsnd(["postsnd"]):::product
+gf_gempak(["gempak"]):::product
+gf_gempakmeta(["gempakmeta"]):::product
+gf_gempakncdcupapgif(["ncdcupapgif"]):::product
+gf_npoess(["npoess"]):::product
+gf_gempakpgrb2spec(["pgrb2spec"]):::product
+gf_awips(["awips_20km_1p0deg"]):::product
+gf_fbwind(["fbwind"]):::product
+end
+subgraph GFS_ARCH["Archive"]
+direction TB
+gf_arch_vrfy(["arch_vrfy"]):::archive
+gf_arch_tars(["arch_tars"]):::archive
+gf_globus_arch(["globus_arch"]):::archive
+gf_cleanup(["cleanup"]):::archive
+end
+gf_prep --> gf_prep_sfc
+gf_prep --> gf_anal --> gf_analcalc
+gf_prep --> gf_atmanlinit --> gf_atmanlvar --> gf_atmanlfv3inc --> gf_atmanlfinal
+gf_aeroanlinit --> gf_aeroanlvar --> gf_aeroanlfinal
+gf_atmanlfinal --> gf_sfcanl
+gf_analcalc --> gf_sfcanl
+gf_prep --> gf_waveinit
+gf_atmanlfinal --> gf_atmanlupp --> gf_atmanlprod
+gf_sfcanl --> gf_fcst
+gf_waveinit --> gf_fcst
+gf_aeroanlfinal --> gf_fcst
+gf_fcst --> gf_atmupp --> gf_atmos_prod
+gf_fcst --> gf_goesupp
+gf_fcst --> gf_ocean_prod
+gf_fcst --> gf_ice_prod
+gf_fcst --> gf_wavepostsbs
+gf_fcst --> gf_wavepostbndpnt
+gf_fcst --> gf_wavepostbndpntbll
+gf_fcst --> gf_wavepostpnt
+gf_wavepostsbs --> gf_wavegempak
+gf_wavepostsbs --> gf_waveawipsbulls
+gf_wavepostsbs --> gf_waveawipsgridded
+gf_atmos_prod --> gf_tracker
+gf_atmos_prod --> gf_genesis --> gf_genesis_fsu
+gf_atmos_prod --> gf_metp
+gf_atmos_prod --> gf_vminmon
+gf_atmos_prod --> gf_postsnd
+gf_atmos_prod --> gf_gempak --> gf_gempakmeta
+gf_gempak --> gf_gempakncdcupapgif
+gf_goesupp --> gf_npoess
+gf_gempak --> gf_gempakpgrb2spec
+gf_atmos_prod --> gf_awips
+gf_atmos_prod --> gf_fbwind
+gf_atmos_prod --> gf_arch_vrfy --> gf_arch_tars --> gf_globus_arch
+gf_arch_vrfy --> gf_cleanup
+end
+
+gd_fcst -.->|"cycle +06h"| gf_prep
+gd_atmos_prod -.-> gf_prep
+ek_epos -.-> gd_fcst
+ek_ecen -.-> gd_fcst
+gd_prep -.-> ek_eobs
+gd_prep -.-> ek_atmensanlinit
+gd_anal -.-> ek_eobs
+gd_atmanlfinal -.-> ek_atmensanlinit
+ek_efcs -.-> ek_epos
+
+classDef core fill:#4488CC,stroke:#003366,stroke-width:2px,color:#000
+classDef forecast fill:#FFDD44,stroke:#AA8800,stroke-width:3px,color:#000,font-weight:bold
+classDef wave fill:#C8A2C8,stroke:#800080,stroke-width:2px,color:#000
+classDef product fill:#88BB44,stroke:#446622,stroke-width:2px,color:#000
+classDef verify fill:#FFC896,stroke:#FF6347,stroke-width:2px,color:#000
+classDef archive fill:#FFB6C1,stroke:#CC3366,stroke-width:2px,color:#000
+classDef new fill:#98FB98,stroke:#228B22,stroke-width:3px,color:#000
+classDef metatask fill:#4488CC,stroke:#003366,stroke-width:3px,color:#800080,font-weight:bold
+classDef stage fill:#87CEEB,stroke:#4682B4,stroke-width:2px,color:#000
+classDef optional fill:#4488CC,stroke:#003366,stroke-width:2px,color:#000,stroke-dasharray: 5 5
+style GDAS fill:#88CC44,stroke:#446622,stroke-width:3px,color:#000
+style ENKF fill:#66AA88,stroke:#336644,stroke-width:3px,color:#000
+style GFS fill:#AADDAA,stroke:#558855,stroke-width:3px,color:#000
+style GDAS_GSI_ANAL fill:#5599DD,stroke:#003366,stroke-width:2px,color:#000
+style GDAS_JEDI_ANAL fill:#66CC99,stroke:#228B22,stroke-width:2px,color:#000
+style GDAS_MARINE fill:#77BBDD,stroke:#336699,stroke-width:2px,color:#000
+style GDAS_AERO fill:#AADDBB,stroke:#228B22,stroke-width:2px,color:#000
+style GDAS_WAVE fill:#D8B2D8,stroke:#800080,stroke-width:2px,color:#000
+style GDAS_VRFY fill:#FFD8B0,stroke:#FF6347,stroke-width:2px,color:#000
+style GDAS_ARCH fill:#FFD0D8,stroke:#CC3366,stroke-width:2px,color:#000
+style ENKF_GSI fill:#5599DD,stroke:#003366,stroke-width:2px,color:#000
+style ENKF_JEDI fill:#66CC99,stroke:#228B22,stroke-width:2px,color:#000
+style ENKF_RECEN fill:#88BBDD,stroke:#336699,stroke-width:2px,color:#000
+style ENKF_MARINE fill:#77BBDD,stroke:#336699,stroke-width:2px,color:#000
+style ENKF_ARCH fill:#FFD0D8,stroke:#CC3366,stroke-width:2px,color:#000
+style GFS_ANAL fill:#5599DD,stroke:#003366,stroke-width:2px,color:#000
+style GFS_AERO fill:#AADDBB,stroke:#228B22,stroke-width:2px,color:#000
+style GFS_WAVE fill:#D8B2D8,stroke:#800080,stroke-width:2px,color:#000
+style GFS_VRFY fill:#FFD8B0,stroke:#FF6347,stroke-width:2px,color:#000
+style GFS_PROD fill:#AACCAA,stroke:#446622,stroke-width:2px,color:#000
+style GFS_ARCH fill:#FFD0D8,stroke:#CC3366,stroke-width:2px,color:#000
+```
