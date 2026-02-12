@@ -1,0 +1,53 @@
+# EIB MCP RAG Server Catalog - v3 format (SPOT - Single Point of Truth)
+# Canonical location: SETUP/docker-mcp/catalogs/eib-local.yaml (persistent drive)
+# Symlinked to: ~/.docker/mcp/catalogs/eib-local.yaml
+# Created by: SETUP/provisioning/11-docker-mcp-gateway.sh
+# Used by: docker mcp gateway run --catalog <this-file>
+# Transport: streaming (Streamable HTTP - MCP spec 2025-06-18)
+#
+# IMPORTANT: Do NOT edit the symlinked copy in ~/.docker/mcp/.
+# Edit this file and re-run provisioning or restart the gateway.
+# The 'docker mcp catalog create' command OVERWRITES this file —
+# the provisioning script must write this AFTER any 'docker mcp catalog' calls.
+
+version: 3
+name: eib-local
+displayName: EIB Local MCP Catalog
+
+registry:
+  eib-mcp-rag:
+    title: EIB MCP RAG Server
+    description: AI-powered code analysis and EE2 compliance checking for NOAA Global Workflow
+    type: server
+    image: eib-mcp-rag:latest
+    env:
+      - name: CHROMADB_HOST
+        value: "172.17.0.1"
+      - name: CHROMADB_PORT
+        value: "8080"
+      - name: CHROMADB_URL
+        value: "http://172.17.0.1:8080"
+      - name: NEO4J_URI
+        value: "bolt://172.17.0.1:7687"
+      - name: NEO4J_USER
+        value: neo4j
+      - name: NEO4J_PASSWORD
+        value: gfsworkflow2025
+      - name: MCP_WORKFLOW_ROOT
+        value: "/app/supported_repos/global-workflow"
+      - name: MCP_SCENARIO
+        value: full
+      - name: ENABLE_RAG
+        value: "true"
+      - name: ENABLE_GITHUB
+        value: "true"
+    volumes:
+      - "/mcp_rag_eib/eib-mcp-rag-server/supported_repos:/app/supported_repos:ro"
+      - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:ro"
+    metadata:
+      category: devops
+      tags:
+        - noaa
+        - gfs
+        - mcp
+        - rag

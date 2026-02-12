@@ -1,15 +1,23 @@
 #!/bin/bash
 ################################################################################
 # 11-docker-mcp-gateway.sh - Docker MCP Gateway Plugin Setup
-# Part of modular provisioning system v4.0.0
+# Part of modular provisioning system v4.1.0
 #
 # This script:
 #   1. Installs Go compiler (required for building docker-mcp)
 #   2. Clones the docker/mcp-gateway repository
 #   3. Builds the docker-mcp CLI plugin
 #   4. Installs plugin to ~/.docker/cli-plugins/
-#   5. Creates MCP server catalog configuration
+#   5. Creates MCP server catalog configuration on PERSISTENT DRIVE
 #   6. Builds the eib-mcp-rag container image
+#
+# Config Storage Strategy (v4.1.0):
+#   - Canonical configs stored on persistent drive at SETUP/docker-mcp/
+#   - Gateway uses --catalog/--registry/--config/--tools-config with
+#     absolute paths (bypasses ~/.docker/mcp/ for these 4 files)
+#   - Ephemeral state (mcp.db, catalog_index/) stays in ~/.docker/mcp/
+#     and regenerates on new VM spin-up — no data loss
+#   - No symlinks needed — native docker-mcp absolute path support
 #
 # Reference: Phase 11 SDD - sdd_framework/workflows/phase11_docker_mcp_gateway_langflow.md
 ################################################################################
@@ -172,22 +180,37 @@ else
 fi
 
 ################################################################################
-# Create MCP Configuration
+# Create MCP Configuration (Persistent Drive - SPOT)
 ################################################################################
 
-log_subsection "MCP Gateway Configuration"
+log_subsection "MCP Gateway Configuration (Persistent Drive)"
 
-MCP_CONFIG_DIR="${USER_HOME}/.docker/mcp"
-run_as_user "${USER_NAME}" "mkdir -p ${MCP_CONFIG_DIR}/catalogs"
+# SPOT: Canonical configs live on the persistent drive so they survive VM replacement.
+# The gateway uses absolute-path CLI flags (--catalog, --registry, --config,
+# --tools-config) which bypass ~/.docker/mcp/ resolution entirely.
+# Ephemeral runtime state (mcp.db, catalog_index/) stays in ~/.docker/mcp/
+# and is regenerated automatically by the gateway on first start.
 
-# Create EIB MCP RAG catalog entry (v3 format with registry: key)
+PERSISTENT_MCP_DIR="${SETUP_DIR}/docker-mcp"
+PERSISTENT_CATALOGS_DIR="${PERSISTENT_MCP_DIR}/catalogs"
+HOME_MCP_DIR="${USER_HOME}/.docker/mcp"
+
+mkdir -p "${PERSISTENT_CATALOGS_DIR}"
+run_as_user "${USER_NAME}" "mkdir -p ${HOME_MCP_DIR}/catalogs"
+
+# Write EIB MCP RAG catalog to PERSISTENT drive (v3 format with registry: key)
 # SPOT: This is the single source of truth for MCP gateway catalog configuration
 # Note: Uses 172.17.0.1 (Docker bridge gateway) for container-to-host DB access
-cat > "${MCP_CONFIG_DIR}/catalogs/eib-local.yaml" << EOF
+cat > "${PERSISTENT_CATALOGS_DIR}/eib-local.yaml" << EOF
 # EIB MCP RAG Server Catalog - v3 format (SPOT - Single Point of Truth)
+# Canonical location: SETUP/docker-mcp/catalogs/eib-local.yaml (persistent drive)
 # Created by: SETUP/provisioning/11-docker-mcp-gateway.sh
-# Used by: sudo systemctl start mcp-gateway
+# Used by: docker mcp gateway run --catalog <this-file>
 # Transport: streaming (Streamable HTTP - MCP spec 2025-06-18)
+#
+# IMPORTANT: The 'docker mcp catalog create' command OVERWRITES files in
+# ~/.docker/mcp/. This file on the persistent drive is the canonical copy.
+# The gateway --catalog flag accepts absolute paths, bypassing ~/.docker/mcp/.
 
 version: 3
 name: eib-local
@@ -232,52 +255,73 @@ registry:
         - rag
 EOF
 
-chown -R "$(get_ownership "${USER_NAME}")" "${MCP_CONFIG_DIR}"
+log_success "MCP catalog (SPOT): ${PERSISTENT_CATALOGS_DIR}/eib-local.yaml"
 
-log_success "MCP catalog file created: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml"
+# Write registry.yaml to persistent drive
+cat > "${PERSISTENT_MCP_DIR}/registry.yaml" << 'EOF'
+# Docker MCP Registry - EIB server enabled
+# Canonical location: SETUP/docker-mcp/registry.yaml (persistent drive)
+registry:
+  eib-mcp-rag:
+    ref: ""
+EOF
+
+log_success "MCP registry (SPOT): ${PERSISTENT_MCP_DIR}/registry.yaml"
+
+# Write config.yaml and tools.yaml placeholders to persistent drive
+touch "${PERSISTENT_MCP_DIR}/config.yaml"
+touch "${PERSISTENT_MCP_DIR}/tools.yaml"
+
+chown -R "$(get_ownership "${USER_NAME}")" "${PERSISTENT_MCP_DIR}"
+
+log_success "All MCP configs on persistent drive: ${PERSISTENT_MCP_DIR}/"
 
 ################################################################################
-# Register Catalog with Docker MCP System
+# Seed Home Dir with Ephemeral Copies (for docker mcp CLI commands)
 ################################################################################
 
-log_subsection "Registering Catalog with Docker MCP"
+log_subsection "Seeding Home Dir MCP Config (ephemeral)"
 
-# The docker mcp catalog system requires explicit registration
-# Simply having the YAML file in ~/.docker/mcp/catalogs/ is NOT sufficient
-# We must: 1) Create catalog, 2) Add server to catalog, 3) Enable server
+# The 'docker mcp catalog ls', 'docker mcp server ls' CLI commands read from
+# ~/.docker/mcp/ — they don't accept --catalog flags. We copy the configs
+# there so those CLI commands work, but the GATEWAY itself uses absolute paths
+# to the persistent drive (see systemd service below).
+#
+# IMPORTANT: 'docker mcp catalog create' OVERWRITES the catalog YAML in
+# ~/.docker/mcp/catalogs/. We write the home dir copies AFTER any such calls.
 
-log_info "Creating eib-local catalog in docker mcp system..."
+# Copy persistent configs to home dir for CLI compatibility
+cp "${PERSISTENT_CATALOGS_DIR}/eib-local.yaml" "${HOME_MCP_DIR}/catalogs/eib-local.yaml"
+cp "${PERSISTENT_MCP_DIR}/registry.yaml" "${HOME_MCP_DIR}/registry.yaml"
+cp "${PERSISTENT_MCP_DIR}/config.yaml" "${HOME_MCP_DIR}/config.yaml" 2>/dev/null || true
+cp "${PERSISTENT_MCP_DIR}/tools.yaml" "${HOME_MCP_DIR}/tools.yaml" 2>/dev/null || true
 
-# Create the catalog (idempotent - will fail silently if exists)
-run_as_user "${USER_NAME}" "docker mcp catalog create eib-local 2>/dev/null || true"
-
-# Add the server to the catalog from our YAML file
-# This imports the server definition into the docker mcp registry
-log_info "Adding eib-mcp-rag server to catalog..."
-run_as_user "${USER_NAME}" "docker mcp catalog add eib-local eib-mcp-rag ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml --force" || {
-    log_warning "Failed to add server to catalog, may already exist"
+# Write catalog.json (index of known catalogs — this is ephemeral runtime state)
+cat > "${HOME_MCP_DIR}/catalog.json" << 'CATJSON'
+{
+  "catalogs": {
+    "docker-mcp": {
+      "displayName": "Docker MCP Catalog",
+      "url": "https://desktop.docker.com/mcp/catalog/v2/catalog.yaml"
+    },
+    "eib-local": {
+      "displayName": "eib-local"
+    }
+  }
 }
+CATJSON
 
-# Enable the server so it's available to the gateway
-log_info "Enabling eib-mcp-rag server..."
-run_as_user "${USER_NAME}" "docker mcp server enable eib-mcp-rag" || {
-    log_warning "Failed to enable server, may already be enabled"
-}
+chown -R "$(get_ownership "${USER_NAME}")" "${HOME_MCP_DIR}"
 
-# Verify registration
-log_info "Verifying catalog registration..."
-CATALOG_LIST=$(run_as_user "${USER_NAME}" "docker mcp catalog ls 2>&1" || echo "")
-if echo "${CATALOG_LIST}" | grep -q "eib-local"; then
-    log_success "Catalog 'eib-local' registered in docker mcp system"
-else
-    log_warning "Catalog registration may have issues - check 'docker mcp catalog ls'"
-fi
+log_success "Home dir seeded: ${HOME_MCP_DIR}/ (ephemeral copies)"
 
+# Verify CLI sees the server
+log_info "Verifying docker mcp CLI registration..."
 SERVER_LIST=$(run_as_user "${USER_NAME}" "docker mcp server ls 2>&1" || echo "")
 if echo "${SERVER_LIST}" | grep -q "eib-mcp-rag"; then
-    log_success "Server 'eib-mcp-rag' enabled and ready"
+    log_success "Server 'eib-mcp-rag' visible in docker mcp CLI"
 else
-    log_warning "Server may not be enabled - check 'docker mcp server ls'"
+    log_warning "Server not visible in CLI - this is OK, gateway uses absolute paths"
 fi
 
 ################################################################################
@@ -365,9 +409,20 @@ Environment=PATH=/usr/local/go/bin:/usr/bin:/bin:${USER_HOME}/.docker/cli-plugin
 WorkingDirectory=${USER_HOME}
 
 # Use streaming transport (Streamable HTTP - bidirectional, MCP spec 2025-06-18)
-# Server is registered via 'docker mcp catalog add' + 'docker mcp server enable'
+# All config files use ABSOLUTE paths to the persistent drive (SETUP/docker-mcp/)
+# so they survive VM replacement. The gateway resolves absolute paths directly,
+# bypassing the ~/.docker/mcp/ directory for these 4 files.
 # Port 18888 to avoid conflicts with common services on RDHPCS systems
-ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run --servers eib-mcp-rag --transport streaming --port 18888 --long-lived
+ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run \\
+    --catalog ${SETUP_DIR}/docker-mcp/catalogs/eib-local.yaml \\
+    --registry ${SETUP_DIR}/docker-mcp/registry.yaml \\
+    --config ${SETUP_DIR}/docker-mcp/config.yaml \\
+    --tools-config ${SETUP_DIR}/docker-mcp/tools.yaml \\
+    --enable-all-servers \\
+    --transport streaming \\
+    --port 18888 \\
+    --long-lived \\
+    --verbose
 
 Restart=on-failure
 RestartSec=10
@@ -455,9 +510,20 @@ log_section "Docker MCP Gateway Setup Complete"
 log_info "Components installed:"
 log_success "  Go compiler: $(go version | awk '{print $3}')"
 log_success "  docker-mcp plugin: ${DOCKER_CLI_PLUGINS}/docker-mcp"
-log_success "  MCP catalog file: ${MCP_CONFIG_DIR}/catalogs/eib-local.yaml"
+log_success "  MCP catalog (persistent): ${PERSISTENT_CATALOGS_DIR}/eib-local.yaml"
+log_success "  MCP registry (persistent): ${PERSISTENT_MCP_DIR}/registry.yaml"
 log_success "  Container image: eib-mcp-rag:latest"
 log_success "  Systemd service: mcp-gateway.service"
+log_info ""
+log_info "Persistent drive config (survives VM replacement):"
+log_info "  ${PERSISTENT_MCP_DIR}/"
+log_info "  ├── catalogs/eib-local.yaml  (--catalog absolute path)"
+log_info "  ├── registry.yaml            (--registry absolute path)"
+log_info "  ├── config.yaml              (--config absolute path)"
+log_info "  └── tools.yaml               (--tools-config absolute path)"
+log_info ""
+log_info "Ephemeral home dir (regenerates on new VM):"
+log_info "  ${HOME_MCP_DIR}/  (copies for docker mcp CLI compatibility)"
 
 log_info ""
 log_info "Catalog registration status:"

@@ -1,12 +1,13 @@
 #!/bin/bash
 ################################################################################
 # 12-static-mode-gateway.sh - Phase 23: Static Mode Multi-User Gateway
-# Part of modular provisioning system v4.0.0
+# Part of modular provisioning system v4.1.0
 #
 # This script configures the MCP Gateway in static mode:
 #   - Single static container managed by systemd (not per-session)
 #   - Health monitoring via cron
 #   - Supports 5-10 concurrent RDHPCS users
+#   - Configs read from persistent drive via absolute-path CLI flags
 #
 # REPLACES: The --long-lived mode in 11-docker-mcp-gateway.sh for production
 # REASON: Per-session containers leave orphans on ungraceful disconnects
@@ -48,12 +49,14 @@ if ! docker images eib-mcp-rag:latest --format "{{.Repository}}:{{.Tag}}" | grep
 fi
 log_success "Container image: eib-mcp-rag:latest"
 
-# Check catalog exists
-if [[ ! -f "${USER_HOME}/.docker/mcp/catalogs/eib-local.yaml" ]]; then
-    log_error "MCP catalog not found. Run 11-docker-mcp-gateway.sh first."
+# Check catalog exists on persistent drive (SPOT)
+PERSISTENT_MCP_DIR="${SETUP_DIR}/docker-mcp"
+if [[ ! -f "${PERSISTENT_MCP_DIR}/catalogs/eib-local.yaml" ]]; then
+    log_error "MCP catalog not found on persistent drive. Run 11-docker-mcp-gateway.sh first."
+    log_error "Expected: ${PERSISTENT_MCP_DIR}/catalogs/eib-local.yaml"
     exit 1
 fi
-log_success "MCP catalog: ${USER_HOME}/.docker/mcp/catalogs/eib-local.yaml"
+log_success "MCP catalog (persistent): ${PERSISTENT_MCP_DIR}/catalogs/eib-local.yaml"
 
 ################################################################################
 # Stop Existing Services
@@ -151,12 +154,17 @@ Environment=HOME=${USER_HOME}
 Environment=MCP_GATEWAY_AUTH_TOKEN=eib-mcp-gateway-token-2025
 
 # Dynamic tools mode WITH EIB server auto-loaded:
+# All config files use ABSOLUTE paths to the persistent drive (SETUP/docker-mcp/)
+# so configs survive VM replacement without symlinks or HOME overrides.
 # --enable-all-servers: Auto-connect servers from registry.yaml (eib-mcp-rag)
 # --catalog: Use our local catalog for server definitions  
 # No --servers flag: Keeps mcp-find, mcp-add, mcp-remove enabled
 # Reference: Dynamic_MCP_Server_Self_Provisioning wiki page
-ExecStart=${DOCKER_CLI_PLUGINS}/docker-mcp gateway run \\
-    --catalog /root/.docker/mcp/catalogs/eib-local.yaml \\
+ExecStart=${USER_HOME}/.docker/cli-plugins/docker-mcp gateway run \\
+    --catalog ${SETUP_DIR}/docker-mcp/catalogs/eib-local.yaml \\
+    --registry ${SETUP_DIR}/docker-mcp/registry.yaml \\
+    --config ${SETUP_DIR}/docker-mcp/config.yaml \\
+    --tools-config ${SETUP_DIR}/docker-mcp/tools.yaml \\
     --enable-all-servers \\
     --transport streaming \\
     --port 18888 \\
