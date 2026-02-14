@@ -2,9 +2,9 @@
 
 **SDD Version**: 2.0  
 **Created**: December 4, 2025  
-**Updated**: February 5, 2026  
+**Updated**: February 14, 2026  
 **Author**: Terrence McGuinness / Claude Opus 4.5  
-**Status**: IN PROGRESS  
+**Status**: COMPLETE  
 **Priority**: HIGH - Core capability for complete code tracing
 
 ## Vision Alignment
@@ -618,11 +618,13 @@ User: "What Fortran functions are called when JSEAICE_ANALYSIS runs?"
 | Metric | Target | Actual | Status |
 |--------|--------|--------|--------|
 | Fortran nodes ingested | >8,000 | **17,575** | ✅ 2.2x target |
-| CALLS relationships | >15,000 | **268,666** | ✅ 17.9x target |
+| CALLS relationships | >15,000 | **439,919** | ✅ 29.3x target (re-ingested Feb 14, 2026) |
 | USES relationships | >5,000 | **91,285** | ✅ 18.3x target |
 | Shell→Fortran links | >50 | **35** | ⚠️ 70% - Limited by explicit exec patterns |
 | Query response time | <500ms | **39ms** | ✅ 12.8x faster |
 | Parse success rate | >95% | **85%** | ⚠️ Fortran77 legacy files needed regex fallback |
+
+> **Note (Feb 14, 2026):** Full re-ingestion on persistent disk VM. All 7,214 Fortran source files processed. CALLS count increased from 268K to 439K due to complete file coverage (prior run hit deadlock at file 2,500). Data now persists on `/dev/nvme1n1`.
 
 ---
 

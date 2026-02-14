@@ -1,5 +1,32 @@
 # MCP Server Changelog
 
+## [7.13.0] - Persistent Disk Re-Ingestion Campaign (February 14, 2026)
+
+### Context
+New VM provisioned with persistent `/dev/nvme1n1` drive mounted at `/mcp_rag_eib`. Neo4j and ChromaDB Docker volumes now reside on persistent storage. Health audit revealed Neo4j data loss from prior ephemeral disk — all ingestion phases re-executed to restore full graph state.
+
+### Re-Ingested
+- **Phase 10 Fortran call tree** — 17,575 nodes (13,537 subs, 2,355 funcs, 1,539 modules, 144 programs), 439K CALLS, 91K USES. Full `ingest_fortran_graph.py` run across 7,214 source files.
+- **Phase 24 Gap 1 environment variables** — 2,730 `EnvironmentVariable` nodes, 1,669 EXPORTS, 1,401 SETS, 6,007 DEPENDS_ON_ENV via `ingest_env_variables.py`
+- **Phase 24F-0 Python graph** — 624 PythonModules, 3,267 PythonFunctions, 248 PythonClasses, 9,690 DEFINES, 8,034 IMPORTS via `ingest_python_graph.py`
+- **Phase 24F-2 cross-language bridges** — 3 EXECUTES (Shell→Fortran), 4 INVOKES (Shell→Python) via `ingest_cross_language_bridges.py`
+- **Phase 24I-M1 noise cleanup** — removed 8,239 builtin CALLS edges (stdlib functions with no `file_path`)
+- **Phase 24E community detection** — Leiden algorithm: 3,841 communities, 5 levels, modularity 0.8184 over 25,352 nodes / 958K projected rels. 63 community summaries stored in `community-summaries` ChromaDB collection.
+
+### Added
+- **`scripts/run_community_detection.js`** — standalone ESM runner for `CommunityDetection.runFullPipeline()` + `CommunitySummarizer.summarizeAll()`. Connects GraphDatabase + VectorDatabase, runs Leiden, generates and stores summaries. (Commit `3dc276d`)
+
+### Fixed
+- **Docker MCP SETUP docs** — simplified `SETUP/docker-mcp/catalogs/eib-local.yaml` and `registry.yaml` (removed outdated symlink references, clarified `--catalog` absolute path usage)
+- **Parallel Works MCP** — added `parallelworks` stdio server to `.vscode/mcp.json`
+
+### Infrastructure
+- Neo4j: 567,663 total relationships, 24 label types, persistent on `/dev/nvme1n1`
+- ChromaDB: 5 collections (was 4), 60,395 total documents (new: `community-summaries` with 63 docs)
+- `search_architecture` tool now functional (was broken due to missing `community-summaries` collection)
+- All 42 MCP tools verified HEALTHY
+- Commit: `3dc276d`
+
 ## [7.12.0] - Phase 24I: Python Workflow Tooling Graph Enhancement (February 10, 2026)
 
 ### Added
