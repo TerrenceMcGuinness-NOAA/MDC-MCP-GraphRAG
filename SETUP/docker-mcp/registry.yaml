@@ -1,9 +1,5 @@
-# Docker MCP Registry - EIB MCP RAG Server
+# Docker MCP Registry - EIB server enabled
 # Canonical location: SETUP/docker-mcp/registry.yaml (persistent drive)
-# Symlinked to: ~/.docker/mcp/registry.yaml
-#
-# This file tracks which MCP servers are enabled in the local docker-mcp system.
-# The gateway reads this to know which servers to auto-connect.
 registry:
   eib-mcp-rag:
     ref: ""

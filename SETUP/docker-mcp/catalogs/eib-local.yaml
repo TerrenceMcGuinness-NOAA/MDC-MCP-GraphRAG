@@ -1,14 +1,12 @@
 # EIB MCP RAG Server Catalog - v3 format (SPOT - Single Point of Truth)
 # Canonical location: SETUP/docker-mcp/catalogs/eib-local.yaml (persistent drive)
-# Symlinked to: ~/.docker/mcp/catalogs/eib-local.yaml
 # Created by: SETUP/provisioning/11-docker-mcp-gateway.sh
 # Used by: docker mcp gateway run --catalog <this-file>
 # Transport: streaming (Streamable HTTP - MCP spec 2025-06-18)
 #
-# IMPORTANT: Do NOT edit the symlinked copy in ~/.docker/mcp/.
-# Edit this file and re-run provisioning or restart the gateway.
-# The 'docker mcp catalog create' command OVERWRITES this file —
-# the provisioning script must write this AFTER any 'docker mcp catalog' calls.
+# IMPORTANT: The 'docker mcp catalog create' command OVERWRITES files in
+# ~/.docker/mcp/. This file on the persistent drive is the canonical copy.
+# The gateway --catalog flag accepts absolute paths, bypassing ~/.docker/mcp/.
 
 version: 3
 name: eib-local
