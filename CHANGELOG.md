@@ -1,5 +1,17 @@
 # MCP Server Changelog
 
+## [7.14.1] - SDD Persistence Fix for Docker MCP Gateway (February 18, 2026)
+
+### Fixed
+- **SDD session state now writable in gateway mode** — `sdd_framework` volume mount changed from `:ro` to `:rw` so `start_sdd_session`, `record_sdd_step`, and `complete_sdd_session` can persist state to `execution_state/` when running through the Docker MCP Gateway.
+- **Removed non-functional overlapping mount** — The catalog had an `execution_state:rw` mount overlaying the `sdd_framework:ro` parent, but `docker-mcp gateway` silently dropped the child mount. Replaced with a single `:rw` mount on the parent.
+- **Added `SDD_FRAMEWORK_ROOT` env var** to systemd service (was in template but missing from deployed unit).
+
+### Changed
+- `SETUP/docker-mcp/catalogs/eib-local.yaml` — Single `sdd_framework:rw` volume (was `:ro` + failed `:rw` overlay)
+- `SETUP/systemd/mcp-rag.service` — `:ro` → `:rw`, added `SDD_FRAMEWORK_ROOT` env var
+- `SETUP/systemd/mcp-rag.service.template` — `:ro` → `:rw` (provisioning template)
+
 ## [7.14.0] - Phase 31: SDD Execution Model Refactor (February 18, 2026)
 
 ### Context

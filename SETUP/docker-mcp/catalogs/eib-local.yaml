@@ -41,7 +41,7 @@ registry:
         value: "true"
     volumes:
       - "/mcp_rag_eib/eib-mcp-rag-server/supported_repos:/app/supported_repos:ro"
-      - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:ro"
+      - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:rw"
     metadata:
       category: devops
       tags:
