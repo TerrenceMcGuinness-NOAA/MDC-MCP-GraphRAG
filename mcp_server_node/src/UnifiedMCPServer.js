@@ -36,6 +36,7 @@ import { CodeAnalysisTools } from './tools/CodeAnalysisTools.js';
 import { OperationalTools } from './tools/OperationalTools.js';
 import { GitHubTools } from './tools/GitHubTools.js';
 import { SDDWorkflowTools } from './tools/SDDWorkflowTools.js';
+import { SessionManager } from './sdd/SessionManager.js';
 import { GraphRAGTools } from './tools/GraphRAGTools.js';
 import { UnifiedDataAccess } from './data/UnifiedDataAccess.js';
 import { logEnvironment, MCP_ENV } from './config/environment.js';
@@ -83,10 +84,12 @@ class UnifiedMCPServer {
       this.githubTools = new GitHubTools(this.options.githubToken);
     }
 
-    // Initialize SDD Workflow Tools (Phase 3C: Connected to runtime)
+    // Initialize SDD Workflow Tools (Phase 31: Session-oriented execution model)
+    this.sessionManager = new SessionManager();
     this.sddWorkflowTools = new SDDWorkflowTools(
-      this.dataAccess,  // Connected to unified data access layer
-      null              // healthMonitor (uses dataAccess.healthCheck internally)
+      this.dataAccess,      // Connected to unified data access layer
+      null,                 // healthMonitor (uses dataAccess.healthCheck internally)
+      this.sessionManager   // Phase 31: Session tracking
     );
 
     // Initialize GraphRAG Tools (Phase 24H: Agentic tool surface)
@@ -149,7 +152,7 @@ class UnifiedMCPServer {
       }
     }
 
-    // Register SDD Workflow tools (6 tools) - Phase 3A
+    // Register SDD Workflow tools (9 tools) - Phase 31: Session model
     try {
       this.sddWorkflowTools.registerTools(this.server);
       console.error('[MCP] SDD Workflow tools registered');
@@ -273,11 +276,14 @@ class UnifiedMCPServer {
       info += `- analyze_repository_structure - Multi-repo structure analysis\n\n`;
     }
 
-    info += `### SDD Workflow Tools (6 tools - Phase 3A)\n`;
+    info += `### SDD Workflow Tools (9 tools - Phase 31 Session Model)\n`;
     info += `- list_sdd_workflows - List available workflows\n`;
     info += `- get_sdd_workflow - Get workflow details\n`;
-    info += `- execute_sdd_workflow - Execute workflow with parameters\n`;
-    info += `- get_sdd_execution_history - View execution history\n`;
+    info += `- start_sdd_session - Start a session for a phase\n`;
+    info += `- record_sdd_step - Record step completion\n`;
+    info += `- get_sdd_session - Get active session state\n`;
+    info += `- complete_sdd_session - Complete or abandon session\n`;
+    info += `- get_sdd_execution_history - View session history (JSONL)\n`;
     info += `- validate_sdd_compliance - SDD compliance validation\n`;
     info += `- get_sdd_framework_status - Framework status and metrics\n\n`;
 
@@ -439,6 +445,24 @@ class UnifiedMCPServer {
         component: 'GitHub Tools',
         status: 'disabled', 
         details: 'GitHub integration disabled'
+      });
+    }
+
+    // SDD Session tracking check (Phase 31)
+    try {
+      const activeSession = this.sessionManager.getSessionState();
+      checks.push({
+        component: 'SDD Session Tracking',
+        status: 'healthy',
+        details: activeSession 
+          ? `Active: ${activeSession.phase} (${activeSession.completedSteps.length}/${activeSession.totalSteps || '?'} steps)` 
+          : '9 session tools ready, no active session'
+      });
+    } catch (error) {
+      checks.push({
+        component: 'SDD Session Tracking',
+        status: 'degraded',
+        details: `Error: ${error.message}`
       });
     }
 

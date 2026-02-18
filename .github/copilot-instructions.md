@@ -108,18 +108,18 @@ BaseServer (src/core/) → MCP SDK → stdio transport → AI client
 | OperationalTools | `get_operational_guidance`, `list_job_scripts`, `explain_workflow_component` | ChromaDB |
 | GraphRAGTools | `get_code_context`, `search_architecture`, `find_similar_code`, `get_change_impact`, `trace_data_flow` | ChromaDB + Neo4j |
 | GitHubTools | `search_issues`, `get_pull_requests`, `analyze_repository_structure` | GitHub API |
-| SDDWorkflowTools | `list_sdd_workflows`, `get_sdd_workflow`, `execute_sdd_workflow_supervised` | Filesystem |
+| SDDWorkflowTools | `list_sdd_workflows`, `get_sdd_workflow`, `start_sdd_session`, `record_sdd_step`, `get_sdd_session`, `complete_sdd_session` | Filesystem |
 
 ### SDD Methodology (REQUIRED for new features)
 
 **SDD = Spec-Driven Development**: "If it's not in the SDD, it doesn't get coded."
 
 1. **Plan** → Create spec in `sdd_framework/workflows/phaseX_feature_name.md`
-2. **Execute** → ISD (human approves each step) or USD (autonomous within approved scope)
+2. **Execute** → Start a session (`start_sdd_session`), record steps as you work (`record_sdd_step`), complete when done (`complete_sdd_session`)
 
-Execution mode hierarchy: `dry_run` → `ISD` → `USD` → `batch`
+Session model: `start_sdd_session` → `record_sdd_step` (repeat) → `complete_sdd_session`. State persists in `sdd_framework/execution_state/`.
 
-Phase naming: `phase<N><letter>_<descriptor>.md` (e.g., `phase24e_hierarchical_communities.md`). Currently 28+ phases with sub-phases.
+Phase naming: `phase<N><letter>_<descriptor>.md` (e.g., `phase24e_hierarchical_communities.md`). Currently 31+ phases with sub-phases.
 
 See `sdd_framework/methodology/spec_driven_design_core.md` for the full protocol.
 

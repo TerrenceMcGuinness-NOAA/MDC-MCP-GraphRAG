@@ -1,4 +1,8 @@
 /**
+ * DORMANT — Reserved for CLI/YOLO execution modality (Phase 4C USD)
+ * Not imported by SDDWorkflowTools in IDE mode (Phase 31 session model).
+ * Will be re-imported when Claude CLI / GitHub CLI autonomous execution is built.
+ *
  * CLIApprovalProvider - Approval via terminal readline prompts
  * 
  * For Claude Code, SSH sessions, and terminal-based workflows:

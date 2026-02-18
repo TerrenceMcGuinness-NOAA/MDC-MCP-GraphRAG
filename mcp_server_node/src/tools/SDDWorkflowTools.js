@@ -1,27 +1,29 @@
 /**
  * SDD Workflow Tools
- * MCP tools for executing and managing SDD framework workflows
+ * MCP tools for session-oriented SDD workflow tracking
  * 
- * Version: 3.0.0 - Phase 4B: Interactive Supervised Development (ISD)
- * Date: January 2, 2026
+ * Version: 4.0.0 - Phase 31: Session-Oriented Execution Model
+ * Date: February 18, 2026
+ * 
+ * Replaces the Phase 4B approval-centric tools (execute_sdd_workflow,
+ * execute_sdd_workflow_supervised, manage_sdd_execution_state) with
+ * session tracking tools (start_sdd_session, record_sdd_step,
+ * get_sdd_session, complete_sdd_session).
+ * 
+ * The ISD approval infrastructure is preserved in src/sdd/approval/
+ * for future CLI/YOLO modality (Phase 4C USD).
  */
 
 import { WorkflowExecutor } from '../sdd/WorkflowExecutor.js';
-import { 
-  MCPApprovalProvider 
-} from '../sdd/approval/MCPApprovalProvider.js';
-import { 
-  ExecutionMode,
-  ApprovalResult 
-} from '../sdd/approval/ApprovalProvider.js';
-import { getDefaultStore } from '../sdd/approval/ExecutionStateStore.js';
+import { SessionManager } from '../sdd/SessionManager.js';
 import { ContentResolver } from '../utils/ContentResolver.js';
 
 export class SDDWorkflowTools {
-  constructor(dataAccess, healthMonitor = null) {
+  constructor(dataAccess, healthMonitor = null, sessionManager = null) {
     this.dataAccess = dataAccess;
     this.healthMonitor = healthMonitor;
     this.executor = new WorkflowExecutor(dataAccess, healthMonitor);
+    this.sessionManager = sessionManager || new SessionManager();
   }
 
   /**
@@ -62,31 +64,29 @@ export class SDDWorkflowTools {
       this.getWorkflow.bind(this)
     );
 
-    // Tool 3: Execute workflow
+    // Tool 3: Start SDD session (Phase 31: replaces execute_sdd_workflow)
     server.registerTool(
-      'execute_sdd_workflow',
-      'Execute an SDD framework workflow with parameters',
+      'start_sdd_session',
+      'Start a new SDD session for a phase. Activates tracking for step completions.',
       {
         type: 'object',
         properties: {
-          workflow_name: {
+          phase: {
             type: 'string',
-            description: 'Name of the workflow to execute'
+            description: 'Phase name (e.g., "phase31_sdd_execution_model_refactor")'
           },
-          params: {
-            type: 'object',
-            description: 'Parameters for workflow execution',
-            default: {}
+          notes: {
+            type: 'string',
+            description: 'Optional session notes'
           },
-          dry_run: {
-            type: 'boolean',
-            description: 'Parse and validate without execution',
-            default: false
+          total_steps: {
+            type: 'number',
+            description: 'Override total step count (auto-detected from spec if omitted)'
           }
         },
-        required: ['workflow_name']
+        required: ['phase']
       },
-      this.executeWorkflow.bind(this)
+      this.startSession.bind(this)
     );
 
     // Tool 4: Get execution history
@@ -158,73 +158,77 @@ export class SDDWorkflowTools {
       this.getFrameworkStatus.bind(this)
     );
 
-    // Tool 7: Execute workflow with supervision (Phase 4B)
+    // Tool 7: Record SDD step (Phase 31: replaces execute_sdd_workflow_supervised)
     server.registerTool(
-      'execute_sdd_workflow_supervised',
-      'Execute SDD workflow with human approval gates before side-effect steps. Supports dry-run preview and multi-turn approval flow.',
+      'record_sdd_step',
+      'Record completion of a step in the active SDD session.',
       {
         type: 'object',
         properties: {
-          workflow_name: {
+          step: {
+            type: 'number',
+            description: 'Step number'
+          },
+          name: {
             type: 'string',
-            description: 'Name of workflow to execute'
+            description: 'Step name/description'
           },
-          mode: {
+          tag: {
             type: 'string',
-            enum: ['dry_run', 'supervised', 'auto_approved'],
-            description: 'Execution mode: dry_run (preview only), supervised (approve each step), auto_approved (use auto-approve list)',
-            default: 'dry_run'
+            enum: ['research', 'design', 'implement', 'configure', 'validate', 'document', 'ingest'],
+            description: 'Semantic step tag',
+            default: 'implement'
           },
-          auto_approve: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Step types to auto-approve (e.g., ["health_check", "validation", "data_query"])'
-          },
-          pending_approval: {
+          notes: {
             type: 'string',
-            enum: ['approved', 'skipped', 'quit', 'approve_all'],
-            description: 'Response to pending approval request'
-          },
-          execution_id: {
-            type: 'string',
-            description: 'Resume execution with this ID (for multi-turn approval)'
-          },
-          params: {
-            type: 'object',
-            description: 'Parameters for workflow execution',
-            default: {}
+            description: 'Completion notes'
           }
         },
-        required: ['workflow_name']
+        required: ['step', 'name']
       },
-      this.executeWorkflowSupervised.bind(this)
+      this.recordStep.bind(this)
     );
 
-    // Tool 8: Manage execution states (Phase 4B)
+    // Tool 8: Get SDD session (Phase 31: replaces manage_sdd_execution_state)
     server.registerTool(
-      'manage_sdd_execution_state',
-      'List, inspect, or cleanup pending workflow execution states. Use for debugging multi-turn workflows or cleaning up stale states.',
+      'get_sdd_session',
+      'Get the current active SDD session state. Returns null if no session is active. Use to resume work across conversations.',
       {
         type: 'object',
         properties: {
-          action: {
-            type: 'string',
-            enum: ['list', 'inspect', 'delete', 'cleanup', 'stats'],
-            description: 'Action to perform: list (show pending), inspect (details), delete (remove), cleanup (remove expired), stats (store statistics)',
-            default: 'list'
-          },
-          execution_id: {
-            type: 'string',
-            description: 'Execution ID for inspect/delete actions'
-          },
-          include_expired: {
+          resume: {
             type: 'boolean',
-            description: 'Include expired states in list',
+            description: 'If true, marks the session as resumed (updates lastActivityAt)',
             default: false
           }
         }
       },
-      this.manageExecutionState.bind(this)
+      this.getSession.bind(this)
+    );
+
+    // Tool 9: Complete SDD session (Phase 31: new)
+    server.registerTool(
+      'complete_sdd_session',
+      'Complete the active SDD session. Archives state and records completion in history.',
+      {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'string',
+            description: 'Completion summary'
+          },
+          abandon: {
+            type: 'boolean',
+            description: 'If true, abandons the session instead of completing it',
+            default: false
+          },
+          reason: {
+            type: 'string',
+            description: 'Reason for abandoning (only used with abandon=true)'
+          }
+        }
+      },
+      this.completeSession.bind(this)
     );
   }
 
@@ -328,53 +332,32 @@ export class SDDWorkflowTools {
   }
 
   /**
-   * Execute workflow
+   * Start a new SDD session (Phase 31)
    */
-  async executeWorkflow(args) {
-    const { workflow_name, params = {}, dry_run = false } = args;
+  async startSession(args) {
+    const { phase, notes, total_steps } = args;
 
     try {
-      if (dry_run) {
-        // Parse and validate only
-        const workflow = await this.executor.parseWorkflow(workflow_name);
-        
-        let output = `# Dry Run: ${workflow.title}\n\n`;
-        output += `**Status**: Validation successful\n`;
-        output += `**Phases**: ${workflow.phases.length}\n`;
-        output += `**Steps**: ${workflow.steps.length}\n`;
-        output += `**Parameters**: ${JSON.stringify(params, null, 2)}\n\n`;
-        output += `## Execution Plan\n\n`;
-        
-        for (const step of workflow.steps) {
-          output += `${step.number}. [${step.type}] ${step.name}\n`;
-        }
+      const options = {};
+      if (notes) options.notes = notes;
+      if (total_steps) options.totalSteps = total_steps;
 
-        return { content: [{ type: 'text', text: output }] };
+      const session = this.sessionManager.startSession(phase, options);
+
+      let output = `# SDD Session Started\n\n`;
+      output += `**Session ID**: ${session.sessionId}\n`;
+      output += `**Phase**: ${session.phase}\n`;
+      output += `**Started**: ${session.startedAt}\n`;
+      output += `**Total Steps**: ${session.totalSteps || 'unknown'}\n`;
+
+      if (session.notes) {
+        output += `**Notes**: ${session.notes}\n`;
       }
 
-      // Execute workflow
-      console.log(`[WORKFLOW] Executing: ${workflow_name}`);
-      const result = await this.executor.executeWorkflow(workflow_name, params);
-      
-      let output = `# Workflow Execution Complete\n\n`;
-      output += `**Workflow**: ${workflow_name}\n`;
-      output += `**Execution ID**: ${result.executionId}\n`;
-      output += `**Status**: ${result.status}\n`;
-      output += `**Duration**: ${result.duration}ms\n`;
-      output += `**Steps Executed**: ${result.steps.length}\n\n`;
-
-      output += `## Step Results\n\n`;
-      for (const step of result.steps) {
-        output += `### ${step.name}\n`;
-        output += `- **Status**: ${step.status}\n`;
-        output += `- **Duration**: ${step.duration}ms\n`;
-        
-        if (step.error) {
-          output += `- **Error**: ${step.error}\n`;
-        }
-        
-        output += '\n';
-      }
+      output += `\n## Next Steps\n\n`;
+      output += `- Use \`record_sdd_step\` to mark steps complete as you work\n`;
+      output += `- Use \`get_sdd_session\` to check current progress\n`;
+      output += `- Use \`complete_sdd_session\` when finished\n`;
 
       return { content: [{ type: 'text', text: output }] };
 
@@ -382,44 +365,70 @@ export class SDDWorkflowTools {
       return {
         content: [{
           type: 'text',
-          text: `[ERROR] Workflow execution failed: ${error.message}`
+          text: `[ERROR] Failed to start session: ${error.message}`
         }]
       };
     }
   }
 
   /**
-   * Get execution history
+   * Get execution history from JSONL log (Phase 31: rewritten)
    */
   async getExecutionHistory(args = {}) {
     const { limit = 10, workflow_name } = args;
 
     try {
-      let history = this.executor.getExecutionHistory(limit);
-      
-      if (workflow_name) {
-        history = history.filter(h => h.workflow === workflow_name);
-      }
+      const history = this.sessionManager.getHistory({
+        phase: workflow_name,
+        limit
+      });
 
-      let output = '# SDD Workflow Execution History\n\n';
-      output += `Showing ${history.length} recent executions\n\n`;
-
-      for (const execution of history) {
-        output += `## ${execution.workflow}\n`;
-        output += `- **Execution ID**: ${execution.executionId}\n`;
-        output += `- **Status**: ${execution.status}\n`;
-        output += `- **Duration**: ${execution.duration}ms\n`;
-        output += `- **Timestamp**: ${new Date(execution.startTime).toISOString()}\n`;
-        
-        if (execution.error) {
-          output += `- **Error**: ${execution.error}\n`;
-        }
-        
-        output += '\n';
-      }
+      let output = '# SDD Session History\n\n';
 
       if (history.length === 0) {
-        output += '*No execution history found*\n';
+        output += '*No session history found.*\n';
+        return { content: [{ type: 'text', text: output }] };
+      }
+
+      output += `Showing ${history.length} recent events\n\n`;
+
+      // Group by session
+      const sessions = {};
+      for (const entry of history) {
+        if (!sessions[entry.sessionId]) {
+          sessions[entry.sessionId] = [];
+        }
+        sessions[entry.sessionId].push(entry);
+      }
+
+      for (const [sessionId, events] of Object.entries(sessions)) {
+        const started = events.find(e => e.event === 'started');
+        const completed = events.find(e => e.event === 'completed');
+        const abandoned = events.find(e => e.event === 'abandoned');
+        const steps = events.filter(e => e.event === 'step_completed');
+
+        const status = completed ? 'completed' : abandoned ? 'abandoned' : 'in_progress';
+        const statusIcon = status === 'completed' ? '[OK]' :
+                          status === 'abandoned' ? '[!!]' : '[..]';
+
+        output += `## ${statusIcon} ${started?.phase || 'unknown'}\n`;
+        output += `- **Session**: ${sessionId}\n`;
+        output += `- **Status**: ${status}\n`;
+        output += `- **Started**: ${started?.timestamp || 'unknown'}\n`;
+
+        if (completed) {
+          output += `- **Completed**: ${completed.timestamp}\n`;
+          output += `- **Duration**: ${completed.duration || 'unknown'}\n`;
+          if (completed.summary) {
+            output += `- **Summary**: ${completed.summary}\n`;
+          }
+        }
+
+        if (steps.length > 0) {
+          output += `- **Steps Completed**: ${steps.length}\n`;
+        }
+
+        output += '\n';
       }
 
       return { content: [{ type: 'text', text: output }] };
@@ -578,49 +587,60 @@ export class SDDWorkflowTools {
   }
 
   /**
-   * Get SDD framework status
+   * Get SDD framework status (Phase 31: session model)
    */
   async getFrameworkStatus(args = {}) {
     const { detailed = false } = args;
 
     try {
       const workflows = await this.executor.listWorkflows();
-      const history = this.executor.getExecutionHistory(100);
+      const activeSession = this.sessionManager.getSessionState();
+      const summaries = this.sessionManager.getSessionSummaries();
       
       let output = '# SDD Framework Status\n\n';
-      output += `**Version**: 5.0 Phase 4B\n`;
+      output += `**Version**: 6.0 Phase 31\n`;
       output += `**Status**: Operational\n`;
-      output += `**Integration Level**: Phase 4B (Interactive Supervised Execution)\n\n`;
+      output += `**Execution Model**: Session-Oriented Tracking\n\n`;
 
       output += `## Components\n\n`;
       output += `- **Available Workflows**: ${workflows.length}\n`;
-      output += `- **Total Executions**: ${history.length}\n`;
-      output += `- **Successful**: ${history.filter(h => h.status === 'success' || h.status === 'completed').length}\n`;
-      output += `- **Failed**: ${history.filter(h => h.status === 'failed').length}\n`;
-      output += `- **Awaiting Approval**: ${history.filter(h => h.status === 'awaiting_approval').length}\n\n`;
+      output += `- **Total Sessions**: ${summaries.length}\n`;
+      output += `- **Completed**: ${summaries.filter(s => s.status === 'completed').length}\n`;
+      output += `- **Abandoned**: ${summaries.filter(s => s.status === 'abandoned').length}\n\n`;
+
+      if (activeSession) {
+        output += `## Active Session\n\n`;
+        output += `- **Session ID**: ${activeSession.sessionId}\n`;
+        output += `- **Phase**: ${activeSession.phase}\n`;
+        output += `- **Progress**: ${activeSession.completedSteps.length}/${activeSession.totalSteps || '?'} steps\n`;
+        output += `- **Started**: ${activeSession.startedAt}\n`;
+        output += `- **Last Activity**: ${activeSession.lastActivityAt}\n\n`;
+      } else {
+        output += `## Active Session\n\n*No active session*\n\n`;
+      }
 
       if (detailed) {
-        output += `## Framework Capabilities\n\n`;
-        output += `- [OK] Workflow parsing and execution\n`;
-        output += `- [OK] Health monitoring integration\n`;
-        output += `- [OK] Execution history tracking\n`;
-        output += `- [OK] Supervised execution with approval gates (Phase 4B)\n`;
-        output += `- [OK] Dry-run preview mode\n`;
-        output += `- [OK] Multi-turn MCP approval flow\n`;
-        output += `- [..] Bootstrap capability (ON HOLD - safety review)\n\n`;
+        output += `## Session Tools\n\n`;
+        output += `- [OK] \`start_sdd_session\` — Activate a phase for tracking\n`;
+        output += `- [OK] \`record_sdd_step\` — Record step completion\n`;
+        output += `- [OK] \`get_sdd_session\` — Check current session state\n`;
+        output += `- [OK] \`complete_sdd_session\` — Finalize session\n`;
+        output += `- [OK] \`get_sdd_execution_history\` — Query JSONL history\n\n`;
 
-        output += `## Execution Modes\n\n`;
-        output += `- **dry_run**: Preview only, no side effects\n`;
-        output += `- **supervised**: Human approves each side-effect step\n`;
-        output += `- **auto_approved**: Pre-approved step types execute automatically\n`;
-        output += `- **autonomous**: DISABLED for safety-critical systems\n\n`;
+        output += `## Preserved Infrastructure\n\n`;
+        output += `- [..] ISD approval (dormant — reserved for Phase 4C USD CLI/YOLO)\n`;
+        output += `- [..] WorkflowExecutor (available for spec parsing)\n`;
+        output += `- [OK] SpecificationParser (active)\n`;
+        output += `- [OK] SelfModificationEngine (available)\n\n`;
 
-        output += `## Recent Activity\n\n`;
-        const recent = history.slice(-5);
-        for (const exec of recent) {
-          const status = exec.status === 'success' || exec.status === 'completed' ? '[OK]' : 
-                        exec.status === 'awaiting_approval' ? '[..]' : '[!!]';
-          output += `- ${status} ${exec.workflow} (${exec.duration || 0}ms) - ${exec.status}\n`;
+        if (summaries.length > 0) {
+          output += `## Recent Sessions\n\n`;
+          const recent = summaries.slice(-5);
+          for (const s of recent) {
+            const status = s.status === 'completed' ? '[OK]' : 
+                          s.status === 'abandoned' ? '[!!]' : '[..]';
+            output += `- ${status} ${s.phase} — ${s.stepsCompleted} steps (${s.status})\n`;
+          }
         }
       }
 
@@ -637,309 +657,31 @@ export class SDDWorkflowTools {
   }
 
   /**
-   * Execute workflow with supervision (Phase 4B)
-   * Supports dry-run, supervised approval, and multi-turn approval flow
+   * Record a step completion (Phase 31)
    */
-  async executeWorkflowSupervised(args) {
-    const { 
-      workflow_name, 
-      mode = 'dry_run',
-      auto_approve = [],
-      pending_approval,
-      execution_id,
-      params = {}
-    } = args;
+  async recordStep(args) {
+    const { step, name, tag = 'implement', notes = '' } = args;
 
     try {
-      // Check for resuming a pending execution
-      if (execution_id && pending_approval) {
-        return await this.resumeExecution(execution_id, pending_approval);
+      const session = this.sessionManager.recordStep(step, name, tag, notes);
+
+      let output = `# Step ${step} Recorded\n\n`;
+      output += `**Step**: ${step} — ${name}\n`;
+      output += `**Tag**: ${tag}\n`;
+      if (notes) {
+        output += `**Notes**: ${notes}\n`;
       }
+      output += `\n## Session Progress\n\n`;
+      output += `- **Phase**: ${session.phase}\n`;
+      output += `- **Completed**: ${session.completedSteps.length}/${session.totalSteps || '?'} steps\n`;
+      output += `- **Skipped**: ${session.skippedSteps.length}\n\n`;
 
-      // Create approval provider based on mode
-      const executionMode = mode === 'dry_run' ? ExecutionMode.DRY_RUN :
-                           mode === 'supervised' ? ExecutionMode.SUPERVISED :
-                           mode === 'auto_approved' ? ExecutionMode.AUTO_APPROVED :
-                           ExecutionMode.DRY_RUN; // Safe default
-
-      const approvalProvider = new MCPApprovalProvider({
-        mode: executionMode,
-        autoApproveTypes: auto_approve
-      });
-
-      // Create executor with approval provider
-      const executor = new WorkflowExecutor(this.dataAccess, this.healthMonitor);
-      executor.setApprovalProvider(approvalProvider);
-      executor.setExecutionMode(executionMode);
-
-      // Execute workflow
-      const result = await executor.executeWorkflow(workflow_name, params);
-
-      // Save state if awaiting approval (for multi-turn)
-      if (result.status === 'awaiting_approval' && result._resumeState) {
-        MCPApprovalProvider.saveExecutionState(result.executionId, result._resumeState);
-      }
-
-      // Format output based on result status
-      return this.formatSupervisedResult(result, mode);
-
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `[ERROR] Supervised workflow execution failed: ${error.message}`
-        }]
-      };
-    }
-  }
-
-  /**
-   * Resume a pending execution with user's approval decision
-   */
-  async resumeExecution(executionId, pendingApproval) {
-    try {
-      // Load saved execution state
-      const state = MCPApprovalProvider.loadExecutionState(executionId);
-      
-      if (!state) {
-        return {
-          content: [{
-            type: 'text',
-            text: `[ERROR] Execution ${executionId} not found or expired. Start a new execution.`
-          }]
-        };
-      }
-
-      // Create approval provider with pending decision
-      const approvalProvider = new MCPApprovalProvider({
-        mode: ExecutionMode.SUPERVISED,
-        executionId,
-        pendingApproval
-      });
-
-      // Create executor and resume
-      const executor = new WorkflowExecutor(this.dataAccess, this.healthMonitor);
-      executor.setApprovalProvider(approvalProvider);
-      executor.setExecutionMode(ExecutionMode.SUPERVISED);
-
-      // Resume execution from saved state
-      const result = await executor.executeWorkflow(
-        state.workflowName, 
-        state.results.params || {},
-        state
-      );
-
-      // Clear state if completed
-      if (result.status !== 'awaiting_approval') {
-        MCPApprovalProvider.clearExecutionState(executionId);
-      } else if (result._resumeState) {
-        // Save updated state for next turn
-        MCPApprovalProvider.saveExecutionState(executionId, result._resumeState);
-      }
-
-      return this.formatSupervisedResult(result, 'supervised');
-
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text',
-          text: `[ERROR] Failed to resume execution: ${error.message}`
-        }]
-      };
-    }
-  }
-
-  /**
-   * Format supervised execution result for MCP response
-   */
-  formatSupervisedResult(result, mode) {
-    let output = `# Workflow Execution: ${result.workflow}\n\n`;
-    output += `**Execution ID**: ${result.executionId}\n`;
-    output += `**Mode**: ${mode}\n`;
-    output += `**Status**: ${result.status}\n`;
-    
-    if (result.duration) {
-      output += `**Duration**: ${result.duration}ms\n`;
-    }
-    output += '\n';
-
-    // Completed steps
-    if (result.steps && result.steps.length > 0) {
-      output += `## Completed Steps (${result.steps.length})\n\n`;
-      for (const step of result.steps) {
-        const icon = step.status === 'success' || step.status === 'dry_run' ? '[OK]' :
-                     step.status === 'skipped' ? '[--]' : '[!!]';
-        output += `${icon} **${step.name}**\n`;
-        output += `   - Type: ${step.type || 'unknown'}\n`;
-        output += `   - Status: ${step.status}\n`;
-        
-        if (step.message) {
-          output += `   - ${step.message}\n`;
+      // Show completed steps
+      if (session.completedSteps.length > 0) {
+        output += `### Completed Steps\n\n`;
+        for (const s of session.completedSteps) {
+          output += `- [OK] Step ${s.step}: ${s.name} (${s.tag})\n`;
         }
-        if (step.error) {
-          output += `   - Error: ${step.error}\n`;
-        }
-        output += '\n';
-      }
-    }
-
-    // Pending approval
-    if (result.status === 'awaiting_approval' && result.pendingStep) {
-      output += `## Awaiting Approval\n\n`;
-      output += result.approvalMessage || '';
-      output += '\n\n';
-      output += `**To continue**, call this tool again with:\n`;
-      output += `- \`execution_id\`: "${result.executionId}"\n`;
-      output += `- \`pending_approval\`: "approved" | "skipped" | "quit" | "approve_all"\n`;
-    }
-
-    // Aborted
-    if (result.status === 'aborted') {
-      output += `## Workflow Aborted\n\n`;
-      output += `Aborted at step: ${result.abortedAt}\n`;
-    }
-
-    // Completed summary for dry-run
-    if (mode === 'dry_run' && result.status === 'completed') {
-      output += `## Dry-Run Summary\n\n`;
-      const sideEffectSteps = result.steps.filter(s => s.hasSideEffects);
-      const readOnlySteps = result.steps.filter(s => !s.hasSideEffects);
-      
-      output += `- **Read-only steps**: ${readOnlySteps.length} (would auto-execute)\n`;
-      output += `- **Side-effect steps**: ${sideEffectSteps.length} (would require approval)\n\n`;
-      
-      if (sideEffectSteps.length > 0) {
-        output += `### Steps Requiring Approval\n\n`;
-        for (const step of sideEffectSteps) {
-          output += `- **${step.name}** (${step.type})\n`;
-          if (step.preview?.target) {
-            output += `  - Target: ${step.preview.target}\n`;
-          }
-          if (step.preview?.command) {
-            output += `  - Command: ${step.preview.command}\n`;
-          }
-        }
-      }
-      
-      output += `\n**To execute with supervision**, run again with \`mode: "supervised"\`\n`;
-    }
-
-    return { content: [{ type: 'text', text: output }] };
-  }
-
-  /**
-   * Manage execution states (Phase 4B)
-   * List, inspect, delete, cleanup, or get stats on persistent execution states
-   */
-  async manageExecutionState(args = {}) {
-    const { action = 'list', execution_id, include_expired = false } = args;
-    const store = getDefaultStore();
-
-    try {
-      let output = '# Execution State Management\n\n';
-
-      switch (action) {
-        case 'list': {
-          const states = store.list(include_expired);
-          output += `## Pending Executions${include_expired ? ' (including expired)' : ''}\n\n`;
-          
-          if (states.length === 0) {
-            output += '*No pending executions found.*\n';
-          } else {
-            output += `Found ${states.length} execution(s):\n\n`;
-            for (const state of states) {
-              const statusIcon = state.status === 'expired' ? '[EXPIRED]' : '[PENDING]';
-              output += `### ${statusIcon} ${state.executionId}\n`;
-              output += `- **Workflow**: ${state.workflowName}\n`;
-              output += `- **Progress**: Step ${state.currentStep + 1} of ${state.totalSteps}\n`;
-              output += `- **Saved**: ${state.savedAt}\n`;
-              output += `- **Expires**: ${state.expiresAt}\n`;
-              if (state.status === 'pending') {
-                output += `- **TTL Remaining**: ${state.ttlRemaining}s\n`;
-              }
-              output += '\n';
-            }
-          }
-          break;
-        }
-
-        case 'inspect': {
-          if (!execution_id) {
-            output += `[ERROR] execution_id required for inspect action\n`;
-            break;
-          }
-          
-          const state = store.load(execution_id);
-          if (!state) {
-            output += `[ERROR] Execution not found or expired: ${execution_id}\n`;
-            break;
-          }
-          
-          output += `## Execution Details: ${execution_id}\n\n`;
-          output += `**Workflow**: ${state.workflowName}\n`;
-          output += `**Current Step**: ${state.currentStepIndex + 1} of ${state.totalSteps}\n`;
-          output += `**Started**: ${new Date(state.startTime).toISOString()}\n`;
-          output += `**Saved**: ${new Date(state.savedAt).toISOString()}\n`;
-          output += `**Expires**: ${new Date(state.expiresAt).toISOString()}\n\n`;
-          
-          if (state.results?.steps) {
-            output += `### Completed Steps\n\n`;
-            for (const step of state.results.steps) {
-              const icon = step.status === 'success' ? '[OK]' : 
-                          step.status === 'skipped' ? '[--]' : '[!!]';
-              output += `${icon} ${step.name} (${step.status})\n`;
-            }
-          }
-          
-          if (state.results?.pendingStep) {
-            output += `\n### Pending Step\n\n`;
-            output += `**Name**: ${state.results.pendingStep.name}\n`;
-            output += `**Type**: ${state.results.pendingStep.type}\n`;
-          }
-          break;
-        }
-
-        case 'delete': {
-          if (!execution_id) {
-            output += `[ERROR] execution_id required for delete action\n`;
-            break;
-          }
-          
-          const success = store.delete(execution_id);
-          if (success) {
-            output += `[OK] Deleted execution state: ${execution_id}\n`;
-          } else {
-            output += `[WARN] Could not delete (may not exist): ${execution_id}\n`;
-          }
-          break;
-        }
-
-        case 'cleanup': {
-          const result = store.cleanup();
-          output += `## Cleanup Complete\n\n`;
-          output += `- **Expired removed**: ${result.expiredRemoved}\n`;
-          output += `- **Overflow removed**: ${result.overflowRemoved}\n`;
-          output += `- **Remaining states**: ${result.remaining}\n`;
-          output += `- **Timestamp**: ${result.timestamp}\n`;
-          break;
-        }
-
-        case 'stats': {
-          const stats = store.getStats();
-          output += `## Store Statistics\n\n`;
-          output += `- **State Directory**: ${stats.stateDir}\n`;
-          output += `- **TTL**: ${stats.ttlMs / 1000}s\n`;
-          output += `- **Max States**: ${stats.maxStates}\n`;
-          output += `- **Total States**: ${stats.totalStates}\n`;
-          output += `- **Pending**: ${stats.pendingStates}\n`;
-          output += `- **Expired**: ${stats.expiredStates}\n`;
-          output += `- **Timestamp**: ${stats.timestamp}\n`;
-          break;
-        }
-
-        default:
-          output += `[ERROR] Unknown action: ${action}\n`;
-          output += `Valid actions: list, inspect, delete, cleanup, stats\n`;
       }
 
       return { content: [{ type: 'text', text: output }] };
@@ -948,7 +690,127 @@ export class SDDWorkflowTools {
       return {
         content: [{
           type: 'text',
-          text: `[ERROR] Failed to manage execution state: ${error.message}`
+          text: `[ERROR] Failed to record step: ${error.message}`
+        }]
+      };
+    }
+  }
+
+  /**
+   * Get current session state (Phase 31)
+   */
+  async getSession(args = {}) {
+    const { resume = false } = args;
+
+    try {
+      let session;
+      if (resume) {
+        session = this.sessionManager.resumeSession();
+      } else {
+        session = this.sessionManager.getSessionState();
+      }
+
+      if (!session) {
+        return {
+          content: [{
+            type: 'text',
+            text: '# No Active Session\n\nNo SDD session is currently active. Use `start_sdd_session` to begin one.'
+          }]
+        };
+      }
+
+      let output = `# Active SDD Session\n\n`;
+      output += `**Session ID**: ${session.sessionId}\n`;
+      output += `**Phase**: ${session.phase}\n`;
+      output += `**Status**: ${session.status}\n`;
+      output += `**Started**: ${session.startedAt}\n`;
+      output += `**Last Activity**: ${session.lastActivityAt}\n`;
+      output += `**Progress**: ${session.completedSteps.length}/${session.totalSteps || '?'} steps\n\n`;
+
+      if (session.completedSteps.length > 0) {
+        output += `## Completed Steps (${session.completedSteps.length})\n\n`;
+        for (const s of session.completedSteps) {
+          output += `- [OK] Step ${s.step}: ${s.name} (${s.tag}) — ${s.completedAt}\n`;
+          if (s.notes) {
+            output += `  _${s.notes}_\n`;
+          }
+        }
+        output += '\n';
+      }
+
+      if (session.skippedSteps.length > 0) {
+        output += `## Skipped Steps (${session.skippedSteps.length})\n\n`;
+        for (const s of session.skippedSteps) {
+          output += `- [--] Step ${s.step}: ${s.reason}\n`;
+        }
+        output += '\n';
+      }
+
+      if (session.blockers.length > 0) {
+        output += `## Blockers\n\n`;
+        for (const b of session.blockers) {
+          output += `- [!!] ${b}\n`;
+        }
+        output += '\n';
+      }
+
+      if (session.notes) {
+        output += `**Notes**: ${session.notes}\n`;
+      }
+
+      return { content: [{ type: 'text', text: output }] };
+
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Failed to get session: ${error.message}`
+        }]
+      };
+    }
+  }
+
+  /**
+   * Complete or abandon the active session (Phase 31)
+   */
+  async completeSession(args = {}) {
+    const { summary = '', abandon = false, reason = '' } = args;
+
+    try {
+      let session;
+      if (abandon) {
+        session = this.sessionManager.abandonSession(reason);
+      } else {
+        session = this.sessionManager.completeSession(summary);
+      }
+
+      const action = abandon ? 'Abandoned' : 'Completed';
+      let output = `# Session ${action}\n\n`;
+      output += `**Session ID**: ${session.sessionId}\n`;
+      output += `**Phase**: ${session.phase}\n`;
+      output += `**Status**: ${session.status}\n`;
+      output += `**Started**: ${session.startedAt}\n`;
+
+      if (abandon) {
+        output += `**Abandoned**: ${session.abandonedAt}\n`;
+        if (reason) output += `**Reason**: ${reason}\n`;
+      } else {
+        output += `**Completed**: ${session.completedAt}\n`;
+        if (summary) output += `**Summary**: ${summary}\n`;
+      }
+
+      output += `\n## Final State\n\n`;
+      output += `- Steps Completed: ${session.completedSteps.length}\n`;
+      output += `- Steps Skipped: ${session.skippedSteps.length}\n`;
+      output += `- Total Steps: ${session.totalSteps || 'unknown'}\n`;
+
+      return { content: [{ type: 'text', text: output }] };
+
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Failed to ${args.abandon ? 'abandon' : 'complete'} session: ${error.message}`
         }]
       };
     }

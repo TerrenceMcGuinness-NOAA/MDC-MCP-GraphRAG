@@ -1,4 +1,8 @@
 /**
+ * DORMANT — Reserved for CLI/YOLO execution modality (Phase 4C USD)
+ * Not imported by SDDWorkflowTools in IDE mode (Phase 31 session model).
+ * Will be re-imported when Claude CLI / GitHub CLI autonomous execution is built.
+ *
  * Approval Providers Index
  * 
  * Export all approval provider implementations for Phase 4B ISD

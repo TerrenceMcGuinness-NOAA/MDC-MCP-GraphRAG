@@ -1,5 +1,38 @@
 # MCP Server Changelog
 
+## [7.14.0] - Phase 31: SDD Execution Model Refactor (February 18, 2026)
+
+### Context
+The Phase 4B ISD approval infrastructure (6 files, ~1,800 lines, 3 tools) was designed for autonomous executor gating but is redundant in IDE modality — VS Code/Copilot already gates every tool call via the chat window. Zero production executions recorded. Replaced with a session-oriented tracking model that persists state across conversations.
+
+### Added
+- **`SessionManager.js`** — New session lifecycle module at `mcp_server_node/src/sdd/SessionManager.js`. Methods: `startSession`, `recordStep`, `skipStep`, `getSessionState`, `resumeSession`, `completeSession`, `getHistory`. State persisted to `active_session.json` + `history.jsonl`.
+- **`start_sdd_session` tool** — Activate a phase for step tracking
+- **`record_sdd_step` tool** — Record step completion with semantic tags (research, design, implement, configure, validate, document, ingest)
+- **`get_sdd_session` tool** — Get current active session state (supports resume across conversations)
+- **`complete_sdd_session` tool** — Finalize session with summary, or abandon with reason
+- **SDD Session Tracking** health check component in `mcp_health_check`
+
+### Changed
+- **`SDDWorkflowTools.js`** — v4.0.0: Replaced approval-centric tools with session tracking tools. Constructor now accepts optional `SessionManager` parameter.
+- **`get_sdd_execution_history`** — Rewritten to read from JSONL history file instead of in-memory array
+- **`get_sdd_framework_status`** — Updated to report session model (v6.0 Phase 31) instead of approval modes
+- **`UnifiedMCPServer.js`** — Imports `SessionManager`, passes to `SDDWorkflowTools` constructor, reports active session in health check
+- **`_sdd_step_type_reference.md`** — Replaced verb+noun paradigm with semantic tag system; old paradigm preserved in Legacy Reference section
+
+### Removed (tools)
+- `execute_sdd_workflow` — Replaced by `start_sdd_session` + `record_sdd_step`
+- `execute_sdd_workflow_supervised` — Replaced by `record_sdd_step` (IDE chat is the approval mechanism)
+- `manage_sdd_execution_state` — Replaced by `get_sdd_session` + `complete_sdd_session`
+
+### Preserved (dormant)
+- All 6 files in `mcp_server_node/src/sdd/approval/` — marked with "DORMANT — Reserved for CLI/YOLO execution modality (Phase 4C USD)" header comments. Code intact for future Claude CLI / GitHub CLI autonomous execution.
+
+### Infrastructure
+- Net tool count: -3 removed + 4 added = +1 (was 8 SDD tools, now 9)
+- State files: `sdd_framework/execution_state/active_session.json` + `history.jsonl`
+- Execution state README updated to document new formats
+
 ## [7.13.0] - Persistent Disk Re-Ingestion Campaign (February 14, 2026)
 
 ### Context
