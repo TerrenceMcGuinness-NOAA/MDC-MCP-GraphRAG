@@ -204,16 +204,8 @@ DOCUMENTATION_SOURCES = {
             'description': 'Spack package manager - LLNL HPC package management',
             'max_pages': 100,
             'enabled': True
-        },
-        {
-            'name': 'hpc-stack',
-            'url': 'https://hpc-stack.readthedocs.io/en/latest/',
-            'type': 'readthedocs',
-            'priority': 3,
-            'description': 'HPC-Stack - legacy NOAA HPC software stack',
-            'max_pages': 50,
-            'enabled': True
         }
+        # hpc-stack removed (2026-02-17) - legacy, superseded by spack-stack
     ],
 
     # =========================================================================
