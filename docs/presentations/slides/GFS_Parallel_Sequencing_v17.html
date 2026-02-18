@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GFS Parallel Sequencing - v17</title>
+<style>
+  body { margin: 0; padding: 20px; background: #e8e8e8; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; }
+  .diagram-container { display: inline-block; }
+  svg { border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+</style>
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1420" height="960" viewBox="0 0 1420 960" class="diagram-container">
+  <defs>
+    <marker id="arrowReq" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+    <marker id="arrowCross" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1565C0" />
+    </marker>
+    <filter id="boxShadow">
+      <feDropShadow dx="1.2" dy="1.2" stdDeviation="1.8" flood-opacity="0.22"/>
+    </filter>
+    <linearGradient id="greenBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8BC34A"/>
+      <stop offset="100%" stop-color="#7CB342"/>
+    </linearGradient>
+    <linearGradient id="yellowBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFEB3B"/>
+      <stop offset="100%" stop-color="#FDD835"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ====== BACKGROUND ====== -->
+  <rect width="1420" height="960" rx="8" fill="#FAFAFA"/>
+
+  <!-- ====== TITLE BAR ====== -->
+  <rect x="0" y="0" width="1420" height="56" rx="8" fill="#37474F"/>
+  <rect x="0" y="30" width="1420" height="26" fill="#37474F"/>
+  <text x="710" y="38" text-anchor="middle" font-size="26" font-weight="bold" fill="#FFF" letter-spacing="1">GFS Parallel Sequencing &#x2014; v17</text>
+
+  <!-- ====== LEGEND (top-right, inside title bar) ====== -->
+  <rect x="1150" y="14" width="22" height="14" rx="3" fill="#80DEEA" stroke="#546E7A" stroke-width="1"/>
+  <text x="1178" y="26" font-size="12" font-weight="600" fill="#ECEFF1">New in v17</text>
+
+  <!-- ====== GREEN SECTION (GFS Deterministic) ====== -->
+  <rect x="18" y="66" width="880" height="680" rx="14" fill="url(#greenBg)" stroke="#558B2F" stroke-width="2"/>
+  <text x="458" y="94" text-anchor="middle" font-size="18" font-weight="bold" fill="#1B5E20" opacity="0.7">G F S &#xA0; D E T E R M I N I S T I C</text>
+
+  <!-- ====== YELLOW SECTION (Hybrid EnKF) ====== -->
+  <rect x="910" y="66" width="492" height="680" rx="14" fill="url(#yellowBg)" stroke="#F9A825" stroke-width="2"/>
+  <text x="1156" y="94" text-anchor="middle" font-size="18" font-weight="bold" fill="#E65100" opacity="0.7">H Y B R I D &#xA0; E n K F</text>
+
+  <!-- ============================================================== -->
+  <!--                 GFS DETERMINISTIC TASK BOXES                   -->
+  <!-- ============================================================== -->
+
+  <!-- prep -->
+  <rect x="378" y="120" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="443" y="147" text-anchor="middle" font-size="16" font-weight="bold" fill="#1A237E">prep</text>
+
+  <!-- waveinit -->
+  <rect x="108" y="205" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="173" y="232" text-anchor="middle" font-size="15" font-weight="bold" fill="#1A237E">waveinit</text>
+
+  <!-- anal -->
+  <rect x="378" y="205" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="443" y="232" text-anchor="middle" font-size="16" font-weight="bold" fill="#1A237E">anal</text>
+
+  <!-- waveprep -->
+  <rect x="108" y="295" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="173" y="322" text-anchor="middle" font-size="15" font-weight="bold" fill="#1A237E">waveprep</text>
+
+  <!-- sfcanl -->
+  <rect x="310" y="295" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="375" y="322" text-anchor="middle" font-size="15" font-weight="bold" fill="#1A237E">sfcanl</text>
+
+  <!-- analcalc -->
+  <rect x="510" y="295" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="575" y="322" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">analcalc</text>
+
+  <!-- atmanlupp (new) -->
+  <rect x="720" y="295" width="130" height="42" rx="6" fill="#80DEEA" stroke="#00838F" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="785" y="322" text-anchor="middle" font-size="13" font-weight="bold" fill="#004D40">atmanlupp</text>
+
+  <!-- fcst -->
+  <rect x="210" y="390" width="140" height="48" rx="6" fill="#B3D4FC" stroke="#1565C0" stroke-width="2" filter="url(#boxShadow)"/>
+  <text x="280" y="420" text-anchor="middle" font-size="18" font-weight="bold" fill="#0D47A1">fcst</text>
+
+  <!-- atmanlprod (new) -->
+  <rect x="720" y="390" width="130" height="42" rx="6" fill="#80DEEA" stroke="#00838F" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="785" y="417" text-anchor="middle" font-size="13" font-weight="bold" fill="#004D40">atmanlprod</text>
+
+  <!-- postN -->
+  <rect x="58" y="490" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="105" y="517" text-anchor="middle" font-size="15" font-weight="bold" fill="#1A237E">post</text>
+  <text x="140" y="517" font-size="13" font-weight="bold" fill="#C62828">N</text>
+
+  <!-- ocean_prod (new) -->
+  <rect x="228" y="490" width="140" height="42" rx="6" fill="#80DEEA" stroke="#00838F" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="298" y="517" text-anchor="middle" font-size="14" font-weight="bold" fill="#004D40">ocean_prod</text>
+
+  <!-- ice_prod (new) -->
+  <rect x="408" y="490" width="130" height="42" rx="6" fill="#80DEEA" stroke="#00838F" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="473" y="517" text-anchor="middle" font-size="14" font-weight="bold" fill="#004D40">ice_prod</text>
+
+  <!-- goesupp -->
+  <rect x="580" y="490" width="120" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="640" y="517" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">goesupp</text>
+
+  <!-- postsnd -->
+  <rect x="58" y="575" width="120" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="118" y="600" text-anchor="middle" font-size="13" font-weight="bold" fill="#1A237E">postsnd</text>
+
+  <!-- wavepostsbs -->
+  <rect x="210" y="575" width="150" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="285" y="600" text-anchor="middle" font-size="13" font-weight="bold" fill="#1A237E">wavepostsbs</text>
+
+  <!-- wavepostpnt -->
+  <rect x="395" y="575" width="150" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="470" y="600" text-anchor="middle" font-size="13" font-weight="bold" fill="#1A237E">wavepostpnt</text>
+
+  <!-- tracker -->
+  <rect x="590" y="575" width="110" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="645" y="600" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">tracker</text>
+
+  <!-- genesis -->
+  <rect x="735" y="575" width="110" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="790" y="600" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">genesis</text>
+
+  <!-- vminmon -->
+  <rect x="58" y="655" width="120" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="118" y="680" text-anchor="middle" font-size="13" font-weight="bold" fill="#1A237E">vminmon</text>
+
+  <!-- gempakN -->
+  <rect x="350" y="655" width="120" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="400" y="680" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">gempak</text>
+  <text x="435" y="680" font-size="12" font-weight="bold" fill="#C62828">N</text>
+
+  <!-- awipsN -->
+  <rect x="510" y="655" width="120" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="560" y="680" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">awips</text>
+  <text x="590" y="680" font-size="12" font-weight="bold" fill="#C62828">N</text>
+
+  <!-- fbwind -->
+  <rect x="670" y="655" width="110" height="38" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="725" y="680" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">fbwind</text>
+
+  <!-- npoess (new) -->
+  <rect x="730" y="540" width="140" height="38" rx="6" fill="#80DEEA" stroke="#00838F" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="800" y="565" text-anchor="middle" font-size="11" font-weight="bold" fill="#004D40">npoess_0p5deg</text>
+
+  <!-- ============================================================== -->
+  <!--                  HYBRID EnKF TASK BOXES                        -->
+  <!-- ============================================================== -->
+
+  <!-- eobs -->
+  <rect x="1080" y="145" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="1145" y="172" text-anchor="middle" font-size="16" font-weight="bold" fill="#1A237E">eobs</text>
+
+  <!-- ediag -->
+  <rect x="1080" y="230" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="1145" y="257" text-anchor="middle" font-size="16" font-weight="bold" fill="#1A237E">ediag</text>
+
+  <!-- eupd -->
+  <rect x="1080" y="320" width="130" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="1145" y="347" text-anchor="middle" font-size="16" font-weight="bold" fill="#1A237E">eupd</text>
+
+  <!-- ecmn (ecenN) metatask container -->
+  <rect x="950" y="415" width="150" height="62" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="1025" y="438" text-anchor="middle" font-size="14" font-weight="bold" fill="#1A237E">ecmn</text>
+  <rect x="968" y="445" width="112" height="26" rx="4" fill="#80DEEA" stroke="#00838F" stroke-width="1"/>
+  <text x="1012" y="463" text-anchor="middle" font-size="12" font-weight="bold" fill="#004D40">ecen</text>
+  <text x="1042" y="463" font-size="11" font-weight="bold" fill="#C62828">N</text>
+
+  <!-- esfc -->
+  <rect x="1150" y="425" width="120" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="1210" y="452" text-anchor="middle" font-size="15" font-weight="bold" fill="#1A237E">esfc</text>
+
+  <!-- efmn (efcsN) metatask - NEW in v17 -->
+  <rect x="1020" y="530" width="150" height="62" rx="6" fill="#80DEEA" stroke="#00838F" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="1095" y="553" text-anchor="middle" font-size="14" font-weight="bold" fill="#004D40">efmn</text>
+  <rect x="1038" y="560" width="112" height="26" rx="4" fill="#B3D4FC" stroke="#455A64" stroke-width="1"/>
+  <text x="1082" y="578" text-anchor="middle" font-size="12" font-weight="bold" fill="#1A237E">efcs</text>
+  <text x="1112" y="578" font-size="11" font-weight="bold" fill="#C62828">N</text>
+
+  <!-- ============================================================== -->
+  <!--                      PREV CYCLE INDICATOR                      -->
+  <!-- ============================================================== -->
+  <rect x="930" y="90" width="170" height="30" rx="5" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5"/>
+  <text x="1015" y="110" text-anchor="middle" font-size="11" font-weight="bold" fill="#1A237E">prev enkfgdas_epmn</text>
+  <line x1="1015" y1="120" x2="1110" y2="145" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <line x1="1015" y1="120" x2="443" y2="205" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- ============================================================== -->
+  <!--              ARROWS - GFS DETERMINISTIC FLOW                   -->
+  <!-- ============================================================== -->
+
+  <!-- prep &#x2192; waveinit -->
+  <line x1="393" y1="162" x2="210" y2="205" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- prep &#x2192; anal -->
+  <line x1="443" y1="162" x2="443" y2="205" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- waveinit &#x2192; waveprep -->
+  <line x1="173" y1="247" x2="173" y2="295" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- anal &#x2192; sfcanl -->
+  <line x1="420" y1="247" x2="395" y2="295" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- anal &#x2192; analcalc -->
+  <line x1="490" y1="247" x2="540" y2="295" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- sfcanl &#x2192; analcalc -->
+  <line x1="440" y1="316" x2="510" y2="316" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- anal &#x2192; atmanlupp -->
+  <line x1="508" y1="230" x2="720" y2="310" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- atmanlupp &#x2192; atmanlprod -->
+  <line x1="785" y1="337" x2="785" y2="390" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- sfcanl &#x2192; fcst -->
+  <line x1="355" y1="337" x2="310" y2="390" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- waveprep &#x2192; fcst -->
+  <line x1="195" y1="337" x2="242" y2="390" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- fcst &#x2192; postN -->
+  <line x1="240" y1="438" x2="145" y2="490" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- fcst &#x2192; ocean_prod -->
+  <line x1="270" y1="438" x2="290" y2="490" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- fcst &#x2192; ice_prod -->
+  <line x1="310" y1="438" x2="440" y2="490" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- fcst &#x2192; goesupp -->
+  <line x1="340" y1="438" x2="610" y2="490" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- fcst &#x2192; postsnd -->
+  <line x1="228" y1="438" x2="118" y2="575" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- fcst &#x2192; wavepostsbs -->
+  <line x1="250" y1="438" x2="270" y2="575" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- fcst &#x2192; wavepostpnt -->
+  <line x1="290" y1="438" x2="450" y2="575" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- postN &#x2192; tracker -->
+  <line x1="188" y1="520" x2="597" y2="582" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- postN &#x2192; genesis -->
+  <line x1="188" y1="525" x2="742" y2="582" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- postN &#x2192; gempak -->
+  <line x1="175" y1="532" x2="375" y2="655" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- postN &#x2192; awips -->
+  <line x1="188" y1="532" x2="535" y2="655" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- postN &#x2192; fbwind -->
+  <line x1="188" y1="532" x2="690" y2="655" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- goesupp &#x2192; npoess -->
+  <line x1="670" y1="532" x2="755" y2="540" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- atmanlprod &#x2192; npoess -->
+  <line x1="800" y1="432" x2="800" y2="540" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- anal &#x2192; vminmon -->
+  <line x1="378" y1="240" x2="140" y2="655" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- ============================================================== -->
+  <!--          CROSS-SECTION ARROWS (det &#x2194; EnKF)              -->
+  <!-- ============================================================== -->
+
+  <!-- prep &#x2192; eobs -->
+  <line x1="508" y1="140" x2="1080" y2="162" stroke="#1565C0" stroke-width="2.5" marker-end="url(#arrowCross)"/>
+
+  <!-- analcalc &#x2192; ecmn -->
+  <line x1="640" y1="320" x2="950" y2="440" stroke="#1565C0" stroke-width="2" marker-end="url(#arrowCross)"/>
+  <!-- analcalc &#x2192; esfc -->
+  <line x1="640" y1="325" x2="1150" y2="443" stroke="#1565C0" stroke-width="2" marker-end="url(#arrowCross)"/>
+
+  <!-- ============================================================== -->
+  <!--                  ARROWS - HYBRID EnKF FLOW                     -->
+  <!-- ============================================================== -->
+
+  <!-- eobs &#x2192; ediag -->
+  <line x1="1145" y1="187" x2="1145" y2="230" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- ediag &#x2192; eupd -->
+  <line x1="1145" y1="272" x2="1145" y2="320" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- eupd &#x2192; ecmn -->
+  <line x1="1110" y1="362" x2="1050" y2="415" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- eupd &#x2192; esfc -->
+  <line x1="1175" y1="362" x2="1210" y2="425" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- ecmn &#x2192; efmn -->
+  <line x1="1050" y1="477" x2="1070" y2="530" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- esfc &#x2192; efmn -->
+  <line x1="1210" y1="467" x2="1140" y2="530" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- ============================================================== -->
+  <!--                 NEXT CYCLE TRIGGER AREA                        -->
+  <!-- ============================================================== -->
+  <text x="710" y="785" text-anchor="middle" font-size="16" font-weight="bold" fill="#546E7A">Next Cycle Triggers (AND)</text>
+
+  <!-- OBSPROC external box (amber) -->
+  <rect x="340" y="810" width="200" height="42" rx="6" fill="#FFE0B2" stroke="#E65100" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="440" y="837" text-anchor="middle" font-size="14" font-weight="bold" fill="#BF360C">OBSPROC (ext.)</text>
+
+  <!-- analcalc reference (green tint) -->
+  <rect x="610" y="810" width="130" height="42" rx="6" fill="#C8E6C9" stroke="#2E7D32" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="675" y="837" text-anchor="middle" font-size="14" font-weight="bold" fill="#1B5E20">analcalc</text>
+
+  <!-- enkfgdas_epmn current cycle (blue) -->
+  <rect x="810" y="810" width="200" height="42" rx="6" fill="#B3D4FC" stroke="#455A64" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <text x="910" y="837" text-anchor="middle" font-size="13" font-weight="bold" fill="#1A237E">enkfgdas_epmn</text>
+
+  <!-- Cycle diamond -->
+  <g transform="translate(1090, 800)">
+    <polygon points="75,0 150,50 75,100 0,50" fill="#FFB74D" stroke="#E65100" stroke-width="2.5" filter="url(#boxShadow)"/>
+    <text x="75" y="42" text-anchor="middle" font-size="15" font-weight="bold" fill="#BF360C">cycle</text>
+    <text x="75" y="60" text-anchor="middle" font-size="15" font-weight="bold" fill="#BF360C">hour</text>
+    <text x="75" y="78" text-anchor="middle" font-size="15" font-weight="bold" fill="#BF360C">+06</text>
+  </g>
+
+  <!-- OBSPROC &#x2192; diamond -->
+  <line x1="540" y1="831" x2="1090" y2="850" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- analcalc &#x2192; diamond -->
+  <line x1="740" y1="831" x2="1090" y2="850" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+  <!-- enkfgdas_epmn &#x2192; diamond -->
+  <line x1="1010" y1="831" x2="1090" y2="850" stroke="#333" stroke-width="2" marker-end="url(#arrowReq)"/>
+
+  <!-- ============================================================== -->
+  <!--                         LEGEND                                 -->
+  <!-- ============================================================== -->
+  <rect x="38" y="870" width="340" height="72" rx="8" fill="#FFFDE7" stroke="#F9A825" stroke-width="1.5"/>
+  <text x="208" y="892" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Legend</text>
+
+  <!-- Required arrow legend -->
+  <line x1="55" y1="910" x2="105" y2="910" stroke="#333" stroke-width="2.5" marker-end="url(#arrowReq)"/>
+  <text x="115" y="915" font-size="13" fill="#333">Required dependency</text>
+
+  <!-- Cross-section arrow legend -->
+  <line x1="55" y1="930" x2="105" y2="930" stroke="#1565C0" stroke-width="2.5" marker-end="url(#arrowCross)"/>
+  <text x="115" y="935" font-size="13" fill="#333">Cross-section (det / EnKF)</text>
+
+  <!-- Metatask label -->
+  <text x="288" y="915" font-size="15" font-weight="bold" fill="#C62828">N</text>
+  <text x="300" y="915" font-size="13" fill="#333">= metatask</text>
+
+  <!-- Source attribution -->
+  <text x="445" y="898" font-size="11" fill="#9E9E9E" font-style="italic">Source: global-workflow/dev/workflow/</text>
+  <text x="445" y="912" font-size="11" fill="#9E9E9E" font-style="italic">rocoto/gfs_tasks.py, applications/gfs_cycled.py</text>
+
+</svg>
+
+</body>
+</html>
