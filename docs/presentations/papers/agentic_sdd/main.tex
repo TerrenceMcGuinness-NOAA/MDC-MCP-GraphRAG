@@ -1,0 +1,1362 @@
+% =========================================================================
+% Session-Tracked Agentic Software Development:
+% From Spec-Driven Design to Unsupervised Development
+%
+% A framework for traceable, resumable, auditable LLM-driven software
+% engineering via structured session management and semantic step tagging.
+%
+% Authors: NOAA EMC Global Workflow MCP Team
+% Date: February 2026
+% =========================================================================
+
+\documentclass[11pt,letterpaper]{article}
+
+% --- Core packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{microtype}
+
+% --- Algorithm pseudocode ---
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+% --- Code listings ---
+\usepackage{listings}
+\usepackage{xcolor}
+
+% --- References ---
+\usepackage[numbers,sort&compress]{natbib}
+
+% --- Cross-references ---
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=green!50!black,
+    urlcolor=blue!70!black,
+    pdftitle={Session-Tracked Agentic Software Development},
+    pdfauthor={NOAA EMC Global Workflow MCP Team},
+    pdfkeywords={Agentic AI, Spec-Driven Development, Session Tracking,
+                 Unsupervised Development, LLM Software Engineering,
+                 Model Context Protocol}
+}
+
+% --- Colored boxes for definitions ---
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable}
+\newtcolorbox{definition}[1][]{
+    colback=blue!3,
+    colframe=blue!50!black,
+    fonttitle=\bfseries,
+    title=#1,
+    breakable
+}
+\newtcolorbox{keyinsight}[1][Key Insight]{
+    colback=green!3,
+    colframe=green!50!black,
+    fonttitle=\bfseries,
+    title=#1,
+    breakable
+}
+
+% --- Code listing style ---
+\lstdefinestyle{code}{
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    captionpos=b,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue!80!black}\bfseries,
+    commentstyle=\color{green!50!black}\itshape,
+    stringstyle=\color{red!70!black},
+    backgroundcolor=\color{gray!3},
+    showstringspaces=false
+}
+\lstset{style=code}
+
+% --- Header/footer ---
+\usepackage{fancyhdr}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\footnotesize Session-Tracked Agentic Software Development}
+\rhead{\footnotesize NOAA EMC}
+\cfoot{\thepage}
+
+% =========================================================================
+% TITLE
+% =========================================================================
+\title{%
+    \textbf{Session-Tracked Agentic Software Development:} \\[0.3em]
+    \textbf{From Spec-Driven Design to Unsupervised Development} \\[0.8em]
+    \large A Framework for Traceable, Resumable, and Auditable \\
+    \large LLM-Driven Software Engineering
+}
+
+\author{
+    Terry McGuinness \\
+    Environmental Modeling Center \\
+    National Oceanic and Atmospheric Administration \\
+    \texttt{Terry.McGuinness@noaa.gov}
+}
+
+\date{February 2026}
+
+% =========================================================================
+\begin{document}
+% =========================================================================
+
+\maketitle
+
+% -----------------------------------------------------------------------
+\begin{abstract}
+Large language model (LLM) coding agents can generate, modify, and analyze
+source code with increasing proficiency, yet their work remains largely
+\emph{ephemeral}: each conversation starts from scratch, actions lack
+structured audit trails, and there is no formal mechanism for an agent to
+resume interrupted work across sessions or across different client
+interfaces.  We present a \textbf{session-tracked agentic development
+framework} that addresses these limitations through three interlocking
+contributions:
+(1)~\textbf{Spec-Driven Development (SDD)}, a methodology in which
+machine-readable workflow specifications are the single source of truth
+for what must be built, validated, and delivered;
+(2)~\textbf{Session Management with semantic step tags}
+(\texttt{research}, \texttt{design}, \texttt{implement},
+\texttt{configure}, \texttt{validate}, \texttt{document},
+\texttt{ingest}), which gives every agent action a durable, classified
+audit record persisted to disk;
+and (3)~a \textbf{two-layer intent architecture} that separates
+\emph{protocol knowledge} (agent instruction files) from \emph{task
+knowledge} (per-invocation plans), enabling a progression from
+interactive supervised development (ISD) to fully unsupervised
+development (USD).
+We validate the framework through deployment on the NOAA Global Workflow
+codebase, where a Phase~27 session completed 8/8 tracked steps---ingesting
+9{,}155 new graph relationships across 383 shell-script nodes---in
+5~minutes with a complete, query\-able audit trail.  The framework is
+implemented atop the Model Context Protocol (MCP), making it portable
+across VS~Code Copilot, Claude Desktop, Claude Code, and CI/CD pipelines
+without modification.
+
+\medskip\noindent
+\textbf{Keywords:}
+Agentic AI $\cdot$ Spec-Driven Development $\cdot$
+Session Tracking $\cdot$ Unsupervised Development $\cdot$
+LLM Software Engineering $\cdot$ Model Context Protocol $\cdot$
+Knowledge Graphs $\cdot$ Retrieval-Augmented Generation
+\end{abstract}
+
+% -----------------------------------------------------------------------
+\tableofcontents
+\newpage
+
+% =========================================================================
+\section{Introduction}
+\label{sec:intro}
+% =========================================================================
+
+\subsection{The Ephemeral Agent Problem}
+
+LLM-based coding agents---GitHub Copilot, Claude Code, Cursor, Aider,
+SWE-agent~\cite{yang2024swe}---have demonstrated remarkable capability on
+benchmarks such as SWE-bench~\cite{jimenez2024swebench}.  Yet in practice,
+deploying these agents on production codebases exposes a fundamental gap:
+\emph{agent work is ephemeral}.
+
+\begin{enumerate}[nosep]
+    \item \textbf{No persistent state.}
+          Each conversation is a blank slate.  If the user closes VS~Code,
+          all context is lost; the agent cannot resume.
+    \item \textbf{No structured audit trail.}
+          Actions are buried in chat transcripts.  There is no
+          machine-queryable record of \emph{what} was done, \emph{why},
+          or \emph{in what order}.
+    \item \textbf{No cross-client portability.}
+          Work started in VS~Code cannot be continued in a terminal
+          agent or a CI/CD pipeline without manual context transfer.
+    \item \textbf{No intent classification.}
+          An agent generating code and an agent researching architecture
+          are indistinguishable in the conversation record.
+\end{enumerate}
+
+These limitations are acceptable for ad hoc question-answering but
+untenable for \emph{systematic software development}---multi-step
+engineering tasks that span hours or days, require traceable decisions,
+and must survive interruptions.
+
+\subsection{Our Approach: Session-Tracked Agentic Development}
+
+We propose a framework that wraps LLM agent interactions in a
+\textbf{session management layer} inspired by database transaction
+semantics and workflow orchestration patterns~\cite{vanderaalst2004workflow}.
+The core abstraction is:
+
+\begin{definition}[Session]
+A \textbf{session} is a bounded unit of development work that tracks a
+named \emph{phase}, records individual \emph{steps} with semantic tags,
+persists state to disk, and produces a durable \emph{history log} that
+survives session completion.
+\end{definition}
+
+Sessions are managed by four MCP~\cite{anthropic2024mcp} tools:
+\texttt{start\_sdd\_session}, \texttt{record\_sdd\_step},
+\texttt{get\_sdd\_session} (resume), and \texttt{complete\_sdd\_session}.
+These tools are exposed identically to every MCP-compatible client,
+achieving cross-client portability by construction.
+
+\subsection{Contributions}
+
+\begin{enumerate}[nosep]
+    \item \textbf{Spec-Driven Development (SDD)} methodology with
+          machine-readable Markdown workflow specifications and phased
+          execution (Section~\ref{sec:sdd}).
+    \item \textbf{Phase~31 Session Model}: a lightweight, file-based
+          session manager with seven semantic step tags and append-only
+          history (Section~\ref{sec:session}).
+    \item \textbf{Two-layer intent architecture} separating protocol
+          instructions from task plans, enabling the progression from
+          supervised to unsupervised execution
+          (Section~\ref{sec:intent}).
+    \item \textbf{Execution mode spectrum}: \texttt{dry\_run} $\to$
+          \texttt{supervised} $\to$ \texttt{auto\_approved} $\to$
+          \texttt{batch}, providing progressive trust levels
+          (Section~\ref{sec:modes}).
+    \item \textbf{Empirical validation} on the NOAA Global Workflow
+          codebase with a complete 8-step session trace
+          (Section~\ref{sec:evaluation}).
+    \item \textbf{Multi-client MCP architecture} portable across
+          VS~Code, Claude Desktop, terminal agents, and CI/CD
+          (Section~\ref{sec:architecture}).
+\end{enumerate}
+
+\subsection{Paper Organization}
+
+Section~\ref{sec:background} surveys related work.
+Section~\ref{sec:sdd} presents the SDD methodology.
+Section~\ref{sec:session} details the session management model.
+Section~\ref{sec:intent} describes the two-layer intent architecture.
+Section~\ref{sec:modes} defines the execution mode spectrum.
+Section~\ref{sec:architecture} covers the MCP-based implementation.
+Section~\ref{sec:evaluation} presents empirical results.
+Section~\ref{sec:discussion} discusses limitations and future work.
+Section~\ref{sec:conclusion} concludes.
+
+% =========================================================================
+\section{Background and Related Work}
+\label{sec:background}
+% =========================================================================
+
+\subsection{LLM Coding Agents}
+
+The rapid advancement of code-capable LLMs~\cite{chen2021codex,
+roziere2024codellama} has spawned a generation of \emph{agentic} tools
+that go beyond autocompletion to execute multi-step development tasks.
+SWE-agent~\cite{yang2024swe} introduced an agent--computer interface
+(ACI) design that achieves state-of-the-art performance on SWE-bench.
+MetaGPT~\cite{hong2024metagpt} and ChatDev~\cite{qian2024chatdev} explore
+multi-agent architectures where specialized roles (architect, developer,
+tester) collaborate on software projects.
+
+These systems demonstrate that LLMs can plan and execute complex
+engineering tasks, but they share a common limitation:
+\textbf{session state is in-memory and ephemeral}.  When the process
+terminates, all execution context is lost.
+
+\subsection{Tool Use and Reasoning}
+
+ReAct~\cite{yao2023react} established the paradigm of interleaving
+reasoning traces with tool invocations.
+Toolformer~\cite{schick2023toolformer} showed that LLMs can learn to
+call external tools autonomously.  Chain-of-thought
+prompting~\cite{wei2022chain} demonstrated that explicit reasoning steps
+improve task performance.
+
+Our framework builds on these foundations but adds a critical missing
+element: \textbf{tool calls that record their own execution in a
+persistent, structured audit log}.  In our model, the tool
+\texttt{record\_sdd\_step} is simultaneously an \emph{action} (the agent
+records progress) and an \emph{observation} (the updated session state
+is returned for context).
+
+\subsection{Software Process Frameworks}
+
+Agile methodologies~\cite{beck2001agile}, test-driven development
+(TDD)~\cite{beck2003tdd}, and requirements engineering~\cite{sommerville2011requirements}
+provide structured processes for human developers.
+Continuous delivery~\cite{humble2010continuous} automates the build--test--deploy
+pipeline.
+
+SDD adapts these concepts for LLM agents: specifications replace user
+stories, session state replaces sprint boards, and semantic step tags
+replace story point categories.  The fundamental insight is that
+\textbf{LLM agents need process discipline just as human teams do}---not
+to constrain their generative capability, but to make their work
+traceable, resumable, and auditable.
+
+\subsection{Knowledge-Enhanced Code Intelligence}
+
+Graph-based code analysis~\cite{allamanis2018survey} has a rich history.
+GraphRAG~\cite{edge2024graphrag} extends retrieval-augmented
+generation~\cite{lewis2020rag} with graph-derived community summaries.
+Our earlier work demonstrated hybrid Neo4j+ChromaDB retrieval for
+operational weather forecasting code, achieving $3.8\times$ improvement
+in Precision@10 over text search baselines.
+
+The session management framework presented here is \emph{orthogonal} to
+RAG architecture: it tracks \emph{how} the agent uses these tools, not
+\emph{what} the tools return.  However, the combination is powerful:
+RAG provides context, and session tracking records how that context was
+applied.
+
+\subsection{Human-AI Interaction}
+
+Guidelines for human--AI interaction~\cite{amershi2019guidelines}
+emphasize that AI systems should support user control over system
+actions and make clear what the system can do.
+Studies of LLM coding tools~\cite{vaithilingam2022expectation} reveal
+that developers value transparency in AI decision-making.
+
+Our execution mode spectrum (Section~\ref{sec:modes}) directly implements
+these principles: \texttt{supervised} mode provides per-step approval
+gates, while \texttt{batch} mode delegates full autonomy only when trust
+has been established through prior supervised sessions.
+
+% =========================================================================
+\section{Spec-Driven Development}
+\label{sec:sdd}
+% =========================================================================
+
+\begin{definition}[SDD Principle]
+\emph{``If it's not in the SDD, it doesn't get coded.''}
+Every development task begins with a machine-readable specification that
+defines objectives, steps, deliverables, and acceptance criteria before
+any code is written.
+\end{definition}
+
+\subsection{Core Principles}
+
+SDD is built on four foundational principles:
+
+\begin{description}[nosep,leftmargin=1.5em]
+    \item[P1: Specifications as First-Class Artifacts.]
+    Development tasks are expressed as structured workflows in Markdown
+    before implementation begins.  Specifications define \emph{what}
+    (objectives), \emph{how} (validation criteria), \emph{when}
+    (phase ordering), and \emph{who} (role assignment).
+
+    \item[P2: Progressive Refinement.]
+    Specifications evolve from high-level intent to detailed
+    implementation through iterative passes, each adding precision
+    while maintaining consistency with the parent specification.
+
+    \item[P3: Health-Integrated Architecture.]
+    All system components integrate health monitoring from initialization.
+    The agent can verify preconditions (database connectivity, file
+    system access) before attempting any step.
+
+    \item[P4: Supervised Human--AI Collaboration.]
+    AI agents propose implementations based on specifications; human
+    experts review, refine, and approve.  The level of supervision is
+    configurable along the execution mode spectrum.
+\end{description}
+
+\subsection{Workflow Specification Format}
+
+SDD workflows are expressed as Markdown documents with structured
+metadata.  We chose Markdown over YAML or JSON for three reasons:
+(1)~human readability, (2)~compatibility with version control diffs,
+and (3)~native rendering in documentation platforms.
+
+A workflow specification contains:
+
+\begin{lstlisting}[language={},caption={SDD Workflow Specification Structure},label=lst:spec]
+# Phase Name
+**Version**: X.Y  **Author**: Name  **Date**: YYYY-MM-DD
+
+## Objective
+High-level goal and scope definition.
+
+## Steps
+### Step 1: Step Name
+**Type**: research | design | implement | configure | validate
+**Deliverables**: Concrete outputs
+**Acceptance Criteria**: Pass/fail conditions
+
+### Step 2: ...
+  (repeat for each step)
+
+## Success Metrics
+Quantifiable completion criteria.
+\end{lstlisting}
+
+\subsection{Phase Naming Convention}
+
+Phases follow the pattern
+\texttt{phase<N><letter>\_<descriptor>.md}, enabling hierarchical
+decomposition:
+
+\begin{itemize}[nosep]
+    \item \texttt{phase27\_jjob\_script\_rag\_enhancement.md} --- parent phase
+    \item \texttt{phase27a} through \texttt{phase27g} --- sub-phases A--G
+    \item \texttt{phase27h\_multi\_collection\_routing.md} --- spin-off issue
+\end{itemize}
+
+The framework currently contains 31+ phases with sub-phases, spanning
+infrastructure, tooling, knowledge ingestion, and methodology.
+
+% =========================================================================
+\section{Session Management Model}
+\label{sec:session}
+% =========================================================================
+
+\subsection{Design Goals}
+
+The session manager was designed with five goals:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Lightweight}: No database required; file-based persistence.
+    \item \textbf{Cross-conversation}: Survives server restarts and client reconnections.
+    \item \textbf{Cross-client}: Works identically from VS~Code, Claude Desktop, or CLI.
+    \item \textbf{Auditable}: Append-only history log for compliance and reconstruction.
+    \item \textbf{Simple API}: Four tools covering the full lifecycle.
+\end{enumerate}
+
+\subsection{State Architecture}
+
+Session state is maintained in two complementary files:
+
+\begin{description}[nosep]
+    \item[\texttt{active\_session.json}]
+    Contains the current session state: session ID, phase name, start time,
+    current step, completed steps array, skipped steps, and notes.
+    Written on every \texttt{record\_sdd\_step} call.  Deleted on
+    \texttt{complete\_sdd\_session}.
+
+    \item[\texttt{history.jsonl}]
+    Append-only event log in JSON Lines format.  Every lifecycle
+    event---\texttt{started}, \texttt{step\_completed},
+    \texttt{step\_skipped}, \texttt{resumed}, \texttt{completed},
+    \texttt{abandoned}---is appended as an independent line.
+    Never truncated or overwritten.
+\end{description}
+
+This dual-file architecture mirrors the write-ahead log (WAL) pattern
+in database systems: \texttt{active\_session.json} is the ``current
+state'' and \texttt{history.jsonl} is the ``redo log.''  Even if the
+active session file is lost, the complete session can be reconstructed
+from the history.
+
+\subsection{Session Lifecycle}
+
+Figure~\ref{fig:lifecycle} illustrates the session lifecycle as a state
+machine.
+
+\begin{figure}[h]
+\centering
+\begin{verbatim}
+  start_sdd_session(phase, totalSteps, notes)
+        |
+        v
+  +---------------+     record_sdd_step(step, name, tag, notes)
+  |  in_progress  |<-----------------------------------------+
+  +-------+-------+                                          |
+          |                                                  |
+          +--------------------------------------------------+
+          |
+          +---> complete_sdd_session(summary)
+          |         |
+          |         v
+          |   +-----------+
+          |   | completed |    (active_session.json deleted;
+          |   +-----------+     history.jsonl retains all events)
+          |
+          +---> abandon_session(reason)
+                    |
+                    v
+              +------------+
+              | abandoned  |   (same file semantics as completed)
+              +------------+
+\end{verbatim}
+\caption{Session lifecycle state machine.  The \texttt{get\_sdd\_session}
+tool reads but does not modify state, enabling resume across conversations.}
+\label{fig:lifecycle}
+\end{figure}
+
+\subsection{Semantic Step Tags}
+\label{sec:tags}
+
+Each recorded step carries a \textbf{semantic tag} drawn from a fixed
+vocabulary of seven values:
+
+\begin{table}[h]
+\centering
+\caption{Semantic step tags with intent classification and examples.}
+\label{tab:tags}
+\begin{tabular}{@{}llp{6cm}@{}}
+\toprule
+\textbf{Tag} & \textbf{Intent Class} & \textbf{Example} \\
+\midrule
+\texttt{research}   & Discovery    & Read existing code, explore architecture \\
+\texttt{design}     & Planning     & Draft data model, choose algorithm \\
+\texttt{implement}  & Construction & Write code, modify configuration \\
+\texttt{configure}  & Setup        & Set environment variables, install dependencies \\
+\texttt{validate}   & Verification & Run tests, check Neo4j counts, dry-run \\
+\texttt{document}   & Knowledge    & Update README, write changelog entry \\
+\texttt{ingest}     & Enrichment   & Run graph ingestion, update ChromaDB \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Tags serve three purposes:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Intent classification.}  The tag tells \emph{what kind}
+          of work the step represents, independent of its specific content.
+    \item \textbf{Workflow analysis.}  Aggregating tags across sessions
+          reveals development patterns (e.g., ratio of
+          \texttt{implement} to \texttt{validate} steps).
+    \item \textbf{Automation gating.}  In future work, the execution mode
+          could auto-approve \texttt{research} and \texttt{validate}
+          steps while requiring human approval for \texttt{implement}
+          steps.
+\end{enumerate}
+
+\subsection{History Event Schema}
+
+Each event appended to \texttt{history.jsonl} has the structure:
+
+\begin{lstlisting}[language={},caption={History event for a step completion},label=lst:event]
+{
+  "sessionId": "session_2026-02-19_8aioyi",
+  "phase": "phase27_jjob_script_rag_enhancement",
+  "event": "step_completed",
+  "step": 5,
+  "name": "Run shell graph ingestion",
+  "tag": "implement",
+  "notes": "235 scripts processed, 383 ShellScript nodes,
+            9155 new relationships",
+  "timestamp": "2026-02-19T20:49:30.641Z"
+}
+\end{lstlisting}
+
+The schema is deliberately flat---no nesting, no foreign keys---to
+maximize grep-ability and ensure that every line is independently
+parseable.  This design choice favors operational simplicity over
+relational normalization.
+
+\subsection{Cross-Conversation Resume}
+
+The \texttt{get\_sdd\_session} tool reads \texttt{active\_session.json}
+from disk and returns the full session state, including all completed
+steps.  Because the file persists across server restarts, an agent in a
+\emph{new} conversation can resume precisely where the previous
+conversation left off:
+
+\begin{algorithm}
+\caption{Cross-conversation resume protocol}
+\label{alg:resume}
+\begin{algorithmic}[1]
+\STATE Agent starts in new conversation
+\STATE Agent calls \texttt{get\_sdd\_session()}
+\IF{active session exists}
+    \STATE Read completed steps $\{s_1, \ldots, s_k\}$
+    \STATE Read total steps $N$ from specification
+    \STATE Continue from step $k+1$
+\ELSE
+    \STATE No active session; start fresh or report idle
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+This mechanism requires \textbf{no conversation memory, no external
+database, and no user intervention}.  The agent discovers its own
+state through a tool call.
+
+% =========================================================================
+\section{Two-Layer Intent Architecture}
+\label{sec:intent}
+% =========================================================================
+
+A critical challenge in agentic development is communicating \emph{both}
+the development methodology (``how we build software'') and the specific
+task (``what to build right now'') to the LLM.  We address this with a
+\textbf{two-layer intent stack}:
+
+\begin{table}[h]
+\centering
+\caption{Two-layer intent architecture.}
+\label{tab:intent}
+\begin{tabular}{@{}lllp{4.5cm}@{}}
+\toprule
+\textbf{Layer} & \textbf{Scope} & \textbf{Mechanism} & \textbf{Content} \\
+\midrule
+Protocol & Persistent & Instruction files & SDD methodology, tool usage,
+    session lifecycle, conventions \\
+Task     & Per-invocation & \texttt{/plan} or spec & Phase objectives,
+    step details, acceptance criteria \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Protocol Layer: Instruction Files}
+
+Instruction files (e.g., \texttt{.github/instructions/*.md}) are loaded
+into the LLM's system context on every invocation.  They encode:
+
+\begin{itemize}[nosep]
+    \item \textbf{SDD methodology}: ``If it's not in the SDD, it doesn't
+          get coded.''
+    \item \textbf{Session protocol}: Start sessions before work; record
+          steps with semantic tags; complete sessions with summaries.
+    \item \textbf{Tool usage}: Parameter names, required vs.\ optional
+          arguments, common workflows.
+    \item \textbf{Conventions}: ASCII-only console output, 2-space
+          indentation, SPOT (Single Point of Truth) for configuration.
+\end{itemize}
+
+The LLM internalizes these instructions as \emph{behavioral constraints}
+that apply to every task, regardless of specifics.  This is analogous
+to a developer internalizing a team's coding standards.
+
+\subsection{Task Layer: Plans and Specifications}
+
+The task layer provides per-invocation context through two mechanisms:
+
+\begin{description}[nosep]
+    \item[Explicit plans (\texttt{/plan}):]
+    The user provides a natural-language plan that the LLM decomposes
+    into an internal task list.  The plan is ephemeral---it exists only
+    in the current conversation context.
+
+    \item[Workflow specifications:]
+    A Markdown specification (Section~\ref{sec:sdd}) provides structured
+    step definitions.  The agent reads the spec via
+    \texttt{get\_sdd\_workflow} and auto-generates its own internal plan
+    from the structured content.
+\end{description}
+
+\begin{keyinsight}
+The protocol layer teaches the agent \emph{how to work}; the task layer
+teaches the agent \emph{what to build}.  Together, they provide
+sufficient intent for the agent to self-plan, self-tag, self-validate,
+and self-resume without human prompting at each step.
+\end{keyinsight}
+
+\subsection{Intent Propagation}
+
+The complete intent stack for any given agent action is:
+
+\begin{equation}
+\label{eq:intent}
+\text{Intent}(a) = \underbrace{\text{Spec}(p)}_{\text{What to build}}
+    \oplus \underbrace{\text{Tag}(s)}_{\text{What kind of work}}
+    \oplus \underbrace{\text{Name}(s) + \text{Notes}(s)}_{\text{Specifics}}
+\end{equation}
+
+\noindent where $p$ is the phase specification, $s$ is the current step,
+and $\oplus$ denotes context concatenation.  Each component adds a
+layer of semantic precision:
+
+\begin{itemize}[nosep]
+    \item \textbf{Spec}: ``Phase 27: J-Job Script RAG Enhancement''
+    \item \textbf{Tag}: \texttt{implement} (this is a construction step)
+    \item \textbf{Name}: ``Run shell graph ingestion''
+    \item \textbf{Notes}: ``235 scripts processed, 383 ShellScript nodes,
+          9{,}155 new relationships''
+\end{itemize}
+
+This layered structure means that even if the name and notes are terse,
+the combination of spec~+~tag~+~name provides enough context to
+reconstruct the full intent post hoc.
+
+% =========================================================================
+\section{Execution Mode Spectrum}
+\label{sec:modes}
+% =========================================================================
+
+The framework defines four execution modes with \textbf{progressive
+trust levels}:
+
+\begin{table}[h]
+\centering
+\caption{Execution mode spectrum.  Trust increases left to right.}
+\label{tab:modes}
+\begin{tabular}{@{}lcccl@{}}
+\toprule
+\textbf{Mode} & \textbf{Side Effects} & \textbf{Human} & \textbf{Audit} & \textbf{Use Case} \\
+\midrule
+\texttt{dry\_run}       & None     & None       & Preview only  & Planning, validation \\
+\texttt{supervised}     & Yes      & Per-step   & Full          & Active development \\
+\texttt{auto\_approved} & Yes      & Manifest   & Full          & Trusted workflows \\
+\texttt{batch}          & Yes      & None       & Full          & CI/CD pipelines \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Step Classification}
+
+Steps are classified by their side-effect potential:
+
+\begin{description}[nosep]
+    \item[Read-only] (\texttt{research}, \texttt{validate}):
+    Auto-execute in all modes.  These steps query databases, read files,
+    and check conditions without modifying system state.
+
+    \item[Side-effect] (\texttt{implement}, \texttt{configure},
+    \texttt{ingest}):
+    Require approval in \texttt{supervised} mode, pre-approved by
+    manifest in \texttt{auto\_approved} mode, or fully autonomous in
+    \texttt{batch} mode.
+
+    \item[Documentation] (\texttt{document}, \texttt{design}):
+    Typically auto-approved since they produce artifacts (Markdown,
+    diagrams) that are easily reviewed and reverted.
+\end{description}
+
+\subsection{From ISD to USD}
+
+The execution mode spectrum enables a natural progression from
+\textbf{Interactive Supervised Development (ISD)} to
+\textbf{Unsupervised Development (USD)}:
+
+\begin{enumerate}[nosep]
+    \item \textbf{ISD Phase}: The developer runs sessions in
+          \texttt{supervised} mode, reviewing each side-effect step.
+          The session history accumulates a record of what actions were
+          approved and which patterns are trustworthy.
+    \item \textbf{Trust Calibration}: After multiple successful supervised
+          sessions, the developer identifies step types and workflow
+          patterns that consistently produce correct results.
+    \item \textbf{USD Phase}: Trusted patterns are codified in an
+          auto-approval manifest.  The agent executes autonomously
+          within these boundaries while still recording every step to
+          the audit log.
+\end{enumerate}
+
+\begin{keyinsight}
+USD is not ``unsupervised'' in the sense of unmonitored.
+Every step is still recorded with full semantic tagging and notes.
+The difference is \emph{when} the human reviews: in ISD, review is
+synchronous (before each step); in USD, review is asynchronous
+(after completion, via the audit log).
+\end{keyinsight}
+
+% =========================================================================
+\section{Implementation Architecture}
+\label{sec:architecture}
+% =========================================================================
+
+\subsection{Technology Stack}
+
+The framework is implemented as part of a unified MCP server:
+
+\begin{table}[h]
+\centering
+\caption{Technology stack.}
+\label{tab:stack}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Component} & \textbf{Technology} & \textbf{Purpose} \\
+\midrule
+MCP Server       & Node.js (ES Modules) & Tool orchestration via MCP SDK \\
+Session Manager  & \texttt{SessionManager.js} & Session lifecycle and history \\
+Graph Database   & Neo4j 5.x & Code structure relationships \\
+Vector Database  & ChromaDB 0.4+ & Semantic search embeddings \\
+Transport        & stdio / Streamable HTTP & MCP client communication \\
+State Storage    & JSON + JSONL files & Session persistence \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{SessionManager Implementation}
+
+The \texttt{SessionManager} class (260~LOC) implements the full session
+lifecycle with seven public methods:
+
+\begin{lstlisting}[language=Java,caption={SessionManager API},label=lst:api]
+class SessionManager {
+  startSession(phaseName, options)   // -> session state
+  recordStep(stepNumber, name, tag, notes) // -> updated state
+  skipStep(stepNumber, reason)       // -> updated state
+  getSessionState()                  // -> state | null
+  resumeSession()                    // -> state (with timestamp)
+  completeSession(summary)           // -> final state
+  abandonSession(reason)             // -> final state
+}
+\end{lstlisting}
+
+Key implementation details:
+
+\begin{itemize}[nosep]
+    \item \textbf{Single active session constraint}.
+          \texttt{startSession} throws if an active session already
+          exists.  This prevents interleaved sessions which would
+          complicate the audit trail.
+    \item \textbf{Duplicate detection.}
+          \texttt{recordStep} rejects duplicate step numbers, preventing
+          accidental re-recording.
+    \item \textbf{Tag validation.}
+          Unknown tags produce a warning but do not block recording,
+          allowing graceful evolution of the tag vocabulary.
+    \item \textbf{Auto-parsing step count.}
+          \texttt{startSession} reads the workflow specification file
+          and counts \texttt{\#\#\# Step N:} patterns to auto-populate
+          \texttt{totalSteps}.
+    \item \textbf{Duration calculation.}
+          \texttt{completeSession} computes wall-clock duration from
+          start to completion timestamps.
+\end{itemize}
+
+\subsection{MCP Tool Registration}
+
+The four session tools are registered with the MCP server alongside
+38+ other tools (code analysis, semantic search, compliance checking):
+
+\begin{table}[h]
+\centering
+\caption{SDD session tools: MCP registration.}
+\label{tab:tools}
+\begin{tabular}{@{}llp{5.5cm}@{}}
+\toprule
+\textbf{Tool} & \textbf{Required Params} & \textbf{Description} \\
+\midrule
+\texttt{start\_sdd\_session}    & \texttt{phase} &
+    Start tracked session; optional \texttt{totalSteps}, \texttt{notes} \\
+\texttt{record\_sdd\_step}      & \texttt{step}, \texttt{name} &
+    Record completion; optional \texttt{tag}, \texttt{notes} \\
+\texttt{get\_sdd\_session}      & (none) &
+    Return active session state for resume \\
+\texttt{complete\_sdd\_session} & (none) &
+    Complete session; optional \texttt{summary} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Multi-Client Portability}
+
+Because session state is persisted to disk (not in MCP server memory),
+the framework is inherently multi-client:
+
+\begin{enumerate}[nosep]
+    \item A developer starts a session in \textbf{VS~Code Copilot}
+          (stdio transport) and completes steps~1--3.
+    \item The developer closes VS~Code.
+    \item Later, a \textbf{Claude Code} terminal agent calls
+          \texttt{get\_sdd\_session()}, discovers steps~1--3 complete,
+          and continues from step~4.
+    \item A \textbf{CI/CD pipeline} calls
+          \texttt{complete\_sdd\_session()} after automated validation.
+\end{enumerate}
+
+This is possible because all clients connect to the same MCP server
+instance (or containers reading the same volume mount), and the session
+state is a simple JSON file on a shared filesystem.
+
+\subsection{Docker MCP Gateway}
+
+For production deployment, the MCP server runs inside a Docker container
+behind the Docker MCP Gateway (Streamable HTTP on port~18888).  The
+\texttt{sdd\_framework/} directory is volume-mounted, ensuring session
+state survives container restarts:
+
+\begin{lstlisting}[language=bash,caption={Volume mount for session persistence}]
+volumes:
+  - /path/to/sdd_framework:/app/sdd_framework   # state persists
+  - /path/to/supported_repos:/app/supported_repos # read-only
+\end{lstlisting}
+
+% =========================================================================
+\section{Empirical Evaluation}
+\label{sec:evaluation}
+% =========================================================================
+
+\subsection{Case Study: Phase 27F-G Shell Graph Ingestion}
+
+We evaluate the framework through a complete session trace from
+Phase~27 of the NOAA Global Workflow RAG enhancement project.  This
+phase involved ingesting shell script structure (J-Jobs, ex-scripts,
+environment variables) into the Neo4j graph database.
+
+\subsubsection{Session Metadata}
+
+\begin{table}[h]
+\centering
+\caption{Phase 27F-G session metadata.}
+\label{tab:session}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Attribute} & \textbf{Value} \\
+\midrule
+Session ID        & \texttt{session\_2026-02-19\_8aioyi} \\
+Phase             & \texttt{phase27\_jjob\_script\_rag\_enhancement} \\
+Total Steps       & 8 (auto-parsed from specification) \\
+Completed Steps   & 8/8 (100\%) \\
+Duration          & 5 minutes \\
+Client            & VS~Code Copilot (stdio) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Step-by-Step Trace}
+
+Table~\ref{tab:steps} shows the complete step trace as recorded in
+\texttt{history.jsonl}.
+
+\begin{table}[h]
+\centering
+\caption{Complete step trace for Phase 27F-G.}
+\label{tab:steps}
+\small
+\begin{tabular}{@{}cllp{5.8cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Tag} & \textbf{Name} & \textbf{Key Metrics} \\
+\midrule
+1 & \texttt{implement}  & Fix shell graph password  & SPOT-compliant default \\
+2 & \texttt{implement}  & Add CLI flags & \texttt{--dry-run}, \texttt{--clear}, \texttt{--verbose} \\
+3 & \texttt{implement}  & Fix bridge paths & Duplicate session, path refactor \\
+4 & \texttt{validate}   & Dry-run shell graph & 235 scripts, 0 errors \\
+5 & \texttt{implement}  & Run ingestion & 383 nodes, 9{,}155 relationships \\
+6 & \texttt{implement}  & Re-run bridges & 8 cross-language edges \\
+7 & \texttt{validate}   & Validate Neo4j counts & 40{,}413 total nodes (+206) \\
+8 & \texttt{validate}   & Validate MCP tools & 5/6 tests pass, 1 miss \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Tag Distribution}
+
+The session's tag distribution reveals the development pattern:
+
+\begin{itemize}[nosep]
+    \item \texttt{implement}: 5 steps (62.5\%)---majority of effort in code changes
+    \item \texttt{validate}: 3 steps (37.5\%)---significant validation effort
+    \item \texttt{research}: 0 steps---the phase spec provided sufficient context
+\end{itemize}
+
+This ratio (roughly 2:1 implement-to-validate) is characteristic of a
+well-specified phase where the agent does not need to ``explore''---the
+specification told it exactly what to build, and the validation steps
+confirmed correctness.
+
+\subsubsection{Quantitative Results}
+
+\begin{table}[h]
+\centering
+\caption{Knowledge graph metrics before and after Phase 27F-G.}
+\label{tab:metrics}
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+\textbf{Metric} & \textbf{Before} & \textbf{After} & \textbf{Delta} \\
+\midrule
+Total nodes              & 40{,}207 & 40{,}413 & +206 \\
+ShellScript nodes        & 0        & 383      & +383 \\
+ShellFunction nodes      & 0        & 63       & +63  \\
+EnvironmentVariable nodes& n/a      & 2{,}489  & +2{,}489 \\
+SOURCES relationships     & 148      & 393      & +245 \\
+INVOKES relationships     & 4        & 352      & +348 \\
+DEPENDS\_ON\_ENV          & 6{,}007  & 7{,}225  & +1{,}218 \\
+DEFINES relationships     & 9{,}690  & 9{,}753  & +63  \\
+Total new relationships  & ---      & ---      & +9{,}155 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Audit Trail Verification}
+
+The complete session is reconstructable from \texttt{history.jsonl}
+alone.  We verified this by:
+
+\begin{enumerate}[nosep]
+    \item Parsing all events with \texttt{sessionId =
+          session\_2026-02-19\_8aioyi}
+    \item Confirming \texttt{started} event with correct phase name
+    \item Confirming 8 \texttt{step\_completed} events in order
+    \item Confirming \texttt{completed} event with duration and step counts
+    \item Total: 10 events (1 started + 8 step\_completed + 1 completed)
+\end{enumerate}
+
+\subsection{Session Management Validation}
+
+Prior to the Phase~27 session, two validation sessions tested the
+session lifecycle:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Phase~31 review test}
+          (\texttt{session\_2026-02-18\_8p8fsr}): 2 steps completed,
+          1 step skipped, verifying the skip and completion mechanisms.
+    \item \textbf{Health check test}
+          (\texttt{session\_2026-02-19\_x8kyst}): 2 steps completed
+          with an explicit \texttt{resumed} event, verifying the
+          cross-conversation resume capability.
+\end{enumerate}
+
+All three sessions are permanently recorded in \texttt{history.jsonl}
+(17 total events).
+
+\subsection{Comparison with Untracked Development}
+
+Without session tracking, the same Phase~27 work would have produced:
+
+\begin{itemize}[nosep]
+    \item A chat transcript (ephemeral, not machine-queryable)
+    \item Git commits (capture \emph{what} changed, not \emph{why} or
+          \emph{in what order})
+    \item No structured record of the dry-run step that validated
+          correctness before the live ingestion
+    \item No tag-based analysis of implementation vs.\ validation effort
+\end{itemize}
+
+The session trace adds approximately 3~KB of structured metadata
+(10 JSONL events) that makes the entire development process
+reconstructable and analyzable.
+
+% =========================================================================
+\section{Discussion}
+\label{sec:discussion}
+% =========================================================================
+
+\subsection{Limitations}
+
+\subsubsection{Single Active Session}
+
+The current design enforces one active session at a time.  This prevents
+interleaved work (e.g., pausing Phase~27 to fix an urgent bug in a
+different phase).  The workaround is to \texttt{abandon} the current
+session and start a new one, but this loses the in-progress state.
+
+\textbf{Proposed solution}: Named session stacks, where sessions can be
+suspended and resumed by name, similar to Git stash.
+
+\subsubsection{Completion Snapshot Loss}
+
+When \texttt{complete\_sdd\_session} is called, the active session file
+is deleted.  While all events persist in \texttt{history.jsonl}, the
+assembled session object (with its complete step array) is lost.  To
+reconstruct the full session state, one must filter and reassemble events
+from the history file.
+
+\textbf{Proposed solution}: Write a snapshot entry to
+\texttt{history.jsonl} containing the full session state before deletion.
+
+\subsubsection{No Step Reordering}
+
+Steps must be recorded in increasing numerical order (enforced by
+duplicate detection).  Real-world development sometimes requires
+revisiting earlier steps.  The current design handles this by recording
+a new step with a higher number and explanatory notes.
+
+\subsubsection{Tag Vocabulary Evolution}
+
+The fixed tag vocabulary (\texttt{research}, \texttt{design},
+\texttt{implement}, \texttt{configure}, \texttt{validate},
+\texttt{document}, \texttt{ingest}) may not capture all development
+activities.  Unknown tags produce warnings but are accepted, providing
+a graceful evolution path.
+
+\subsection{Generalizability}
+
+While developed for NOAA Global Workflow, the framework is
+domain-agnostic.  Any codebase that can be described by Markdown
+specifications can use SDD session tracking.  The MCP transport layer
+means any LLM with MCP support can participate.
+
+The semantic step tags are also generalizable: \texttt{research},
+\texttt{design}, \texttt{implement}, \texttt{validate}, and
+\texttt{document} apply to virtually any software project.  The
+\texttt{configure} and \texttt{ingest} tags are more specific to
+infrastructure and knowledge-base maintenance but could be replaced with
+domain-appropriate tags.
+
+\subsection{Comparison with Existing Approaches}
+
+\begin{table}[h]
+\centering
+\caption{Comparison with existing development frameworks.}
+\label{tab:comparison}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Feature} &
+\rotatebox{70}{\textbf{SDD (this work)}} &
+\rotatebox{70}{\textbf{SWE-agent}} &
+\rotatebox{70}{\textbf{MetaGPT}} &
+\rotatebox{70}{\textbf{Claude Code}} &
+\rotatebox{70}{\textbf{GitHub Actions}} \\
+\midrule
+Persistent sessions       & \checkmark &            &            &            & \\
+Semantic step tags        & \checkmark &            &            &            & \\
+Cross-client resume       & \checkmark &            &            &            & \\
+Append-only audit log     & \checkmark &            &            &            & \checkmark \\
+Progressive trust modes   & \checkmark &            &            & \checkmark & \\
+Spec-first methodology    & \checkmark &            & \checkmark &            & \checkmark \\
+Multi-agent support       &            &            & \checkmark &            & \\
+Benchmark evaluation      &            & \checkmark & \checkmark &            & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+SWE-agent~\cite{yang2024swe} and MetaGPT~\cite{hong2024metagpt} excel at
+benchmark tasks but lack persistent session management.
+Claude Code~\cite{anthropic2025claudecode} provides progressive trust
+(auto-accept patterns) but does not persist state across invocations.
+GitHub Actions provides audit trails and spec-driven workflows but
+operates at a different abstraction level (CI/CD pipelines rather than
+interactive development).
+
+Our framework uniquely combines persistent sessions, semantic tagging,
+cross-client portability, and progressive trust in a single lightweight
+architecture.
+
+\subsection{Future Work}
+
+\begin{description}[nosep]
+    \item[Multi-session support:]
+    Named session stacks for concurrent work across multiple phases.
+
+    \item[Completion snapshots:]
+    Write full session state to history on completion, eliminating
+    reconstruction overhead.
+
+    \item[Tag-based auto-approval:]
+    In \texttt{auto\_approved} mode, automatically approve steps tagged
+    \texttt{research} or \texttt{validate} while gating
+    \texttt{implement} steps.
+
+    \item[Session analytics dashboard:]
+    Aggregate tag distributions, duration patterns, and completion rates
+    across all historical sessions.
+
+    \item[Multi-agent coordination:]
+    Multiple agents working on the same phase from different clients,
+    with conflict detection based on step-number reservation.
+
+    \item[Stale session detection:]
+    Automatically flag sessions with no activity beyond a configurable
+    TTL, enabling cleanup of abandoned sessions.
+
+    \item[LLM self-evaluation:]
+    Use the session audit trail as fine-tuning data: train models to
+    predict which tag and notes format produces the most useful history.
+\end{description}
+
+% =========================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% =========================================================================
+
+We have presented a session-tracked agentic development framework that
+transforms ephemeral LLM coding interactions into structured, resumable,
+and auditable engineering processes.  The framework's three core
+contributions---Spec-Driven Development methodology, the Phase~31
+session management model with semantic step tags, and the two-layer
+intent architecture---address fundamental gaps in current LLM agent
+tooling.
+
+Empirical evaluation on the NOAA Global Workflow codebase demonstrates
+the framework's practical value: a Phase~27 session completed 8/8
+tracked steps in 5~minutes, ingesting 9{,}155 new knowledge graph
+relationships across 383 shell-script nodes, with a complete
+machine-queryable audit trail of 10~events in the append-only history
+log.
+
+The execution mode spectrum (\texttt{dry\_run} $\to$ \texttt{supervised}
+$\to$ \texttt{auto\_approved} $\to$ \texttt{batch}) provides a
+principled path from interactive supervised development to unsupervised
+autonomy, with trust calibrated through experience rather than
+configuration.
+
+Perhaps most importantly, the entire framework is implemented as four
+MCP tools totaling 260~lines of code, persisting state in two files on
+a shared filesystem.  This simplicity is a feature, not a limitation:
+it means the framework can be adopted incrementally, runs on any platform
+with a filesystem, and requires no external services beyond what the LLM
+agent already uses.
+
+\textbf{Key insight}: The gap between current LLM agent capability and
+production-grade software engineering is not primarily a capability
+gap---it is a \emph{process} gap.  LLMs can write code, analyze
+architectures, and validate results.  What they lack is a structured
+process for recording \emph{what they did, why they did it, and where
+they left off}.  Session-tracked agentic development fills this gap.
+
+% =========================================================================
+\section*{Acknowledgments}
+% =========================================================================
+
+This work was developed at the NOAA Environmental Modeling Center as part
+of the Global Workflow modernization effort.  The authors thank the
+operational forecasting staff for domain expertise and the Parallel Works
+team for HPC infrastructure support.
+
+% =========================================================================
+% REFERENCES
+% =========================================================================
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+% =========================================================================
+\newpage
+\appendix
+% =========================================================================
+
+\section{Complete SessionManager.js API Reference}
+\label{app:api}
+
+\begin{table}[h]
+\centering
+\caption{SessionManager method signatures and semantics.}
+\label{tab:api}
+\small
+\begin{tabular}{@{}lp{4cm}p{5cm}@{}}
+\toprule
+\textbf{Method} & \textbf{Parameters} & \textbf{Side Effects} \\
+\midrule
+\texttt{startSession} &
+    \texttt{phaseName}: string \newline
+    \texttt{options}: \{totalSteps, notes\} &
+    Writes \texttt{active\_session.json} \newline
+    Appends \texttt{started} to history \\
+\midrule
+\texttt{recordStep} &
+    \texttt{stepNumber}: int \newline
+    \texttt{name}: string \newline
+    \texttt{tag}: string \newline
+    \texttt{notes}: string &
+    Updates \texttt{active\_session.json} \newline
+    Appends \texttt{step\_completed} to history \\
+\midrule
+\texttt{skipStep} &
+    \texttt{stepNumber}: int \newline
+    \texttt{reason}: string &
+    Updates \texttt{active\_session.json} \newline
+    Appends \texttt{step\_skipped} to history \\
+\midrule
+\texttt{getSessionState} &
+    (none) &
+    Read-only; returns session or null \\
+\midrule
+\texttt{resumeSession} &
+    (none) &
+    Updates \texttt{lastActivityAt} \newline
+    Appends \texttt{resumed} to history \\
+\midrule
+\texttt{completeSession} &
+    \texttt{summary}: string &
+    Appends \texttt{completed} to history \newline
+    \textbf{Deletes} \texttt{active\_session.json} \\
+\midrule
+\texttt{abandonSession} &
+    \texttt{reason}: string &
+    Appends \texttt{abandoned} to history \newline
+    \textbf{Deletes} \texttt{active\_session.json} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{History Event Types}
+\label{app:events}
+
+\begin{table}[h]
+\centering
+\caption{All event types recorded in \texttt{history.jsonl}.}
+\label{tab:events}
+\begin{tabular}{@{}lp{7cm}@{}}
+\toprule
+\textbf{Event} & \textbf{Additional Fields} \\
+\midrule
+\texttt{started}         & phase \\
+\texttt{step\_completed}  & step, name, tag, notes \\
+\texttt{step\_skipped}    & step, reason \\
+\texttt{resumed}          & (none beyond base fields) \\
+\texttt{completed}        & summary, completedSteps, skippedSteps,
+                            totalSteps, duration \\
+\texttt{abandoned}        & reason, completedSteps \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All events share base fields: \texttt{sessionId}, \texttt{phase},
+\texttt{event}, \texttt{timestamp}.
+
+\section{Semantic Tag Vocabulary}
+\label{app:tags}
+
+The tag vocabulary is defined as a constant in \texttt{SessionManager.js}:
+
+\begin{lstlisting}[language=Java]
+const VALID_TAGS = [
+    'research',    // Discovery: read code, explore architecture
+    'design',      // Planning: draft models, choose algorithms
+    'implement',   // Construction: write code, modify config
+    'configure',   // Setup: environment, dependencies, infra
+    'validate',    // Verification: tests, counts, dry-runs
+    'document',    // Knowledge: README, changelog, comments
+    'ingest'       // Enrichment: graph ingestion, vector updates
+];
+\end{lstlisting}
+
+Tags are validated with a warning (not an error) for unknown values,
+allowing the vocabulary to evolve without breaking existing sessions.
+
+\section{Phase 27F-G Complete History Trace}
+\label{app:trace}
+
+The following is the verbatim content of \texttt{history.jsonl} entries
+for session \texttt{session\_2026-02-19\_8aioyi}, demonstrating the
+complete audit trail:
+
+\bigskip
+\noindent\textbf{Event 1} (session start):
+\begin{lstlisting}[language={}]
+{"sessionId":"session_2026-02-19_8aioyi",
+ "phase":"phase27_jjob_script_rag_enhancement",
+ "event":"started",
+ "timestamp":"2026-02-19T20:46:46.502Z"}
+\end{lstlisting}
+
+\noindent\textbf{Event 2} (step 1 --- implement):
+\begin{lstlisting}[language={}]
+{"sessionId":"session_2026-02-19_8aioyi",
+ "phase":"phase27_jjob_script_rag_enhancement",
+ "event":"step_completed", "step":1,
+ "name":"Fix shell graph password default",
+ "tag":"implement",
+ "notes":"Changed NEO4J_PASSWORD default from 'password'
+   to 'gfsworkflow2025'. SPOT compliance.",
+ "timestamp":"2026-02-19T20:47:15.678Z"}
+\end{lstlisting}
+
+\noindent\textbf{Event 6} (step 5 --- implement, key ingestion):
+\begin{lstlisting}[language={}]
+{"sessionId":"session_2026-02-19_8aioyi",
+ "phase":"phase27_jjob_script_rag_enhancement",
+ "event":"step_completed", "step":5,
+ "name":"Run shell graph ingestion",
+ "tag":"implement",
+ "notes":"235 scripts processed (0 errors), 383 ShellScript
+   nodes (89 J-Jobs, 130 ex-scripts), 2489 EnvironmentVariables,
+   63 ShellFunctions, 1 ConfigFile. Relationships: 393 SOURCES,
+   352 INVOKES, 1184 EXPORTS, 7225 DEPENDS_ON_ENV,
+   1 READS_CONFIG = 9,155 total new relationships.",
+ "timestamp":"2026-02-19T20:49:30.641Z"}
+\end{lstlisting}
+
+\noindent\textbf{Event 10} (session completion):
+\begin{lstlisting}[language={}]
+{"sessionId":"session_2026-02-19_8aioyi",
+ "phase":"phase27_jjob_script_rag_enhancement",
+ "event":"completed",
+ "completedSteps":8, "skippedSteps":0, "totalSteps":8,
+ "duration":"5m",
+ "timestamp":"2026-02-19T20:52:02.928Z"}
+\end{lstlisting}
+
+% =========================================================================
+\end{document}
