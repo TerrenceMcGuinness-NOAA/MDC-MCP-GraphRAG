@@ -14,7 +14,8 @@ PROVISION_USERS=(
 # Scratch workspace root for provisioned users
 SCRATCH_ROOT="/mcp_rag_eib/SCRATCH_SPACE"
 
-# VNC defaults
+# VNC defaults (DEPRECATED 2026-02-19 — Parallel Works now provides VNC/desktop)
+# Retained for backward compatibility if 09-desktop-vnc.sh is run with --force.
 KASMVNC_GEOMETRY="1920x1080"
 KASMVNC_DEPTH="24"
 

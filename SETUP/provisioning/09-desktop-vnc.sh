@@ -3,6 +3,10 @@
 # 09-desktop-vnc.sh - KasmVNC/VNC remote desktop setup
 # Part of modular provisioning system v4.0.0
 #
+# DEPRECATED (2026-02-19): VNC/KasmVNC remote desktop is now provided by
+# Parallel Works infrastructure. This script is no longer included in the
+# default provisioning run. Use --force to run it manually if needed.
+#
 # Supports both KasmVNC (preferred) and TigerVNC
 # KasmVNC provides built-in HTTPS web interface on port 8443+display
 #
@@ -17,6 +21,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
+
+# ── Deprecation gate ─────────────────────────────────────────────────────────
+# Skip unless --force is passed. Parallel Works now provides VNC/desktop.
+if [[ " $* " != *" --force "* ]] && [[ " $* " != *" --status "* ]]; then
+    log_warning "09-desktop-vnc.sh is DEPRECATED — VNC is now provided by Parallel Works."
+    log_info "Pass --force to run this script anyway, or --status to check existing config."
+    exit 0
+fi
+# ─────────────────────────────────────────────────────────────────────────────
 
 require_root
 

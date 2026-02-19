@@ -8,7 +8,7 @@
 #
 # Usage:
 #   sudo ./provision.sh              # Run all scripts
-#   sudo ./provision.sh --skip 09    # Skip script 09 (VNC)
+#   sudo ./provision.sh --skip 09    # Skip script 09 (VNC) -- now skipped by default
 #   sudo ./provision.sh --only 06    # Only run script 06 (ChromaDB)
 #   sudo ./provision.sh --list       # List available scripts
 #   sudo ./provision.sh --fresh      # Clean start (wipe caches)
@@ -38,7 +38,9 @@ declare -a SCRIPTS=(
     "06-chromadb.sh:ChromaDB Database"
     "07-mcp-server.sh:MCP Server Setup"
     "08-services.sh:Docker Compose Services"
-    "09-desktop-vnc.sh:Remote Desktop (VNC)"
+    # 09-desktop-vnc.sh: SKIPPED by default (2026-02-19)
+    # VNC/KasmVNC remote desktop is now provided by Parallel Works infrastructure.
+    # To run manually if needed: sudo ./09-desktop-vnc.sh --force
     "10-verification.sh:Final Verification"
     "11-docker-mcp-gateway.sh:Docker MCP Gateway"
     "12-static-mode-gateway.sh:Phase 23 Static Mode (Production)"
@@ -90,7 +92,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Examples:"
             echo "  sudo $0                    # Run all scripts"
-            echo "  sudo $0 --skip 09          # Skip VNC setup"
+            echo "  sudo $0 --skip 09          # Skip VNC setup (skipped by default since v4.1)"
             echo "  sudo $0 --only 06 --only 07  # Only ChromaDB and MCP server"
             echo "  sudo $0 --fresh            # Clean start"
             exit 0

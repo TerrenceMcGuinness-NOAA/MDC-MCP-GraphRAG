@@ -1,7 +1,7 @@
 # MCP RAG Modular Provisioning System
 
-**Version:** 4.0.0  
-**Date:** December 2025
+**Version:** 4.1.0  
+**Date:** February 2026
 
 ## Overview
 
@@ -33,7 +33,7 @@ sudo ./provision.sh --list           # List available scripts
 | `06-chromadb.sh` | ChromaDB Docker container | 01, 03 |
 | `07-mcp-server.sh` | MCP server deployment | 01, 04 |
 | `08-services.sh` | Neo4j, LangFlow, systemd | 03, 06 |
-| `09-desktop-vnc.sh` | VNC/noVNC remote desktop | 02 |
+| `09-desktop-vnc.sh` | VNC/noVNC remote desktop | 02 | **DEPRECATED** — Parallel Works provides VNC |
 | `10-verification.sh` | Final verification | All |
 | `11-docker-mcp-gateway.sh` | Docker MCP Gateway plugin | 03, 07 |
 | `12-static-mode-gateway.sh` | Phase 23 Static Mode gateway | 11 |
@@ -55,7 +55,7 @@ provisioning/
 ├── 06-chromadb.sh        # ChromaDB container
 ├── 07-mcp-server.sh      # MCP server
 ├── 08-services.sh        # Docker Compose services
-├── 09-desktop-vnc.sh     # VNC remote desktop
+├── 09-desktop-vnc.sh     # VNC remote desktop (DEPRECATED — Parallel Works)
 ├── 10-verification.sh    # Verification
 ├── 11-docker-mcp-gateway.sh  # Docker MCP Gateway plugin
 ├── 12-static-mode-gateway.sh # Phase 23 static mode gateway
@@ -196,5 +196,6 @@ When adding new provisioning steps:
 
 ## Version History
 
+- **4.1.0** (Feb 2026): Deprecated 09-desktop-vnc.sh (Parallel Works provides VNC)
 - **4.0.0** (Dec 2025): Initial modular provisioning system
 - Refactored from `provision_mcp_rag_persistent.sh` v3.6.x
