@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html><head>
+<title>Neo4j Graph Explorer - EIB MCP RAG</title>
+<style>
+  body { font-family: -apple-system, sans-serif; margin: 2em; background: #1a1a2e; color: #eee; }
+  h1 { color: #00bcd4; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+  th { background: #16213e; padding: 10px; text-align: left; color: #00bcd4; }
+  td { padding: 10px; border-bottom: 1px solid #333; }
+  code { background: #16213e; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; word-break: break-all; }
+  a { color: #4fc3f7; text-decoration: none; font-weight: bold; white-space: nowrap; }
+  a:hover { text-decoration: underline; }
+  .note { color: #aaa; font-size: 0.9em; margin-top: 1em; }
+  h2 { color: #ff9800; margin-top: 2em; }
+</style>
+</head><body>
+<h1>Neo4j Graph Explorer</h1>
+<p>Click any link to open the query in Neo4j Browser. Press <kbd>Ctrl+Enter</kbd> to execute.</p>
+<table>
+  <tr><th>Graph</th><th>Cypher Query</th><th>Link</th></tr>
+  <tr>
+    <td><strong>Schema Visualization</strong></td>
+    <td><code>CALL db.schema.visualization()</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=CALL%20db.schema.visualization%28%29" target="_blank">Open in Neo4j</a></td>
+  </tr>
+  <tr>
+    <td><strong>Shell Scripts that INVOKE Python (with functions)</strong></td>
+    <td><code>MATCH (ex:File)-[inv:INVOKES]->(py:PythonModule)-[def:DEFINES]->(fn:PythonFunction) RETURN ex, inv, py, def, fn</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=MATCH%20%28ex%3AFile%29-%5Binv%3AINVOKES%5D-%3E%28py%3APythonModule%29-%5Bdef%3ADEFINES%5D-%3E%28fn%3APythonFunction%29%20RETURN%20ex%2C%20inv%2C%20py%2C%20def%2C%20fn" target="_blank">Open in Neo4j</a></td>
+  </tr>
+  <tr>
+    <td><strong>Fortran Call Tree (25 nodes)</strong></td>
+    <td><code>MATCH (n:Function)-[r:CALLS]->(m:Function) RETURN n,r,m LIMIT 25</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=MATCH%20%28n%3AFunction%29-%5Br%3ACALLS%5D-%3E%28m%3AFunction%29%20RETURN%20n%2Cr%2Cm%20LIMIT%2025" target="_blank">Open in Neo4j</a></td>
+  </tr>
+  <tr>
+    <td><strong>Module USES Graph</strong></td>
+    <td><code>MATCH (m:Module)-[r:USES]->(m2:Module) RETURN m,r,m2 LIMIT 30</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=MATCH%20%28m%3AModule%29-%5Br%3AUSES%5D-%3E%28m2%3AModule%29%20RETURN%20m%2Cr%2Cm2%20LIMIT%2030" target="_blank">Open in Neo4j</a></td>
+  </tr>
+  <tr>
+    <td><strong>HOMEgfs Usage</strong></td>
+    <td><code>MATCH (s)-[r]-(e:EnvironmentVariable {name: 'HOMEgfs'}) RETURN s,r,e LIMIT 50</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=MATCH%20%28s%29-%5Br%5D-%28e%3AEnvironmentVariable%20%7Bname%3A%20%27HOMEgfs%27%7D%29%20RETURN%20s%2Cr%2Ce%20LIMIT%2050" target="_blank">Open in Neo4j</a></td>
+  </tr>
+  <tr>
+    <td><strong>Cross-Language Bridges</strong></td>
+    <td><code>MATCH (s)-[r:INVOKES|EXECUTES]->(t) RETURN s,r,t LIMIT 30</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=MATCH%20%28s%29-%5Br%3AINVOKES%7CEXECUTES%5D-%3E%28t%29%20RETURN%20s%2Cr%2Ct%20LIMIT%2030" target="_blank">Open in Neo4j</a></td>
+  </tr>
+  <tr>
+    <td><strong>Python Function Graph</strong></td>
+    <td><code>MATCH (m:PythonModule)-[r:DEFINES]->(f:PythonFunction) RETURN m,r,f LIMIT 30</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=MATCH%20%28m%3APythonModule%29-%5Br%3ADEFINES%5D-%3E%28f%3APythonFunction%29%20RETURN%20m%2Cr%2Cf%20LIMIT%2030" target="_blank">Open in Neo4j</a></td>
+  </tr>
+  <tr>
+    <td><strong>J-Job Scripts</strong></td>
+    <td><code>MATCH (c:CodeFile {script_type: 'j-job'}) RETURN c LIMIT 25</code></td>
+    <td><a href="http://localhost:7474/browser?cmd=edit&arg=MATCH%20%28c%3ACodeFile%20%7Bscript_type%3A%20%27j-job%27%7D%29%20RETURN%20c%20LIMIT%2025" target="_blank">Open in Neo4j</a></td>
+  </tr>
+</table>
+<h2>Custom Query Builder</h2>
+<p>Enter any Cypher query below and click Open to send it to Neo4j Browser:</p>
+<textarea id="q" rows="3" cols="80" style="background:#16213e;color:#eee;font-family:monospace;padding:8px;border:1px solid #333;">MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 25</textarea><br>
+<button onclick="window.open('http://localhost:7474/browser/?cmd=edit&arg='+encodeURIComponent(document.getElementById('q').value))" style="margin-top:8px;padding:8px 20px;background:#00bcd4;border:none;color:#fff;cursor:pointer;font-size:1em;">Open in Neo4j Browser</button>
+<p class="note">Neo4j Browser: <a href="http://localhost:7474/browser/">http://localhost:7474/browser/</a> | Bolt: bolt://localhost:7687 | Auth: neo4j / gfsworkflow2025</p>
+</body></html>
