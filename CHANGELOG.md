@@ -1,5 +1,36 @@
 # MCP Server Changelog
 
+## [7.15.0] - Phase 27F-G: Shell Graph Ingestion + Validation (February 19, 2026)
+
+### Context
+`ingest_shell_graph_v8.py` existed since Phase 27B but was **never executed** — Neo4j had 0 ShellScript nodes. Root cause: Neo4j password default was wrong ("password" vs "gfsworkflow2025"), and the script had no `--dry-run` flag despite running a destructive `clear_shell_graph()` on every invocation. First execution tracked via SDD session `session_2026-02-19_8aioyi` (8/8 steps).
+
+### Fixed
+- **SPOT violation**: `ingest_shell_graph_v8.py` Neo4j password default changed from `"password"` to `"gfsworkflow2025"` (`95233c7`)
+- **Duplicate session line** in `ingest_cross_language_bridges.py` removed (`95233c7`)
+- **Dead path**: `ingest_cross_language_bridges.py` now scans `dev/scripts/` (repo was refactored from `scripts/`) (`95233c7`)
+- **File index query** in bridges script now matches both `/scripts/ex` and `/dev/scripts/ex` paths (`95233c7`)
+
+### Added
+- **argparse CLI** for `ingest_shell_graph_v8.py`: `--dry-run`, `--clear`, `--verbose` flags. Default is now incremental MERGE without clearing (`95233c7`)
+
+### Ingestion Results (first run)
+- **383 ShellScript nodes** (89 J-Jobs, 130 ex-scripts, 164 ush/legacy)
+- **63 ShellFunction nodes**
+- **9,155 new relationships**: 393 SOURCES, 352 INVOKES, 1,184 EXPORTS, 7,225 DEPENDS_ON_ENV, 1 READS_CONFIG
+- **Neo4j totals**: 40,413 nodes (was 40,207), ~576K relationships (was 567K)
+- **Cross-language bridges**: 8 edges (was 7; bottleneck is unmatched Fortran binaries in external packages)
+
+### Validated
+- `describe_component JGDAS_FIT2OBS` — PASS
+- `find_callers_callees JGDAS_FIT2OBS` — PASS (excfs_gdas_vrfyfits.sh, jjob_header.sh in callees)
+- `list_job_scripts search=fit2obs` — PASS (exactly 1 result)
+- `get_code_context JGDAS_FIT2OBS` — PASS (GGSR neighborhood: 2 hop-1, 13 hop-2)
+
+### Documentation
+- `sdd_framework/CURRENT_ROADMAP.md` — full rewrite with accurate metrics (`8d04e89`)
+- `sdd_framework/workflows/phase27_jjob_script_rag_enhancement.md` — 27F-G sections updated with audit findings and 5 design concepts (`8d04e89`)
+
 ## [7.14.1] - SDD Persistence Fix for Docker MCP Gateway (February 18, 2026)
 
 ### Fixed
