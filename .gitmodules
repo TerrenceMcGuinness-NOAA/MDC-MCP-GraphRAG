@@ -6,3 +6,55 @@
 	path = supported_repos/nws-hpc-standards
 	url = https://github.com/TerrenceMcGuinness-NOAA/nws-hpc-standards.git
 	branch = develop
+[submodule "supported_repos/activate-rag-vllm"]
+	path = supported_repos/activate-rag-vllm
+	url = https://github.com/parallelworks/activate-rag-vllm.git
+	branch = main
+[submodule "supported_repos/copilot-sdk"]
+	path = supported_repos/copilot-sdk
+	url = https://github.com/github/copilot-sdk.git
+	branch = main
+[submodule "supported_repos/EVS"]
+	path = supported_repos/EVS
+	url = https://github.com/NOAA-EMC/EVS.git
+	branch = release/evs.v2.0.0
+[submodule "supported_repos/global-workflow_crow"]
+	path = supported_repos/global-workflow_crow
+	url = https://github.com/NOAA-EMC/global-workflow.git
+	branch = crow
+[submodule "supported_repos/global-workflow.wiki"]
+	path = supported_repos/global-workflow.wiki
+	url = https://github.com/TerrenceMcGuinness-NOAA/global-workflow.wiki.git
+	branch = master
+[submodule "supported_repos/knowledge-graph"]
+	path = supported_repos/knowledge-graph
+	url = https://gitlab.com/gitlab-org/rust/knowledge-graph.git
+	branch = main
+[submodule "supported_repos/mcp-gateway"]
+	path = supported_repos/mcp-gateway
+	url = https://github.com/docker/mcp-gateway.git
+	branch = main
+[submodule "supported_repos/n8n"]
+	path = supported_repos/n8n
+	url = https://github.com/n8n-io/n8n.git
+	branch = master
+[submodule "supported_repos/parallel-works-mcp"]
+	path = supported_repos/parallel-works-mcp
+	url = https://github.com/parallelworks/pw-mcp.git
+	branch = main
+[submodule "supported_repos/rocoto"]
+	path = supported_repos/rocoto
+	url = https://github.com/TerrenceMcGuinness-NOAA/rocoto.git
+	branch = feature/dryrun_nodaemon
+[submodule "supported_repos/ECFLOW/ecflow"]
+	path = supported_repos/ECFLOW/ecflow
+	url = https://github.com/ecmwf/ecflow
+	branch = develop
+[submodule "supported_repos/ECFLOW/pyecflow"]
+	path = supported_repos/ECFLOW/pyecflow
+	url = https://github.com/AnnaSmoot-NOAA/pyecFlow.git
+	branch = DISPLAY_vnc_devcontainer
+[submodule "supported_repos/ECFLOW/pyflow"]
+	path = supported_repos/ECFLOW/pyflow
+	url = https://github.com/ecmwf/pyflow
+	branch = develop
