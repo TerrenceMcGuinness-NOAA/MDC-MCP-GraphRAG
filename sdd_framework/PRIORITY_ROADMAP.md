@@ -10,7 +10,7 @@
 ## 🟢 Current System Status (February 2026)
 
 | Component | Status | Metrics |
-|-----------|--------|---------||
+|-----------|--------|---------|
 | **MCP Server** | ✅ Operational | v7.3.10, 39 tools across 9 modules |
 | **ChromaDB** | ✅ Healthy | 4 collections (cleaned), MPNet 768-dim embeddings |
 | **Neo4j** | ✅ Healthy | 20,496 nodes, 369,013 relationships (incl. Fortran) |
