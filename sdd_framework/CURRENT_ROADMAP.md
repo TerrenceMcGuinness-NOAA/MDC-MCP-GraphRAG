@@ -3,7 +3,7 @@
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
 **Last Updated**: February 19, 2026  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development — v7.14.1, 43 tools, Phase 31 SDD Model
+**Status**: Active Development — v7.15.0, 43 tools, Phase 31 SDD Model
 
 ---
 
@@ -11,11 +11,11 @@
 
 | Component | Status | Metrics |
 |-----------|--------|---------|
-| **MCP Server** | Operational | v7.14.1, 43 tools across 9 modules |
+| **MCP Server** | Operational | v7.15.0, 43 tools across 9 modules |
 | **ChromaDB** | Healthy | 5 collections, 63,072 documents, MPNet 768-dim |
-| **Neo4j** | Healthy | 40,207 nodes, 567,663 relationships, 24 label types |
+| **Neo4j** | Healthy | 40,413 nodes, ~577K relationships, 24+ label types |
 | **Fortran Graph** | Complete (Phase 10) | 17,575 nodes, 268K CALLS, 91K USES |
-| **Shell Graph** | **NOT INGESTED** | `ingest_shell_graph_v8.py` exists but never run |
+| **Shell Graph** | Complete (Phase 27F) | 383 ShellScript, 63 ShellFunction, 9,155 relationships |
 | **Docker Gateway** | Operational | Port 18888, Streamable HTTP, systemd service |
 | **SDD Framework** | v6.0 / Phase 31 | 39 active workflows, 11 archived |
 | **Git Submodules** | Complete | 16 repos registered under `supported_repos/` |
@@ -38,11 +38,12 @@
 | FortranSubroutine | 13,537 | `ingest_fortran_graph.py` |
 | CodeFunction | 5,059 | `ingest_code_v8.py` |
 | PythonFunction | 3,267 | `ingest_code_v8.py` |
-| EnvironmentVariable | 2,730 | `ingest_env_variables.py` |
+| EnvironmentVariable | 2,489 | `ingest_env_variables.py` |
 | FortranModule | 1,762 | `ingest_fortran_graph.py` |
 | Community | 3,847 | Leiden community detection (Phase 24E) |
-| **ShellScript** | **0** | **`ingest_shell_graph_v8.py` — NEVER RUN** |
-| *24 label types total* | **40,207** | |
+| ShellScript | 383 | `ingest_shell_graph_v8.py` (Phase 27F) |
+| ShellFunction | 63 | `ingest_shell_graph_v8.py` (Phase 27F) |
+| *24+ label types total* | **40,413** | |
 
 ### Neo4j Relationship Summary
 
@@ -55,10 +56,13 @@
 | DEPENDS_ON_ENV | 6,007 | Environment variable references |
 | EXPORTS | 1,669 | Exported symbols |
 | SETS | 1,401 | Variable assignments |
-| SOURCES | 148 | Shell source statements |
-| INVOKES | 4 | Cross-language invocations |
+| SOURCES | 393 | Shell source statements |
+| INVOKES | 352 | Shell invocations (J-Job → ex-script) |
+| EXPORTS | 1,184 | Shell exported variables |
+| DEPENDS_ON_ENV | 7,225 | Environment variable references |
+| READS_CONFIG | 1 | Config file reads |
 | EXECUTES | 3 | Shell→Fortran execution bridges |
-| **Total** | **567,663** | |
+| **Total** | **~577K** | |
 
 ---
 
@@ -73,18 +77,19 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 | `ingest_env_variables.py` | Neo4j | Run | 2,730 env vars |
 | `ingest_jjobs_v8.py` | ChromaDB | Run | 700 J-Job documents |
 | `ingest_documentation_v8.py` | ChromaDB | Run | 3,514 documentation docs |
-| **`ingest_shell_graph_v8.py`** | **Neo4j** | **NEVER RUN** | **0 nodes — password default wrong** |
-| `ingest_cross_language_bridges.py` | Neo4j | Run (low yield) | 7 edges (3 EXECUTES, 4 INVOKES) |
+| `ingest_shell_graph_v8.py` | Neo4j | Run (Phase 27F) | 383 ShellScript, 63 ShellFunction, 9,155 rels |
+| `ingest_cross_language_bridges.py` | Neo4j | Run (re-run 27F) | 8 edges (3 EXECUTES, 5 INVOKES) |
 
-### Critical Gap: Shell Script Graph
+### Remaining Gaps
 
-`ingest_shell_graph_v8.py` creates `:ShellScript`, `:ShellFunction`, `:ConfigFile` nodes and `SOURCES`, `INVOKES`, `READS_CONFIG`, `EXPORTS`, `DEFINES` relationships. It was **never executed** because:
+**1. `search_documentation` only queries one collection** (Phase 27H)
+- `hybridQuery()` defaults to `global-workflow-docs-v8-0-0` — misses all 700 J-Job docs in `jjobs-v8-0-0`
+- Fix: Switch to `multiSourceSearch()` with expanded collection list
 
-1. **Neo4j password mismatch**: Script defaults to `"password"` but the database uses `"gfsworkflow2025"` (SPOT violation — should read from `mcp-env.sh`)
-2. **No dry-run flag**: Unlike `ingest_jjobs_v8.py` and `ingest_env_variables.py`, there's no safe preview mode
-3. **Destructive default**: `clear_shell_graph()` runs unconditionally on startup
-
-**Impact**: Without shell script nodes, `ingest_cross_language_bridges.py` found only 7 edges. Re-running bridges after shell ingestion should yield 50+ cross-language links.
+**2. External Fortran EXECUTES bridges sparse** (Phase 27I)
+- Only 3 EXECUTES edges exist — 12/15 executable→program mappings unresolved
+- Executables from GSI, UFS_UTILS, Fit2Obs have no FortranProgram nodes in Neo4j
+- Fix: Create placeholder FortranProgram nodes + curate EXEC_TO_PROGRAM mapping
 
 ---
 
@@ -104,7 +109,7 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 | 24H | v7.11.0 | Agentic Tool Surface (5 new MCP tools) |
 | 25 | v7.12.0 | VNC Cleanup & Deprecation |
 | 26 | v7.13.0 | Docker MCP Gateway systemd fix (port 18888) |
-| 27A-E | v7.13.x | J-Job RAG Enhancement (path fix, shell parser, ChromaDB, filters, embeddings) |
+| 27A-G | v7.15.0 | J-Job RAG Enhancement (path fix, shell parser, ChromaDB, filters, embeddings, shell graph ingestion, validation) |
 | 28 | v7.5.0 | GraphRAG Acceleration (GGSR prototypes, enrichment wiring) |
 | 29 | v4.1.0 | Provisioning Modernization (VNC removed, scripts consolidated) |
 | 30 | v7.14.0 | SDD Framework Cleanup (18 files deleted, 7 migrated, 11 archived) |
@@ -114,8 +119,8 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 
 | Phase | Status | Goal |
 |-------|--------|------|
-| **27F** | NOT STARTED | Run ingestion pipeline: shell graph → bridges → validate |
-| **27G** | NOT STARTED | End-to-end validation of all 27A-F deliverables |
+| **27H** | NOT STARTED | `search_documentation` multi-collection routing (jjobs + docs + ee2) |
+| **27I** | NOT STARTED | External Fortran EXECUTES bridge resolution (placeholder nodes + EXEC_TO_PROGRAM) |
 
 ### Planned
 
@@ -208,8 +213,8 @@ Currently at Phase 31 with sub-phases through the alphabet.
 - Docker MCP Gateway for external client access
 
 ### Known Gaps
-- **Shell script graph empty** — `ingest_shell_graph_v8.py` never executed (Phase 27F)
-- **Cross-language bridges sparse** — Only 7 edges; needs shell graph for full yield
+- **`search_documentation` blind to J-Jobs** — Only queries `global-workflow-docs-v8-0-0`, misses 700 jjobs documents (Phase 27H)
+- **External Fortran bridges sparse** — Only 3 EXECUTES edges; 12 executables from GSI/UFS_UTILS/Fit2Obs unresolved (Phase 27I)
 - **No ingestion orchestrator** — 7 scripts must be run manually in correct order
 - **No CI/CD pipeline** — Builds and tests are manual (Phase 13)
 - **Single-user** — No multi-tenant workspace support yet (Phase 4D)

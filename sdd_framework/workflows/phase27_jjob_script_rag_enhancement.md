@@ -15,8 +15,10 @@
 | 27C | ✅ COMPLETE | J-Job ChromaDB ingestion with MPNet embeddings (768-dim) |
 | 27D | ✅ COMPLETE | `list_job_scripts` search filter implementation |
 | 27E | ✅ COMPLETE | Unified MPNet embeddings for Node.js/Python + `get_job_details` |
-| 27F | 🔲 NOT STARTED | Shell graph ingestion + cross-language bridge re-run |
-| 27G | 🔲 NOT STARTED | End-to-end validation of 27A-F against live databases |
+| 27F | ✅ COMPLETE | Shell graph ingestion + cross-language bridge re-run |
+| 27G | ✅ COMPLETE | End-to-end validation of 27A-F against live databases |
+| 27H | 🔲 NOT STARTED | `search_documentation` multi-collection routing |
+| 27I | 🔲 NOT STARTED | External Fortran EXECUTES bridge resolution |
 
 ## Validation Evidence (February 4, 2026)
 
@@ -942,8 +944,272 @@ against observations using the Fit2Obs package.
 
 ---
 
+### Phase 27H: `search_documentation` Multi-Collection Routing
+
+**Prerequisite**: Phase 27G complete (validated that search_documentation misses jjobs).
+
+**Status**: NOT STARTED  
+**Priority**: HIGH — Quick win, high impact  
+**Estimated Effort**: 1-2 hours
+
+#### Problem Statement
+
+`search_documentation` only queries the `global-workflow-docs-v8-0-0` ChromaDB collection. When users search for J-Job-related content (e.g., "fit2obs verification"), the tool misses all 700 documents in `jjobs-v8-0-0`. Only `get_job_details` (hardcoded to `jjobs-v8-0-0`) can access J-Job data.
+
+**Evidence from 27G validation**: `search_documentation({ query: "fit2obs verification" })` returned 0 J-Job results despite 700 indexed documents.
+
+#### Root Cause
+
+1. `SemanticSearchTools.js` → `searchDocumentation()` calls `this.dataAccess.hybridQuery(query, {...})` with **no `collection` override**
+2. `UnifiedDataAccess.js` → `hybridQuery()` defaults to `collection = 'global-workflow-docs-v8-0-0'` — single collection only
+3. `UnifiedDataAccess.js` → `multiSourceSearch()` exists and searches `['global-workflow-docs-v8-0-0', 'ee2-standards-v5-0-0-enhanced']` — but does NOT include `jjobs-v8-0-0` and is NOT used by `search_documentation`
+
+File Locations:
+- `mcp_server_node/src/tools/SemanticSearchTools.js` — tool handler (line ~193)
+- `mcp_server_node/src/data/UnifiedDataAccess.js` — hybridQuery (line ~84), multiSourceSearch (line ~357)
+
+#### Implementation Plan
+
+**Option A (Recommended): Expand `multiSourceSearch` defaults and wire into `search_documentation`**
+
+Step 1: Add `jjobs-v8-0-0` to `multiSourceSearch()` default collections:
+```javascript
+// UnifiedDataAccess.js → multiSourceSearch()
+const {
+  collections = [
+    'global-workflow-docs-v8-0-0',
+    'jjobs-v8-0-0',                    // ← ADD
+    'ee2-standards-v5-0-0-enhanced'
+  ],
+  nResults = 10,
+  enrichWithGraph = true
+} = options;
+```
+
+Step 2: Switch `searchDocumentation()` from `hybridQuery` to `multiSourceSearch`:
+```javascript
+// SemanticSearchTools.js → searchDocumentation()
+const results = await this.dataAccess.multiSourceSearch(query, {
+  nResults: max_results,
+  enrichWithGraph: include_graph
+});
+```
+
+Step 3: Add optional `collection` parameter to `search_documentation` schema for targeted queries:
+```javascript
+// search_documentation schema
+properties: {
+  query: { type: 'string', description: 'Search query' },
+  collection: { type: 'string', description: 'Target specific collection (default: search all)' },
+  max_results: { type: 'number', default: 8 },
+  // ...
+}
+```
+
+When `collection` is specified, fall back to `hybridQuery` with that specific collection. When omitted, use `multiSourceSearch` across all collections.
+
+**Option B (Minimal): Just add jjobs to `hybridQuery` default**
+
+Change `hybridQuery()` to query multiple collections by default. Higher risk because `hybridQuery` is used by multiple callers and changing its default may affect other tools.
+
+**Recommendation**: Option A — it's cleanly layered, doesn't change `hybridQuery` default (preserving other callers), and adds the `collection` override for power users.
+
+#### Validation
+
+```
+1. search_documentation({ query: "fit2obs verification" })
+   → MUST return JGDAS_FIT2OBS from jjobs-v8-0-0 collection
+
+2. search_documentation({ query: "EE2 production standards" })
+   → MUST still return results from ee2-standards-v5-0-0-enhanced
+
+3. search_documentation({ collection: "jjobs-v8-0-0", query: "forecast" })
+   → MUST return ONLY jjobs results (targeted override)
+
+4. explain_with_context({ topic: "JGDAS_FIT2OBS" })
+   → Should benefit from wider collection search if it also uses hybridQuery
+```
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `mcp_server_node/src/data/UnifiedDataAccess.js` | Add `jjobs-v8-0-0` to `multiSourceSearch` defaults |
+| `mcp_server_node/src/tools/SemanticSearchTools.js` | Switch `searchDocumentation` to `multiSourceSearch`, add `collection` schema param |
+
+---
+
+### Phase 27I: External Fortran EXECUTES Bridge Resolution
+
+**Prerequisite**: Phase 27F complete (shell graph ingested, bridges re-run).
+
+**Status**: NOT STARTED  
+**Priority**: MEDIUM — Improves cross-language tracing completeness  
+**Estimated Effort**: 4-6 hours
+
+#### Problem Statement
+
+`ingest_cross_language_bridges.py` found only 3 EXECUTES edges (Shell → Fortran) because 12 of 15 entries in the `EXEC_TO_PROGRAM` mapping are `None` — their Fortran PROGRAM nodes don't exist in Neo4j. These are executables from external packages (GSI, UFS_UTILS, etc.) whose source code was never ingested into the Fortran graph.
+
+**Evidence from 27F-G**: After shell graph ingestion and bridge re-run, EXECUTES only went from 3 → 3 (no improvement). INVOKES improved from 4 → 5 (Python bridges). The bottleneck is external Fortran programs, not missing shell nodes.
+
+#### Root Cause
+
+The 12 unresolved executables and their source packages:
+
+| Executable | Expected Source | In Neo4j? | Notes |
+|------------|----------------|-----------|-------|
+| `calc_analysis` | UFS_UTILS or GSI | No | Atmospheric analysis calculation |
+| `gaussian_sfcanl` | UFS_UTILS | No | Gaussian surface analysis |
+| `interp_inc` | UFS_UTILS | No | Interpolate increments |
+| `enkf_chgres_recenter` | GSI (EnKF) | No | EnKF change resolution + recenter |
+| `enkf_chgres_recenter_nc` | GSI (EnKF) | No | NetCDF variant |
+| `getsigensmeanp_smooth` | GSI (EnKF) | No | Ensemble mean + smoothing |
+| `getsfcensmeanp` | GSI (EnKF) | No | Surface ensemble mean |
+| `recentersigp` | GSI (EnKF) | No | Sigma-pressure recentering |
+| `fbwndgfs` | Fit2Obs (external) | No | Background wind GFS |
+| `rdbfmsua` | Fit2Obs (external) | No | Read BUFR mandatory/significant upper air |
+| `chgres_cube` | UFS_UTILS | No | Change resolution (cubed-sphere) |
+| (3 resolved) | `gsi`, `enkf`, `calc_increment_ens` | Yes | Already matched via `ingest_fortran_graph.py` |
+
+These Fortran programs live in submodules already registered under `supported_repos/`:
+- `supported_repos/GSI/` — contains EnKF programs
+- `supported_repos/UFS_utils/` — contains `chgres_cube`, surface analysis utilities
+- Fit2Obs — NOT in submodules (external, NOAA-EMC/Fit2Obs)
+
+#### Implementation Plan
+
+**Approach: Two-track — Placeholder nodes + selective ingestion**
+
+**Track 1: Create Placeholder FortranProgram Nodes**
+
+For executables whose source is external or too complex to fully ingest, create `:FortranProgram` nodes with `external: true` metadata. This lets EXECUTES edges form without full source code analysis.
+
+```python
+# Add to ingest_cross_language_bridges.py or as separate script
+
+EXTERNAL_PROGRAMS = [
+    {'name': 'calc_analysis', 'package': 'UFS_UTILS', 'desc': 'Atmospheric analysis calculation'},
+    {'name': 'gaussian_sfcanl', 'package': 'UFS_UTILS', 'desc': 'Gaussian surface analysis'},
+    {'name': 'interp_inc', 'package': 'UFS_UTILS', 'desc': 'Interpolate increments'},
+    {'name': 'chgres_cube', 'package': 'UFS_UTILS', 'desc': 'Change resolution cubed-sphere'},
+    {'name': 'enkf_chgres_recenter', 'package': 'GSI', 'desc': 'EnKF change resolution + recenter'},
+    {'name': 'enkf_chgres_recenter_nc', 'package': 'GSI', 'desc': 'EnKF chgres recenter (NetCDF)'},
+    {'name': 'getsigensmeanp_smooth', 'package': 'GSI', 'desc': 'Ensemble mean + smoothing'},
+    {'name': 'getsfcensmeanp', 'package': 'GSI', 'desc': 'Surface ensemble mean'},
+    {'name': 'recentersigp', 'package': 'GSI', 'desc': 'Sigma-pressure recentering'},
+    {'name': 'fbwndgfs', 'package': 'Fit2Obs', 'desc': 'Background wind GFS'},
+    {'name': 'rdbfmsua', 'package': 'Fit2Obs', 'desc': 'Read BUFR mandatory/significant upper air'},
+]
+
+# Cypher to create placeholder nodes
+for prog in EXTERNAL_PROGRAMS:
+    session.run('''
+        MERGE (p:FortranProgram {name: $name})
+        SET p.external = true,
+            p.package = $package,
+            p.description = $desc,
+            p.placeholder = true
+    ''', name=prog['name'], package=prog['package'], desc=prog['desc'])
+```
+
+**Track 2: Curate `EXEC_TO_PROGRAM` Mappings**
+
+Fill in the `None` entries with correct PROGRAM names that match the placeholder nodes:
+
+```python
+EXEC_TO_PROGRAM = {
+    'gsi': 'gsi',
+    'enkf': 'enkf_main',
+    'calc_increment_ens': 'calc_increment_main',
+    'calc_increment_ens_ncio': 'calc_increment_main',
+    'calc_analysis': 'calc_analysis',                        # ← was None
+    'gaussian_sfcanl': 'gaussian_sfcanl',                    # ← was None
+    'interp_inc': 'interp_inc',                              # ← was None
+    'enkf_chgres_recenter': 'enkf_chgres_recenter',          # ← was None
+    'enkf_chgres_recenter_nc': 'enkf_chgres_recenter_nc',    # ← was None
+    'getsigensmeanp_smooth': 'getsigensmeanp_smooth',        # ← was None
+    'getsfcensmeanp': 'getsfcensmeanp',                      # ← was None
+    'recentersigp': 'recentersigp',                          # ← was None
+    'fbwndgfs': 'fbwndgfs',                                  # ← was None
+    'rdbfmsua': 'rdbfmsua',                                  # ← was None
+    'chgres_cube': 'chgres_cube',                            # ← was None
+}
+```
+
+**Track 3 (Future): Full GSI/UFS_UTILS Fortran Ingestion**
+
+Extend `ingest_fortran_graph.py` to scan additional submodule directories. This is heavier work and yields full call trees, but is not required for EXECUTES bridges to form.
+
+```bash
+# These repos are already git submodules:
+supported_repos/GSI/           # EnKF executables
+supported_repos/UFS_utils/     # chgres_cube, surface analysis
+# Fit2Obs is NOT a submodule (external NOAA-EMC package)
+```
+
+This track is deferred — Track 1+2 provides EXECUTES edges immediately.
+
+#### Execution Order
+
+| Step | Action | Expected Outcome |
+|------|--------|------------------|
+| 1 | Create placeholder FortranProgram nodes (11 nodes) | Neo4j: +11 FortranProgram nodes with `external: true` |
+| 2 | Update `EXEC_TO_PROGRAM` — fill all `None` entries | All 15 entries have valid mappings |
+| 3 | Re-run `ingest_cross_language_bridges.py --dry-run` | Preview: 12+ new EXECUTES edges projected |
+| 4 | Re-run live | EXECUTES: 3 → 15+ (5x improvement) |
+| 5 | Validate cross-language chain query | J-Job → ex-script → FortranProgram (external) chains visible |
+
+#### Validation
+
+```cypher
+-- Placeholder nodes exist and are labeled
+MATCH (p:FortranProgram {external: true}) RETURN p.name, p.package;
+-- Expected: 11 rows (GSI: 5, UFS_UTILS: 4, Fit2Obs: 2)
+
+-- EXECUTES edges improved
+MATCH ()-[r:EXECUTES]->() RETURN count(r) AS total_executes;
+-- Expected: 15+ (was 3)
+
+-- Full chain now traversable for external programs
+MATCH (s:ShellScript)-[:EXECUTES]->(p:FortranProgram {external: true})
+RETURN s.name, p.name, p.package LIMIT 10;
+-- Expected: exgfs_forecast.sh → chgres_cube (UFS_UTILS), etc.
+```
+
+**MCP Tool Validation**:
+```
+1. find_callers_callees({ function_name: "chgres_cube" })
+   → Should show shell scripts that execute it
+
+2. get_code_context({ symbol: "enkf_chgres_recenter" })
+   → Should return GGSR neighborhood (even for placeholders)
+
+3. trace_execution_path({ function_name: "exgfs_atmos_chgres_forenkf.sh" })
+   → Should show chgres_cube as downstream executable
+```
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `mcp_server_node/scripts/ingest_cross_language_bridges.py` | Add placeholder node creation, fill `EXEC_TO_PROGRAM` |
+| (Optional) New: `mcp_server_node/scripts/ingest_external_programs.py` | Standalone placeholder creator if kept separate |
+
+#### Risk Assessment
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Placeholder names don't match actual PROGRAM names | Low | Binary names used directly; actual matching only matters when full ingestion happens |
+| Duplicate nodes if full GSI ingestion happens later | Low | Use MERGE, not CREATE; `external: true` flag distinguishes placeholders |
+| Fit2Obs not in submodules | Low | Placeholder is sufficient; full ingestion deferred until Fit2Obs is added |
+
+---
+
 ## Changelog
 
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-02-04 | 0.1.0 | Initial SDD creation from tool effectiveness audit |
+| 2026-02-19 | 0.2.0 | 27F-G executed: shell graph ingested (383 nodes, 9155 rels), bridges re-run (8 edges) |
+| 2026-02-19 | 0.3.0 | 27H-I specs added: multi-collection routing + external Fortran bridge resolution |
