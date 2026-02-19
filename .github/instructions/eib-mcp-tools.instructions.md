@@ -38,6 +38,10 @@ These are the **exact parameter names** — using wrong names will fail:
 | `search_architecture` | `query` | `max_results` |
 | `find_related_files` | `file_path` | `max_results`, `threshold` |
 | `search_documentation` | `query` | `max_results`, `collection` |
+| `start_sdd_session` | `phase` | `totalSteps`, `notes` |
+| `record_sdd_step` | `step`, `name` | `tag`, `notes` |
+| `get_sdd_session` | *(none)* | |
+| `complete_sdd_session` | | `summary` |
 
 ## Tool Selection by Task
 
@@ -77,10 +81,17 @@ These are the **exact parameter names** — using wrong names will fail:
 - `get_system_configs()` — HPC platform-specific configurations
 - `describe_component({ component })` — component documentation
 
-### SDD Workflows (Filesystem only)
+### SDD Workflows (Filesystem only — Phase 31 session model)
 - `list_sdd_workflows()` — all workflow phase specs
 - `get_sdd_workflow({ workflow_id })` — specific phase details
-- `execute_sdd_workflow_supervised({ workflow_id })` — ISD execution with approval
+- `start_sdd_session({ phase, totalSteps, notes })` — start a tracked session for a phase
+- `record_sdd_step({ step, name, tag, notes })` — record step completion (tags: research, design, implement, configure, validate, document, ingest)
+- `get_sdd_session()` — get current active session state (resume across conversations)
+- `complete_sdd_session({ summary })` — complete session, archive to history
+
+**Session lifecycle**: `start_sdd_session` → `record_sdd_step` (repeat) → `complete_sdd_session`
+
+**State persistence**: Active session in `sdd_framework/execution_state/active_session.json` (survives server restarts). All events append to `sdd_framework/execution_state/history.jsonl` for audit trail. Use `get_sdd_session` to resume an in-progress session in a new conversation.
 
 ### GitHub Integration
 - `search_issues({ query })` — search issues across repos
@@ -124,6 +135,22 @@ These are the **exact parameter names** — using wrong names will fail:
 1. search_architecture({ query: "data assimilation cycling" })
 2. search_documentation({ query: "data assimilation" })
 3. get_operational_guidance({ topic: "running DA on Hera" })
+```
+
+### "Execute a tracked SDD phase"
+```
+1. get_sdd_workflow({ workflow_id: "phase27_jjob_script_rag_enhancement" })  # Read the spec
+2. start_sdd_session({ phase: "phase27_jjob_script_rag_enhancement", totalSteps: 8 })
+3. record_sdd_step({ step: 1, name: "Fix password default", tag: "implement", notes: "Changed to SPOT-compliant value" })
+4. record_sdd_step({ step: 2, name: "Validate dry-run", tag: "validate", notes: "235 scripts parsed, 0 errors" })
+   ... (repeat for each step)
+5. complete_sdd_session({ summary: "Phase 27F-G complete: 383 nodes, 9155 rels" })
+```
+
+### "Resume an interrupted session"
+```
+1. get_sdd_session()  # Returns active session with completed steps
+2. record_sdd_step({ step: N, ... })  # Continue from where you left off
 ```
 
 ## Error Handling
