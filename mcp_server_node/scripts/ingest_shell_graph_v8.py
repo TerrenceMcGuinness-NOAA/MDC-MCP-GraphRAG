@@ -48,7 +48,7 @@ except ImportError:
 VERSION = "8.0.0"
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
@@ -526,23 +526,93 @@ def find_shell_scripts(workflow_root: str) -> List[Tuple[str, str]]:
 
 
 def main():
+    import argparse
+    
+    arg_parser = argparse.ArgumentParser(
+        description='Phase 27B: Shell Script Graph Ingestion for Neo4j',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python ingest_shell_graph_v8.py --dry-run       # Parse only, no Neo4j writes
+  python ingest_shell_graph_v8.py --clear          # Clear existing + re-ingest
+  python ingest_shell_graph_v8.py                   # Incremental (MERGE, no clear)
+        """
+    )
+    arg_parser.add_argument('--dry-run', '-n', action='store_true',
+                            help='Parse and report without writing to Neo4j')
+    arg_parser.add_argument('--clear', action='store_true',
+                            help='Clear existing shell graph before ingestion')
+    arg_parser.add_argument('--verbose', '-v', action='store_true',
+                            help='Show per-script detail')
+    arg_parser.add_argument('--version', action='version',
+                            version=f'%(prog)s {VERSION}')
+    args = arg_parser.parse_args()
+    
     print("=" * 70)
     print("Phase 27B: Shell Script Graph Ingestion for Neo4j")
     print(f"Version: {VERSION}")
     print(f"Workflow Root: {WORKFLOW_ROOT}")
+    print(f"Mode: {'DRY-RUN' if args.dry_run else 'LIVE'}")
+    print(f"Clear existing: {'YES' if args.clear else 'NO (incremental MERGE)'}")
     print("=" * 70)
     
-    # Initialize
-    parser = ShellScriptParser()
-    graph = Neo4jGraphClient()
+    # Initialize parser
+    script_parser = ShellScriptParser()
     
-    # Clear and recreate indexes
-    graph.clear_shell_graph()
-    graph.create_indexes()
-    
-    # Find all shell scripts
+    # Find all shell scripts (always do this, even for dry-run)
     scripts = find_shell_scripts(WORKFLOW_ROOT)
     print(f"\n[OK] Found {len(scripts)} shell scripts to process\n")
+    
+    if args.dry_run:
+        # Parse only — report what would be ingested
+        total_sources = 0
+        total_invokes = 0
+        total_exports = 0
+        total_envdeps = 0
+        total_configs = 0
+        total_functions = 0
+        
+        for abs_path, rel_path in scripts:
+            try:
+                with open(abs_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                script_data = script_parser.parse_script(rel_path, content)
+                total_sources += len(script_data['sources'])
+                total_invokes += len(script_data['invokes'])
+                total_exports += len(script_data['exports'])
+                total_envdeps += len(script_data['env_deps'])
+                total_configs += len(script_data['configs'])
+                total_functions += len(script_data['functions'])
+                
+                if args.verbose:
+                    print(f"  {rel_path}: {script_data['type']}/{script_data['category']} "
+                          f"src={len(script_data['sources'])} inv={len(script_data['invokes'])} "
+                          f"exp={len(script_data['exports'])} env={len(script_data['env_deps'])} "
+                          f"cfg={len(script_data['configs'])} fn={len(script_data['functions'])}")
+            except Exception as e:
+                print(f"  [ERROR] {rel_path}: {e}")
+        
+        print("\n" + "=" * 70)
+        print("DRY-RUN SUMMARY (no writes performed)")
+        print("=" * 70)
+        print(f"Scripts found:         {len(scripts)}")
+        print(f"SOURCES relationships: {total_sources}")
+        print(f"INVOKES relationships: {total_invokes}")
+        print(f"EXPORTS relationships: {total_exports}")
+        print(f"DEPENDS_ON_ENV rels:   {total_envdeps}")
+        print(f"READS_CONFIG rels:     {total_configs}")
+        print(f"Shell functions:       {total_functions}")
+        print("=" * 70)
+        print("\nRe-run without --dry-run to write to Neo4j.")
+        return
+    
+    # Live mode — connect to Neo4j
+    graph = Neo4jGraphClient()
+    
+    if args.clear:
+        graph.clear_shell_graph()
+    
+    graph.create_indexes()
     
     # Process each script
     processed = 0
@@ -554,7 +624,7 @@ def main():
                 content = f.read()
             
             # Parse script
-            script_data = parser.parse_script(rel_path, content)
+            script_data = script_parser.parse_script(rel_path, content)
             
             # Create nodes and relationships
             graph.create_script_node(script_data)
@@ -579,7 +649,9 @@ def main():
             
             processed += 1
             
-            if processed % 50 == 0:
+            if args.verbose:
+                print(f"  [OK] {rel_path} ({script_data['type']}/{script_data['category']})")
+            elif processed % 50 == 0:
                 print(f"  [PROGRESS] Processed {processed}/{len(scripts)} scripts...")
         
         except Exception as e:
@@ -613,7 +685,7 @@ def main():
     
     # Parser stats
     print("\nParser Statistics:")
-    for key, count in parser.stats.items():
+    for key, count in script_parser.stats.items():
         print(f"  {key}: {count}")
     
     graph.close()

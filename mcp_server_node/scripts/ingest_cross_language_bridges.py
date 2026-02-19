@@ -166,7 +166,8 @@ def build_python_module_index(session):
 def build_file_index(session):
     """Build lookup index: script basename → File node absolutePath."""
     result = session.run(
-        'MATCH (f:File) WHERE f.absolutePath ENDS WITH ".sh" AND f.absolutePath CONTAINS "/scripts/ex" '
+        'MATCH (f:File) WHERE f.absolutePath ENDS WITH ".sh" '
+        'AND (f.absolutePath CONTAINS "/scripts/ex" OR f.absolutePath CONTAINS "/dev/scripts/ex") '
         'RETURN f.absolutePath as path'
     )
     index = {}
@@ -270,10 +271,14 @@ def run_ingestion(dry_run=False, verbose=False):
     print(f"[OK] WORKFLOW_ROOT: {WORKFLOW_ROOT}")
     print(f"[OK] Mode: {'DRY-RUN' if dry_run else 'LIVE'}")
 
-    scripts_dir = Path(WORKFLOW_ROOT) / 'scripts'
+    # Check dev/scripts/ first (current repo layout), fall back to scripts/
+    scripts_dir = Path(WORKFLOW_ROOT) / 'dev' / 'scripts'
+    if not scripts_dir.exists():
+        scripts_dir = Path(WORKFLOW_ROOT) / 'scripts'
     if not scripts_dir.exists():
         print(f"[ERROR] Scripts directory not found: {scripts_dir}")
         return
+    print(f"[OK] Scanning ex-scripts in: {scripts_dir}")
 
     # Connect to Neo4j (always needed for index lookups)
     driver = None
@@ -281,8 +286,6 @@ def run_ingestion(dry_run=False, verbose=False):
         print("[WARN] neo4j package not found — matching will be skipped")
     else:
         driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-
-    session = driver.session() if driver else None
 
     session = driver.session() if driver else None
 
