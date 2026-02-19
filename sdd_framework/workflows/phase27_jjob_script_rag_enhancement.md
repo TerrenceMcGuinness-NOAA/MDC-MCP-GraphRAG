@@ -15,8 +15,8 @@
 | 27C | ✅ COMPLETE | J-Job ChromaDB ingestion with MPNet embeddings (768-dim) |
 | 27D | ✅ COMPLETE | `list_job_scripts` search filter implementation |
 | 27E | ✅ COMPLETE | Unified MPNet embeddings for Node.js/Python + `get_job_details` |
-| 27F | 🔲 NOT STARTED | Full RAG re-ingestion |
-| 27G | 🔲 NOT STARTED | Validation and testing |
+| 27F | 🔲 NOT STARTED | Shell graph ingestion + cross-language bridge re-run |
+| 27G | 🔲 NOT STARTED | End-to-end validation of 27A-F against live databases |
 
 ## Validation Evidence (February 4, 2026)
 
@@ -573,139 +573,209 @@ async function getJobDetails(params) {
 
 ---
 
-### Phase 27F: Full RAG Re-Ingestion
+### Phase 27F: Shell Graph Ingestion + Cross-Language Bridge Re-Run
 
-**Prerequisite**: Phases 27A-27E complete and tested.
+**Prerequisite**: Phases 27A-27E complete and tested (all DONE).
 
-**Ingestion Order**:
-1. **Neo4j shell script graph** (27B) - Run first for relationship data
-2. **J-Job ChromaDB collection** (27C) - New `jjobs-v7-0-0` collection
-3. **Config files collection** - New `config-files-v7-0-0` collection
-4. **Cross-reference enrichment** - Add Neo4j relationships to ChromaDB metadata
+**Audit Findings (February 19, 2026)**:
+The v8 ingestion scripts exist in `mcp_server_node/scripts/` but `ingest_shell_graph_v8.py` was **never executed**. Current Neo4j state shows `ShellScript: 0` nodes. The cross-language bridge script ran but yielded only 7 edges because it had no shell nodes to link to.
 
-**Ingestion Script**: `mcp_server_node/scripts/full_rag_reingestion_v27.sh`
+#### Pre-Flight Fixes (REQUIRED before execution)
+
+**Fix 1: Neo4j password default (SPOT violation)**
+```python
+# ingest_shell_graph_v8.py line ~30 — CURRENT (wrong):
+NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "password")
+
+# CORRECT — must match mcp-env.sh:
+NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "gfsworkflow2025")
+```
+
+**Fix 2: Add `--dry-run` flag to `ingest_shell_graph_v8.py`**
+The script runs `clear_shell_graph()` unconditionally on startup — destructive with no preview. Add:
+```python
+parser.add_argument('--dry-run', action='store_true',
+                    help='Parse and report without writing to Neo4j')
+```
+
+**Fix 3: Duplicate session line in `ingest_cross_language_bridges.py`**
+```python
+# Remove duplicate: session = driver.session()
+```
+
+#### Execution Order
+
+All scripts are in `mcp_server_node/scripts/`. Source environment first:
+```bash
+source mcp_server_node/mcp-env.sh
+cd mcp_server_node
+```
+
+| Step | Script | Target | Expected Outcome |
+|------|--------|--------|------------------|
+| 1 | `python3 scripts/ingest_shell_graph_v8.py --dry-run` | Neo4j | Preview: count of ShellScript, ShellFunction, ConfigFile nodes |
+| 2 | `python3 scripts/ingest_shell_graph_v8.py` | Neo4j | Creates :ShellScript, :ShellFunction, :ConfigFile + SOURCES, INVOKES, READS_CONFIG, EXPORTS, DEPENDS_ON_ENV, DEFINES |
+| 3 | `python3 scripts/ingest_cross_language_bridges.py` | Neo4j | Re-run: should yield 50+ edges (was 7 without shell nodes) |
+| 4 | Validate node counts | Neo4j | `ShellScript > 0`, `INVOKES > 4`, `EXECUTES > 3` |
+
+**Note**: Steps 1-2 are the critical path. `ingest_jjobs_v8.py` (ChromaDB) and `ingest_code_v8.py` (Neo4j+ChromaDB) are already complete with current data (700 and 58,761 docs respectively).
+
+#### Design: Ingestion Orchestrator (NEW)
+
+No master script exists to run all 7 ingestion scripts in correct order. Create `mcp_server_node/scripts/run_full_ingestion.sh`:
 
 ```bash
 #!/bin/bash
+# run_full_ingestion.sh — Master orchestrator for all ingestion pipelines
+# Correct execution order respects data dependencies
 set -e
 
-echo "[Phase 27F] Full RAG Re-Ingestion"
-echo "================================="
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/../mcp-env.sh"
 
-# 1. Neo4j shell script ingestion
-echo "[1/4] Ingesting shell scripts to Neo4j..."
-node scripts/ingest_shell_scripts_to_neo4j.js \
-  --source /app/supported_repos/global-workflow/dev/jobs \
-  --source /app/supported_repos/global-workflow/dev/scripts \
-  --source /app/supported_repos/global-workflow/ush \
-  --clear-existing
+echo "[Phase 27F] Full Ingestion Pipeline"
+echo "===================================="
 
-# 2. J-Job ChromaDB collection
-echo "[2/4] Ingesting J-Jobs to ChromaDB..."
-python3 scripts/ingest_jjobs_to_chromadb.py \
-  --collection jjobs-v7-0-0 \
-  --source /app/supported_repos/global-workflow/dev/jobs \
-  --metadata-enriched
+# Phase 1: Graph structure (Neo4j) — no cross-DB dependencies
+echo "[1/7] Fortran graph..."
+python3 "${SCRIPT_DIR}/ingest_fortran_graph.py" "$@"
 
-# 3. Config files collection
-echo "[3/4] Ingesting config files to ChromaDB..."
-python3 scripts/ingest_configs_to_chromadb.py \
-  --collection config-files-v7-0-0 \
-  --source /app/supported_repos/global-workflow/dev/parm/config
+echo "[2/7] Shell script graph..."
+python3 "${SCRIPT_DIR}/ingest_shell_graph_v8.py" "$@"
 
-# 4. Cross-reference enrichment
-echo "[4/4] Enriching ChromaDB with Neo4j relationships..."
-node scripts/enrich_chromadb_with_neo4j.js \
-  --collection jjobs-v7-0-0 \
-  --add-callers --add-callees --add-dependencies
+echo "[3/7] Environment variables..."
+python3 "${SCRIPT_DIR}/ingest_env_variables.py" "$@"
 
-echo "[OK] Full RAG re-ingestion complete"
-echo "Collections updated:"
-echo "  - jjobs-v7-0-0: $(curl -s localhost:8080/api/v2/collections/jjobs-v7-0-0 | jq .count) documents"
-echo "  - config-files-v7-0-0: $(curl -s localhost:8080/api/v2/collections/config-files-v7-0-0 | jq .count) documents"
+# Phase 2: Code + docs (ChromaDB + Neo4j)
+echo "[4/7] Code with context..."
+python3 "${SCRIPT_DIR}/ingest_code_v8.py" "$@"
+
+echo "[5/7] J-Job scripts..."
+python3 "${SCRIPT_DIR}/ingest_jjobs_v8.py" "$@"
+
+echo "[6/7] Documentation..."
+python3 "${SCRIPT_DIR}/ingest_documentation_v8.py" "$@"
+
+# Phase 3: Cross-references (requires all above)
+echo "[7/7] Cross-language bridges..."
+python3 "${SCRIPT_DIR}/ingest_cross_language_bridges.py" "$@"
+
+echo "[OK] Full ingestion complete"
 ```
+
+This orchestrator:
+- Sources `mcp-env.sh` (SPOT for database credentials)
+- Runs graph-only scripts first (Fortran, shell, env vars — no ChromaDB dependency)
+- Runs hybrid scripts next (code, jjobs, docs — write to both DBs)
+- Runs bridges LAST (needs all node types present)
+- Passes through `$@` so `--dry-run` works on supported scripts
 
 ---
 
-### Phase 27G: Validation and Testing
+### Phase 27G: End-to-End Validation
 
-**Test Suite**: `mcp_server_node/tests/phase27_jjob_rag.test.js`
+**Prerequisite**: Shell graph ingested (27F step 2) and bridges re-run (27F step 3).
 
-**Test Cases**:
+#### Current Database Baseline (February 19, 2026)
 
-```javascript
-describe('Phase 27: J-Job RAG Enhancement', () => {
-  
-  describe('27A: Path Resolution', () => {
-    it('describe_component finds J-Job in dev/jobs/', async () => {
-      const result = await tools.describe_component({ component: 'JGDAS_FIT2OBS' });
-      expect(result).toContain('excfs_gdas_vrfyfits.sh');
-    });
-    
-    it('describe_component finds config in dev/parm/config/', async () => {
-      const result = await tools.describe_component({ component: 'config.fit2obs' });
-      expect(result).toContain('VBACKUP_FITS');
-    });
-  });
-  
-  describe('27B: Neo4j Shell Script Graph', () => {
-    it('find_callers_callees returns shell script relationships', async () => {
-      const result = await tools.find_callers_callees({ function_name: 'JGDAS_FIT2OBS' });
-      expect(result.callees).toContain('excfs_gdas_vrfyfits.sh');
-      expect(result.sources).toContain('jjob_header.sh');
-    });
-  });
-  
-  describe('27C: ChromaDB J-Job Collection', () => {
-    it('search_documentation finds J-Job content', async () => {
-      const result = await tools.search_documentation({ 
-        query: 'JGDAS_FIT2OBS fit to observations verification' 
-      });
-      expect(result.some(r => r.name === 'JGDAS_FIT2OBS')).toBe(true);
-    });
-    
-    it('J-Job metadata includes structured fields', async () => {
-      const result = await chromadb.get('jjobs-v7-0-0', { ids: ['JGDAS_FIT2OBS'] });
-      expect(result.metadatas[0]).toHaveProperty('inputs');
-      expect(result.metadatas[0]).toHaveProperty('outputs');
-      expect(result.metadatas[0]).toHaveProperty('calls');
-    });
-  });
-  
-  describe('27D: list_job_scripts Search Filter', () => {
-    it('filters jobs by search term', async () => {
-      const result = await tools.list_job_scripts({ search: 'fit2obs' });
-      expect(result.jobs.length).toBe(1);
-      expect(result.jobs[0].name).toBe('JGDAS_FIT2OBS');
-    });
-  });
-  
-  describe('27E: get_job_details Tool', () => {
-    it('returns comprehensive job information', async () => {
-      const result = await tools.get_job_details({ job_name: 'JGDAS_FIT2OBS' });
-      
-      expect(result.name).toBe('JGDAS_FIT2OBS');
-      expect(result.category).toBe('verification');
-      expect(result.inputs).toHaveLength(3);
-      expect(result.outputs).toHaveLength(2);
-      expect(result.invokes).toContainEqual(
-        expect.objectContaining({ script: 'excfs_gdas_vrfyfits.sh' })
-      );
-    });
-  });
-});
+Before 27F execution — these are the ACTUAL live metrics:
+
+| Metric | Pre-27F Value | Post-27F Target |
+|--------|---------------|-----------------|
+| Neo4j total nodes | 40,207 | 40,207 + shell nodes |
+| Neo4j ShellScript nodes | **0** | **> 300** (384 expected from spec) |
+| Neo4j INVOKES edges | 4 | **> 20** |
+| Neo4j EXECUTES edges | 3 | **> 10** |
+| ChromaDB jjobs-v8-0-0 | 700 docs | 700 (unchanged) |
+| ChromaDB total docs | 63,072 | 63,072 (unchanged) |
+| Cross-language bridges | 7 | **> 50** |
+
+#### Validation Test Suite
+
+Run after 27F ingestion. Verify with Cypher queries and MCP tool calls.
+
+**Neo4j Graph Integrity**:
+```cypher
+-- ShellScript nodes created
+MATCH (s:ShellScript) RETURN count(s) AS shell_scripts;
+-- Expected: > 300
+
+-- SOURCES relationships (source/. statements)
+MATCH ()-[r:SOURCES]->() RETURN count(r) AS sources_count;
+-- Expected: > 148 (current baseline)
+
+-- Cross-language INVOKES (shell → Fortran/Python)
+MATCH ()-[r:INVOKES]->() RETURN count(r) AS invokes_count;
+-- Expected: > 20 (was 4)
+
+-- J-Job → ex-script chains
+MATCH (j:ShellScript {type: 'j-job'})-[:INVOKES]->(e:ShellScript {type: 'ex-script'})
+RETURN j.name, e.name LIMIT 10;
+-- Expected: JGDAS_FIT2OBS → excfs_gdas_vrfyfits.sh, etc.
 ```
+
+**MCP Tool Validation**:
+```
+1. find_callers_callees({ function_name: "JGDAS_FIT2OBS" })
+   → Must show excfs_gdas_vrfyfits.sh in callees, jjob_header.sh in sources
+
+2. trace_execution_path({ function_name: "JGDAS_FIT2OBS" })
+   → Must trace through ex-script into Fortran subroutines (if cross-language bridges work)
+
+3. find_env_dependencies({ variable_name: "PRPI" })
+   → Must show JGDAS_FIT2OBS as a consumer
+
+4. search_documentation({ query: "fit2obs verification" })
+   → Must return JGDAS_FIT2OBS from jjobs-v8-0-0 collection
+
+5. get_code_context({ symbol: "JGDAS_FIT2OBS" })
+   → Must return GGSR neighborhood with community context
+```
+
+**Cross-Language Bridge Quality**:
+```cypher
+-- Full chain: J-Job → ex-script → Fortran subroutine
+MATCH path = (j:ShellScript {type: 'j-job'})-[:INVOKES]->
+             (e:ShellScript)-[:EXECUTES]->
+             (f:FortranSubroutine)
+RETURN j.name, e.name, f.name LIMIT 10;
+-- This is the "holy grail" query — proves end-to-end cross-language tracing
+```
+
+#### Design: Bridge Yield Improvement Baseline
+
+Before re-running `ingest_cross_language_bridges.py`, capture the current state:
+```bash
+# Save pre-run bridge counts
+echo "Pre-27F bridge state:" > /tmp/bridge_baseline.txt
+echo "EXECUTES: $(cypher-shell 'MATCH ()-[r:EXECUTES]->() RETURN count(r)')" >> /tmp/bridge_baseline.txt
+echo "INVOKES: $(cypher-shell 'MATCH ()-[r:INVOKES]->() RETURN count(r)')" >> /tmp/bridge_baseline.txt
+```
+
+After re-running bridges with shell nodes present:
+```bash
+# Compare post-run
+echo "Post-27F bridge state:" >> /tmp/bridge_baseline.txt
+echo "EXECUTES: $(cypher-shell 'MATCH ()-[r:EXECUTES]->() RETURN count(r)')" >> /tmp/bridge_baseline.txt
+echo "INVOKES: $(cypher-shell 'MATCH ()-[r:INVOKES]->() RETURN count(r)')" >> /tmp/bridge_baseline.txt
+echo "Improvement factor: $(diff pre post)" >> /tmp/bridge_baseline.txt
+```
+
+This yields the empirical evidence for Phase 22 (Validation & Benchmarking).
 
 **End-to-End Validation Checklist**:
 
+- [ ] ShellScript node count > 300 in Neo4j
+- [ ] Cross-language bridge count > 50 (up from 7)
 - [ ] `describe_component JGDAS_FIT2OBS` returns script content
 - [ ] `explain_workflow_component JGDAS_FIT2OBS` returns meaningful explanation
 - [ ] `search_documentation "fit2obs verification"` returns JGDAS_FIT2OBS
 - [ ] `find_callers_callees JGDAS_FIT2OBS` shows excfs_gdas_vrfyfits.sh
 - [ ] `list_job_scripts search=fit2obs` returns 1 result
 - [ ] `get_job_details JGDAS_FIT2OBS` returns structured metadata
-- [ ] All 89 J-Jobs indexed in ChromaDB
-- [ ] Neo4j has SOURCES/INVOKES relationships for shell scripts
+- [ ] All 89 J-Jobs indexed in ChromaDB (already 700 docs in jjobs-v8-0-0)
+- [ ] J-Job → ex-script → Fortran chain query returns results
+- [ ] `get_code_context JGDAS_FIT2OBS` returns GGSR neighborhood
 
 ---
 
@@ -761,6 +831,81 @@ describe('Phase 27: J-Job RAG Enhancement', () => {
 | Shell parsing edge cases | Medium | Start with common patterns, iterate |
 | Large re-ingestion time | Low | Run during off-hours, incremental updates |
 | Backwards compatibility | Low | Keep existing collections, add new ones |
+
+---
+
+## Design Concepts for 27F-G Facilitation
+
+### 1. SPOT-Compliant Credential Resolution
+
+All ingestion scripts must read Neo4j/ChromaDB credentials from `mcp-env.sh` — the Single Point of Truth. Currently `ingest_shell_graph_v8.py` hardcodes `"password"` as the default, violating SPOT. Pattern to enforce:
+
+```python
+import subprocess
+def get_env_from_mcp_env():
+    """Source mcp-env.sh and return environment dict."""
+    result = subprocess.run(
+        ['bash', '-c', 'source ../mcp-env.sh && env'],
+        capture_output=True, text=True
+    )
+    return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+```
+
+All 7 scripts should use this pattern (or at minimum honor `NEO4J_PASSWORD` from environment).
+
+### 2. Incremental vs. Full Ingestion
+
+The `clear_shell_graph()` function in `ingest_shell_graph_v8.py` deletes all shell nodes before re-ingesting. This is wasteful for iterative development. Add an `--incremental` flag that:
+- Skips files whose `mtime` hasn't changed since last ingestion
+- Only creates/updates nodes for modified scripts
+- Preserves manually-added relationships (e.g., SME annotations)
+
+Store last-ingestion timestamps in a sidecar file (`mcp_server_node/scripts/.ingestion_state.json`).
+
+### 3. Bridge Yield Amplification
+
+The current 7-edge yield from `ingest_cross_language_bridges.py` is solely because ShellScript nodes don't exist. Once shell graph is populated, bridges should match on:
+
+| Bridge Type | Match Pattern | Expected Yield |
+|-------------|---------------|----------------|
+| J-Job → ex-script | `:ShellScript {type:'j-job'} -[:INVOKES]-> :ShellScript {type:'ex-script'}` | ~89 (one per J-Job) |
+| ex-script → Fortran | `:ShellScript -[:EXECUTES]-> :FortranSubroutine` | ~35 (shell→compiled) |
+| Shell → Python | `:ShellScript -[:INVOKES]-> :PythonFunction` | ~20 (ush utilities) |
+| Shell → env config | `:ShellScript -[:DEPENDS_ON_ENV]-> :EnvironmentVariable` | ~500+ |
+
+### 4. Validation Harness for Phase 22 Integration
+
+27G validation queries (Cypher counts, MCP tool calls) should be codified as a reusable test harness that Phase 22 (Validation & Benchmarking) can build on:
+
+```javascript
+// validation/graph_integrity.js
+export const GRAPH_INTEGRITY_CHECKS = [
+  { name: 'shell_scripts_exist', cypher: 'MATCH (s:ShellScript) RETURN count(s) > 0 AS ok' },
+  { name: 'bridges_populated', cypher: 'MATCH ()-[r:INVOKES]->() RETURN count(r) > 10 AS ok' },
+  { name: 'full_chain_exists', cypher: `
+    MATCH (j:ShellScript)-[:INVOKES]->(e:ShellScript)-[:EXECUTES]->(f:FortranSubroutine)
+    RETURN count(j) > 0 AS ok
+  `},
+];
+```
+
+This prevents duplication between 27G manual checks and 22's automated regression suite.
+
+### 5. Ingestion Idempotency Contract
+
+Each ingestion script should be safe to re-run without side effects. Current state:
+
+| Script | Idempotent? | Issue |
+|--------|-------------|-------|
+| `ingest_fortran_graph.py` | Yes | Clears and rebuilds |
+| `ingest_shell_graph_v8.py` | Yes* | *Destructive clear on every run |
+| `ingest_env_variables.py` | Yes | Has `--delete-existing` flag |
+| `ingest_code_v8.py` | Yes | Upserts |
+| `ingest_jjobs_v8.py` | Yes | Has `--delete-existing` flag |
+| `ingest_documentation_v8.py` | Unclear | Thin v8→v7 wrapper |
+| `ingest_cross_language_bridges.py` | No | Creates duplicate edges on re-run |
+
+Fix: `ingest_cross_language_bridges.py` should `MERGE` relationships instead of `CREATE`.
 
 ---
 
