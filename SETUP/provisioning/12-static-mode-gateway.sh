@@ -115,8 +115,9 @@ ExecStart=/usr/bin/docker run \\
     -e NEO4J_USER=neo4j \\
     -e NEO4J_PASSWORD=gfsworkflow2025 \\
     -e MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow \\
+    -e SDD_FRAMEWORK_ROOT=/app/sdd_framework \\
     -v ${EIB_REPO}/supported_repos:/app/supported_repos:ro \\
-    -v ${EIB_REPO}/sdd_framework:/app/sdd_framework:ro \\
+    -v ${EIB_REPO}/sdd_framework:/app/sdd_framework:rw \\
     --label docker-mcp=true \\
     --label docker-mcp-name=eib-mcp-rag \\
     --label docker-mcp-transport=stdio \\

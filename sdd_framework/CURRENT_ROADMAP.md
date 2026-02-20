@@ -3,7 +3,7 @@
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
 **Last Updated**: February 19, 2026  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development — v7.15.0, 43 tools, Phase 31 SDD Model
+**Status**: Active Development — v7.16.0, 43 tools, Phase 31 SDD Model
 
 ---
 
@@ -82,11 +82,7 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 
 ### Remaining Gaps
 
-**1. `search_documentation` only queries one collection** (Phase 27H)
-- `hybridQuery()` defaults to `global-workflow-docs-v8-0-0` — misses all 700 J-Job docs in `jjobs-v8-0-0`
-- Fix: Switch to `multiSourceSearch()` with expanded collection list
-
-**2. External Fortran EXECUTES bridges sparse** (Phase 27I)
+**1. External Fortran EXECUTES bridges sparse** (Phase 27I)
 - Only 3 EXECUTES edges exist — 12/15 executable→program mappings unresolved
 - Executables from GSI, UFS_UTILS, Fit2Obs have no FortranProgram nodes in Neo4j
 - Fix: Create placeholder FortranProgram nodes + curate EXEC_TO_PROGRAM mapping
@@ -110,6 +106,7 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 | 25 | v7.12.0 | VNC Cleanup & Deprecation |
 | 26 | v7.13.0 | Docker MCP Gateway systemd fix (port 18888) |
 | 27A-G | v7.15.0 | J-Job RAG Enhancement (path fix, shell parser, ChromaDB, filters, embeddings, shell graph ingestion, validation) |
+| 27H | v7.16.0 | Multi-collection search routing (search_documentation now queries jjobs + docs + ee2) |
 | 28 | v7.5.0 | GraphRAG Acceleration (GGSR prototypes, enrichment wiring) |
 | 29 | v4.1.0 | Provisioning Modernization (VNC removed, scripts consolidated) |
 | 30 | v7.14.0 | SDD Framework Cleanup (18 files deleted, 7 migrated, 11 archived) |
@@ -119,7 +116,6 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 
 | Phase | Status | Goal |
 |-------|--------|------|
-| **27H** | NOT STARTED | `search_documentation` multi-collection routing (jjobs + docs + ee2) |
 | **27I** | NOT STARTED | External Fortran EXECUTES bridge resolution (placeholder nodes + EXEC_TO_PROGRAM) |
 
 ### Planned
@@ -213,7 +209,6 @@ Currently at Phase 31 with sub-phases through the alphabet.
 - Docker MCP Gateway for external client access
 
 ### Known Gaps
-- **`search_documentation` blind to J-Jobs** — Only queries `global-workflow-docs-v8-0-0`, misses 700 jjobs documents (Phase 27H)
 - **External Fortran bridges sparse** — Only 3 EXECUTES edges; 12 executables from GSI/UFS_UTILS/Fit2Obs unresolved (Phase 27I)
 - **No ingestion orchestrator** — 7 scripts must be run manually in correct order
 - **No CI/CD pipeline** — Builds and tests are manual (Phase 13)
