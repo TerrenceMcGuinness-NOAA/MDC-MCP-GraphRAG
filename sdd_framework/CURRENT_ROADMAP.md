@@ -3,7 +3,7 @@
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
 **Last Updated**: February 19, 2026  
 **Lead**: Terrence McGuinness  
-**Status**: Active Development — v7.16.0, 43 tools, Phase 31 SDD Model
+**Status**: Active Development — v7.17.0, 43 tools, Phase 31 SDD Model
 
 ---
 
@@ -11,9 +11,9 @@
 
 | Component | Status | Metrics |
 |-----------|--------|---------|
-| **MCP Server** | Operational | v7.15.0, 43 tools across 9 modules |
+| **MCP Server** | Operational | v7.17.0, 43 tools across 9 modules |
 | **ChromaDB** | Healthy | 5 collections, 63,072 documents, MPNet 768-dim |
-| **Neo4j** | Healthy | 40,413 nodes, ~577K relationships, 24+ label types |
+| **Neo4j** | Healthy | 40,422 nodes, ~568K relationships, 24+ label types |
 | **Fortran Graph** | Complete (Phase 10) | 17,575 nodes, 268K CALLS, 91K USES |
 | **Shell Graph** | Complete (Phase 27F) | 383 ShellScript, 63 ShellFunction, 9,155 relationships |
 | **Docker Gateway** | Operational | Port 18888, Streamable HTTP, systemd service |
@@ -61,7 +61,7 @@
 | EXPORTS | 1,184 | Shell exported variables |
 | DEPENDS_ON_ENV | 7,225 | Environment variable references |
 | READS_CONFIG | 1 | Config file reads |
-| EXECUTES | 3 | Shell→Fortran execution bridges |
+| EXECUTES | 12 | Shell→Fortran execution bridges (9 placeholder nodes, Phase 27I) |
 | **Total** | **~577K** | |
 
 ---
@@ -78,14 +78,7 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 | `ingest_jjobs_v8.py` | ChromaDB | Run | 700 J-Job documents |
 | `ingest_documentation_v8.py` | ChromaDB | Run | 3,514 documentation docs |
 | `ingest_shell_graph_v8.py` | Neo4j | Run (Phase 27F) | 383 ShellScript, 63 ShellFunction, 9,155 rels |
-| `ingest_cross_language_bridges.py` | Neo4j | Run (re-run 27F) | 8 edges (3 EXECUTES, 5 INVOKES) |
-
-### Remaining Gaps
-
-**1. External Fortran EXECUTES bridges sparse** (Phase 27I)
-- Only 3 EXECUTES edges exist — 12/15 executable→program mappings unresolved
-- Executables from GSI, UFS_UTILS, Fit2Obs have no FortranProgram nodes in Neo4j
-- Fix: Create placeholder FortranProgram nodes + curate EXEC_TO_PROGRAM mapping
+| `ingest_cross_language_bridges.py` | Neo4j | Run (re-run 27I) | 12 EXECUTES, 5 INVOKES, 9 placeholder FortranProgram nodes |
 
 ---
 
@@ -107,6 +100,7 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 | 26 | v7.13.0 | Docker MCP Gateway systemd fix (port 18888) |
 | 27A-G | v7.15.0 | J-Job RAG Enhancement (path fix, shell parser, ChromaDB, filters, embeddings, shell graph ingestion, validation) |
 | 27H | v7.16.0 | Multi-collection search routing (search_documentation now queries jjobs + docs + ee2) |
+| 27I | v7.17.0 | External Fortran EXECUTES bridge resolution (9 placeholder FortranProgram nodes, 12 EXECUTES edges) |
 | 28 | v7.5.0 | GraphRAG Acceleration (GGSR prototypes, enrichment wiring) |
 | 29 | v4.1.0 | Provisioning Modernization (VNC removed, scripts consolidated) |
 | 30 | v7.14.0 | SDD Framework Cleanup (18 files deleted, 7 migrated, 11 archived) |
@@ -114,9 +108,7 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 
 ### Active / Immediate
 
-| Phase | Status | Goal |
-|-------|--------|------|
-| **27I** | NOT STARTED | External Fortran EXECUTES bridge resolution (placeholder nodes + EXEC_TO_PROGRAM) |
+*No active phases — all Phase 27 series (A–I) complete.*
 
 ### Planned
 
@@ -142,8 +134,8 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 │                    Production Stack                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ MCP Server  │  │  ChromaDB   │  │   Neo4j     │          │
-│  │ (Node.js)   │  │  5 collns   │  │ 40K nodes   │          │
-│  │  43 Tools   │  │ MPNet 768d  │  │ 568K rels   │          │
+│  │ (Node.js)   │  │  5 collns   │  │ 40K+ nodes  │          │
+│  │  43 Tools   │  │ MPNet 768d  │  │ 568K rels  │          │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
 │         └────────────────┼────────────────┘                  │
 │                          │                                   │
@@ -201,7 +193,7 @@ Currently at Phase 31 with sub-phases through the alphabet.
 
 ### Delivered
 - 43 MCP tools for code analysis, semantic search, compliance checking
-- 40,207 graph nodes with 567,663 relationships (Fortran, Python, env vars)
+- 40,422 graph nodes with 567,665 relationships (Fortran, Python, Shell, env vars)
 - 63,072 searchable documents across 5 ChromaDB collections
 - Graph-Guided Semantic Retrieval (60% improvement over vector-only baseline)
 - EE2/NCO compliance scanning (demonstrated on seaice-concentration, EVS)
@@ -209,7 +201,6 @@ Currently at Phase 31 with sub-phases through the alphabet.
 - Docker MCP Gateway for external client access
 
 ### Known Gaps
-- **External Fortran bridges sparse** — Only 3 EXECUTES edges; 12 executables from GSI/UFS_UTILS/Fit2Obs unresolved (Phase 27I)
 - **No ingestion orchestrator** — 7 scripts must be run manually in correct order
 - **No CI/CD pipeline** — Builds and tests are manual (Phase 13)
 - **Single-user** — No multi-tenant workspace support yet (Phase 4D)
