@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-Phase 24F-2: Cross-Language Bridge Edge Ingestion
+Phase 24F-2 / 27I: Cross-Language Bridge Edge Ingestion
 
 Creates EXECUTES and INVOKES relationships in Neo4j to connect:
   - Shell ex-scripts → Fortran executables (EXECUTES)
   - Shell ex-scripts → Python scripts (INVOKES)
 
+Phase 27I additions:
+  - Creates placeholder FortranProgram nodes for external packages (GSI, UFS_UTILS, Fit2Obs)
+  - Fills all EXEC_TO_PROGRAM mappings (was 12 None entries, now fully resolved)
+
 Approach:
-  1. Parse each shell ex-script for .x executable references and .py script references
-  2. Match executable names to FortranProgram nodes (fuzzy: strip .x, match program name)
-  3. Match .py references to PythonModule nodes (by filename)
-  4. Create cross-language edges
+  1. Create placeholder FortranProgram nodes for external executables
+  2. Parse each shell ex-script for .x executable references and .py script references
+  3. Match executable names to FortranProgram nodes (fuzzy: strip .x, match program name)
+  4. Match .py references to PythonModule nodes (by filename)
+  5. Create cross-language edges
 
 Neo4j Schema:
   (f:File {absolutePath}) -[:EXECUTES {executable, line}]-> (p:FortranProgram {name})
@@ -22,8 +27,8 @@ Usage:
   python ingest_cross_language_bridges.py --verbose    # With detail
 
 Author: NOAA EMC EIB MCP Team
-Phase: 24F-2
-Version: 1.0.0
+Phase: 24F-2, 27I
+Version: 2.0.0
 """
 
 import os
@@ -39,7 +44,7 @@ except ImportError:
     print("[WARN] neo4j package not found.")
     GraphDatabase = None
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
@@ -79,18 +84,33 @@ EXEC_TO_PROGRAM = {
     'enkf': 'enkf_main',
     'calc_increment_ens': 'calc_increment_main',
     'calc_increment_ens_ncio': 'calc_increment_main',
-    'calc_analysis': None,  # search by fuzzy match
-    'gaussian_sfcanl': None,
-    'interp_inc': None,
-    'enkf_chgres_recenter': None,
-    'enkf_chgres_recenter_nc': None,
-    'getsigensmeanp_smooth': None,
-    'getsfcensmeanp': None,
-    'recentersigp': None,
-    'fbwndgfs': None,
-    'rdbfmsua': None,
-    'chgres_cube': None,
+    'calc_analysis': 'calc_analysis',
+    'gaussian_sfcanl': 'gaussian_sfcanl',
+    'interp_inc': 'interp_inc',
+    'enkf_chgres_recenter': 'enkf_chgres_recenter',
+    'enkf_chgres_recenter_nc': 'enkf_chgres_recenter_nc',
+    'getsigensmeanp_smooth': 'getsigensmeanp_smooth',
+    'getsfcensmeanp': 'getsfcensmeanp',
+    'recentersigp': 'recentersigp',
+    'fbwndgfs': 'fbwndgfs',
+    'rdbfmsua': 'rdbfmsua',
+    'chgres_cube': 'chgres_cube',
 }
+
+# External Fortran programs not in Neo4j — create placeholder nodes
+EXTERNAL_PROGRAMS = [
+    {'name': 'calc_analysis', 'package': 'UFS_UTILS', 'desc': 'Atmospheric analysis calculation'},
+    {'name': 'gaussian_sfcanl', 'package': 'UFS_UTILS', 'desc': 'Gaussian surface analysis'},
+    {'name': 'interp_inc', 'package': 'UFS_UTILS', 'desc': 'Interpolate increments'},
+    {'name': 'chgres_cube', 'package': 'UFS_UTILS', 'desc': 'Change resolution cubed-sphere'},
+    {'name': 'enkf_chgres_recenter', 'package': 'GSI', 'desc': 'EnKF change resolution + recenter'},
+    {'name': 'enkf_chgres_recenter_nc', 'package': 'GSI', 'desc': 'EnKF chgres recenter (NetCDF)'},
+    {'name': 'getsigensmeanp_smooth', 'package': 'GSI', 'desc': 'Ensemble mean + smoothing'},
+    {'name': 'getsfcensmeanp', 'package': 'GSI', 'desc': 'Surface ensemble mean'},
+    {'name': 'recentersigp', 'package': 'GSI', 'desc': 'Sigma-pressure recentering'},
+    {'name': 'fbwndgfs', 'package': 'Fit2Obs', 'desc': 'Background wind GFS'},
+    {'name': 'rdbfmsua', 'package': 'Fit2Obs', 'desc': 'Read BUFR mandatory/significant upper air'},
+]
 
 
 def parse_shell_script(file_path):
@@ -177,6 +197,34 @@ def build_file_index(session):
             basename = Path(path).name
             index[basename] = path
     return index
+
+
+def create_external_program_nodes(session, dry_run=False):
+    """Create placeholder FortranProgram nodes for external executables (Phase 27I).
+
+    These represent Fortran programs from external packages (GSI, UFS_UTILS, Fit2Obs)
+    whose source was never ingested. Placeholder nodes enable EXECUTES edges to form.
+    """
+    created = 0
+    for prog in EXTERNAL_PROGRAMS:
+        if dry_run:
+            print(f"  [DRY-RUN] Placeholder: {prog['name']} ({prog['package']})")
+            created += 1
+            continue
+
+        result = session.run('''
+            MERGE (p:FortranProgram {name: $name})
+            ON CREATE SET p.external = true,
+                          p.package = $package,
+                          p.description = $desc,
+                          p.placeholder = true
+            RETURN
+                CASE WHEN p.external IS NOT NULL THEN 'existing' ELSE 'created' END AS status
+        ''', name=prog['name'], package=prog['package'], desc=prog['desc'])
+        created += 1
+
+    print(f"  Placeholder FortranProgram nodes: {created} ({', '.join(set(p['package'] for p in EXTERNAL_PROGRAMS))})")
+    return created
 
 
 def match_executable(exe_name, fortran_index):
@@ -291,6 +339,10 @@ def run_ingestion(dry_run=False, verbose=False):
 
     # Build lookup indices
     if session:
+        # Phase 27I: Create placeholder nodes for external programs BEFORE building index
+        print(f"[OK] Creating placeholder nodes for external Fortran programs...")
+        create_external_program_nodes(session, dry_run)
+
         fortran_index = build_fortran_program_index(session)
         python_index = build_python_module_index(session)
         file_index = build_file_index(session)

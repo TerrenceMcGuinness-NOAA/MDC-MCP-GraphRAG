@@ -1,5 +1,29 @@
 # MCP Server Changelog
 
+## [7.17.0] - Phase 27I: External Fortran EXECUTES Bridge Resolution (February 20, 2026)
+
+### Context
+`ingest_cross_language_bridges.py` only formed 3 EXECUTES edges because 12 of 15 `EXEC_TO_PROGRAM` entries were `None` — external Fortran programs from GSI, UFS_UTILS, and Fit2Obs were never ingested. SDD session `session_2026-02-20_th08i4` (5/5 steps).
+
+### Added
+- **`ingest_cross_language_bridges.py`**: `EXTERNAL_PROGRAMS` list (11 entries) and `create_external_program_nodes()` function creates placeholder `:FortranProgram` nodes with `external: true`, `placeholder: true`, and `package` metadata
+- **`ingest_cross_language_bridges.py`**: `run_ingestion()` now calls placeholder creation before building fortran index, ensuring external programs are available for matching
+
+### Changed
+- **`ingest_cross_language_bridges.py`**: All 11 `None` entries in `EXEC_TO_PROGRAM` filled with correct program names
+- **`ingest_cross_language_bridges.py`**: VERSION bumped to 2.0.0
+
+### Ingestion Results
+- **9 placeholder FortranProgram nodes** created (GSI: 3, UFS_UTILS: 4, Fit2Obs: 2; 2 of 11 already existed)
+- **EXECUTES edges: 3 → 16** (5.3x improvement, 13 new Shell→External FortranProgram chains)
+- **26/26 executable references matched** (was 9/26, now 0 unmatched)
+- **FortranPrograms index**: 144 → 153
+
+### Validated
+- Neo4j: `MATCH (p:FortranProgram {external: true}) RETURN count(p)` — 9 nodes (correct)
+- Neo4j: `MATCH ()-[r:EXECUTES]->() RETURN count(r)` — 16 (was 3)
+- MCP: `get_code_context({ symbol: "enkf_chgres_recenter" })` — GGSR neighborhood with 10 entities at hop-2
+
 ## [7.16.0] - Phase 27H: Multi-Collection Search Routing (February 20, 2026)
 
 ### Context
