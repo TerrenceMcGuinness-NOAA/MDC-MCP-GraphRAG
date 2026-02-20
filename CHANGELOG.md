@@ -1,5 +1,21 @@
 # MCP Server Changelog
 
+## [7.16.0] - Phase 27H: Multi-Collection Search Routing (February 20, 2026)
+
+### Context
+`search_documentation` only queried `global-workflow-docs-v8-0-0`, missing 700 J-Job documents in `jjobs-v8-0-0`. Users searching for J-Job content got 0 results. SDD session `session_2026-02-20_h78lw3` (8/8 steps).
+
+### Changed
+- **`UnifiedDataAccess.js`**: Added `jjobs-v8-0-0` to `multiSourceSearch()` default collections (now queries 3 collections: `global-workflow-docs-v8-0-0`, `jjobs-v8-0-0`, `ee2-standards-v5-0-0-enhanced`)
+- **`SemanticSearchTools.js`**: `search_documentation` now uses `multiSourceSearch` for multi-collection queries instead of single-collection `hybridQuery`
+- **`SemanticSearchTools.js`**: Added optional `collection` parameter for targeted single-collection queries (falls back to `hybridQuery`)
+- **Output formatting**: Results now show `Collection:` tag when available from multi-collection search
+
+### Validated
+- `search_documentation({ query: "fit2obs verification" })` — PASS (returns J-Job results from `jjobs-v8-0-0`)
+- `search_documentation({ query: "EE2 production standards" })` — PASS (no regression, returns NCEP WCOSS standards)
+- `search_documentation({ collection: "jjobs-v8-0-0", query: "forecast" })` — PASS (10 results, all from jjobs)
+
 ## [7.15.0] - Phase 27F-G: Shell Graph Ingestion + Validation (February 19, 2026)
 
 ### Context

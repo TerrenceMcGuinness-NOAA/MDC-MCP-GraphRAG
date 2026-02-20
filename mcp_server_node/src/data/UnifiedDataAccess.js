@@ -353,8 +353,8 @@ export class UnifiedDataAccess {
     }
 
     const {
-      // v8.0.0 for docs, v5.0.0 for EE2 (already MPNet)
-      collections = ['global-workflow-docs-v8-0-0', 'ee2-standards-v5-0-0-enhanced'],
+      // v8.0.0 for docs + jjobs, v5.0.0 for EE2 (all MPNet embeddings)
+      collections = ['global-workflow-docs-v8-0-0', 'jjobs-v8-0-0', 'ee2-standards-v5-0-0-enhanced'],
       nResults = 10,
       enrichWithGraph = true
     } = options;

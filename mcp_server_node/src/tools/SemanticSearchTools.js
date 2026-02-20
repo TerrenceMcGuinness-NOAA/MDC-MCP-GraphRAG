@@ -69,6 +69,7 @@ export class SemanticSearchTools {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Search query' },
+          collection: { type: 'string', description: 'Target specific collection (default: search all). Options: global-workflow-docs-v8-0-0, jjobs-v8-0-0, ee2-standards-v5-0-0-enhanced' },
           max_results: { type: 'number', default: 8, minimum: 1, maximum: 20 },
           include_graph: { type: 'boolean', default: true, description: 'Include graph enrichment' },
           similarity_threshold: { type: 'number', default: 0.1, minimum: 0, maximum: 1 }
@@ -183,18 +184,29 @@ export class SemanticSearchTools {
       };
     }
     
-    const { query, max_results = 8, include_graph = true, similarity_threshold = 0.1 } = args;
+    const { query, collection, max_results = 8, include_graph = true, similarity_threshold = 0.1 } = args;
 
     try {
-      console.error(`[SEARCH] Starting search_documentation: "${query}" (max_results=${max_results})`);
+      console.error(`[SEARCH] Starting search_documentation: "${query}" (max_results=${max_results}, collection=${collection || 'all'})`);
       const startTime = Date.now();
-      
-      const results = await this.dataAccess.hybridQuery(query, {
-        maxResults: max_results,
-        includeGraph: include_graph,
-        graphDepth: 2,
-        similarityThreshold: similarity_threshold
-      });
+
+      let results;
+      if (collection) {
+        // Targeted single-collection search via hybridQuery
+        results = await this.dataAccess.hybridQuery(query, {
+          collection,
+          maxResults: max_results,
+          includeGraph: include_graph,
+          graphDepth: 2,
+          similarityThreshold: similarity_threshold
+        });
+      } else {
+        // Multi-collection search across all sources
+        results = await this.dataAccess.multiSourceSearch(query, {
+          nResults: max_results,
+          enrichWithGraph: include_graph
+        });
+      }
       
       const elapsed = Date.now() - startTime;
       console.error(`[OK] Search completed in ${elapsed}ms, found ${results?.length || 0} results`);
@@ -206,12 +218,16 @@ export class SemanticSearchTools {
       }
 
       let output = `# Search Results: ${query}\n\n`;
-      output += `Found ${results.length} results (hybrid semantic + graph search)\n\n`;
+      output += `Found ${results.length} results (${collection ? `collection: ${collection}` : 'multi-collection search'})\n\n`;
 
       for (const result of results) {
         output += `## ${result.metadata?.title || result.document || 'Result'}\n`;
         output += `**Similarity:** ${(result.distance * 100).toFixed(1)}%\n`;
-        output += `**Source:** ${result.metadata?.source || 'Unknown'}\n`;
+        output += `**Source:** ${result.metadata?.source || 'Unknown'}`;
+        if (result.collection) {
+          output += ` | **Collection:** ${result.collection}`;
+        }
+        output += `\n`;
         if (result.graphContext) {
           output += `**Graph Context:** ${result.graphContext.length} related entities\n`;
         }
