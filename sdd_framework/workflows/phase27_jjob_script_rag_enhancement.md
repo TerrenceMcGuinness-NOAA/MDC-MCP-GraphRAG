@@ -2,7 +2,7 @@
 
 **Status**: IN PROGRESS  
 **Created**: February 4, 2026  
-**Updated**: February 4, 2026  
+**Updated**: February 23, 2026  
 **Author**: Terrence McGuinness  
 **Priority**: HIGH - Enables effective workflow component analysis via MCP tools
 
@@ -18,7 +18,8 @@
 | 27F | ✅ COMPLETE | Shell graph ingestion + cross-language bridge re-run |
 | 27G | ✅ COMPLETE | End-to-end validation of 27A-F against live databases |
 | 27H | 🔲 NOT STARTED | `search_documentation` multi-collection routing |
-| 27I | 🔲 NOT STARTED | External Fortran EXECUTES bridge resolution |
+| 27I | ✅ COMPLETE | External Fortran EXECUTES bridge resolution (via Phase 24F) |
+| 27J | 🔲 NOT STARTED | ShellScript node dedup + delegate script bridge parsing |
 
 ## Validation Evidence (February 4, 2026)
 
@@ -1043,9 +1044,21 @@ Change `hybridQuery()` to query multiple collections by default. Higher risk bec
 
 **Prerequisite**: Phase 27F complete (shell graph ingested, bridges re-run).
 
-**Status**: NOT STARTED  
+**Status**: ✅ COMPLETE (February 23, 2026)  
+**Completed By**: Phase 24F SDD session `session_2026-02-23_ggvuny` (commit `e988f26`)  
 **Priority**: MEDIUM — Improves cross-language tracing completeness  
 **Estimated Effort**: 4-6 hours
+
+#### Completion Summary
+
+The Phase 24F cross-language integration session accomplished all 27I objectives:
+- Created 11 placeholder `FortranProgram` nodes with `external: true` for GSI, UFS_UTILS, Fit2Obs executables
+- Filled all 15 `EXEC_TO_PROGRAM` mappings (was 12 `None` entries, now fully resolved)
+- Created 48 `ShellScript`→`EXECUTES`→`FortranProgram` edges (was 3 on `File` nodes only)
+- Created 12 `ShellScript`→`INVOKES`→`PythonModule` edges
+- Updated `ingest_cross_language_bridges.py` v2.0.0 with `create_shellscript_bridges()` function
+
+See [phase24f_cross_language_integration.md](phase24f_cross_language_integration.md) for full execution details.
 
 #### Problem Statement
 
@@ -1206,6 +1219,179 @@ RETURN s.name, p.name, p.package LIMIT 10;
 
 ---
 
+### Phase 27J: ShellScript Node Dedup + Delegate Script EXECUTES Parsing
+
+**Prerequisite**: Phase 27I complete, Phase 24F complete.
+
+**Status**: NOT STARTED  
+**Priority**: MEDIUM — Increases J-Job→Fortran chain coverage from 8% to ~30%+  
+**Estimated Effort**: 3-5 hours
+
+#### Problem Statement
+
+Phase 24F review revealed two data quality issues that limit cross-language traversal coverage:
+
+**Issue A: Duplicate ShellScript Nodes (3x Edge Multiplication)**
+
+Each ex-script has 3 ShellScript nodes with the same `name` but different `type` values:
+- 2 nodes with `type='ex-script'` (one with `path=null`, one with `path='dev/scripts/...'`)
+- 1 node with `type='script'` (with `path=null`)
+
+This causes bridge EXECUTES edges to be created 3x per script (48 total edges for 16 unique pairs).
+
+**Evidence** (February 23, 2026):
+```
+Total: 78 names with duplicates, 197 duplicate ShellScript nodes
+exglobal_atmos_analysis.sh: 3 nodes → 18 edges (6 programs × 3 nodes)
+exglobal_atmos_analysis_calc.sh: 3 nodes → 12 edges (4 programs × 3 nodes)
+```
+
+**Issue B: Delegate Script Parsing Gap (82/89 J-Jobs Missing Fortran Chains)**
+
+Only 7 of 89 J-Jobs have forward chains to FortranProgram nodes. The bridge script (`ingest_cross_language_bridges.py`) only parsed `scripts/ex*.sh` files for `.x` executable references. Many J-Jobs delegate execution through intermediate ush-scripts that are the actual `.x` invokers.
+
+Key example — the forecast chain:
+```
+JGLOBAL_FORECAST → exglobal_forecast.sh → ${APRUN_UFS} "${DATA}/${FCSTEXEC}"
+  where FCSTEXEC = "gfs_model.x" (defined in parm/config/gfs/config.fcst.j2)
+```
+
+The bridge script missed this because:
+1. `FCSTEXEC` is a variable reference, not a literal `.x` pattern
+2. The config file defining `FCSTEXEC="gfs_model.x"` is a Jinja2 template, not a shell script
+
+Other delegate patterns found:
+| Script | Type | Has EXEC refs? | What invokes `.x`? |
+|--------|------|----------------|--------------------|
+| `forecast_det.sh` | ush-script | No — env var setup | `exglobal_forecast.sh` via `$FCSTEXEC` |
+| `forecast_postdet.sh` | ush-script | No — config/restart | (none) |
+| `atmos_ensstat.sh` | ush-script | **Yes** | Literal `.x` references |
+| `gfs_bufr.sh` | ush-script | **Yes** | Literal `.x` references |
+| `wave_grid_moddef.sh` | ush-script | **Yes** | Literal `.x` references |
+| `syndat_qctropcy.sh` | ush-script | **Yes** | Literal `.x` references |
+
+#### Implementation Plan
+
+**Step 1: Deduplicate ShellScript Nodes**
+
+Strategy: Keep the node with the most relationships and merge edges from duplicates.
+
+```cypher
+-- Find duplicate groups
+MATCH (s:ShellScript)
+WITH s.name AS name, collect(s) AS nodes
+WHERE size(nodes) > 1
+WITH name, nodes,
+     [n IN nodes | size((n)--())] AS relCounts
+WITH name, nodes, relCounts,
+     reduce(maxIdx = 0, i IN range(0, size(relCounts)-1) |
+       CASE WHEN relCounts[i] > relCounts[maxIdx] THEN i ELSE maxIdx END) AS keepIdx
+WITH name, nodes[keepIdx] AS keeper, 
+     [n IN nodes WHERE n <> nodes[keepIdx]] AS dupes
+UNWIND dupes AS dupe
+  -- Copy unique relationships from dupe to keeper
+  -- Then DETACH DELETE dupe
+```
+
+Expected: 78 names × ~2 extra nodes = ~156 nodes deleted, edges consolidated.
+
+**Step 2: Extend Bridge Script to Parse ush-scripts**
+
+Update `ingest_cross_language_bridges.py` to also scan `ush/*.sh` for `.x` references:
+
+```python
+# Current: only scans dev/scripts/ex*.sh
+SCRIPT_DIRS = ['dev/scripts/']
+
+# New: also scan ush/ scripts
+SCRIPT_DIRS = ['dev/scripts/', 'ush/']
+```
+
+This catches `atmos_ensstat.sh`, `gfs_bufr.sh`, `wave_grid_moddef.sh`, etc.
+
+**Step 3: Add Config Variable Resolution for Indirect EXEC References**
+
+For the forecast pattern (`$FCSTEXEC` → `gfs_model.x`), extend the bridge script to:
+1. Parse Jinja2 config templates (`parm/config/gfs/config.fcst.j2`) for `export FCSTEXEC=...` patterns
+2. Build a variable→executable mapping
+3. Match `${FCSTEXEC}` references in scripts to resolved `.x` names
+
+```python
+# Config variable resolution
+CONFIG_EXEC_VARS = {
+    'FCSTEXEC': 'gfs_model.x',      # from config.fcst.j2
+    # Scan config files for: export VAR="name.x" patterns
+}
+```
+
+**Step 4: Re-run Bridge Ingestion + Validate**
+
+After dedup and extended parsing:
+```bash
+python ingest_cross_language_bridges.py --dry-run   # Preview new edges
+python ingest_cross_language_bridges.py              # Full ingestion
+```
+
+**Step 5: Re-run CrossLanguageTraversal Tests**
+
+Verify test counts increase and no regressions:
+- Edge count test: expect 16+ unique pairs (from 16)
+- JGLOBAL_FORECAST forward chain: should now resolve to `gfs_model` FortranProgram
+
+#### Execution Order
+
+| Step | Action | Expected Outcome | Effort |
+|------|--------|------------------|--------|
+| 1 | Cypher dedup script | 78 names consolidated, ~156 duplicate nodes removed | 1h |
+| 2 | Extend bridge script to scan ush/ | 15 additional ush-scripts with `.x` references parsed | 30min |
+| 3 | Config variable → executable mapping | `$FCSTEXEC` → `gfs_model.x` and similar resolved | 1h |
+| 4 | Re-run bridge ingestion | New EXECUTES edges for forecast, wave, ensstat chains | 30min |
+| 5 | Validate + update tests | J-Job coverage: 7/89 → target 25+/89 | 1h |
+
+#### Validation
+
+```cypher
+-- Dedup verification: no duplicates remain
+MATCH (s:ShellScript)
+WITH s.name AS name, count(*) AS cnt
+WHERE cnt > 1
+RETURN count(name) AS remaining_duplicates;
+-- Expected: 0
+
+-- Extended coverage
+MATCH (j:ShellScript {type: 'j-job'})-[:SOURCES|INVOKES*1..3]->
+      (ex:ShellScript)-[:EXECUTES]->(p:FortranProgram)
+WITH count(DISTINCT j.name) AS covered
+MATCH (j2:ShellScript {type: 'j-job'})
+RETURN covered, count(DISTINCT j2.name) AS total;
+-- Expected: covered >= 25 (was 7)
+
+-- JGLOBAL_FORECAST chain resolved
+MATCH (j:ShellScript {name: 'JGLOBAL_FORECAST'})-[:SOURCES|INVOKES*1..3]->
+      (ex:ShellScript)-[:EXECUTES]->(p:FortranProgram)
+RETURN ex.name, p.name;
+-- Expected: exglobal_forecast.sh → gfs_model (placeholder)
+```
+
+#### Files Modified
+
+| File | Change |
+|------|--------|
+| `mcp_server_node/scripts/ingest_cross_language_bridges.py` | Extend SCRIPT_DIRS, add config variable resolution |
+| `mcp_server_node/scripts/dedup_shellscript_nodes.py` | New: Cypher-based dedup script |
+| `mcp_server_node/src/__tests__/CrossLanguageTraversal.test.js` | Update edge count thresholds |
+
+#### Risk Assessment
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Dedup removes node with unique relationships | Medium | Keep highest-degree node, merge edges before delete |
+| Config variable patterns vary per system | Low | Start with FCSTEXEC, expand incrementally |
+| ush-scripts reference dynamic executable names | Low | Log unresolved references for manual curation |
+| Some J-Jobs invoke Python directly (no Fortran) | None | These correctly have no Fortran chain |
+
+---
+
 ## Changelog
 
 | Date | Version | Changes |
@@ -1213,3 +1399,5 @@ RETURN s.name, p.name, p.package LIMIT 10;
 | 2026-02-04 | 0.1.0 | Initial SDD creation from tool effectiveness audit |
 | 2026-02-19 | 0.2.0 | 27F-G executed: shell graph ingested (383 nodes, 9155 rels), bridges re-run (8 edges) |
 | 2026-02-19 | 0.3.0 | 27H-I specs added: multi-collection routing + external Fortran bridge resolution |
+| 2026-02-23 | 0.4.0 | 27I marked COMPLETE (executed via Phase 24F session `e988f26`): 11 placeholder FortranProgram nodes, 48 EXECUTES + 12 INVOKES ShellScript bridges |
+| 2026-02-23 | 0.5.0 | 27J spec added: ShellScript node dedup (78 duplicate names, 197 extra nodes) + delegate ush-script EXECUTES parsing (coverage from 7/89 J-Jobs) |
