@@ -1,5 +1,24 @@
 # MCP Server Changelog
 
+## [7.17.1] - Fix MCP Gateway Container Cleanup (February 23, 2026)
+
+### Fixed
+- **Bootstrap kernel exclude** — `dnf update --exclude` was version-pinned (`kernel-${KVER}`), which only blocked the exact current kernel version. DNF freely installed `5.14.0-611.30.1.el9_7` alongside. Changed to `--exclude='kernel*'` wildcard to block all kernel package updates regardless of version. Removed unintended `el9_7` kernel packages.
+
+- **Container cleanup script not removing stale gateway containers** — `mcp-container-cleanup.sh` used TCP connection counting (`/proc/net/tcp` ESTABLISHED state) to detect orphans, but MCP containers maintain persistent Neo4j connections (port 7687) that made every container appear "active". Replaced with "keep newest per `docker-mcp-name`" strategy:
+  - Groups running containers by `docker-mcp-name` label
+  - Keeps only the newest container per server name
+  - Removes older superseded containers past the grace period
+  - Still cleans unhealthy and exited containers immediately
+  - Verified: removed 3 stale containers (up to 3 days old) that the old logic never touched
+
+### Changed
+- `SETUP/bootstrap.sh` — Removed `KVER` variable, simplified kernel exclude to `--exclude='kernel*'`
+- `SETUP/bin/mcp-container-cleanup.sh` — Replaced TCP connection-based orphan detection with keep-newest-per-server strategy
+- Deployed updated cleanup script to `/opt/eib-mcp-rag/bin/mcp-container-cleanup.sh`
+
+---
+
 ## [7.17.0] - Phase 27I: External Fortran EXECUTES Bridge Resolution (February 20, 2026)
 
 ### Context
