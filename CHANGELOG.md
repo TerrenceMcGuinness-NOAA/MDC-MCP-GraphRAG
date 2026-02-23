@@ -1,5 +1,30 @@
 # MCP Server Changelog
 
+## [7.19.0] - Phase 27J: ShellScript Dedup + Delegate Script EXECUTES (February 23, 2026)
+
+### Context
+Phase 24F review found two data quality issues: (A) 78 duplicate ShellScript names (197 extra nodes) causing 3x edge multiplication, and (B) bridge script only parsed `dev/scripts/ex*.sh` — missing ush/ scripts and config-defined exec variables like `$FCSTEXEC → gfs_model.x`.
+
+### Added
+- **`dedup_shellscript_nodes.py`**: New dedup script — consolidates duplicate ShellScript nodes, keeps highest-degree node, copies unique edges (383→264 nodes, 48→16 EXECUTES, 0 duplicates remaining)
+- **`ingest_cross_language_bridges.py` v3.0.0**: `CONFIG_EXEC_VARS` dict resolves `$FCSTEXEC → gfs_model.x` and similar config-defined variables
+- **`ingest_cross_language_bridges.py` v3.0.0**: `USH_EXEC_PATTERNS` — 6 additional regex patterns for ush-script executable patterns (`pgm="name.x"`, `${NET,,}_ww3_*.x`, `./name.x`, `cpreq`, `basename`)
+- **`ingest_cross_language_bridges.py` v3.0.0**: 16 new placeholder FortranProgram nodes (UFS_model: gfs/gefs/sfs/gcafs_model, WW3: ww3_grid/outp/prnc/grib/gint, GFS: ensstat/gfs_bufr, tropcy: syndat_qctropcy/syndat_getjtbul/supvit, oznmon: oznmon_time/oznmon_horiz)
+- **`CrossLanguageTraversal.test.js`**: 3 new tests (T7: JGLOBAL_FORECAST→gfs_model, T8: ush-script EXECUTES, T9: J-Job coverage ≥15)
+
+### Changed
+- **`ingest_cross_language_bridges.py`**: `build_file_index()` extended to include `/ush/` paths (was ex-scripts only)
+- **`ingest_cross_language_bridges.py`**: ush/ scanning now creates EXECUTES edges (was INVOKES only)
+- **`CrossLanguageTraversal.test.js`**: Bridge count threshold raised from 16 to 30
+
+### Metrics
+- ShellScript nodes: 383 → 264 (119 duplicates removed)
+- ShellScript→FortranProgram EXECUTES edges: 16 unique → 33 unique
+- FortranProgram nodes: 153 → 169 (16 new placeholders)
+- J-Job Fortran coverage: 7/89 (8%) → 19/89 (21%)
+- JGLOBAL_FORECAST → gfs_model: resolved (was missing)
+- Cross-language test suite: 6/6 → 9/9 passing
+
 ## [7.18.0] - Phase 24F: Cross-Language Graph Integration (February 23, 2026)
 
 ### Context

@@ -10,6 +10,12 @@ Phase 27I additions:
   - Creates placeholder FortranProgram nodes for external packages (GSI, UFS_UTILS, Fit2Obs)
   - Fills all EXEC_TO_PROGRAM mappings (was 12 None entries, now fully resolved)
 
+Phase 27J additions:
+  - Scans ush/ scripts for .x executable references (was ex-scripts only)
+  - Resolves config-defined exec variables ($FCSTEXEC -> gfs_model.x)
+  - Adds UFS model executables (gfs_model, gefs_model, sfs_model, gcafs_model)
+  - Handles ${NET,,}_ww3_*.x patterns (e.g., ${NET,,}_ww3_grid.x)
+
 Approach:
   1. Create placeholder FortranProgram nodes for external executables
   2. Parse each shell ex-script for .x executable references and .py script references
@@ -27,8 +33,8 @@ Usage:
   python ingest_cross_language_bridges.py --verbose    # With detail
 
 Author: NOAA EMC EIB MCP Team
-Phase: 24F-2, 27I
-Version: 2.0.0
+Phase: 24F-2, 27I, 27J
+Version: 3.0.0
 """
 
 import os
@@ -44,7 +50,7 @@ except ImportError:
     print("[WARN] neo4j package not found.")
     GraphDatabase = None
 
-VERSION = "2.0.0"
+VERSION = "3.0.0"
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
@@ -95,6 +101,25 @@ EXEC_TO_PROGRAM = {
     'fbwndgfs': 'fbwndgfs',
     'rdbfmsua': 'rdbfmsua',
     'chgres_cube': 'chgres_cube',
+    # Phase 27J: UFS model executables
+    'gfs_model': 'gfs_model',
+    'gefs_model': 'gefs_model',
+    'sfs_model': 'sfs_model',
+    'gcafs_model': 'gcafs_model',
+    # Phase 27J: Wave model executables
+    'gfs_ww3_grid': 'ww3_grid',
+    'gfs_ww3_outp': 'ww3_outp',
+    'gfs_ww3_prnc': 'ww3_prnc',
+    'gfs_ww3_grib': 'ww3_grib',
+    'gfs_ww3_gint': 'ww3_gint',
+    # Phase 27J: ush-script executables
+    'ensstat': 'ensstat',
+    'gfs_bufr': 'gfs_bufr',
+    'syndat_qctropcy': 'syndat_qctropcy',
+    'syndat_getjtbul': 'syndat_getjtbul',
+    'supvit': 'supvit',
+    'oznmon_time': 'oznmon_time',
+    'oznmon_horiz': 'oznmon_horiz',
 }
 
 # External Fortran programs not in Neo4j — create placeholder nodes
@@ -110,6 +135,51 @@ EXTERNAL_PROGRAMS = [
     {'name': 'recentersigp', 'package': 'GSI', 'desc': 'Sigma-pressure recentering'},
     {'name': 'fbwndgfs', 'package': 'Fit2Obs', 'desc': 'Background wind GFS'},
     {'name': 'rdbfmsua', 'package': 'Fit2Obs', 'desc': 'Read BUFR mandatory/significant upper air'},
+    # Phase 27J: UFS model executables
+    {'name': 'gfs_model', 'package': 'UFS_model', 'desc': 'UFS Weather Model (FV3) for GFS'},
+    {'name': 'gefs_model', 'package': 'UFS_model', 'desc': 'UFS Weather Model (FV3) for GEFS'},
+    {'name': 'sfs_model', 'package': 'UFS_model', 'desc': 'UFS Weather Model for SFS'},
+    {'name': 'gcafs_model', 'package': 'UFS_model', 'desc': 'UFS Weather Model for GCAFS'},
+    # Phase 27J: Wave model executables (WW3)
+    {'name': 'ww3_grid', 'package': 'WW3', 'desc': 'WAVEWATCH III grid preprocessor'},
+    {'name': 'ww3_outp', 'package': 'WW3', 'desc': 'WAVEWATCH III output postprocessor'},
+    {'name': 'ww3_prnc', 'package': 'WW3', 'desc': 'WAVEWATCH III NetCDF processing'},
+    {'name': 'ww3_grib', 'package': 'WW3', 'desc': 'WAVEWATCH III GRIB output'},
+    {'name': 'ww3_gint', 'package': 'WW3', 'desc': 'WAVEWATCH III grid interpolation'},
+    # Phase 27J: Additional ush-script executables
+    {'name': 'ensstat', 'package': 'GFS', 'desc': 'Ensemble statistics computation'},
+    {'name': 'gfs_bufr', 'package': 'GFS', 'desc': 'GFS BUFR sounding post-processor'},
+    {'name': 'syndat_qctropcy', 'package': 'tropcy', 'desc': 'Tropical cyclone QC'},
+    {'name': 'syndat_getjtbul', 'package': 'tropcy', 'desc': 'Get JTWC tropical bulletins'},
+    {'name': 'supvit', 'package': 'tropcy', 'desc': 'Supplemental vitals for tropical cyclones'},
+    {'name': 'oznmon_time', 'package': 'oznmon', 'desc': 'Ozone monitor time series'},
+    {'name': 'oznmon_horiz', 'package': 'oznmon', 'desc': 'Ozone monitor horizontal analysis'},
+]
+
+# Phase 27J: Config-defined executable variable resolution
+# Maps shell variable names to their resolved executable filenames
+# Sourced from: dev/parm/config/gfs/config.fcst.j2, config.base.j2, etc.
+CONFIG_EXEC_VARS = {
+    'FCSTEXEC': 'gfs_model.x',         # GFS forecast model (config.fcst.j2:77)
+    # GEFS uses ${NET}_model.x but NET=gefs at runtime → gefs_model.x
+    # SFS uses ${NET}_model.x → sfs_model.x
+    # GCAFS explicit: gcafs_model.x (config.fcst.j2:81)
+}
+
+# Phase 27J: Additional EXEC patterns for ush-script patterns
+USH_EXEC_PATTERNS = [
+    # ${NET,,}_ww3_name.x pattern (NET lowercased via bash ${NET,,})
+    re.compile(r'\$\{NET,,\}_ww3_(\w+)\.x'),
+    # Explicit pgm="${NET,,}_ww3_name.x"
+    re.compile(r'pgm="\$\{NET,,\}_ww3_(\w+)\.x"'),
+    # cpreq/cp of .x files: cpreq "${EXECgfs}/name.x" ./name.x
+    re.compile(r'cpreq\s+"[^"]*?/(\w+)\.x"'),
+    # Direct ./name.x execution
+    re.compile(r'\./(\w+)\.x\b'),
+    # Literal pgm="name.x" (no variable prefix)
+    re.compile(r'pgm="(\w+)\.x"'),
+    # pgm=$(basename "path/name.x") — basename with literal name
+    re.compile(r'basename\s+"[^"]*?/(\w+)\.x"'),
 ]
 
 
@@ -136,6 +206,29 @@ def parse_shell_script(file_path):
                             'name': exe_name,
                             'line': lineno,
                             'context': stripped[:120]
+                        })
+
+                # Phase 27J: Additional ush-script patterns
+                for pattern in USH_EXEC_PATTERNS:
+                    for match in pattern.finditer(line):
+                        exe_name = match.group(1)
+                        # For ww3 patterns, prefix with gfs_ww3_ for matching
+                        if 'ww3' in pattern.pattern and not exe_name.startswith('ww3'):
+                            exe_name = f'gfs_ww3_{exe_name}'
+                        executables.append({
+                            'name': exe_name,
+                            'line': lineno,
+                            'context': stripped[:120]
+                        })
+
+                # Phase 27J: Resolve config-defined exec variables
+                for var_name, exe_value in CONFIG_EXEC_VARS.items():
+                    if f'${{{var_name}}}' in line or f'${var_name}' in line:
+                        exe_base = exe_value.replace('.x', '')
+                        executables.append({
+                            'name': exe_base,
+                            'line': lineno,
+                            'context': stripped[:120],
                         })
 
                 # Find Python script references
@@ -184,10 +277,15 @@ def build_python_module_index(session):
 
 
 def build_file_index(session):
-    """Build lookup index: script basename → File node absolutePath."""
+    """Build lookup index: script basename → File node absolutePath.
+
+    Phase 27J: Extended to include ush/ scripts in addition to ex-scripts.
+    """
     result = session.run(
         'MATCH (f:File) WHERE f.absolutePath ENDS WITH ".sh" '
-        'AND (f.absolutePath CONTAINS "/scripts/ex" OR f.absolutePath CONTAINS "/dev/scripts/ex") '
+        'AND (f.absolutePath CONTAINS "/scripts/ex" '
+        'OR f.absolutePath CONTAINS "/dev/scripts/ex" '
+        'OR f.absolutePath CONTAINS "/ush/") '
         'RETURN f.absolutePath as path'
     )
     index = {}
@@ -499,18 +597,59 @@ def run_ingestion(dry_run=False, verbose=False):
         print(f"  ShellScript INVOKES bridges: {inv_bridges}")
 
     # Also scan ush/ scripts for Python references
+    # Phase 27J: Extended to also scan ush/ for executable references
     ush_dir = Path(WORKFLOW_ROOT) / 'ush'
     if ush_dir.exists():
         ush_scripts = sorted(ush_dir.glob('*.sh'))
         ush_invokes = []
+        ush_executes = []
+        print(f"\n[OK] === Phase 27J: ush/ Script Scanning ===")
+        print(f"[OK] Found {len(ush_scripts)} ush/ scripts to parse")
+
+        ush_stats = defaultdict(int)
         for script_path in ush_scripts:
             parsed = parse_shell_script(script_path)
             basename = script_path.name
             neo4j_path = file_index.get(basename)
+
+            if not neo4j_path:
+                continue
+
+            if verbose and (parsed['executables'] or parsed['python_scripts']):
+                print(f"\n  Parsing ush/: {basename}")
+
+            # Phase 27J: Match executables from ush/ scripts
+            seen_exes = set()
+            for exe in parsed['executables']:
+                exe_name = exe['name']
+                if exe_name in seen_exes:
+                    continue
+                seen_exes.add(exe_name)
+                ush_stats['exe_refs'] += 1
+
+                match = match_executable(exe_name, fortran_index)
+                if match:
+                    ush_stats['exe_matched'] += 1
+                    edge = {
+                        'script': basename,
+                        'script_path': neo4j_path,
+                        'program': match['name'],
+                        'executable': exe_name,
+                        'line': exe['line']
+                    }
+                    ush_executes.append(edge)
+                    if verbose:
+                        print(f"    [OK] {exe_name} → {match['name']}")
+                else:
+                    ush_stats['exe_unmatched'] += 1
+                    if verbose:
+                        print(f"    [MISS] {exe_name} — no FortranProgram match")
+
+            # Python references from ush/ scripts
             for py in parsed['python_scripts']:
                 py_name = py['name']
                 match = python_index.get(py_name.lower())
-                if match and neo4j_path:
+                if match:
                     ush_invokes.append({
                         'script': basename,
                         'script_path': neo4j_path,
@@ -519,9 +658,23 @@ def run_ingestion(dry_run=False, verbose=False):
                         'py_script': py_name,
                         'line': py['line']
                     })
+
+        print(f"  ush/ exe refs: {ush_stats['exe_refs']} "
+              f"(matched: {ush_stats['exe_matched']}, unmatched: {ush_stats['exe_unmatched']})")
+
+        if ush_executes:
+            created = create_executes_edges(session, ush_executes, dry_run)
+            print(f"  EXECUTES edges from ush/: {created}")
         if ush_invokes:
             created = create_invokes_edges(session, ush_invokes, dry_run)
             print(f"  INVOKES edges from ush/: {created}")
+
+    # Phase 27J: Re-run bridge unification to pick up new ush/ edges
+    if session:
+        print(f"\n[OK] === Phase 27J: Extended ShellScript Bridge Unification ===")
+        exec_bridges, inv_bridges = create_shellscript_bridges(session, dry_run)
+        print(f"  ShellScript EXECUTES bridges (incl. ush/): {exec_bridges}")
+        print(f"  ShellScript INVOKES bridges (incl. ush/): {inv_bridges}")
 
     if session:
         session.close()
@@ -533,7 +686,7 @@ def run_ingestion(dry_run=False, verbose=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Phase 24F-2: Cross-Language Bridge Edge Ingestion',
+        description='Phase 24F-2/27J: Cross-Language Bridge Edge Ingestion',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

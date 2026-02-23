@@ -1,6 +1,12 @@
 /**
- * Phase 24F: Cross-Language Traversal Tests
+ * Phase 24F/27J: Cross-Language Traversal Tests
  * Tests for Shell → Fortran and Shell → Python cross-language graph traversal.
+ *
+ * Phase 27J updates:
+ *   - Bridge count threshold raised from 16 to 30 (33 after ush/ scanning)
+ *   - Added JGLOBAL_FORECAST → gfs_model chain test
+ *   - Added ush-script EXECUTES bridge test
+ *   - Added J-Job Fortran coverage test (19/89 J-Jobs)
  *
  * Requires: Neo4j running with ingested global-workflow data + bridge edges.
  */
@@ -102,12 +108,50 @@ describe('Cross-Language Graph Integration (Phase 24F)', () => {
     }
   });
 
-  // Test 6: ShellScript EXECUTES bridge edge counts
+  // Test 6: ShellScript EXECUTES bridge edge counts (Phase 27J: raised from 16 to 30)
   it('should have ShellScript-EXECUTES->FortranProgram bridges (Step 1)', async () => {
     const result = await session.run(
       'MATCH (s:ShellScript)-[:EXECUTES]->(p:FortranProgram) RETURN count(*) AS c'
     );
     const count = result.records[0].get('c').toNumber();
-    expect(count).toBeGreaterThanOrEqual(16);
+    expect(count).toBeGreaterThanOrEqual(30);
+  });
+
+  // Test 7 (Phase 27J): JGLOBAL_FORECAST → gfs_model chain resolved
+  it('should trace JGLOBAL_FORECAST forward to gfs_model FortranProgram', async () => {
+    const result = await session.run(`
+      MATCH (j:ShellScript {name: 'JGLOBAL_FORECAST'})-[:SOURCES|INVOKES*1..3]->
+            (ex:ShellScript)-[:EXECUTES]->(p:FortranProgram)
+      RETURN ex.name AS script, p.name AS program
+    `);
+    const records = result.records;
+    expect(records.length).toBeGreaterThan(0);
+    const programs = records.map(r => r.get('program'));
+    expect(programs).toContain('gfs_model');
+  });
+
+  // Test 8 (Phase 27J): ush-script EXECUTES edges exist
+  it('should have EXECUTES edges from ush-scripts', async () => {
+    const result = await session.run(`
+      MATCH (s:ShellScript {type: 'ush-script'})-[:EXECUTES]->(p:FortranProgram)
+      RETURN DISTINCT s.name AS script, p.name AS program
+    `);
+    const records = result.records;
+    expect(records.length).toBeGreaterThanOrEqual(10);
+    const scripts = records.map(r => r.get('script'));
+    // wave, tropcy, and ensstat scripts should be represented
+    expect(scripts.some(s => s && s.includes('wave'))).toBe(true);
+    expect(scripts.some(s => s && s.includes('ensstat'))).toBe(true);
+  });
+
+  // Test 9 (Phase 27J): J-Job Fortran coverage >= 15
+  it('should have at least 15 J-Jobs with Fortran forward chains', async () => {
+    const result = await session.run(`
+      MATCH (j:ShellScript {type: 'j-job'})-[:SOURCES|INVOKES*1..3]->
+            (ex:ShellScript)-[:EXECUTES]->(p:FortranProgram)
+      RETURN count(DISTINCT j.name) AS covered
+    `);
+    const covered = result.records[0].get('covered').toNumber();
+    expect(covered).toBeGreaterThanOrEqual(15);
   });
 });

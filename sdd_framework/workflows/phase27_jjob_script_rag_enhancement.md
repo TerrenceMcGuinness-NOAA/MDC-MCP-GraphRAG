@@ -19,7 +19,7 @@
 | 27G | ✅ COMPLETE | End-to-end validation of 27A-F against live databases |
 | 27H | 🔲 NOT STARTED | `search_documentation` multi-collection routing |
 | 27I | ✅ COMPLETE | External Fortran EXECUTES bridge resolution (via Phase 24F) |
-| 27J | 🔲 NOT STARTED | ShellScript node dedup + delegate script bridge parsing |
+| 27J | ✅ COMPLETE | ShellScript node dedup + delegate script bridge parsing |
 
 ## Validation Evidence (February 4, 2026)
 
@@ -1223,8 +1223,8 @@ RETURN s.name, p.name, p.package LIMIT 10;
 
 **Prerequisite**: Phase 27I complete, Phase 24F complete.
 
-**Status**: NOT STARTED  
-**Priority**: MEDIUM — Increases J-Job→Fortran chain coverage from 8% to ~30%+  
+**Status**: COMPLETE (February 23, 2026)  
+**Priority**: MEDIUM — Increases J-Job→Fortran chain coverage from 8% to ~21%  
 **Estimated Effort**: 3-5 hours
 
 #### Problem Statement
@@ -1401,3 +1401,4 @@ RETURN ex.name, p.name;
 | 2026-02-19 | 0.3.0 | 27H-I specs added: multi-collection routing + external Fortran bridge resolution |
 | 2026-02-23 | 0.4.0 | 27I marked COMPLETE (executed via Phase 24F session `e988f26`): 11 placeholder FortranProgram nodes, 48 EXECUTES + 12 INVOKES ShellScript bridges |
 | 2026-02-23 | 0.5.0 | 27J spec added: ShellScript node dedup (78 duplicate names, 197 extra nodes) + delegate ush-script EXECUTES parsing (coverage from 7/89 J-Jobs) |
+| 2026-02-23 | 0.6.0 | 27J executed: dedup 383→264 nodes, bridge v3.0.0 with ush/ scanning + config var resolution, 33 EXECUTES bridges (was 16), 19/89 J-Job coverage (was 7), JGLOBAL_FORECAST→gfs_model resolved, 9/9 tests passing |
