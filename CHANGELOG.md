@@ -1,5 +1,36 @@
 # MCP Server Changelog
 
+## [7.18.0] - Phase 24F: Cross-Language Graph Integration (February 23, 2026)
+
+### Context
+Shell, Fortran, and Python nodes existed in Neo4j but no MCP tool could traverse across language boundaries. EXECUTES bridge edges were stranded on `File` nodes disconnected from `ShellScript` nodes. SDD session `session_2026-02-23_ggvuny` (10/10 steps).
+
+### Added
+- **`GraphDatabase.js`**: `traceCrossLanguageChain(name, depth, direction)` — unified forward/reverse/both traversal across Shell→Fortran and Shell→Python boundaries
+- **`GraphDatabase.js`**: `findUpstreamExecutors(fortranName)` — reverse trace from Fortran programs to triggering J-Jobs
+- **`GraphDatabase.js`**: `_labelToLanguage()` helper for node label classification
+- **`CodeAnalysisTools.js`**: New `trace_full_execution_chain` MCP tool — flagship end-to-end cross-language chain traces with tree output
+- **`CodeAnalysisTools.js`**: `cross_language` boolean parameter added to `find_callers_callees` tool schema
+- **`GGSRTraversalPrototypes.js`**: `BRIDGE_DECAY_OVERRIDE = 0.8` and `isLanguageBridge()` — reduced hop decay penalty for cross-language bridge hops in GGSR scoring
+- **`CrossLanguageTraversal.test.js`**: 6 integration tests (forward trace, reverse trace, Python bridges, J-Job reverse, latency, edge count)
+- **Neo4j indexes**: 4 range indexes + 1 full-text `cross_language_names` index across 5 labels
+
+### Changed
+- **`ingest_cross_language_bridges.py`**: Added `create_shellscript_bridges()` — creates parallel EXECUTES/INVOKES edges on ShellScript nodes (48 EXECUTES + 12 INVOKES bridges)
+- **`CodeAnalysisTools.js`**: `trace_execution_path` shell output now shows integrated `[Shell]/[Bridge]/[Fortran]` path instead of separate cross-language appendix
+- **`GGSRTraversalPrototypes.js`**: `scoreResults()` now detects language transitions and applies reduced decay for bridge hops
+
+### Fixed
+- **`GraphDatabase.js`**: `traceCrossLanguagePath()` used `CodeFile` label but bridge edges exist on `File` nodes — now queries `File OR ShellScript OR CodeFile` with `absolutePath` matching
+
+### Metrics
+- ShellScript→FortranProgram EXECUTES edges: 0 → 48
+- ShellScript→PythonModule INVOKES edges: 0 → 12
+- New MCP tool: `trace_full_execution_chain`
+- Cross-language test suite: 6/6 passing
+
+---
+
 ## [7.17.1] - Fix MCP Gateway Container Cleanup (February 23, 2026)
 
 ### Fixed

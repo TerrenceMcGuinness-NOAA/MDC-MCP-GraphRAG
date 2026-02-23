@@ -703,12 +703,13 @@ export class GraphDatabase {
    */
   async traceCrossLanguagePath(scriptName, fortranDepth = 3) {
     const depthInt = Math.min(Math.max(parseInt(fortranDepth, 10) || 3, 1), 10);
-    // Phase 24I: Include PythonModule in cross-language traversal via CodeFile→INVOKES→PythonModule
+    // Phase 24F Step 9: Fixed label — query File, ShellScript, and CodeFile to cover all bridge node types
     const cypher = `
-      MATCH (shell:CodeFile)
-      WHERE shell.language = 'shell' AND (shell.name =~ $pattern OR shell.path =~ $pattern)
-      OPTIONAL MATCH shellPath = (shell)-[:SOURCES|INVOKES*0..2]->(exScript:CodeFile)
-      WHERE exScript.language = 'shell'
+      MATCH (shell)
+      WHERE (shell:File OR shell:ShellScript OR shell:CodeFile)
+      AND (shell.name =~ $pattern OR shell.path =~ $pattern OR shell.absolutePath =~ $pattern)
+      OPTIONAL MATCH shellPath = (shell)-[:SOURCES|INVOKES*0..2]->(exScript)
+      WHERE exScript:ShellScript OR exScript:CodeFile OR exScript:File
       OPTIONAL MATCH (exScript)-[:EXECUTES]->(prog:FortranProgram)
       OPTIONAL MATCH fortranPath = (prog)-[:CALLS*1..${depthInt}]->(sub)
       OPTIONAL MATCH (exScript)-[:INVOKES]->(pyMod:PythonModule)
@@ -729,6 +730,155 @@ export class GraphDatabase {
       LIMIT 200
     `;
     return this.query(cypher, { pattern: `(?i).*${scriptName}.*` });
+  }
+
+  /**
+   * Trace execution chain across language boundaries (Phase 24F Step 2).
+   * @param {string} name - Starting node name (J-Job, script, Fortran program, etc.)
+   * @param {number} depth - Maximum hops per language segment (default: 5)
+   * @param {'forward'|'reverse'|'both'} direction - Traversal direction
+   * @returns {Promise<Object>} { chain, bridges, stats }
+   */
+  async traceCrossLanguageChain(name, depth = 5, direction = 'forward') {
+    const depthInt = Math.min(Math.max(parseInt(depth, 10) || 5, 1), 10);
+    const pattern = `(?i).*${name.replace(/[.*+?^${}()|[\]\\]/g, '\\\\$&')}.*`;
+    const results = { chain: [], bridges: [], stats: { languages: new Set(), totalNodes: 0, bridgeCrossings: 0 } };
+
+    if (direction === 'forward' || direction === 'both') {
+      const forwardCypher = `
+        MATCH (start)
+        WHERE (start:ShellScript OR start:File OR start:FortranProgram OR start:PythonFunction OR start:PythonModule)
+        AND (start.name =~ $pattern OR start.path =~ $pattern)
+        WITH start, labels(start)[0] AS startLabel
+        OPTIONAL MATCH shellPath = (start)-[:SOURCES|INVOKES*0..3]->(exScript:ShellScript)
+        WITH start, startLabel, collect(DISTINCT exScript) AS shellHops
+        UNWIND (CASE WHEN size(shellHops) > 0 THEN shellHops ELSE [start] END) AS pivot
+        OPTIONAL MATCH (pivot)-[execRel:EXECUTES]->(prog:FortranProgram)
+        OPTIONAL MATCH fortranPath = (prog)-[:CALLS*1..${depthInt}]->(sub)
+        WHERE sub:FortranSubroutine OR sub:FortranFunction
+        OPTIONAL MATCH (pivot)-[invRel:INVOKES]->(pyMod:PythonModule)
+        OPTIONAL MATCH (pyMod)-[:DEFINES]->(pyFunc:PythonFunction)
+        RETURN DISTINCT
+          start.name AS source, startLabel,
+          pivot.name AS bridgeScript, labels(pivot)[0] AS pivotLabel,
+          prog.name AS fortranProgram,
+          collect(DISTINCT sub.name) AS fortranChain,
+          pyMod.name AS pythonModule,
+          pyFunc.name AS pythonFunction,
+          CASE WHEN execRel IS NOT NULL THEN true ELSE false END AS hasFortranBridge,
+          CASE WHEN invRel IS NOT NULL THEN true ELSE false END AS hasPythonBridge
+        LIMIT 200
+      `;
+      const fwd = await this.query(forwardCypher, { pattern });
+      for (const row of fwd) {
+        if (row.source) {
+          results.chain.push({ name: row.source, label: row.startLabel, language: this._labelToLanguage(row.startLabel), direction: 'forward', hop: 0 });
+          results.stats.languages.add(this._labelToLanguage(row.startLabel));
+        }
+        if (row.bridgeScript && row.bridgeScript !== row.source) {
+          results.chain.push({ name: row.bridgeScript, label: row.pivotLabel, language: 'shell', direction: 'forward', hop: 1, relType: 'SOURCES/INVOKES' });
+          results.stats.languages.add('shell');
+        }
+        if (row.hasFortranBridge && row.fortranProgram) {
+          results.bridges.push({ from: row.bridgeScript || row.source, to: row.fortranProgram, type: 'EXECUTES', fromLang: 'shell', toLang: 'fortran' });
+          results.chain.push({ name: row.fortranProgram, label: 'FortranProgram', language: 'fortran', direction: 'forward', hop: 2, relType: 'EXECUTES' });
+          results.stats.bridgeCrossings++;
+          results.stats.languages.add('fortran');
+          for (const sub of (row.fortranChain || [])) {
+            results.chain.push({ name: sub, label: 'FortranSubroutine', language: 'fortran', direction: 'forward', hop: 3, relType: 'CALLS' });
+          }
+        }
+        if (row.hasPythonBridge && row.pythonModule) {
+          results.bridges.push({ from: row.bridgeScript || row.source, to: row.pythonModule, type: 'INVOKES', fromLang: 'shell', toLang: 'python' });
+          results.chain.push({ name: row.pythonModule, label: 'PythonModule', language: 'python', direction: 'forward', hop: 2, relType: 'INVOKES' });
+          results.stats.bridgeCrossings++;
+          results.stats.languages.add('python');
+          if (row.pythonFunction) {
+            results.chain.push({ name: row.pythonFunction, label: 'PythonFunction', language: 'python', direction: 'forward', hop: 3, relType: 'DEFINES' });
+          }
+        }
+      }
+    }
+
+    if (direction === 'reverse' || direction === 'both') {
+      const reverseCypher = `
+        MATCH (target)
+        WHERE (target:FortranProgram OR target:FortranSubroutine OR target:FortranFunction
+               OR target:PythonModule OR target:PythonFunction OR target:ShellScript)
+        AND (target.name =~ $pattern)
+        WITH target, labels(target)[0] AS targetLabel
+        OPTIONAL MATCH (target)<-[:CALLS*0..${depthInt}]-(prog:FortranProgram)
+        OPTIONAL MATCH (prog)<-[:EXECUTES]-(script)
+        WHERE script:ShellScript OR script:File
+        OPTIONAL MATCH callerPath = (jjob:ShellScript)-[:SOURCES|INVOKES*1..3]->(script)
+        WHERE jjob.type = 'j-job'
+        RETURN DISTINCT
+          target.name AS targetName, targetLabel,
+          prog.name AS fortranProgram,
+          script.name AS executorScript, labels(script)[0] AS scriptLabel,
+          collect(DISTINCT jjob.name) AS triggeringJJobs
+        LIMIT 200
+      `;
+      const rev = await this.query(reverseCypher, { pattern });
+      for (const row of rev) {
+        if (row.targetName) {
+          results.chain.push({ name: row.targetName, label: row.targetLabel, language: this._labelToLanguage(row.targetLabel), direction: 'reverse', hop: 0 });
+        }
+        if (row.fortranProgram && row.fortranProgram !== row.targetName) {
+          results.chain.push({ name: row.fortranProgram, label: 'FortranProgram', language: 'fortran', direction: 'reverse', hop: 1, relType: 'CALLS' });
+        }
+        if (row.executorScript) {
+          results.bridges.push({ from: row.executorScript, to: row.fortranProgram || row.targetName, type: 'EXECUTES', fromLang: 'shell', toLang: 'fortran' });
+          results.chain.push({ name: row.executorScript, label: row.scriptLabel, language: 'shell', direction: 'reverse', hop: 2, relType: 'EXECUTES' });
+          results.stats.bridgeCrossings++;
+          results.stats.languages.add('shell');
+        }
+        for (const jjob of (row.triggeringJJobs || [])) {
+          results.chain.push({ name: jjob, label: 'ShellScript', language: 'shell', direction: 'reverse', hop: 3, relType: 'SOURCES/INVOKES' });
+        }
+      }
+    }
+
+    // Deduplicate chain entries
+    const seen = new Set();
+    results.chain = results.chain.filter(entry => {
+      const key = `${entry.name}:${entry.direction}:${entry.hop}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    results.stats.totalNodes = results.chain.length;
+    results.stats.languages = [...results.stats.languages];
+    return results;
+  }
+
+  /**
+   * Find upstream executors of a Fortran program (Phase 24F Step 8).
+   * @param {string} fortranName - FortranProgram name
+   * @returns {Promise<Array>} Upstream shell scripts and J-Jobs
+   */
+  async findUpstreamExecutors(fortranName) {
+    const cypher = `
+      MATCH (prog:FortranProgram)<-[:EXECUTES]-(script)
+      WHERE prog.name = $name
+      AND (script:ShellScript OR script:File)
+      OPTIONAL MATCH callerPath = (jjob:ShellScript)-[:SOURCES|INVOKES*1..3]->(script)
+      WHERE jjob.type = 'j-job'
+      RETURN DISTINCT prog.name AS program, script.name AS executor_script,
+             labels(script)[0] AS script_label,
+             collect(DISTINCT jjob.name) AS triggering_jjobs
+    `;
+    return this.query(cypher, { name: fortranName });
+  }
+
+  /** Map a Neo4j label to a language string. */
+  _labelToLanguage(label) {
+    if (!label) return 'unknown';
+    if (label.startsWith('Fortran')) return 'fortran';
+    if (label.startsWith('Python')) return 'python';
+    if (['ShellScript', 'File', 'CodeFile'].includes(label)) return 'shell';
+    return 'other';
   }
 
   /**

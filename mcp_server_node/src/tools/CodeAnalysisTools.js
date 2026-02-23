@@ -193,11 +193,51 @@ export class CodeAnalysisTools {
             type: 'number',
             description: 'Max tokens for GGSR weighted context (Phase 24C)',
             default: 4000
+          },
+          cross_language: {
+            type: 'boolean',
+            description: 'When true, follow EXECUTES/INVOKES edges across language boundaries (Shell↔Fortran, Shell↔Python). Default: false for backward compatibility.',
+            default: false
           }
         },
         required: ['function_name']
       },
       this.findCallersCallees.bind(this)
+    );
+
+    // Tool 6: Trace Full Execution Chain (Phase 24F Step 5)
+    server.registerTool(
+      'trace_full_execution_chain',
+      'Trace complete execution chain across Shell, Python, and Fortran language boundaries. Starting from any node (J-Job, script, Fortran program, Python task), follows SOURCES, INVOKES, EXECUTES, CALLS, USES, and DEFINES edges to build the full execution tree.',
+      {
+        type: 'object',
+        properties: {
+          start: {
+            type: 'string',
+            description: 'Starting point: J-Job name (JGLOBAL_FORECAST), script name (exglobal_forecast.sh), Fortran program (gsi), or Python module (pygfs.task.gfs_forecast)'
+          },
+          direction: {
+            type: 'string',
+            enum: ['forward', 'reverse', 'both'],
+            description: 'forward: trace what this node executes. reverse: trace what triggers this node. both: full bidirectional context. Default: forward',
+            default: 'forward'
+          },
+          max_depth: {
+            type: 'number',
+            description: 'Maximum hops per language segment (default: 5)',
+            default: 5,
+            minimum: 1,
+            maximum: 10
+          },
+          languages: {
+            type: 'array',
+            items: { type: 'string', enum: ['shell', 'fortran', 'python'] },
+            description: 'Limit to specific languages. Default: all'
+          }
+        },
+        required: ['start']
+      },
+      this.traceFullExecutionChain.bind(this)
     );
 
     // Tool 5: Find Environment Variable Dependencies
@@ -555,29 +595,27 @@ export class CodeAnalysisTools {
       } else if (graphType === 'shell') {
         callChain = await this.dataAccess.graphDB.traceScriptChain(function_name, max_depth);
         
-        // For shell scripts, also check for cross-language paths to Fortran
-        const crossLangPath = await this.dataAccess.graphDB.traceCrossLanguagePath(function_name, max_depth);
-        if (crossLangPath && crossLangPath.length > 0) {
-          // Filter to only show entries with actual Fortran programs
-          const validPaths = crossLangPath.filter(p => p.fortranProgram);
-          if (validPaths.length > 0) {
-            result += `### Cross-Language Path (Shell → Fortran)\n`;
-            result += `*Shell script executes Fortran code via EXECUTES relationship*\n\n`;
-            
-            for (const step of validPaths.slice(0, 15)) {
-              const script = step.executingScript || step.sourceScript;
-              result += `- \`${script}\` —[EXECUTES]→ \`${step.fortranProgram}\``;
-              if (step.fortranSubroutine) {
-                result += ` —[CALLS]→ \`${step.fortranSubroutine}\``;
-                if (step.subroutineType) result += ` [${step.subroutineType}]`;
-              }
-              result += `\n`;
+        // Phase 24F Step 4: Integrated cross-language output using traceCrossLanguageChain
+        try {
+          const xLang = await this.dataAccess.graphDB.traceCrossLanguageChain(function_name, max_depth, 'forward');
+          if (xLang.bridges.length > 0) {
+            result += `### Integrated Execution Path\n\n`;
+            let hopNum = 0;
+            for (const entry of xLang.chain) {
+              if (entry.direction !== 'forward') continue;
+              hopNum++;
+              const tag = entry.language === 'shell' ? 'Shell' :
+                          entry.relType === 'EXECUTES' ? 'Bridge' :
+                          entry.language === 'fortran' ? 'Fortran' :
+                          entry.language === 'python' ? 'Python' : entry.language;
+              const relInfo = entry.relType === 'EXECUTES' ? ' ═══ EXECUTES ═══>' :
+                              entry.relType ? ` (${entry.relType})` : '';
+              result += `${hopNum}. [${tag}] ${entry.hop === 0 ? '' : '→ '}\`${entry.name}\`${relInfo}${entry.label && entry.label !== 'ShellScript' ? ` [${entry.label}]` : ''}\n`;
             }
-            if (validPaths.length > 15) {
-              result += `*... and ${validPaths.length - 15} more paths*\n`;
-            }
-            result += `\n`;
+            result += `\n*Languages: ${xLang.stats.languages.join(', ')} | Bridges: ${xLang.stats.bridgeCrossings} | Nodes: ${xLang.stats.totalNodes}*\n\n`;
           }
+        } catch (xLangErr) {
+          console.error('[WARN] Cross-language integrated trace failed:', xLangErr.message);
         }
       } else {
         callChain = await this.dataAccess.graphDB.traceCallChain(function_name, max_depth);
@@ -748,7 +786,7 @@ export class CodeAnalysisTools {
   async findCallersCallees(args) {
     await this.ensureInitialized();
 
-    const { function_name, file_path, include_source = false, token_budget = 4000 } = args;
+    const { function_name, file_path, include_source = false, token_budget = 4000, cross_language = false } = args;
 
     try {
       // First try unified function graph (includes both Function and PythonFunction via Phase 24I)
@@ -899,6 +937,52 @@ export class CodeAnalysisTools {
         }
       }
 
+      // Phase 24F: Cross-language traversal when cross_language=true
+      if (cross_language) {
+        try {
+          const direction = (graphType === 'fortran') ? 'reverse' : 'forward';
+          const xLang = await this.dataAccess.graphDB.traceCrossLanguageChain(function_name, 5, direction);
+          if (xLang.chain.length > 0) {
+            result += `\n## Cross-Language Callees\n\n`;
+            const shellNodes = xLang.chain.filter(n => n.language === 'shell' && n.hop > 0);
+            const fortranNodes = xLang.chain.filter(n => n.language === 'fortran');
+            const pythonNodes = xLang.chain.filter(n => n.language === 'python');
+
+            if (shellNodes.length > 0) {
+              result += `### Shell Layer\n`;
+              for (const node of shellNodes.slice(0, 10)) {
+                result += `- ${function_name} → \`${node.name}\` (${node.relType || 'SOURCES/INVOKES'})\n`;
+              }
+              result += `\n`;
+            }
+            if (xLang.bridges.length > 0) {
+              result += `### Language Bridge (${xLang.bridges[0].fromLang} → ${xLang.bridges[0].toLang})\n`;
+              for (const bridge of xLang.bridges.slice(0, 10)) {
+                result += `- \`${bridge.from}\` ═══${bridge.type}═══> \`${bridge.to}\`\n`;
+              }
+              result += `\n`;
+            }
+            if (fortranNodes.length > 0) {
+              result += `### Fortran Layer\n`;
+              for (const node of fortranNodes.slice(0, 15)) {
+                result += `- \`${node.name}\` [${node.label}] (${node.relType || 'CALLS'}, depth: ${node.hop})\n`;
+              }
+              result += `\n`;
+            }
+            if (pythonNodes.length > 0) {
+              result += `### Python Layer\n`;
+              for (const node of pythonNodes.slice(0, 15)) {
+                result += `- \`${node.name}\` [${node.label}] (${node.relType || 'DEFINES'}, depth: ${node.hop})\n`;
+              }
+              result += `\n`;
+            }
+            result += `*Languages traversed: ${xLang.stats.languages.join(', ')} | Bridge crossings: ${xLang.stats.bridgeCrossings}*\n`;
+          }
+        } catch (xLangError) {
+          console.error('[WARN] Cross-language traversal failed:', xLangError.message);
+        }
+      }
+
       // Complexity analysis
       result += `\n## Complexity Analysis\n\n`;
       result += `- **Fan-in:** ${callers.length} (${labels.caller.toLowerCase()} this)\n`;
@@ -962,6 +1046,82 @@ export class CodeAnalysisTools {
         isError: true
       };
     }
+  }
+
+  /**
+   * Tool Implementation: Trace Full Execution Chain (Phase 24F Step 5)
+   * Flagship cross-language tool — end-to-end Shell→Fortran→Python chains
+   */
+  async traceFullExecutionChain(args) {
+    await this.ensureInitialized();
+
+    const { start, direction = 'forward', max_depth = 5, languages } = args;
+    const startTime = Date.now();
+
+    try {
+      const xLang = await this.dataAccess.graphDB.traceCrossLanguageChain(start, max_depth, direction);
+      const elapsed = Date.now() - startTime;
+
+      // Filter by requested languages if specified
+      let chain = xLang.chain;
+      if (languages && languages.length > 0) {
+        const langSet = new Set(languages);
+        chain = chain.filter(n => langSet.has(n.language));
+      }
+
+      let result = `# Full Execution Chain: ${start}\n\n`;
+
+      if (chain.length === 0) {
+        result += `*No execution chain found for "${start}". Try a J-Job name (e.g., JGLOBAL_FORECAST), script name (e.g., exglobal_forecast.sh), or Fortran program (e.g., gsi).*\n`;
+        return { content: [{ type: 'text', text: result }] };
+      }
+
+      // Group by direction
+      const forwardNodes = chain.filter(n => n.direction === 'forward');
+      const reverseNodes = chain.filter(n => n.direction === 'reverse');
+
+      if (forwardNodes.length > 0) {
+        result += `### Forward Direction\n\n`;
+        result += this._formatChainTree(forwardNodes, xLang.bridges.filter(b => true));
+        result += `\n`;
+      }
+      if (reverseNodes.length > 0) {
+        result += `### Reverse Direction\n\n`;
+        result += this._formatChainTree(reverseNodes, xLang.bridges);
+        result += `\n`;
+      }
+
+      result += `### Statistics\n`;
+      result += `- Languages traversed: ${xLang.stats.languages.join(', ')}\n`;
+      result += `- Total nodes: ${xLang.stats.totalNodes}\n`;
+      result += `- Bridge crossings: ${xLang.stats.bridgeCrossings}\n`;
+      result += `- Max depth: ${max_depth} hops\n`;
+      result += `- Query time: ${elapsed}ms\n`;
+
+      return { content: [{ type: 'text', text: result }] };
+    } catch (error) {
+      console.error('Error tracing full execution chain:', error);
+      return {
+        content: [{ type: 'text', text: `Error tracing execution chain: ${error.message}` }],
+        isError: true
+      };
+    }
+  }
+
+  /** Format chain nodes as an indented tree. */
+  _formatChainTree(nodes, bridges) {
+    let result = '';
+    const bridgeTargets = new Set(bridges.map(b => b.to));
+    for (const node of nodes) {
+      const indent = '  '.repeat(node.hop);
+      const prefix = node.hop === 0 ? '' : '├── ';
+      const langTag = node.language ? `[${node.language.charAt(0).toUpperCase() + node.language.slice(1)}]` : '';
+      const isBridge = bridgeTargets.has(node.name);
+      const bridgeMarker = isBridge ? ' ═══' : '';
+      const relInfo = node.relType ? ` (${node.relType})` : '';
+      result += `${indent}${prefix}${langTag} \`${node.name}\`${bridgeMarker}${relInfo}\n`;
+    }
+    return result;
   }
 
   /**

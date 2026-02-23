@@ -48,7 +48,22 @@ const RELATIONSHIP_WEIGHTS = {
 };
 
 const HOP_DECAY = 0.5;
+const BRIDGE_DECAY_OVERRIDE = 0.8; // Phase 24F: reduced penalty for cross-language bridge hops
 const DEFAULT_TOKEN_BUDGET = 4000;
+
+// Phase 24F: Language label categories for bridge detection
+const SHELL_LABELS = new Set(['ShellScript', 'File', 'CodeFile']);
+const FORTRAN_LABELS = new Set(['FortranProgram', 'FortranSubroutine', 'FortranFunction', 'FortranModule']);
+const PYTHON_LABELS = new Set(['PythonFunction', 'PythonModule', 'PythonClass']);
+
+function isLanguageBridge(prevLabel, currLabel) {
+  const toLang = (label) => SHELL_LABELS.has(label) ? 'shell' :
+    FORTRAN_LABELS.has(label) ? 'fortran' :
+    PYTHON_LABELS.has(label) ? 'python' : 'other';
+  const prev = toLang(prevLabel);
+  const curr = toLang(currLabel);
+  return prev !== curr && prev !== 'other' && curr !== 'other';
+}
 
 export class GGSRTraversalPrototypes {
   constructor(graphDB) {
@@ -312,7 +327,12 @@ export class GGSRTraversalPrototypes {
         const relType = r.relType || r.relationship || r.type || 'UNKNOWN';
         const hop = r[hopField] || defaultHop;
         const weight = RELATIONSHIP_WEIGHTS[relType] || 0.3;
-        const score = weight * Math.pow(HOP_DECAY, hop - 1);
+        // Phase 24F: Use reduced decay for cross-language bridge hops
+        const prevLabel = r.sourceLabel || r.prevLabel;
+        const currLabel = r.targetLabel || r.targetType;
+        const decay = (prevLabel && currLabel && isLanguageBridge(prevLabel, currLabel))
+          ? BRIDGE_DECAY_OVERRIDE : HOP_DECAY;
+        const score = weight * Math.pow(decay, hop - 1);
         return { ...r, relType, weight, score, hop };
       })
       .sort((a, b) => b.score - a.score);

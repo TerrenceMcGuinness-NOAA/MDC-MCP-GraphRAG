@@ -285,6 +285,54 @@ def create_executes_edges(session, edges, dry_run=False):
     return created
 
 
+def create_shellscript_bridges(session, dry_run=False):
+    """Phase 24F Step 1: Create EXECUTES/INVOKES edges on ShellScript nodes.
+
+    For each (f:File)-[:EXECUTES]->(p:FortranProgram) edge, find the matching
+    ShellScript node by filename and create a parallel
+    (s:ShellScript)-[:EXECUTES]->(p:FortranProgram) edge.
+    Same for INVOKES → PythonModule.
+    """
+    # Bridge EXECUTES: File → FortranProgram ⟹ ShellScript → FortranProgram
+    executes_query = '''
+        MATCH (f:File)-[r:EXECUTES]->(p:FortranProgram)
+        WITH f, p, r, split(f.absolutePath, '/')[-1] AS filename
+        MATCH (s:ShellScript)
+        WHERE s.name = filename OR s.path ENDS WITH filename
+        MERGE (s)-[br:EXECUTES {source: 'bridge_unification', bridged_from: f.absolutePath}]->(p)
+        ON CREATE SET br.executable = r.executable, br.line = r.line
+        RETURN s.name AS shell_script, p.name AS fortran_program
+    '''
+
+    # Bridge INVOKES: File → PythonModule ⟹ ShellScript → PythonModule
+    invokes_query = '''
+        MATCH (f:File)-[r:INVOKES]->(m:PythonModule)
+        WITH f, m, r, split(f.absolutePath, '/')[-1] AS filename
+        MATCH (s:ShellScript)
+        WHERE s.name = filename OR s.path ENDS WITH filename
+        MERGE (s)-[br:INVOKES {source: 'bridge_unification', bridged_from: f.absolutePath}]->(m)
+        ON CREATE SET br.script = r.script, br.line = r.line
+        RETURN s.name AS shell_script, m.name AS python_module
+    '''
+
+    if dry_run:
+        print("  [DRY-RUN] Would create ShellScript EXECUTES→FortranProgram bridges")
+        print("  [DRY-RUN] Would create ShellScript INVOKES→PythonModule bridges")
+        return 0, 0
+
+    exec_result = list(session.run(executes_query))
+    exec_count = len(exec_result)
+    for rec in exec_result:
+        print(f"    [BRIDGE] {rec['shell_script']} ═══EXECUTES═══> {rec['fortran_program']}")
+
+    inv_result = list(session.run(invokes_query))
+    inv_count = len(inv_result)
+    for rec in inv_result:
+        print(f"    [BRIDGE] {rec['shell_script']} ═══INVOKES═══> {rec['python_module']}")
+
+    return exec_count, inv_count
+
+
 def create_invokes_edges(session, edges, dry_run=False):
     """Create INVOKES relationships between File and PythonModule nodes."""
     created = 0
@@ -442,6 +490,13 @@ def run_ingestion(dry_run=False, verbose=False):
         print(f"  INVOKES edges created: {created}")
     else:
         print(f"  INVOKES edges: 0 (no matches)")
+
+    # Phase 24F Step 1: Bridge edges to ShellScript nodes
+    if session:
+        print(f"\n[OK] === Phase 24F: ShellScript Bridge Unification ===")
+        exec_bridges, inv_bridges = create_shellscript_bridges(session, dry_run)
+        print(f"  ShellScript EXECUTES bridges: {exec_bridges}")
+        print(f"  ShellScript INVOKES bridges: {inv_bridges}")
 
     # Also scan ush/ scripts for Python references
     ush_dir = Path(WORKFLOW_ROOT) / 'ush'
