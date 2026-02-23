@@ -42,11 +42,14 @@ Phase 24: True GraphRAG Fusion
 │   └── 24D: Core Retrieval Integration     [Weeks 7-10]  → GraphGuidedRetrieval class
 │
 ├── Q2-Q3 2026: Extension (Weeks 9-16)
-│   ├── 24E: Hierarchical Community Summaries [Weeks 9-16]  ✅ Done (v7.9.0)
-│   │   ├── 24E-1: Community Detection (Leiden) — 3,847 communities, 4 levels, modularity 0.81
-│   │   ├── 24E-2: Summary Generation (template-based) — 72 summaries in ChromaDB
+│   ├── 24E: Hierarchical Community Summaries [Weeks 9-16]  ⚠️ Partially Done (v7.9.0)
+│   │   ├── 24E-1: Community Detection (Leiden) — 3,841 communities, flat (no hierarchy), modularity 0.82  ✅
+│   │   ├── 24E-2: Summary Generation (template-based) — 63 summaries in ChromaDB (no Community nodes)  ✅
 │   │   ├── 24E-3: Dual Retrieval Router (Local/Global/Trace/Hybrid)  ✅
-│   │   └── 24E-4: Incremental Update Pipeline — deferred (pipeline <11s, re-run on demand)
+│   │   ├── 24E-4: Incremental Update Pipeline — deferred
+│   │   └── 24E-5: Community Node Materialization & Hierarchy — 🔲 NOT STARTED
+│   │         Materialize Community label nodes, MEMBER_OF, PARENT_OF, INTERACTS_WITH,
+│   │         re-run Leiden with includeIntermediateCommunities, hierarchical summaries
 │   │
 │   └── 24F: Cross-Language Graph Integration [NEW] [Weeks 13-18]
 │       ├── 24F-0: Python Graph Ingestion (Neo4j) [Weeks 13-14]  ✅ Done (624 modules, 3267 functions)

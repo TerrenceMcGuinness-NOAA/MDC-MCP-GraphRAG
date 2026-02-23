@@ -1,7 +1,7 @@
 # MCP/RAG System — Current Roadmap
 
 **Document Purpose**: Executive summary and prioritized delivery roadmap  
-**Last Updated**: February 19, 2026  
+**Last Updated**: February 23, 2026  
 **Lead**: Terrence McGuinness  
 **Status**: Active Development — v7.17.0, 43 tools, Phase 31 SDD Model
 
@@ -13,9 +13,9 @@
 |-----------|--------|---------|
 | **MCP Server** | Operational | v7.17.0, 43 tools across 9 modules |
 | **ChromaDB** | Healthy | 5 collections, 63,072 documents, MPNet 768-dim |
-| **Neo4j** | Healthy | 40,422 nodes, ~568K relationships, 24+ label types |
-| **Fortran Graph** | Complete (Phase 10) | 17,575 nodes, 268K CALLS, 91K USES |
-| **Shell Graph** | Complete (Phase 27F) | 383 ShellScript, 63 ShellFunction, 9,155 relationships |
+| **Neo4j** | Healthy | 40,319 nodes, 565,562 relationships, 27 label types |
+| **Fortran Graph** | Complete (Phase 10) | 17,575 nodes, 440K CALLS, 91K USES |
+| **Shell Graph** | Complete (Phase 27F/J) | 264 ShellScript (deduped), 63 ShellFunction, 9,155 relationships |
 | **Docker Gateway** | Operational | Port 18888, Streamable HTTP, systemd service |
 | **SDD Framework** | v6.0 / Phase 31 | 39 active workflows, 11 archived |
 | **Git Submodules** | Complete | 16 repos registered under `supported_repos/` |
@@ -39,30 +39,43 @@
 | CodeFunction | 5,059 | `ingest_code_v8.py` |
 | PythonFunction | 3,267 | `ingest_code_v8.py` |
 | EnvironmentVariable | 2,489 | `ingest_env_variables.py` |
-| FortranModule | 1,762 | `ingest_fortran_graph.py` |
-| Community | 3,847 | Leiden community detection (Phase 24E) |
-| ShellScript | 383 | `ingest_shell_graph_v8.py` (Phase 27F) |
+| FortranModule | 1,539 | `ingest_fortran_graph.py` |
+| FortranFunction | 2,355 | `ingest_fortran_graph.py` |
+| FortranProgram | 169 | `ingest_fortran_graph.py` + cross-language bridges |
+| ShellScript | 264 | `ingest_shell_graph_v8.py` (deduped, Phase 27J) |
 | ShellFunction | 63 | `ingest_shell_graph_v8.py` (Phase 27F) |
-| *24+ label types total* | **40,413** | |
+| Commit | 2,880 | Git history ingestion |
+| File | 2,744 | File-level nodes |
+| Component | 66 | Workflow components |
+| *27 label types total* | **40,319** | |
+
+> **Community Detection**: Leiden algorithm (Phase 24E) wrote `communityId` as a property on 25,352 nodes (3,841 distinct communities). Dedicated `(:Community)` label nodes with hierarchical structure have **not yet been materialized** — see Phase 24E-5.
 
 ### Neo4j Relationship Summary
 
 | Type | Count | Notes |
 |------|-------|-------|
-| CALLS | 439,919 | Fortran subroutine calls dominate |
+| CALLS | 439,919 | Fortran subroutine/function calls |
 | USES | 91,285 | Module USE statements |
-| DEFINES | 9,690 | Symbol definitions |
+| DEFINES | 9,753 | Symbol definitions |
 | IMPORTS | 8,034 | Python imports |
-| DEPENDS_ON_ENV | 6,007 | Environment variable references |
-| EXPORTS | 1,669 | Exported symbols |
-| SETS | 1,401 | Variable assignments |
-| SOURCES | 393 | Shell source statements |
-| INVOKES | 352 | Shell invocations (J-Job → ex-script) |
-| EXPORTS | 1,184 | Shell exported variables |
-| DEPENDS_ON_ENV | 7,225 | Environment variable references |
+| DEPENDS_ON_ENV | 5,522 | Environment variable references |
+| AUTHORED | 2,880 | Developer → Commit |
+| HAS_METHOD | 2,579 | Class → method |
+| DOC_REFERENCES | 1,906 | Documentation cross-references |
+| EXPORTS | 880 | Exported symbols |
+| CONTRIBUTED_TO | 789 | Developer contributions |
+| DEPENDS_ON | 752 | Module/library dependencies |
+| SOURCES | 357 | Shell source statements |
+| INVOKES | 243 | Shell invocations (J-Job → ex-script) |
+| BUILT_BY | 207 | Build system relationships |
+| INHERITS | 169 | Class inheritance |
+| DOC_DESCRIBES | 144 | Documentation → code links |
+| CONTAINS | 70 | Containment hierarchy |
+| EXECUTES | 65 | Cross-language bridges (33 Shell→Fortran, 32 File→Fortran) |
+| BUILD_ORCHESTRATES | 7 | Build orchestration |
 | READS_CONFIG | 1 | Config file reads |
-| EXECUTES | 12 | Shell→Fortran execution bridges (9 placeholder nodes, Phase 27I) |
-| **Total** | **~577K** | |
+| **Total** | **565,562** | 20 relationship types |
 
 ---
 
@@ -77,8 +90,8 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 | `ingest_env_variables.py` | Neo4j | Run | 2,730 env vars |
 | `ingest_jjobs_v8.py` | ChromaDB | Run | 700 J-Job documents |
 | `ingest_documentation_v8.py` | ChromaDB | Run | 3,514 documentation docs |
-| `ingest_shell_graph_v8.py` | Neo4j | Run (Phase 27F) | 383 ShellScript, 63 ShellFunction, 9,155 rels |
-| `ingest_cross_language_bridges.py` | Neo4j | Run (re-run 27I) | 12 EXECUTES, 5 INVOKES, 9 placeholder FortranProgram nodes |
+| `ingest_shell_graph_v8.py` | Neo4j | Run (Phase 27F/J) | 264 ShellScript (deduped), 63 ShellFunction, 9,155 rels |
+| `ingest_cross_language_bridges.py` | Neo4j | Run (Phase 24F/27I/27J) | 65 EXECUTES (33 Shell→Fortran, 32 File→Fortran), 243 INVOKES |
 
 ---
 
@@ -92,15 +105,15 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 | 12 | v7.0.0 | DevOps GitFlow & Containerization (4 environment branches) |
 | 23 | v7.3.5 | Smart Container Cleanup (systemd timer, connection-aware) |
 | 24A-D | v7.5–7.7 | GGSR Foundation (Graph-Guided Semantic Retrieval) |
-| 24E | v7.9.0 | Hierarchical Community Summaries (Leiden + GDS, 3,847 communities) |
-| 24F | v7.8.0 | Cross-Language Integration (Shell→Fortran bridges) |
+| 24E | v7.9.0 | Hierarchical Communities — **partially complete** (flat Leiden + ChromaDB summaries; hierarchy deferred → 24E-5) |
+| 24F | v7.8.0 | Cross-Language Integration (Shell→Fortran bridges, 33 EXECUTES edges) |
 | 24G | v7.10.0 | Benchmark & Validation (60% vs 40% baseline — GO for 24H) |
 | 24H | v7.11.0 | Agentic Tool Surface (5 new MCP tools) |
 | 25 | v7.12.0 | VNC Cleanup & Deprecation |
 | 26 | v7.13.0 | Docker MCP Gateway systemd fix (port 18888) |
 | 27A-G | v7.15.0 | J-Job RAG Enhancement (path fix, shell parser, ChromaDB, filters, embeddings, shell graph ingestion, validation) |
-| 27H | v7.16.0 | Multi-collection search routing (search_documentation now queries jjobs + docs + ee2) |
-| 27I | v7.17.0 | External Fortran EXECUTES bridge resolution (9 placeholder FortranProgram nodes, 12 EXECUTES edges) |
+| 27I | v7.17.0 | External Fortran EXECUTES bridge resolution (9 placeholder FortranProgram nodes, 65 EXECUTES edges total) |
+| 27J | v7.17.0 | ShellScript node dedup (383→264) + delegate script bridge parsing (19/89 J-Job coverage) |
 | 28 | v7.5.0 | GraphRAG Acceleration (GGSR prototypes, enrichment wiring) |
 | 29 | v4.1.0 | Provisioning Modernization (VNC removed, scripts consolidated) |
 | 30 | v7.14.0 | SDD Framework Cleanup (18 files deleted, 7 migrated, 11 archived) |
@@ -108,7 +121,10 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 
 ### Active / Immediate
 
-*No active phases — all Phase 27 series (A–I) complete.*
+| Phase | Priority | Goal |
+|-------|----------|------|
+| 24E-5 | **High** | Community Node Materialization & Hierarchical Structure (Leiden hierarchy, Community nodes, MEMBER_OF, PARENT_OF, INTERACTS_WITH) |
+| 27H | High | `search_documentation` multi-collection routing (jjobs + docs + ee2) |
 
 ### Planned
 
@@ -135,7 +151,7 @@ Seven scripts handle data ingestion into Neo4j and ChromaDB. No master orchestra
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ MCP Server  │  │  ChromaDB   │  │   Neo4j     │          │
 │  │ (Node.js)   │  │  5 collns   │  │ 40K+ nodes  │          │
-│  │  43 Tools   │  │ MPNet 768d  │  │ 568K rels  │          │
+│  │  43 Tools   │  │ MPNet 768d  │  │ 566K rels  │          │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
 │         └────────────────┼────────────────┘                  │
 │                          │                                   │
@@ -193,7 +209,7 @@ Currently at Phase 31 with sub-phases through the alphabet.
 
 ### Delivered
 - 43 MCP tools for code analysis, semantic search, compliance checking
-- 40,422 graph nodes with 567,665 relationships (Fortran, Python, Shell, env vars)
+- 40,319 graph nodes with 565,562 relationships (Fortran, Python, Shell, env vars, cross-language)
 - 63,072 searchable documents across 5 ChromaDB collections
 - Graph-Guided Semantic Retrieval (60% improvement over vector-only baseline)
 - EE2/NCO compliance scanning (demonstrated on seaice-concentration, EVS)
@@ -201,9 +217,11 @@ Currently at Phase 31 with sub-phases through the alphabet.
 - Docker MCP Gateway for external client access
 
 ### Known Gaps
+- **No hierarchical community structure** — Leiden wrote flat `communityId` properties but no `(:Community)` nodes, `MEMBER_OF`, `PARENT_OF`, or `INTERACTS_WITH` relationships (Phase 24E-5)
 - **No ingestion orchestrator** — 7 scripts must be run manually in correct order
 - **No CI/CD pipeline** — Builds and tests are manual (Phase 13)
 - **Single-user** — No multi-tenant workspace support yet (Phase 4D)
+- **J-Job→Fortran coverage** — Only 19/89 J-Jobs (21%) reach Fortran via cross-language bridges
 
 ---
 
