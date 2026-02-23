@@ -40,9 +40,11 @@ if [ -f "${SETUP}/gh.txt" ]; then
     ~/bin/gh auth login --with-token < "${SETUP}/gh.txt"
 fi
 
-# Update system (except kernal)
-export KVER=5.14.0-570.28.1.el9_6.x86_64
-sudo dnf -y update --nobest --exclude=kernel-${KVER},kernel-core-${KVER},kernel-modules-${KVER},kernel-modules-core-${KVER},kernel-modules-extra-${KVER},kernel-tools-${KVER},kernel-tools-libs-${KVER},kernel-devel-${KVER},kernel-headers-${KVER},kernel-tools-libs-devel-${KVER}
+# Update system (except kernel — exclude by package name, not version, to block ALL kernel updates)
+echo "Current kernel version:"
+uname -a
+echo "Updating system packages (excluding all kernel packages)..."
+sudo dnf -y update --nobest --exclude='kernel*'
 
 # Install Code
 sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
