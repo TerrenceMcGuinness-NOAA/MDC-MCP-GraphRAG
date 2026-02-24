@@ -214,7 +214,9 @@ export class GraphRAGTools {
    */
   async getCodeContext(args) {
     await this.ensureInitialized();
-    const { symbol, depth = 2, include_community = true, token_budget = 4000 } = args;
+    // Phase 29: accept common aliases for symbol
+    const symbol = args.symbol || args.function_name || args.file_path;
+    const { depth = 2, include_community = true, token_budget = 4000 } = args;
 
     try {
       // 1. Find the node in Neo4j
@@ -348,7 +350,9 @@ export class GraphRAGTools {
    */
   async findSimilarCode(args) {
     await this.ensureInitialized();
-    const { code_or_symbol, similarity_threshold = 0.7, max_results = 10 } = args;
+    // Phase 29: accept common aliases for code_or_symbol
+    const code_or_symbol = args.code_or_symbol || args.code_snippet || args.symbol;
+    const { similarity_threshold = 0.7, max_results = 10 } = args;
 
     try {
       if (!this.dataAccess.vectorDB) {
@@ -402,7 +406,9 @@ export class GraphRAGTools {
    */
   async getChangeImpact(args) {
     await this.ensureInitialized();
-    const { symbol, change_type = 'behavior', include_indirect = true } = args;
+    // Phase 29: accept common aliases for symbol
+    const symbol = args.symbol || args.file_path || args.function_name;
+    const { change_type = 'behavior', include_indirect = true } = args;
 
     try {
       const maxHops = include_indirect ? 3 : 1;
@@ -521,7 +527,9 @@ export class GraphRAGTools {
    */
   async traceDataFlow(args) {
     await this.ensureInitialized();
-    const { from_symbol, to_symbol, max_depth = 5 } = args;
+    // Phase 29: accept common aliases for from_symbol
+    const from_symbol = args.from_symbol || args.variable || args.symbol;
+    const { to_symbol, max_depth = 5 } = args;
 
     try {
       let response = `# Data Flow Trace: \`${from_symbol}\``;

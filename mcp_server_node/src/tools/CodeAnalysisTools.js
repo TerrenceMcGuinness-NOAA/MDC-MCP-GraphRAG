@@ -422,7 +422,9 @@ export class CodeAnalysisTools {
   async findDependencies(args) {
     await this.ensureInitialized();
 
-    const { target, direction = 'both', max_depth = 3, token_budget = 4000 } = args;
+    // Phase 29: accept file_path as alias for target
+    const effectiveArgs = { ...args, target: args.target || args.file_path };
+    const { target, direction = 'both', max_depth = 3, token_budget = 4000 } = effectiveArgs;
 
     try {
       let result = `# Dependency Analysis: ${target}\n\n`;
@@ -1055,7 +1057,9 @@ export class CodeAnalysisTools {
   async traceFullExecutionChain(args) {
     await this.ensureInitialized();
 
-    const { start, direction = 'forward', max_depth = 5, languages } = args;
+    // Phase 29: accept function_name as alias for start
+    const start = args.start || args.function_name;
+    const { direction = 'forward', max_depth = 5, languages } = args;
     const startTime = Date.now();
 
     try {

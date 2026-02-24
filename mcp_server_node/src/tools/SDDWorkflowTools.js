@@ -279,7 +279,8 @@ export class SDDWorkflowTools {
    * Get workflow details
    */
   async getWorkflow(args) {
-    const { workflow_name } = args;
+    // Phase 29: accept workflow_id and phase as aliases for workflow_name
+    const workflow_name = args.workflow_name || args.workflow_id || args.phase;
 
     try {
       const workflow = await this.executor.parseWorkflow(workflow_name);

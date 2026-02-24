@@ -28,31 +28,46 @@ These are the **exact parameter names** — using wrong names will fail:
 
 | Tool | Required Param | Optional Params |
 |------|----------------|-----------------|
+| **Code Analysis (Neo4j)** | | |
+| `analyze_code_structure` | `file_path` | `include_dependencies`, `depth` |
 | `find_dependencies` | `target` | `direction`, `max_depth` |
 | `find_callers_callees` | `function_name` | `file_path`, `include_source` |
-| `trace_full_execution_chain` | `function_name` | `file_path`, `max_depth` |
-| `describe_component` | `component` | `show_content` |
+| `find_env_dependencies` | `variable_name` | |
 | `trace_execution_path` | `function_name` | `file_path`, `max_depth`, `include_callers` |
+| `trace_full_execution_chain` | `start` | `direction`, `max_depth`, `languages` |
+| **GraphRAG (Neo4j + ChromaDB)** | | |
 | `get_code_context` | `symbol` | `depth`, `include_source` |
-| `analyze_code_structure` | `file_path` | `include_metrics` |
 | `search_architecture` | `query` | `max_results` |
 | `find_similar_code` | `code_or_symbol` | `max_results` |
 | `get_change_impact` | `symbol` | `change_type`, `include_indirect` |
 | `trace_data_flow` | `from_symbol` | `max_depth` |
-| `find_related_files` | `file_path` | `max_results`, `threshold` |
+| **Semantic Search & RAG** | | |
 | `search_documentation` | `query` | `max_results`, `collection` |
-| `extract_code_for_analysis` | `file_path` | `lines`, `context` |
+| `explain_with_context` | `topic` | `context_type`, `detail_level` |
+| `find_related_files` | `file_path` | `max_results`, `threshold` |
+| **EE2 Compliance** | | |
+| `analyze_ee2_compliance` | `content` | `analysis_type` |
+| `scan_repository_compliance` | `name`, `content` | `repository_path`, `file_patterns` |
+| `search_ee2_standards` | `query` | |
+| `extract_code_for_analysis` | `name`, `content` | `content_type`, `categories` |
+| **Operational** | | |
+| `get_operational_guidance` | `operation` | `platform`, `urgency` |
+| `explain_workflow_component` | `component` | `detail_level` |
 | `get_job_details` | `job_name` | `include_dependencies` |
-| `analyze_workflow_dependencies` | `target` | `direction`, `depth` |
-| `list_ingested_urls` | *(none)* | |
-| `get_ingested_urls_array` | *(none)* | |
+| **Workflow Info** | | |
+| `describe_component` | `component` | `show_content` |
+| **GitHub** | | |
+| `search_issues` | `query` | |
+| `analyze_workflow_dependencies` | `component` | `analysis_type`, `include_external` |
+| **SDD** | | |
+| `get_sdd_workflow` | `workflow_name` | |
 | `start_sdd_session` | `phase` | `totalSteps`, `notes` |
 | `record_sdd_step` | `step`, `name` | `tag`, `notes` |
-| `get_sdd_session` | *(none)* | |
-| `complete_sdd_session` | | `summary` |
+| `validate_sdd_compliance` | *(none)* | `content`, `target` |
+| `complete_sdd_session` | *(none)* | `summary`, `abandon` |
 | `get_sdd_execution_history` | *(none)* | `limit` |
-| `validate_sdd_compliance` | `phase` | |
-| `get_sdd_framework_status` | *(none)* | |
+
+Tools with no required params: `get_workflow_structure`, `get_system_configs`, `list_job_scripts`, `list_ingested_urls`, `get_ingested_urls_array`, `get_knowledge_base_status`, `list_sdd_workflows`, `get_sdd_session`, `get_sdd_framework_status`, `generate_compliance_report`, `get_pull_requests`, `analyze_repository_structure`, `mcp_health_check`, `get_server_info`
 
 ## Tool Selection by Task
 
@@ -62,11 +77,11 @@ These are the **exact parameter names** — using wrong names will fail:
 - `find_callers_callees({ function_name })` — call graph traversal
 - `find_env_dependencies({ variable_name })` — environment variable lineage
 - `trace_execution_path({ function_name })` — execution flow tracing
-- `trace_full_execution_chain({ function_name })` — end-to-end execution chain across files
+- `trace_full_execution_chain({ start })` — end-to-end execution chain across files
 
 ### Semantic Search & RAG (ChromaDB-backed)
 - `search_documentation({ query })` — semantic search across ingested docs
-- `explain_with_context({ query })` — RAG-powered explanations with citations
+- `explain_with_context({ topic })` — RAG-powered explanations with citations
 - `find_related_files({ file_path })` — vector similarity for related code/docs
 - `get_knowledge_base_status()` — DB health and collection stats
 - `list_ingested_urls()` — documentation sources ingested into RAG
@@ -80,14 +95,14 @@ These are the **exact parameter names** — using wrong names will fail:
 - `trace_data_flow({ from_symbol })` — data flow across codebase
 
 ### EE2 Compliance
-- `analyze_ee2_compliance({ file_path })` — check file against NCO standards
-- `scan_repository_compliance({ repository_path })` — bulk compliance scan
+- `analyze_ee2_compliance({ content })` — check code content against NCO standards
+- `scan_repository_compliance({ name, content })` — bulk compliance scan (pass file content directly)
 - `search_ee2_standards({ query })` — search EE2 standards document
-- `generate_compliance_report({ scope })` — formatted compliance report
-- `extract_code_for_analysis({ file_path })` — extract code snippets for LLM passthrough analysis
+- `generate_compliance_report()` — formatted compliance report (scope, categories, format optional)
+- `extract_code_for_analysis({ name, content })` — extract code snippets for LLM passthrough analysis
 
 ### Operational Guidance
-- `get_operational_guidance({ topic })` — HPC procedures for Hera, WCOSS2, etc.
+- `get_operational_guidance({ operation })` — HPC procedures for Hera, WCOSS2, etc.
 - `list_job_scripts()` — inventory of workflow job scripts
 - `explain_workflow_component({ component })` — deep component explanation
 - `get_job_details({ job_name })` — detailed job script analysis
@@ -99,13 +114,13 @@ These are the **exact parameter names** — using wrong names will fail:
 
 ### SDD Workflows (Filesystem only — Phase 31 session model)
 - `list_sdd_workflows()` — all workflow phase specs
-- `get_sdd_workflow({ workflow_id })` — specific phase details
+- `get_sdd_workflow({ workflow_name })` — specific phase details
 - `start_sdd_session({ phase, totalSteps, notes })` — start a tracked session for a phase
 - `record_sdd_step({ step, name, tag, notes })` — record step completion (tags: research, design, implement, configure, validate, document, ingest)
 - `get_sdd_session()` — get current active session state (resume across conversations)
 - `complete_sdd_session({ summary })` — complete session, archive to history
 - `get_sdd_execution_history()` — view execution history
-- `validate_sdd_compliance({ phase })` — validate code against SDD framework
+- `validate_sdd_compliance()` — validate code against SDD framework (pass content or target optionally)
 - `get_sdd_framework_status()` — framework status and metrics
 
 **Session lifecycle**: `start_sdd_session` → `record_sdd_step` (repeat) → `complete_sdd_session`
@@ -116,7 +131,7 @@ These are the **exact parameter names** — using wrong names will fail:
 - `search_issues({ query })` — search issues across repos
 - `get_pull_requests()` — list and filter PRs
 - `analyze_repository_structure()` — repo structure analysis
-- `analyze_workflow_dependencies({ target })` — cross-repo dependency analysis
+- `analyze_workflow_dependencies({ component })` — cross-repo dependency analysis
 
 ### Health & Diagnostics
 - `mcp_health_check()` — full server + database health
@@ -128,7 +143,7 @@ These are the **exact parameter names** — using wrong names will fail:
 ```
 1. analyze_code_structure({ file_path: "sorc/model/src/module.f90" })
 2. get_code_context({ symbol: "module_name" })  # Note: 'symbol', not 'file_path'
-3. explain_with_context({ query: "What is the purpose of <module>?" })
+3. explain_with_context({ topic: "What is the purpose of <module>?" })
 ```
 
 ### "What calls this function?"
@@ -145,7 +160,7 @@ These are the **exact parameter names** — using wrong names will fail:
 
 ### "Is this code production-ready?"
 ```
-1. analyze_ee2_compliance({ file_path: "scripts/exgfs_forecast.sh" })
+1. analyze_ee2_compliance({ content: "<paste file content or use read_file first>" })
 2. find_dependencies({ target: "scripts/exgfs_forecast.sh" })
 3. get_change_impact({ symbol: "exgfs_forecast" })
 ```
@@ -154,12 +169,12 @@ These are the **exact parameter names** — using wrong names will fail:
 ```
 1. search_architecture({ query: "data assimilation cycling" })
 2. search_documentation({ query: "data assimilation" })
-3. get_operational_guidance({ topic: "running DA on Hera" })
+3. get_operational_guidance({ operation: "running DA on Hera" })
 ```
 
 ### "Execute a tracked SDD phase"
 ```
-1. get_sdd_workflow({ workflow_id: "phase27_jjob_script_rag_enhancement" })  # Read the spec
+1. get_sdd_workflow({ workflow_name: "phase27_jjob_script_rag_enhancement" })  # Read the spec
 2. start_sdd_session({ phase: "phase27_jjob_script_rag_enhancement", totalSteps: 8 })
 3. record_sdd_step({ step: 1, name: "Fix password default", tag: "implement", notes: "Changed to SPOT-compliant value" })
 4. record_sdd_step({ step: 2, name: "Validate dry-run", tag: "validate", notes: "235 scripts parsed, 0 errors" })
@@ -186,12 +201,13 @@ These are the **exact parameter names** — using wrong names will fail:
 
 The tools use these patterns — learn them to avoid errors:
 
-| Concept | Neo4j/Graph Tools | Vector/RAG Tools |
-|---------|-------------------|------------------|
-| File to analyze | `file_path` | `file_path` |
-| Function/symbol | `function_name`, `symbol`, or `from_symbol` | N/A |
-| Code or symbol | N/A | `code_or_symbol` |
-| Module/component | `target` or `component` | N/A |
-| Search text | N/A | `query` |
-| Number of results | `max_depth` | `max_results` |
-| Change analysis | `symbol` + `change_type` | N/A |
+| Concept | Neo4j/Graph Tools | Vector/RAG Tools | EE2/Operational Tools |
+|---------|-------------------|------------------|-----------------------|
+| File to analyze | `file_path` | `file_path` | `content` (pass content directly) |
+| Function/symbol | `function_name`, `symbol`, or `from_symbol` | N/A | N/A |
+| Code or symbol | N/A | `code_or_symbol` | N/A |
+| Module/component | `target` or `component` | N/A | `component` |
+| Search text | N/A | `query` or `topic` | `query` or `operation` |
+| Number of results | `max_depth` | `max_results` | N/A |
+| Change analysis | `symbol` + `change_type` | N/A | N/A |
+| File identity | N/A | N/A | `name`, `content` (for content-abstracted tools) |

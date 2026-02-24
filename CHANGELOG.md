@@ -1,5 +1,30 @@
 # MCP Server Changelog
 
+## [7.20.2] - Phase 29: MCP Tool Usability Improvements (February 24, 2026)
+
+### Context
+Phase 29 (MCP Tool Usability Improvements) — comprehensive parameter synchronization between tool source code and instruction files with backward-compatible aliases and auto-documentation tooling.
+
+### Added
+- **Parameter aliases** in 8 tools across 4 modules for backward compatibility:
+  - `GraphRAGTools.js`: `get_code_context` (symbol←function_name|file_path), `find_similar_code` (code_or_symbol←code_snippet|symbol), `get_change_impact` (symbol←file_path|function_name), `trace_data_flow` (from_symbol←variable|symbol)
+  - `CodeAnalysisTools.js`: `find_dependencies` (target←file_path), `trace_full_execution_chain` (start←function_name)
+  - `WorkflowInfoTools.js`: `describe_component` (component←component_name)
+  - `SDDWorkflowTools.js`: `get_sdd_workflow` (workflow_name←workflow_id|phase)
+- **`scripts/generate-tool-docs.js`**: Auto-documentation script (Phase 29 Step 4) — regex-based schema extraction from all 9 tool modules, outputs `--markdown` (full reference), `--json` (structured), `--check` (validates instructions file). Finds 44/44 tools.
+- **Quick Reference table** expanded from 25 → 33 tools with category headers and complete coverage of all tools with required params
+- **Parameter Naming Conventions table** expanded with EE2/Operational column for `content`, `operation`, `topic` patterns
+
+### Fixed
+- `extract_code_for_analysis`: instructions said `file_path` → actual required is `name`, `content` (Phase 19 content abstraction)
+- `scan_repository_compliance`: instructions said `repository_path` → actual required is `name`, `content`
+- `analyze_ee2_compliance`: instructions said `file_path` → actual required is `content`
+- `analyze_workflow_dependencies`: instructions said `target` → actual required is `component`
+- `explain_with_context`: instructions said `query` → actual required is `topic`
+- `get_operational_guidance`: instructions said `topic` → actual required is `operation`
+- `validate_sdd_compliance`: instructions said required `phase` → actually has no required params
+- Common Workflow examples updated to match corrected params
+
 ## [7.20.1] - Instruction File Parameter Sync (February 24, 2026)
 
 ### Context

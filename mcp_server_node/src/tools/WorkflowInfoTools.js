@@ -260,7 +260,9 @@ export class WorkflowInfoTools {
   }
 
   async describeComponent(args) {
-    const { component, show_content = false, content, file_type } = args;
+    // Phase 29: accept component_name as alias for component
+    const component = args.component || args.component_name;
+    const { show_content = false, content, file_type } = args;
 
     try {
       let output = `# Component: ${component}\n\n`;
