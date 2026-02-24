@@ -1,8 +1,9 @@
 # Phase 29: MCP Tool Usability Improvements
-**Version**: 1.0
-**Date**: February 11, 2026
-**Status**: IN PROGRESS (Retrospective SDD - partial implementation preceded spec)
-**Execution Mode**: ISD (Interactive Supervised Development)
+**Version**: 1.1
+**Date**: February 24, 2026
+**Status**: IN PROGRESS (Steps 1-2 complete, Steps 3-5 actionable)
+**Execution Mode**: SDD Session (Phase 31 model — replaces ISD)
+**Last Reviewed**: 2026-02-24
 
 ---
 
@@ -67,9 +68,10 @@ AI agents (including Copilot) frequently fail to use MCP tools correctly due to:
 
 **NOTE**: This step was executed BEFORE SDD workflow was created. Violated SDD protocol.
 
-### Step 3: Add Parameter Aliases (Optional) ⬜ PENDING APPROVAL
+### Step 3: Add Parameter Aliases (Optional) ⬜ ACTIONABLE
 **Action**: Accept common parameter aliases in tool handlers
 **Rationale**: Non-breaking change that improves usability
+**Note**: ISD approval gates no longer apply (replaced by Phase 31 SDD sessions). Proceed when prioritized.
 **Example**:
 ```javascript
 // In GraphRAGTools.js get_code_context handler
@@ -81,17 +83,27 @@ const symbol = args.symbol || args.function_name || args.file_path;
 - `get_code_context`: Accept `function_name` as alias for `symbol`
 - `describe_component`: Accept `component_name` as alias for `component`
 
-### Step 4: Auto-Generate Documentation Script (Optional) ⬜ PENDING APPROVAL
+### Step 4: Auto-Generate Documentation Script (Optional) ⬜ ACTIONABLE
 **Action**: Create script to extract parameter docs from tool schemas
 **Output**: Markdown table that can be pasted into instructions
 **File**: `mcp_server_node/scripts/generate-tool-docs.js`
+**Note**: ISD approval gates no longer apply. This step is especially valuable now — 8 of 42 registered tools are missing from `eib-mcp-tools.instructions.md`:
+- `trace_full_execution_chain` (CodeAnalysisTools, added Phase 24F)
+- `extract_code_for_analysis` (EE2ComplianceTools)
+- `get_job_details` (OperationalTools)
+- `analyze_workflow_dependencies` (GitHubTools)
+- `get_sdd_execution_history` (SDDWorkflowTools)
+- `validate_sdd_compliance` (SDDWorkflowTools)
+- `get_sdd_framework_status` (SDDWorkflowTools)
+- `list_ingested_urls` / `get_ingested_urls_array` (SemanticSearchTools)
 
 ### Step 5: Validate Changes ⬜ PENDING
 **Action**: Test that AI agents correctly use tools with updated instructions
 **Validation**:
-- [ ] MCP tools load successfully
+- [ ] MCP tools load successfully (42 tools confirmed registered)
 - [ ] Instructions file loads in Copilot context
 - [ ] Agent correctly calls tools on first attempt
+- [ ] All 42 tools documented in instructions file (currently 34/42)
 
 ---
 
@@ -100,18 +112,20 @@ const symbol = args.symbol || args.function_name || args.file_path;
 | Step | Status | Date | Notes |
 |------|--------|------|-------|
 | 1 | ✅ Complete | 2026-02-11 | Audit completed |
-| 2 | ✅ Complete | 2026-02-11 | **VIOLATION**: Executed before SDD approval |
-| 3 | ⬜ Pending | - | Awaiting ISD approval |
-| 4 | ⬜ Pending | - | Awaiting ISD approval |
-| 5 | ⬜ Pending | - | Blocked on Step 3/4 decision |
+| 2 | ✅ Complete | 2026-02-11 | Executed before SDD spec (pre-Phase 31) |
+| 3 | ⬜ Actionable | - | Parameter aliases — ready to implement when prioritized |
+| 4 | ⬜ Actionable | - | Auto-gen docs — 8/42 tools missing from instructions |
+| 5 | ⬜ Pending | - | Blocked on Step 3/4 completion |
 
 ---
 
-## ISD Approval Gates
+## SDD Session Gates
 
-- [ ] **Gate 1**: Approve Step 2 changes (retrospective approval)
-- [ ] **Gate 2**: Approve Step 3 (parameter aliases) - Yes/No/Defer
-- [ ] **Gate 3**: Approve Step 4 (auto-generation script) - Yes/No/Defer
+> **Note:** The original ISD Approval Gates (Phase 4B) were replaced by Phase 31's session model. Steps 3-5 no longer require formal gate approval — they are tracked via `start_sdd_session` / `record_sdd_step` / `complete_sdd_session` when executed.
+
+- [x] **Gate 1**: Step 2 changes delivered (retrospective)
+- [ ] **Gate 2**: Step 3 (parameter aliases) — implement via SDD session
+- [ ] **Gate 3**: Step 4 (auto-generation script) — implement via SDD session
 - [ ] **Gate 4**: Final validation sign-off
 
 ---

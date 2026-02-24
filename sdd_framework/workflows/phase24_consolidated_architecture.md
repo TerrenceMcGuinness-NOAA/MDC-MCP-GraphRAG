@@ -1,9 +1,9 @@
 # SDD: Phase 24 - True GraphRAG Fusion (Consolidated Architecture)
 
-**Version:** 2.0.0  
+**Version:** 3.0.0  
 **Created:** 2026-02-05  
 **Author:** Terry McGuinness + AI Assistants  
-**Status:** Consolidated Prospectus  
+**Status:** COMPLETE — All sub-phases 24A through 24H delivered. GraphRAG core loop closed (v7.20.0, February 24, 2026).  
 **Supersedes:** Initial Phase 24 fragments
 
 ---
@@ -42,14 +42,15 @@ Phase 24: True GraphRAG Fusion
 │   └── 24D: Core Retrieval Integration     [Weeks 7-10]  → GraphGuidedRetrieval class
 │
 ├── Q2-Q3 2026: Extension (Weeks 9-16)
-│   ├── 24E: Hierarchical Community Summaries [Weeks 9-16]  ⚠️ Partially Done (v7.9.0)
-│   │   ├── 24E-1: Community Detection (Leiden) — 3,841 communities, flat (no hierarchy), modularity 0.82  ✅
-│   │   ├── 24E-2: Summary Generation (template-based) — 63 summaries in ChromaDB (no Community nodes)  ✅
+│   ├── 24E: Hierarchical Community Summaries [Weeks 9-16]  ✅ COMPLETE (v7.20.0)
+│   │   ├── 24E-1: Community Detection (Leiden) — 3,841 communities, flat, modularity 0.82  ✅
+│   │   ├── 24E-2: Summary Generation (template-based) — 63 summaries in ChromaDB  ✅
 │   │   ├── 24E-3: Dual Retrieval Router (Local/Global/Trace/Hybrid)  ✅
 │   │   ├── 24E-4: Incremental Update Pipeline — deferred
-│   │   └── 24E-5: Community Node Materialization & Hierarchy — 🔲 NOT STARTED
-│   │         Materialize Community label nodes, MEMBER_OF, PARENT_OF, INTERACTS_WITH,
-│   │         re-run Leiden with includeIntermediateCommunities, hierarchical summaries
+│   │   └── 24E-5: Community Node Materialization & Hierarchy — ✅ COMPLETE (v7.20.0)
+│   │         1,036 Community nodes (L0:694, L1:175, L2:86, L3:81),
+│   │         21,559 MEMBER_OF, 978 PARENT_OF, 1,297 INTERACTS_WITH,
+│   │         828 hierarchical summaries in Neo4j + ChromaDB
 │   │
 │   └── 24F: Cross-Language Graph Integration [NEW] [Weeks 13-18]
 │       ├── 24F-0: Python Graph Ingestion (Neo4j) [Weeks 13-14]  ✅ Done (624 modules, 3267 functions)
@@ -84,18 +85,23 @@ Phase 24: True GraphRAG Fusion
 
 ### Neo4j Graph Statistics (Post-Phase 10)
 
-| Metric | Original Spec | Current (Feb 2026) | Growth |
+| Metric | Original Spec | Current (Feb 24, 2026) | Growth |
 |--------|---------------|-------------------|--------|
-| Total Nodes | ~3,000 | **20,496** | →24K+ (24F) |
-| Total Relationships | 86,189 | **368,978** | →400K+ (24F) |
-| CALLS (Fortran) | 0 | **268,666** | New |
+| Total Nodes | ~3,000 | **41,355** | 13.8x |
+| Total Relationships | 86,189 | **589,396** | 6.8x |
+| CALLS (Fortran) | 0 | **439,919** | New |
 | USES (Fortran) | 0 | **91,285** | New |
-| EXECUTES (Shell→Fortran) | 0 | **35** | New |
-| **PythonModule** | 0 | 0 | **→200+ (24F-0)** |
-| **PythonClass** | 0 | 0 | **→150+ (24F-0)** |
-| **PythonFunction** | 0 | 0 | **→2,500+ (24F-0)** |
-| **IMPORTS (Python)** | 0 | 0 | **→3,000+ (24F-0)** |
-| Language Coverage | Shell only | Shell + Fortran | +Python (24F) |
+| MEMBER_OF (Community) | 0 | **21,559** | New (24E-5) |
+| PARENT_OF (Community) | 0 | **978** | New (24E-5) |
+| INTERACTS_WITH (Community) | 0 | **1,297** | New (24E-5) |
+| EXECUTES (Cross-language) | 0 | **65** | Shell→Fortran |
+| Community nodes | 0 | **1,036** | 4 levels (24E-5) |
+| PythonModule | 0 | **624** | Ingested |
+| PythonClass | 0 | **~300** | Ingested |
+| PythonFunction | 0 | **3,267** | Ingested |
+| IMPORTS (Python) | 0 | **8,034** | Ingested |
+| ShellScript | 0 | **264** | Deduped (27J) |
+| Language Coverage | Shell only | Shell + Fortran + Python | Complete |
 
 **Impact on Phase 24:**
 - GGSR traversal now spans **cross-language boundaries**
@@ -107,12 +113,13 @@ Phase 24: True GraphRAG Fusion
 ### ChromaDB Collections
 
 | Collection | Documents | Purpose |
-|------------|-----------|---------|
-| code-with-context-v8-0-0 | ~50K | Source code chunks |
-| jjobs-v8-0-0 | ~500 | J-Job scripts |
-| global-workflow-docs-v8-0-0 | ~15K | Documentation |
-| ee2-standards-v5-0-0-enhanced | ~2K | EE2 compliance |
-| **community-summaries** (24E) | TBD | Hierarchical summaries |
+|------------|-----------|---------|  
+| code-with-context-v8-0-0 | 58,761 | Source code chunks |
+| jjobs-v8-0-0 | 700 | J-Job scripts |
+| global-workflow-docs-v8-0-0 | 3,514 | Documentation |
+| ee2-standards-v5-0-0-enhanced | 34 | EE2 compliance |
+| community-summaries | 828 | Hierarchical summaries (4 levels) ✅ |
+| **Total** | **63,837** | |
 
 ---
 
@@ -147,9 +154,9 @@ Phase 24: True GraphRAG Fusion
         ▼                                               ▼
 ┌───────────────────────┐               ┌───────────────────────────┐
 │      NEO4J            │               │      CHROMADB             │
-│  368K relationships   │               │   ~70K documents          │
-│  20K nodes            │               │   + community summaries   │
-│  Shell+Fortran graph  │               │                           │
+│  589K relationships   │               │   63,837 documents        │
+│  41K nodes            │               │   + 828 community sums    │
+│  Shell+Fortran+Python │               │                           │
 └───────────────────────┘               └───────────────────────────┘
 ```
 
@@ -506,16 +513,16 @@ Keep under 400 words. Be specific about scientific computing aspects.
 From all three documents:
 
 ### Already Resolved
-- ✅ Timeline conflicts → Sequenced in §7
+- ✅ Timeline conflicts → All phases 24A-H complete
 - ✅ Tool overlap → Clarified in §5
 - ✅ Missing sub-phases → Added 24F, 24G
+- ✅ **Community Naming** (24E): Template-based summaries with language/member metadata
+- ✅ **Cross-Repo Communities** (24E): Communities stay within global-workflow scope
 
 ### Still Open
-1. **Community Naming** (24E): Auto-generated vs human-curated labels?
-2. **Session Persistence** (24H): Redis vs SQLite for checkpoints?
-3. **Cross-Repo Communities** (24E): Should communities span repositories?
-4. **Rate Limiting** (24H): Should expensive tools have rate limits?
-5. **Fortran Test Detection** (24F): How do we identify which subroutines are tested?
+1. **Session Persistence** (24H): Redis vs SQLite for checkpoints? (Currently filesystem-based via Phase 31)
+2. **Rate Limiting** (24H): Should expensive tools have rate limits?
+3. **Fortran Test Detection** (24F): How do we identify which subroutines are tested?
 
 ---
 
