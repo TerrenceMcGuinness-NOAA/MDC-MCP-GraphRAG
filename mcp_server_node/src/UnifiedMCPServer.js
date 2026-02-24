@@ -93,7 +93,7 @@ class UnifiedMCPServer {
     );
 
     // Initialize GraphRAG Tools (Phase 24H: Agentic tool surface)
-    this.graphRAGTools = new GraphRAGTools();
+    this.graphRAGTools = new GraphRAGTools(null, this.sessionManager);
 
     this.registerAllTools();
   }
@@ -160,7 +160,7 @@ class UnifiedMCPServer {
       console.error(`[WARN] SDD Workflow tools registration failed: ${error.message}`);
     }
 
-    // Register GraphRAG agentic tools (5 tools) - Phase 24H
+    // Register GraphRAG agentic tools (9 tools) - Phase 24H-1/24H-3
     try {
       this.graphRAGTools.registerWith(this.server);
       console.error('[MCP] GraphRAG tools registered');

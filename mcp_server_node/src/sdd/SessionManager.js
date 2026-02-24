@@ -27,6 +27,7 @@ const SDD_FRAMEWORK_ROOT = process.env.SDD_FRAMEWORK_ROOT ||
 const STATE_DIR = path.join(SDD_FRAMEWORK_ROOT, 'execution_state');
 const ACTIVE_SESSION_FILE = path.join(STATE_DIR, 'active_session.json');
 const HISTORY_FILE = path.join(STATE_DIR, 'history.jsonl');
+const CHECKPOINTS_DIR = path.join(STATE_DIR, 'checkpoints');
 
 // Valid semantic step tags
 const VALID_TAGS = ['research', 'design', 'implement', 'configure', 'validate', 'document', 'ingest'];
@@ -42,6 +43,9 @@ export class SessionManager {
   ensureStateDir() {
     if (!fs.existsSync(STATE_DIR)) {
       fs.mkdirSync(STATE_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(CHECKPOINTS_DIR)) {
+      fs.mkdirSync(CHECKPOINTS_DIR, { recursive: true });
     }
   }
 
@@ -78,7 +82,11 @@ export class SessionManager {
       completedSteps: [],
       skippedSteps: [],
       blockers: [],
-      notes: options.notes || null
+      notes: options.notes || null,
+      // Phase 24H-3: Session state tracking for agent workflows
+      modifications: [],
+      examined: [],
+      checkpoints: []
     };
 
     // Write active session file
@@ -390,6 +398,217 @@ export class SessionManager {
         summary: completed?.summary || abandoned?.reason || null
       };
     });
+  }
+
+  // --- Phase 24H-3: Session State Methods ---
+
+  /**
+   * Record a file modification in the active session
+   * @param {string} filePath - Path of the modified file
+   * @param {string} changeType - Type of change (content, signature, delete, rename)
+   * @param {string} description - What was changed
+   * @returns {Object} Updated session state
+   */
+  markAsModified(filePath, changeType = 'content', description = '') {
+    const session = this.getSessionState();
+    if (!session) {
+      throw new Error('No active session. Call startSession first.');
+    }
+
+    const now = new Date().toISOString();
+    const modifications = session.modifications || [];
+
+    modifications.push({
+      filePath,
+      changeType,
+      description,
+      modifiedAt: now
+    });
+
+    session.modifications = modifications;
+    session.lastActivityAt = now;
+    this._writeSession(session);
+
+    this._appendHistory({
+      sessionId: session.sessionId,
+      phase: session.phase,
+      event: 'file_modified',
+      filePath,
+      changeType,
+      description,
+      timestamp: now
+    });
+
+    return session;
+  }
+
+  /**
+   * Record an examined symbol in the active session (deduplicated)
+   * @param {string} symbol - Symbol name that was examined
+   * @param {Object} context - Optional context about the examination
+   * @returns {Object} Updated session state
+   */
+  recordExamined(symbol, context = {}) {
+    const session = this.getSessionState();
+    if (!session) {
+      return null; // Silent — called internally from getCodeContext
+    }
+
+    const examined = session.examined || [];
+
+    // Deduplicate by symbol name
+    if (examined.some(e => e.symbol === symbol)) {
+      return session;
+    }
+
+    const now = new Date().toISOString();
+    examined.push({
+      symbol,
+      examinedAt: now,
+      ...context
+    });
+
+    session.examined = examined;
+    session.lastActivityAt = now;
+    this._writeSession(session);
+
+    this._appendHistory({
+      sessionId: session.sessionId,
+      phase: session.phase,
+      event: 'symbol_examined',
+      symbol,
+      timestamp: now
+    });
+
+    return session;
+  }
+
+  /**
+   * Create a checkpoint of the current session state
+   * @param {string} name - Checkpoint name
+   * @param {string} description - What this checkpoint represents
+   * @returns {Object} Checkpoint metadata
+   */
+  createCheckpoint(name, description = '') {
+    const session = this.getSessionState();
+    if (!session) {
+      throw new Error('No active session. Call startSession first.');
+    }
+
+    const now = new Date().toISOString();
+    const checkpointId = `chk_${now.split('T')[0]}_${Math.random().toString(36).substr(2, 6)}`;
+
+    const checkpoint = {
+      checkpointId,
+      name,
+      description,
+      createdAt: now,
+      modifications: [...(session.modifications || [])],
+      examined: [...(session.examined || [])],
+      currentStep: session.currentStep,
+      completedSteps: [...session.completedSteps]
+    };
+
+    // Write checkpoint file
+    this.ensureStateDir();
+    const checkpointFile = path.join(CHECKPOINTS_DIR, `${checkpointId}.json`);
+    fs.writeFileSync(checkpointFile, JSON.stringify(checkpoint, null, 2), 'utf-8');
+
+    // Record in session
+    const checkpoints = session.checkpoints || [];
+    checkpoints.push({
+      checkpointId,
+      name,
+      description,
+      createdAt: now
+    });
+    session.checkpoints = checkpoints;
+    session.lastActivityAt = now;
+    this._writeSession(session);
+
+    this._appendHistory({
+      sessionId: session.sessionId,
+      phase: session.phase,
+      event: 'checkpoint_created',
+      checkpointId,
+      name,
+      description,
+      timestamp: now
+    });
+
+    return checkpoint;
+  }
+
+  /**
+   * Restore session state from a checkpoint
+   * @param {string} checkpointId - Checkpoint ID to restore
+   * @returns {Object} Updated session state
+   */
+  restoreCheckpoint(checkpointId) {
+    const session = this.getSessionState();
+    if (!session) {
+      throw new Error('No active session. Call startSession first.');
+    }
+
+    const checkpointFile = path.join(CHECKPOINTS_DIR, `${checkpointId}.json`);
+    if (!fs.existsSync(checkpointFile)) {
+      throw new Error(`Checkpoint "${checkpointId}" not found.`);
+    }
+
+    const checkpoint = JSON.parse(fs.readFileSync(checkpointFile, 'utf-8'));
+    const now = new Date().toISOString();
+
+    // Restore session state from checkpoint
+    session.modifications = checkpoint.modifications || [];
+    session.examined = checkpoint.examined || [];
+    session.lastActivityAt = now;
+    this._writeSession(session);
+
+    this._appendHistory({
+      sessionId: session.sessionId,
+      phase: session.phase,
+      event: 'checkpoint_restored',
+      checkpointId,
+      name: checkpoint.name,
+      timestamp: now
+    });
+
+    return session;
+  }
+
+  /**
+   * Get aggregated session context for agent workflows
+   * @returns {Object} Session context with examined, modifications, checkpoints
+   */
+  getSessionContext() {
+    const session = this.getSessionState();
+    if (!session) {
+      return {
+        active: false,
+        message: 'No active session.'
+      };
+    }
+
+    return {
+      active: true,
+      sessionId: session.sessionId,
+      phase: session.phase,
+      startedAt: session.startedAt,
+      lastActivityAt: session.lastActivityAt,
+      currentStep: session.currentStep,
+      totalSteps: session.totalSteps,
+      stepsCompleted: session.completedSteps.length,
+      examined: session.examined || [],
+      modifications: session.modifications || [],
+      checkpoints: session.checkpoints || [],
+      summary: {
+        filesModified: (session.modifications || []).length,
+        symbolsExamined: (session.examined || []).length,
+        checkpointsCreated: (session.checkpoints || []).length,
+        stepsCompleted: session.completedSteps.length,
+        stepsRemaining: session.totalSteps - session.completedSteps.length
+      }
+    };
   }
 
   // --- Private helpers ---

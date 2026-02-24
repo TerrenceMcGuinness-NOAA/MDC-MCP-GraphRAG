@@ -2,7 +2,7 @@
 applyWhen: hasActiveMCPServer("eib-mcp-rag-full")
 ---
 
-# EIB MCP Tool Usage Instructions (44 tools / 9 modules)
+# EIB MCP Tool Usage Instructions (48 tools / 9 modules)
 
 ## MCP-First Policy
 
@@ -41,6 +41,11 @@ These are the **exact parameter names** — using wrong names will fail:
 | `find_similar_code` | `code_or_symbol` | `max_results` |
 | `get_change_impact` | `symbol` | `change_type`, `include_indirect` |
 | `trace_data_flow` | `from_symbol` | `max_depth` |
+| **Session State (Phase 24H-3)** | | |
+| `mark_as_modified` | `file_path` | `change_type`, `description` |
+| `get_session_context` | *(none)* | `include_dirty` |
+| `checkpoint_state` | `name` | `description` |
+| `restore_checkpoint` | `checkpoint_id` | |
 | **Semantic Search & RAG** | | |
 | `search_documentation` | `query` | `max_results`, `collection` |
 | `explain_with_context` | `topic` | `context_type`, `detail_level` |
@@ -67,7 +72,7 @@ These are the **exact parameter names** — using wrong names will fail:
 | `complete_sdd_session` | *(none)* | `summary`, `abandon` |
 | `get_sdd_execution_history` | *(none)* | `limit` |
 
-Tools with no required params: `get_workflow_structure`, `get_system_configs`, `list_job_scripts`, `list_ingested_urls`, `get_ingested_urls_array`, `get_knowledge_base_status`, `list_sdd_workflows`, `get_sdd_session`, `get_sdd_framework_status`, `generate_compliance_report`, `get_pull_requests`, `analyze_repository_structure`, `mcp_health_check`, `get_server_info`
+Tools with no required params: `get_workflow_structure`, `get_system_configs`, `list_job_scripts`, `list_ingested_urls`, `get_ingested_urls_array`, `get_knowledge_base_status`, `list_sdd_workflows`, `get_sdd_session`, `get_sdd_framework_status`, `generate_compliance_report`, `get_pull_requests`, `analyze_repository_structure`, `mcp_health_check`, `get_server_info`, `get_session_context`
 
 ## Tool Selection by Task
 
@@ -93,6 +98,12 @@ Tools with no required params: `get_workflow_structure`, `get_system_configs`, `
 - `find_similar_code({ code_or_symbol })` — vector similarity + graph enrichment
 - `get_change_impact({ symbol })` — blast radius with risk scoring
 - `trace_data_flow({ from_symbol })` — data flow across codebase
+
+### Session State (Phase 24H-3 — registered in GraphRAGTools)
+- `mark_as_modified({ file_path })` — track file changes in active session + flag Neo4j nodes dirty
+- `get_session_context()` — aggregated view of session work (modifications, examined, checkpoints)
+- `checkpoint_state({ name })` — snapshot session state for recovery
+- `restore_checkpoint({ checkpoint_id })` — roll back to a named checkpoint
 
 ### EE2 Compliance
 - `analyze_ee2_compliance({ content })` — check code content against NCO standards
@@ -186,6 +197,16 @@ Tools with no required params: `get_workflow_structure`, `get_system_configs`, `
 ```
 1. get_sdd_session()  # Returns active session with completed steps
 2. record_sdd_step({ step: N, ... })  # Continue from where you left off
+```
+
+### "Refactoring with session tracking" (Phase 24H-3)
+```
+1. get_code_context({ symbol: "config.resources" })          # Auto-records in examined[]
+2. get_change_impact({ symbol: "config.resources" })          # Assess risk
+3. checkpoint_state({ name: "pre-refactor", description: "Before YAML conversion" })
+4. mark_as_modified({ file_path: "parm/config/config.resources", change_type: "content", description: "Converted to YAML" })
+5. get_session_context()                                       # Review progress
+6. restore_checkpoint({ checkpoint_id: "chk_..." })           # Roll back if needed
 ```
 
 ## Error Handling

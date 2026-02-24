@@ -1,5 +1,24 @@
 # MCP Server Changelog
 
+## [7.21.0] - Phase 24H-3: Session State Tools (February 24, 2026)
+
+### Context
+Phase 24H-3 (Session State Tools) — 4 new MCP tools in `GraphRAGTools.js` for tracking code modifications, examined symbols, and checkpoints across long-running agent refactoring sessions. Extends Phase 31 `SessionManager.js` with filesystem persistence.
+
+### Added
+- **`mark_as_modified` tool**: Record file modifications in the active session with change type tracking. Optionally marks Neo4j nodes as dirty for stale-community awareness.
+- **`get_session_context` tool**: Aggregated view of session state — examined symbols, file modifications, checkpoints, and step progress in a single call.
+- **`checkpoint_state` tool**: Snapshot current session state (modifications, examined, steps) to `execution_state/checkpoints/<id>.json` for recovery.
+- **`restore_checkpoint` tool**: Roll back session state to a previously created checkpoint.
+- **Auto-examine hook**: `get_code_context` now automatically records examined symbols in the active session (silent, no tool call needed).
+- **SessionManager.js**: Extended session schema with `modifications[]`, `examined[]`, `checkpoints[]` arrays. Added `markAsModified()`, `recordExamined()`, `createCheckpoint()`, `restoreCheckpoint()`, `getSessionContext()` methods.
+- **`execution_state/checkpoints/` directory**: New checkpoint storage for session state snapshots.
+- **4 new history event types**: `symbol_examined`, `file_modified`, `checkpoint_created`, `checkpoint_restored` in `history.jsonl`.
+
+### Changed
+- **GraphRAGTools.js**: 5 → 9 tools (v2.0.0). Accepts `sessionManager` in constructor.
+- **UnifiedMCPServer.js**: Passes shared `sessionManager` instance to `GraphRAGTools` constructor.
+
 ## [7.20.2] - Phase 29: MCP Tool Usability Improvements (February 24, 2026)
 
 ### Context

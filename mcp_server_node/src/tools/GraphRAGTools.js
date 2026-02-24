@@ -3,33 +3,41 @@
 /**
  * GraphRAG Agentic Tools Module — Phase 24H
  *
- * Five new MCP tools that expose the full GraphRAG stack (24A-G) as
+ * Nine MCP tools that expose the full GraphRAG stack (24A-G) as
  * first-class agentic capabilities for LLM-driven code understanding.
  *
- * Tools:
+ * Tools (Phase 24H-1):
  *   1. get_code_context     — "Understand anything" single-call context
  *   2. search_architecture  — Global/holistic architecture queries
  *   3. find_similar_code    — Semantic similarity + graph enrichment
  *   4. get_change_impact    — Blast radius + risk scoring
  *   5. trace_data_flow      — Cross-language execution traces
  *
- * @version 1.0.0
+ * Tools (Phase 24H-3 — Session State):
+ *   6. mark_as_modified     — Track file modifications in active session
+ *   7. get_session_context  — Aggregated view of session work
+ *   8. checkpoint_state     — Snapshot session state for recovery
+ *   9. restore_checkpoint   — Roll back to a named checkpoint
+ *
+ * @version 2.0.0
  * @phase Phase 24H
  */
 
 import { UnifiedDataAccess } from '../data/UnifiedDataAccess.js';
 import { GGSRTraversalPrototypes } from '../graphrag/GGSRTraversalPrototypes.js';
 import { GraphGuidedRetrieval } from '../graphrag/GraphGuidedRetrieval.js';
+import { SessionManager } from '../sdd/SessionManager.js';
 
 const CODE_COLLECTION = 'code-with-context-v8-0-0';
 const COMMUNITY_COLLECTION = 'community-summaries';
 
 export class GraphRAGTools {
-  constructor(dataAccess = null) {
+  constructor(dataAccess = null, sessionManager = null) {
     this.dataAccess = dataAccess;
     this.isInitialized = !!dataAccess;
     this.ggsr = null;
     this.retrieval = null;
+    this.sessionManager = sessionManager || new SessionManager();
   }
 
   async initialize() {
@@ -204,7 +212,89 @@ export class GraphRAGTools {
       this.traceDataFlow.bind(this)
     );
 
-    console.error('[OK] Registered 5 GraphRAG tools (Phase 24H)');
+    // Tool 6: mark_as_modified (Phase 24H-3)
+    server.registerTool(
+      'mark_as_modified',
+      'Record a file modification in the active session. Tracks what the agent has changed for session continuity and impact awareness. Optionally marks Neo4j nodes as dirty.',
+      {
+        type: 'object',
+        properties: {
+          file_path: {
+            type: 'string',
+            description: 'Path of the modified file (e.g., "parm/config/config.resources")'
+          },
+          change_type: {
+            type: 'string',
+            enum: ['content', 'signature', 'delete', 'rename'],
+            description: 'Type of change made',
+            default: 'content'
+          },
+          description: {
+            type: 'string',
+            description: 'What was changed (e.g., "Converted to YAML format")'
+          }
+        },
+        required: ['file_path']
+      },
+      this.markAsModified.bind(this)
+    );
+
+    // Tool 7: get_session_context (Phase 24H-3)
+    server.registerTool(
+      'get_session_context',
+      'Get aggregated view of the active session: examined symbols, file modifications, checkpoints, and progress. Use to understand what the agent has done so far in a long-running task.',
+      {
+        type: 'object',
+        properties: {
+          include_dirty: {
+            type: 'boolean',
+            description: 'Include graph dirty state for modified nodes',
+            default: true
+          }
+        }
+      },
+      this.getSessionContext.bind(this)
+    );
+
+    // Tool 8: checkpoint_state (Phase 24H-3)
+    server.registerTool(
+      'checkpoint_state',
+      'Snapshot current session state (modifications, examined symbols) to a checkpoint file. Use before making risky changes so you can restore later.',
+      {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Checkpoint name (e.g., "pre-yaml-refactor")'
+          },
+          description: {
+            type: 'string',
+            description: 'What this checkpoint represents'
+          }
+        },
+        required: ['name']
+      },
+      this.checkpointState.bind(this)
+    );
+
+    // Tool 9: restore_checkpoint (Phase 24H-3)
+    server.registerTool(
+      'restore_checkpoint',
+      'Roll back session state (modifications, examined symbols) to a previously created checkpoint. Use to undo session tracking when a refactoring approach fails.',
+      {
+        type: 'object',
+        properties: {
+          checkpoint_id: {
+            type: 'string',
+            description: 'Checkpoint ID to restore (from checkpoint_state response or get_session_context)'
+          }
+        },
+        required: ['checkpoint_id']
+      },
+      this.restoreCheckpoint.bind(this)
+    );
+
+    console.error('[OK] Registered 9 GraphRAG tools (Phase 24H-1/24H-3)');
   }
 
   // ---- Tool Handlers ----
@@ -294,6 +384,16 @@ export class GraphRAGTools {
       // Semantic snippets
       if (ctx.semanticSection) {
         response += ctx.semanticSection + '\n';
+      }
+
+      // Phase 24H-3: Auto-record examined symbol
+      try {
+        this.sessionManager.recordExamined(symbol, {
+          type: node.labels?.[0],
+          path: node.path || null
+        });
+      } catch (_) {
+        // Silent — session tracking is best-effort
       }
 
       return { content: [{ type: 'text', text: response }] };
@@ -619,6 +719,154 @@ export class GraphRAGTools {
 
     } catch (error) {
       return { content: [{ type: 'text', text: `[ERROR] trace_data_flow failed: ${error.message}` }] };
+    }
+  }
+
+  // ---- Phase 24H-3: Session State Tool Handlers ----
+
+  /**
+   * mark_as_modified — record a file modification in the active session
+   */
+  async markAsModified(args) {
+    const filePath = args.file_path;
+    const { change_type = 'content', description = '' } = args;
+
+    try {
+      const session = this.sessionManager.markAsModified(filePath, change_type, description);
+
+      // Best-effort: mark Neo4j node as dirty if graph is available
+      let graphDirty = false;
+      try {
+        if (this.isInitialized && this.dataAccess?.graphDB) {
+          await this.dataAccess.graphDB.query(
+            `MATCH (n) WHERE n.absolutePath CONTAINS $path
+             SET n._dirty = true, n._dirtyAt = $now
+             RETURN count(n) AS updated`,
+            { path: filePath, now: new Date().toISOString() }
+          );
+          graphDirty = true;
+        }
+      } catch (_) {
+        // Graph unavailable — session state still recorded
+      }
+
+      const mods = session.modifications || [];
+      let response = `# File Modification Recorded\n\n`;
+      response += `**File**: \`${filePath}\`\n`;
+      response += `**Change Type**: ${change_type}\n`;
+      if (description) response += `**Description**: ${description}\n`;
+      response += `**Graph Dirty**: ${graphDirty ? 'Yes (node flagged)' : 'No (graph unavailable)'}\n`;
+      response += `\n**Total Modifications**: ${mods.length}\n`;
+
+      return { content: [{ type: 'text', text: response }] };
+    } catch (error) {
+      return { content: [{ type: 'text', text: `[ERROR] mark_as_modified failed: ${error.message}` }] };
+    }
+  }
+
+  /**
+   * get_session_context — aggregated view of the active session
+   */
+  async getSessionContext(args) {
+    try {
+      const ctx = this.sessionManager.getSessionContext();
+
+      if (!ctx.active) {
+        return { content: [{ type: 'text', text: '# No Active Session\n\nStart a session with `start_sdd_session` to enable session state tracking.' }] };
+      }
+
+      let response = `# Session Context\n\n`;
+      response += `**Session**: ${ctx.sessionId}\n`;
+      response += `**Phase**: ${ctx.phase}\n`;
+      response += `**Started**: ${ctx.startedAt}\n`;
+      response += `**Last Activity**: ${ctx.lastActivityAt}\n`;
+      response += `**Progress**: ${ctx.summary.stepsCompleted}/${ctx.totalSteps} steps\n\n`;
+
+      // Summary
+      response += `## Summary\n\n`;
+      response += `| Metric | Count |\n|--------|-------|\n`;
+      response += `| Files Modified | ${ctx.summary.filesModified} |\n`;
+      response += `| Symbols Examined | ${ctx.summary.symbolsExamined} |\n`;
+      response += `| Checkpoints | ${ctx.summary.checkpointsCreated} |\n`;
+      response += `| Steps Completed | ${ctx.summary.stepsCompleted} |\n`;
+      response += `| Steps Remaining | ${ctx.summary.stepsRemaining} |\n\n`;
+
+      // Modifications
+      if (ctx.modifications.length > 0) {
+        response += `## Modifications (${ctx.modifications.length})\n\n`;
+        response += '| File | Type | Description | When |\n|------|------|-------------|------|\n';
+        for (const m of ctx.modifications) {
+          response += `| \`${m.filePath}\` | ${m.changeType} | ${m.description || '-'} | ${m.modifiedAt} |\n`;
+        }
+        response += '\n';
+      }
+
+      // Examined symbols
+      if (ctx.examined.length > 0) {
+        response += `## Examined Symbols (${ctx.examined.length})\n\n`;
+        for (const e of ctx.examined) {
+          response += `- \`${e.symbol}\`${e.type ? ` (${e.type})` : ''}\n`;
+        }
+        response += '\n';
+      }
+
+      // Checkpoints
+      if (ctx.checkpoints.length > 0) {
+        response += `## Checkpoints (${ctx.checkpoints.length})\n\n`;
+        response += '| ID | Name | Created |\n|----|------|---------|\n';
+        for (const c of ctx.checkpoints) {
+          response += `| \`${c.checkpointId}\` | ${c.name} | ${c.createdAt} |\n`;
+        }
+        response += '\n';
+      }
+
+      return { content: [{ type: 'text', text: response }] };
+    } catch (error) {
+      return { content: [{ type: 'text', text: `[ERROR] get_session_context failed: ${error.message}` }] };
+    }
+  }
+
+  /**
+   * checkpoint_state — snapshot current session state
+   */
+  async checkpointState(args) {
+    const { name, description = '' } = args;
+
+    try {
+      const checkpoint = this.sessionManager.createCheckpoint(name, description);
+
+      let response = `# Checkpoint Created\n\n`;
+      response += `**ID**: \`${checkpoint.checkpointId}\`\n`;
+      response += `**Name**: ${name}\n`;
+      if (description) response += `**Description**: ${description}\n`;
+      response += `**Created**: ${checkpoint.createdAt}\n\n`;
+      response += `**Snapshot**: ${checkpoint.modifications.length} modification(s), ${checkpoint.examined.length} examined symbol(s), ${checkpoint.completedSteps.length} step(s)\n\n`;
+      response += `Use \`restore_checkpoint("${checkpoint.checkpointId}")\` to roll back to this state.\n`;
+
+      return { content: [{ type: 'text', text: response }] };
+    } catch (error) {
+      return { content: [{ type: 'text', text: `[ERROR] checkpoint_state failed: ${error.message}` }] };
+    }
+  }
+
+  /**
+   * restore_checkpoint — roll back session state to a named checkpoint
+   */
+  async restoreCheckpoint(args) {
+    const checkpointId = args.checkpoint_id;
+
+    try {
+      const session = this.sessionManager.restoreCheckpoint(checkpointId);
+
+      let response = `# Checkpoint Restored\n\n`;
+      response += `**Checkpoint**: \`${checkpointId}\`\n`;
+      response += `**Modifications**: ${(session.modifications || []).length} file(s)\n`;
+      response += `**Examined**: ${(session.examined || []).length} symbol(s)\n\n`;
+      response += `Session state rolled back. New modifications/examinations will be tracked from this point.\n`;
+
+      return { content: [{ type: 'text', text: response }] };
+    } catch (error) {
+      return { content: [{ type: 'text', text: `[ERROR] restore_checkpoint failed: ${error.message}` }] };
     }
   }
 

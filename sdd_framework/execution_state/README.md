@@ -51,6 +51,10 @@ Every session event is logged as a single JSON line. Survives server restarts an
 | `resumed` | Session resumed in a new conversation |
 | `completed` | Session finished successfully |
 | `abandoned` | Session terminated without completion |
+| `symbol_examined` | Symbol auto-recorded via `get_code_context` (Phase 24H-3) |
+| `file_modified` | File modification tracked via `mark_as_modified` (Phase 24H-3) |
+| `checkpoint_created` | Session state checkpointed via `checkpoint_state` (Phase 24H-3) |
+| `checkpoint_restored` | Session state restored via `restore_checkpoint` (Phase 24H-3) |
 
 ### Semantic Step Tags
 
@@ -66,8 +70,15 @@ Every session event is logged as a single JSON line. Survives server restarts an
 
 ## Managed By
 
-- `SessionManager.js` — Session lifecycle management
+- `SessionManager.js` — Session lifecycle management + Phase 24H-3 session state (modifications, examined, checkpoints)
 - `SDDWorkflowTools.js` — MCP tool interface (`start_sdd_session`, `record_sdd_step`, etc.)
+- `GraphRAGTools.js` — Session state tools (`mark_as_modified`, `get_session_context`, `checkpoint_state`, `restore_checkpoint`)
+
+### `checkpoints/` — Session State Checkpoints (Phase 24H-3)
+
+Checkpoint files created by `checkpoint_state`. Each file is a JSON snapshot of `modifications[]`, `examined[]`, and step progress at the time of creation.
+
+Format: `<checkpoint_id>.json` (e.g., `chk_2026-02-24_a1b2c3.json`)
 
 ## Legacy Files
 
