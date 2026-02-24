@@ -2,7 +2,7 @@
 applyWhen: hasActiveMCPServer("eib-mcp-rag-full")
 ---
 
-# EIB MCP Tool Usage Instructions (42 tools / 9 modules)
+# EIB MCP Tool Usage Instructions (44 tools / 9 modules)
 
 ## MCP-First Policy
 
@@ -36,6 +36,9 @@ These are the **exact parameter names** — using wrong names will fail:
 | `get_code_context` | `symbol` | `depth`, `include_source` |
 | `analyze_code_structure` | `file_path` | `include_metrics` |
 | `search_architecture` | `query` | `max_results` |
+| `find_similar_code` | `code_or_symbol` | `max_results` |
+| `get_change_impact` | `symbol` | `change_type`, `include_indirect` |
+| `trace_data_flow` | `from_symbol` | `max_depth` |
 | `find_related_files` | `file_path` | `max_results`, `threshold` |
 | `search_documentation` | `query` | `max_results`, `collection` |
 | `extract_code_for_analysis` | `file_path` | `lines`, `context` |
@@ -72,9 +75,9 @@ These are the **exact parameter names** — using wrong names will fail:
 ### GraphRAG (Combined Neo4j + ChromaDB)
 - `get_code_context({ symbol })` — GGSR neighborhood + community summary
 - `search_architecture({ query })` — semantic search over community summaries
-- `find_similar_code({ code_snippet })` — vector similarity + graph enrichment
-- `get_change_impact({ file_path })` — blast radius with risk scoring
-- `trace_data_flow({ variable })` — data flow across codebase
+- `find_similar_code({ code_or_symbol })` — vector similarity + graph enrichment
+- `get_change_impact({ symbol })` — blast radius with risk scoring
+- `trace_data_flow({ from_symbol })` — data flow across codebase
 
 ### EE2 Compliance
 - `analyze_ee2_compliance({ file_path })` — check file against NCO standards
@@ -144,7 +147,7 @@ These are the **exact parameter names** — using wrong names will fail:
 ```
 1. analyze_ee2_compliance({ file_path: "scripts/exgfs_forecast.sh" })
 2. find_dependencies({ target: "scripts/exgfs_forecast.sh" })
-3. get_change_impact({ file_path: "scripts/exgfs_forecast.sh" })
+3. get_change_impact({ symbol: "exgfs_forecast" })
 ```
 
 ### "Help me understand this subsystem"
@@ -186,7 +189,9 @@ The tools use these patterns — learn them to avoid errors:
 | Concept | Neo4j/Graph Tools | Vector/RAG Tools |
 |---------|-------------------|------------------|
 | File to analyze | `file_path` | `file_path` |
-| Function/symbol | `function_name` or `symbol` | N/A |
+| Function/symbol | `function_name`, `symbol`, or `from_symbol` | N/A |
+| Code or symbol | N/A | `code_or_symbol` |
 | Module/component | `target` or `component` | N/A |
 | Search text | N/A | `query` |
 | Number of results | `max_depth` | `max_results` |
+| Change analysis | `symbol` + `change_type` | N/A |

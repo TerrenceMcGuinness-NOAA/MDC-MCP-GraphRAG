@@ -1,5 +1,31 @@
 # MCP Server Changelog
 
+## [7.20.1] - Instruction File Parameter Sync (February 24, 2026)
+
+### Context
+Health check validation (mcp_health_check + GraphRAG smoke tests) revealed that 3 GraphRAG tool parameter names had changed during Phase 24E/24F/24H development but instruction files still documented the old names, causing `must have required property` errors for AI agents.
+
+### Fixed
+- **`eib-mcp-tools.instructions.md`**: Updated Quick Reference table — `find_similar_code` param `code_snippet` → `code_or_symbol`, `get_change_impact` param `file_path` → `symbol` (+ added `change_type`, `include_indirect`), `trace_data_flow` param `variable` → `from_symbol`
+- **`eib-mcp-tools.instructions.md`**: Updated GraphRAG tool selection section to match live schemas
+- **`eib-mcp-tools.instructions.md`**: Updated Parameter Naming Conventions table with `code_or_symbol`, `from_symbol`, `change_type` entries
+- **`eib-mcp-tools.instructions.md`**: Fixed "production-ready" workflow example (`get_change_impact` now uses `symbol`)
+- **`mcp.instructions.md`** (global-workflow): Added `Required Param` column to GraphRAG table with correct param names
+- **Both files**: Tool count updated from 42 → 44 (matches `get_server_info` live output)
+
+### Instruction File Architecture (Phase 32)
+5 instruction files across 2 repositories serve layered AI agent guidance:
+
+| File | Repo | `applyWhen` | Purpose |
+|------|------|-------------|---------|
+| `.github/copilot-instructions.md` | eib-mcp-rag-server | Always | MCP/RAG platform development conventions, build/test, SDD methodology |
+| `.github/instructions/eib-mcp-tools.instructions.md` | eib-mcp-rag-server | `hasActiveMCPServer("eib-mcp-rag-full")` | Tool parameter reference, workflows, error handling |
+| `.github/copilot-instructions.md` | global-workflow | Always | GFS/GEFS/SFS architecture, build system, Rocoto, code style |
+| `.github/instructions/mcp.instructions.md` | global-workflow | `hasActiveMCPServer("eib-mcp-rag-full")` | Tool module quick-reference for weather domain work |
+| `sorc/gdas.cd/.github/copilot-instructions.md` | global-workflow (submodule) | Always | JCB/JEDI GDAS configuration templates |
+
+Design: `copilot-instructions.md` loads unconditionally; `instructions/*.instructions.md` loads only when MCP server is connected. This achieves ~35% context window reduction when working on global-workflow without MCP tools.
+
 ## [7.20.0] - Phase 24E-5: Hierarchical Community Materialization (February 24, 2026)
 
 ### Context
