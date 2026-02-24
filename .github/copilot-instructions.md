@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MCP/RAG development platform for NOAA Global Workflow AI assistance. Provides 42+ tools for code analysis, EE2 compliance validation, and semantic search across operational weather forecasting infrastructure.
+MCP/RAG development platform for NOAA Global Workflow AI assistance. Provides 48 tools for code analysis, EE2 compliance validation, semantic search, and session state tracking across operational weather forecasting infrastructure.
 
 **Architecture**: Node.js MCP Server → ChromaDB (vectors) + Neo4j (graph) → AI Clients (VS Code, Copilot CLI, Claude, n8n)
 
@@ -78,7 +78,7 @@ MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025" docker mcp gateway run \
 
 | Scenario | Flag | Tools | Databases Required |
 |----------|------|-------|--------------------|
-| `full` | `npm start` | ~42 (all) | ChromaDB + Neo4j |
+| `full` | `npm start` | 48 (all) | ChromaDB + Neo4j |
 | `core` | `npm run start:core` | ~20 | Neo4j only |
 | `rag` | `npm run start:rag` | ~38 | ChromaDB + Neo4j |
 | `github` | `npm run start:github` | ~24 | Neo4j + GitHub API |
@@ -106,7 +106,7 @@ BaseServer (src/core/) → MCP SDK → stdio transport → AI client
 | SemanticSearchTools (6) | `search_documentation`, `explain_with_context`, `find_related_files`, `get_knowledge_base_status`, `list_ingested_urls`, `get_ingested_urls_array` | ChromaDB + Neo4j |
 | EE2ComplianceTools (5) | `analyze_ee2_compliance`, `scan_repository_compliance`, `search_ee2_standards`, `generate_compliance_report`, `extract_code_for_analysis` | ChromaDB |
 | OperationalTools (4) | `get_operational_guidance`, `list_job_scripts`, `explain_workflow_component`, `get_job_details` | ChromaDB |
-| GraphRAGTools (5) | `get_code_context`, `search_architecture`, `find_similar_code`, `get_change_impact`, `trace_data_flow` | ChromaDB + Neo4j |
+| GraphRAGTools (9) | `get_code_context`, `search_architecture`, `find_similar_code`, `get_change_impact`, `trace_data_flow`, `mark_as_modified`, `get_session_context`, `checkpoint_state`, `restore_checkpoint` | ChromaDB + Neo4j |
 | GitHubTools (4) | `search_issues`, `get_pull_requests`, `analyze_repository_structure`, `analyze_workflow_dependencies` | GitHub API |
 | SDDWorkflowTools (9) | `list_sdd_workflows`, `get_sdd_workflow`, `start_sdd_session`, `record_sdd_step`, `get_sdd_session`, `complete_sdd_session`, `get_sdd_execution_history`, `validate_sdd_compliance`, `get_sdd_framework_status` | Filesystem |
 
