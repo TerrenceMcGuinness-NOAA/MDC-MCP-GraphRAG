@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SDD Workflow: Concept to Code via CLI /plan Handoff</title>
+<style>
+  body { margin: 0; padding: 20px; background: #1a1a2e; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; }
+  .diagram-container { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+  svg { border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.4); }
+  .description {
+    max-width: 1440px;
+    background: #16213e;
+    border-radius: 10px;
+    padding: 28px 36px;
+    color: #e0e0e0;
+    font-size: 14.5px;
+    line-height: 1.7;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .description h2 { color: #64ffda; margin-top: 0; font-size: 20px; letter-spacing: 0.5px; }
+  .description h3 { color: #80cbc4; margin-top: 18px; font-size: 16px; }
+  .description code { background: #0a3d62; padding: 2px 6px; border-radius: 3px; font-size: 13px; color: #80deea; }
+  .description table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  .description th { background: #1a3a5c; color: #64ffda; text-align: left; padding: 8px 12px; font-size: 13px; }
+  .description td { border-bottom: 1px solid #233; padding: 7px 12px; font-size: 13px; }
+  .description .phase-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+  .description .human { background: #1565c0; color: #fff; }
+  .description .mcp { background: #00695c; color: #fff; }
+  .description .cli { background: #6a1b9a; color: #fff; }
+  .description .auto { background: #e65100; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="diagram-container">
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="920" viewBox="0 0 1440 920">
+  <defs>
+    <!-- Arrows -->
+    <marker id="arrowWhite" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ccc"/>
+    </marker>
+    <marker id="arrowCyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#64ffda"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ffab40"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ce93d8"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#69f0ae"/>
+    </marker>
+    <!-- Filters -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="boxShadow">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.35"/>
+    </filter>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f0c29"/>
+      <stop offset="50%" stop-color="#16213e"/>
+      <stop offset="100%" stop-color="#0f0c29"/>
+    </linearGradient>
+    <linearGradient id="humanGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1565C0"/>
+      <stop offset="100%" stop-color="#0D47A1"/>
+    </linearGradient>
+    <linearGradient id="mcpGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00897B"/>
+      <stop offset="100%" stop-color="#00695C"/>
+    </linearGradient>
+    <linearGradient id="cliGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7B1FA2"/>
+      <stop offset="100%" stop-color="#4A148C"/>
+    </linearGradient>
+    <linearGradient id="validateGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E65100"/>
+      <stop offset="100%" stop-color="#BF360C"/>
+    </linearGradient>
+    <linearGradient id="stateGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#263238"/>
+      <stop offset="100%" stop-color="#37474F"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1440" height="920" rx="10" fill="url(#bgGrad)"/>
+
+  <!-- Title -->
+  <text x="720" y="42" text-anchor="middle" font-size="24" font-weight="bold" fill="#64ffda" letter-spacing="1.5">
+    SDD Workflow: Managed Concepts &#x2192; Code Implementation via CLI /plan Handoff
+  </text>
+  <text x="720" y="64" text-anchor="middle" font-size="13" fill="#78909C">
+    Spec-Driven Development &#x2022; MCP Tool Surface &#x2022; Phase 31 Session Model &#x2022; February 2026
+  </text>
+
+  <!-- ================================================================== -->
+  <!--  SWIM LANES (horizontal bands)                                      -->
+  <!-- ================================================================== -->
+
+  <!-- Lane labels -->
+  <text x="24" y="112" font-size="11" font-weight="bold" fill="#64ffda" letter-spacing="1">HUMAN + AI</text>
+  <text x="24" y="126" font-size="10" fill="#546E7A">IDE Modality</text>
+  <rect x="16" y="136" width="1408" height="195" rx="8" fill="#0D47A1" opacity="0.08" stroke="#1565C0" stroke-width="1" stroke-dasharray="4"/>
+
+  <text x="24" y="360" font-size="11" font-weight="bold" fill="#ce93d8" letter-spacing="1">CLI AGENT</text>
+  <text x="24" y="374" font-size="10" fill="#546E7A">Autonomous (--yolo)</text>
+  <rect x="16" y="384" width="1408" height="195" rx="8" fill="#4A148C" opacity="0.08" stroke="#7B1FA2" stroke-width="1" stroke-dasharray="4"/>
+
+  <text x="24" y="608" font-size="11" font-weight="bold" fill="#ffab40" letter-spacing="1">VALIDATION</text>
+  <text x="24" y="622" font-size="10" fill="#546E7A">Automated Gates</text>
+  <rect x="16" y="632" width="1408" height="125" rx="8" fill="#BF360C" opacity="0.08" stroke="#E65100" stroke-width="1" stroke-dasharray="4"/>
+
+  <text x="24" y="790" font-size="11" font-weight="bold" fill="#69f0ae" letter-spacing="1">PERSISTENT STATE</text>
+  <text x="24" y="804" font-size="10" fill="#546E7A">Filesystem / JSONL</text>
+  <rect x="16" y="814" width="1408" height="90" rx="8" fill="#1B5E20" opacity="0.08" stroke="#2E7D32" stroke-width="1" stroke-dasharray="4"/>
+
+  <!-- ================================================================== -->
+  <!--  PHASE 1: CONCEPT / DISCOVERY (Human + AI lane)                     -->
+  <!-- ================================================================== -->
+
+  <!-- Box 1: Health Check / Discovery -->
+  <rect x="60" y="155" width="175" height="70" rx="8" fill="url(#humanGrad)" filter="url(#boxShadow)"/>
+  <text x="147" y="182" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">1. Discover</text>
+  <text x="147" y="198" text-anchor="middle" font-size="10" fill="#90CAF5">mcp_health_check()</text>
+  <text x="147" y="212" text-anchor="middle" font-size="10" fill="#90CAF5">Smoke tests + GraphRAG</text>
+
+  <!-- Box 2: SDD Spec Authoring -->
+  <rect x="280" y="155" width="175" height="70" rx="8" fill="url(#humanGrad)" filter="url(#boxShadow)"/>
+  <text x="367" y="182" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">2. Spec Design</text>
+  <text x="367" y="198" text-anchor="middle" font-size="10" fill="#90CAF5">SDD workflow .md</text>
+  <text x="367" y="212" text-anchor="middle" font-size="10" fill="#90CAF5">Open questions + steps</text>
+
+  <!-- Box 3: Resolve Open Questions -->
+  <rect x="500" y="155" width="175" height="70" rx="8" fill="url(#mcpGrad)" filter="url(#boxShadow)"/>
+  <text x="587" y="182" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">3. Resolve Decisions</text>
+  <text x="587" y="198" text-anchor="middle" font-size="10" fill="#A5D6A7">Architecture choices</text>
+  <text x="587" y="212" text-anchor="middle" font-size="10" fill="#A5D6A7">Update spec, commit</text>
+
+  <!-- Box 4: Prep Handoff -->
+  <rect x="720" y="155" width="175" height="70" rx="8" fill="url(#mcpGrad)" filter="url(#boxShadow)"/>
+  <text x="807" y="182" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">4. Prep Handoff</text>
+  <text x="807" y="198" text-anchor="middle" font-size="10" fill="#A5D6A7">Push to origin</text>
+  <text x="807" y="212" text-anchor="middle" font-size="10" fill="#A5D6A7">Instruction files synced</text>
+
+  <!-- Arrows: 1->2->3->4 -->
+  <line x1="235" y1="190" x2="278" y2="190" stroke="#ccc" stroke-width="1.5" marker-end="url(#arrowWhite)"/>
+  <line x1="455" y1="190" x2="498" y2="190" stroke="#ccc" stroke-width="1.5" marker-end="url(#arrowWhite)"/>
+  <line x1="675" y1="190" x2="718" y2="190" stroke="#ccc" stroke-width="1.5" marker-end="url(#arrowWhite)"/>
+
+  <!-- Box 5: Monitoring (Human lane, right side) -->
+  <rect x="1200" y="155" width="195" height="70" rx="8" fill="url(#humanGrad)" filter="url(#boxShadow)"/>
+  <text x="1297" y="178" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">8. Monitor + Review</text>
+  <text x="1297" y="194" text-anchor="middle" font-size="10" fill="#90CAF5">get_sdd_session()</text>
+  <text x="1297" y="208" text-anchor="middle" font-size="10" fill="#90CAF5">tail -f history.jsonl</text>
+  <text x="1297" y="222" text-anchor="middle" font-size="10" fill="#90CAF5">git review + merge</text>
+
+  <!-- ================================================================== -->
+  <!--  HANDOFF ARROW (Human -> CLI)                                       -->
+  <!-- ================================================================== -->
+
+  <!-- Large curved handoff arrow -->
+  <path d="M 895 195 C 960 195, 960 280, 960 340 L 960 400" stroke="#ce93d8" stroke-width="3" fill="none" marker-end="url(#arrowPurple)" stroke-dasharray="8,4" filter="url(#glow)"/>
+  <rect x="905" y="270" width="140" height="36" rx="6" fill="#4A148C" opacity="0.9"/>
+  <text x="975" y="284" text-anchor="middle" font-size="10" font-weight="bold" fill="#E1BEE7">CLI /plan</text>
+  <text x="975" y="298" text-anchor="middle" font-size="9" fill="#CE93D8">copilot --yolo --model</text>
+
+  <!-- ================================================================== -->
+  <!--  PHASE 2: CLI AGENT EXECUTION (CLI lane)                            -->
+  <!-- ================================================================== -->
+
+  <!-- Box 5: Plan Decomposition -->
+  <rect x="880" y="403" width="175" height="70" rx="8" fill="url(#cliGrad)" filter="url(#boxShadow)"/>
+  <text x="967" y="430" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">5. /plan Decompose</text>
+  <text x="967" y="446" text-anchor="middle" font-size="10" fill="#E1BEE7">Read SDD spec</text>
+  <text x="967" y="460" text-anchor="middle" font-size="10" fill="#E1BEE7">Generate impl plan</text>
+
+  <!-- Box 6: start_sdd_session -->
+  <rect x="660" y="403" width="175" height="70" rx="8" fill="url(#cliGrad)" filter="url(#boxShadow)"/>
+  <text x="747" y="430" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">6. Start Session</text>
+  <text x="747" y="446" text-anchor="middle" font-size="10" fill="#E1BEE7">start_sdd_session()</text>
+  <text x="747" y="460" text-anchor="middle" font-size="10" fill="#E1BEE7">Activates tracking</text>
+
+  <!-- Box 7: Implementation Loop -->
+  <rect x="370" y="395" width="245" height="86" rx="8" fill="url(#cliGrad)" filter="url(#boxShadow)"/>
+  <text x="492" y="422" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">7. Implement + Record</text>
+  <text x="492" y="440" text-anchor="middle" font-size="10" fill="#E1BEE7">Edit code (SessionManager.js, GraphRAGTools.js)</text>
+  <text x="492" y="456" text-anchor="middle" font-size="10" fill="#E1BEE7">record_sdd_step() after each milestone</text>
+  <text x="492" y="472" text-anchor="middle" font-size="10" fill="#E1BEE7">complete_sdd_session() when done</text>
+
+  <!-- Loop arrow on Box 7 -->
+  <path d="M 480 481 C 480 500, 510 500, 510 481" stroke="#CE93D8" stroke-width="1.5" fill="none" marker-end="url(#arrowPurple)"/>
+  <text x="495" y="508" text-anchor="middle" font-size="9" fill="#CE93D8" font-style="italic">per step</text>
+
+  <!-- Arrows: 5->6->7 -->
+  <line x1="880" y1="438" x2="837" y2="438" stroke="#CE93D8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+  <line x1="660" y1="438" x2="617" y2="438" stroke="#CE93D8" stroke-width="1.5" marker-end="url(#arrowPurple)"/>
+
+  <!-- Arrow: 7 -> Validation -->
+  <path d="M 370 460 C 280 460, 280 560, 280 650" stroke="#ffab40" stroke-width="2" fill="none" marker-end="url(#arrowOrange)" stroke-dasharray="6,3"/>
+
+  <!-- ================================================================== -->
+  <!--  PHASE 3: VALIDATION (Validation lane)                              -->
+  <!-- ================================================================== -->
+
+  <!-- Box: generate-tool-docs --check -->
+  <rect x="190" y="650" width="190" height="56" rx="8" fill="url(#validateGrad)" filter="url(#boxShadow)"/>
+  <text x="285" y="673" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">generate-tool-docs.js</text>
+  <text x="285" y="690" text-anchor="middle" font-size="10" fill="#FFCC80">--check (44/44, 0 warns)</text>
+
+  <!-- Box: npm test -->
+  <rect x="420" y="650" width="160" height="56" rx="8" fill="url(#validateGrad)" filter="url(#boxShadow)"/>
+  <text x="500" y="673" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">npm test</text>
+  <text x="500" y="690" text-anchor="middle" font-size="10" fill="#FFCC80">Unit + integration</text>
+
+  <!-- Box: mcp_health_check -->
+  <rect x="620" y="650" width="180" height="56" rx="8" fill="url(#validateGrad)" filter="url(#boxShadow)"/>
+  <text x="710" y="673" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">mcp_health_check()</text>
+  <text x="710" y="690" text-anchor="middle" font-size="10" fill="#FFCC80">7/7 components green</text>
+
+  <!-- Box: Docker Rebuild -->
+  <rect x="840" y="650" width="180" height="56" rx="8" fill="url(#validateGrad)" filter="url(#boxShadow)"/>
+  <text x="930" y="673" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">Docker Rebuild</text>
+  <text x="930" y="690" text-anchor="middle" font-size="10" fill="#FFCC80">eib-mcp-rag:latest</text>
+
+  <!-- Box: Gateway Verify -->
+  <rect x="1060" y="650" width="160" height="56" rx="8" fill="url(#validateGrad)" filter="url(#boxShadow)"/>
+  <text x="1140" y="673" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">Gateway Verify</text>
+  <text x="1140" y="690" text-anchor="middle" font-size="10" fill="#FFCC80">Smoke test new tools</text>
+
+  <!-- Arrows between validation boxes -->
+  <line x1="380" y1="678" x2="418" y2="678" stroke="#FFAB40" stroke-width="1.2" marker-end="url(#arrowOrange)"/>
+  <line x1="580" y1="678" x2="618" y2="678" stroke="#FFAB40" stroke-width="1.2" marker-end="url(#arrowOrange)"/>
+  <line x1="800" y1="678" x2="838" y2="678" stroke="#FFAB40" stroke-width="1.2" marker-end="url(#arrowOrange)"/>
+  <line x1="1020" y1="678" x2="1058" y2="678" stroke="#FFAB40" stroke-width="1.2" marker-end="url(#arrowOrange)"/>
+
+  <!-- Arrow: Validation -> Monitor/Review (back up to human lane) -->
+  <path d="M 1220 670 C 1340 670, 1350 400, 1297 233" stroke="#69f0ae" stroke-width="2" fill="none" marker-end="url(#arrowGreen)" stroke-dasharray="6,3"/>
+  <text x="1340" y="450" font-size="9" fill="#69f0ae" transform="rotate(-80, 1340, 450)" font-style="italic">results to reviewer</text>
+
+  <!-- ================================================================== -->
+  <!--  PERSISTENT STATE LAYER                                             -->
+  <!-- ================================================================== -->
+
+  <!-- State file boxes -->
+  <rect x="160" y="834" width="200" height="52" rx="6" fill="url(#stateGrad)" stroke="#546E7A" stroke-width="1"/>
+  <text x="260" y="855" text-anchor="middle" font-size="11" font-weight="bold" fill="#69f0ae">active_session.json</text>
+  <text x="260" y="872" text-anchor="middle" font-size="9" fill="#78909C">Session state + modifications[]</text>
+
+  <rect x="400" y="834" width="200" height="52" rx="6" fill="url(#stateGrad)" stroke="#546E7A" stroke-width="1"/>
+  <text x="500" y="855" text-anchor="middle" font-size="11" font-weight="bold" fill="#69f0ae">history.jsonl</text>
+  <text x="500" y="872" text-anchor="middle" font-size="9" fill="#78909C">Append-only audit trail</text>
+
+  <rect x="640" y="834" width="200" height="52" rx="6" fill="url(#stateGrad)" stroke="#546E7A" stroke-width="1"/>
+  <text x="740" y="855" text-anchor="middle" font-size="11" font-weight="bold" fill="#69f0ae">checkpoints/*.json</text>
+  <text x="740" y="872" text-anchor="middle" font-size="9" fill="#78909C">Named snapshots (24H-3)</text>
+
+  <rect x="880" y="834" width="200" height="52" rx="6" fill="url(#stateGrad)" stroke="#546E7A" stroke-width="1"/>
+  <text x="980" y="855" text-anchor="middle" font-size="11" font-weight="bold" fill="#69f0ae">workflows/*.md</text>
+  <text x="980" y="872" text-anchor="middle" font-size="9" fill="#78909C">SDD specs (SPOT)</text>
+
+  <rect x="1120" y="834" width="200" height="52" rx="6" fill="url(#stateGrad)" stroke="#546E7A" stroke-width="1"/>
+  <text x="1220" y="855" text-anchor="middle" font-size="11" font-weight="bold" fill="#69f0ae">CHANGELOG.md</text>
+  <text x="1220" y="872" text-anchor="middle" font-size="9" fill="#78909C">Semantic versioning</text>
+
+  <!-- Dashed lines from CLI lane down to state -->
+  <line x1="492" y1="481" x2="260" y2="832" stroke="#546E7A" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="492" y1="481" x2="500" y2="832" stroke="#546E7A" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="492" y1="481" x2="740" y2="832" stroke="#546E7A" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- Dashed line from Monitor down to state (read) -->
+  <line x1="1297" y1="225" x2="500" y2="832" stroke="#546E7A" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+  <line x1="1297" y1="225" x2="260" y2="832" stroke="#546E7A" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+
+  <!-- ================================================================== -->
+  <!--  LEGEND                                                             -->
+  <!-- ================================================================== -->
+  <rect x="60" y="264" width="290" height="58" rx="6" fill="#0f0c29" stroke="#37474F" stroke-width="1"/>
+  <rect x="72" y="276" width="12" height="12" rx="2" fill="url(#humanGrad)"/>
+  <text x="90" y="287" font-size="10" fill="#90CAF5">Human + AI (IDE)</text>
+  <rect x="72" y="296" width="12" height="12" rx="2" fill="url(#mcpGrad)"/>
+  <text x="90" y="307" font-size="10" fill="#A5D6A7">MCP-assisted (tools)</text>
+  <rect x="195" y="276" width="12" height="12" rx="2" fill="url(#cliGrad)"/>
+  <text x="213" y="287" font-size="10" fill="#E1BEE7">CLI Agent (autonomous)</text>
+  <rect x="195" y="296" width="12" height="12" rx="2" fill="url(#validateGrad)"/>
+  <text x="213" y="307" font-size="10" fill="#FFCC80">Validation Gate</text>
+
+  <!-- ================================================================== -->
+  <!--  PHASE NUMBERS (circled)                                            -->
+  <!-- ================================================================== -->
+  <circle cx="147" cy="148" r="10" fill="#1565C0" stroke="#64ffda" stroke-width="1.5"/>
+  <text x="147" y="152" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">1</text>
+
+  <circle cx="367" cy="148" r="10" fill="#1565C0" stroke="#64ffda" stroke-width="1.5"/>
+  <text x="367" y="152" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">2</text>
+
+  <circle cx="587" cy="148" r="10" fill="#00897B" stroke="#64ffda" stroke-width="1.5"/>
+  <text x="587" y="152" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">3</text>
+
+  <circle cx="807" cy="148" r="10" fill="#00897B" stroke="#64ffda" stroke-width="1.5"/>
+  <text x="807" y="152" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">4</text>
+
+  <circle cx="967" cy="396" r="10" fill="#7B1FA2" stroke="#CE93D8" stroke-width="1.5"/>
+  <text x="967" y="400" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">5</text>
+
+  <circle cx="747" cy="396" r="10" fill="#7B1FA2" stroke="#CE93D8" stroke-width="1.5"/>
+  <text x="747" y="400" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">6</text>
+
+  <circle cx="492" cy="388" r="10" fill="#7B1FA2" stroke="#CE93D8" stroke-width="1.5"/>
+  <text x="492" y="392" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">7</text>
+
+  <circle cx="1297" cy="148" r="10" fill="#1565C0" stroke="#64ffda" stroke-width="1.5"/>
+  <text x="1297" y="152" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">8</text>
+
+  <!-- Footer -->
+  <text x="720" y="908" text-anchor="middle" font-size="10" fill="#546E7A">
+    EIB MCP-RAG Server &#x2022; SDD Framework v6.0 &#x2022; Phase 31 Session Model + Phase 24H Agentic Tool Surface &#x2022; NOAA/EMC &#x2022; 2026-02-24
+  </text>
+</svg>
+
+<!-- ================================================================== -->
+<!--  DESCRIPTION                                                        -->
+<!-- ================================================================== -->
+
+<div class="description">
+  <h2>SDD Workflow: Managed Concepts to Code Implementation via CLI /plan Handoff</h2>
+
+  <p>This diagram documents the end-to-end development process used by the EIB MCP-RAG platform, where
+  <strong>Spec-Driven Development (SDD)</strong> governs the lifecycle from conceptual design through autonomous code
+  implementation and back to human review. The process spans two execution modalities&#8212;IDE (human-in-the-loop)
+  and CLI (autonomous)&#8212;unified by persistent session state.</p>
+
+  <h3>The Eight Steps</h3>
+
+  <table>
+    <tr>
+      <th>Step</th>
+      <th>Actor</th>
+      <th>Activity</th>
+      <th>Key Tools / Artifacts</th>
+    </tr>
+    <tr>
+      <td><strong>1. Discover</strong></td>
+      <td><span class="phase-tag human">Human + AI</span></td>
+      <td>Run health checks and smoke tests to validate system state. Identify gaps, stale documentation, parameter mismatches.</td>
+      <td><code>mcp_health_check()</code>, <code>get_knowledge_base_status()</code>, <code>search_documentation()</code>, GraphRAG validation</td>
+    </tr>
+    <tr>
+      <td><strong>2. Spec Design</strong></td>
+      <td><span class="phase-tag human">Human + AI</span></td>
+      <td>Author the SDD workflow specification in markdown. Define steps, success criteria, dependencies, and open questions. "If it's not in the SDD, it doesn't get coded."</td>
+      <td><code>sdd_framework/workflows/phaseNN_feature.md</code></td>
+    </tr>
+    <tr>
+      <td><strong>3. Resolve Decisions</strong></td>
+      <td><span class="phase-tag mcp">MCP-assisted</span></td>
+      <td>Investigate open questions using MCP tools (code analysis, architecture search). Make architectural decisions and update the spec with resolutions.</td>
+      <td><code>get_code_context()</code>, <code>search_architecture()</code>, spec updates committed to git</td>
+    </tr>
+    <tr>
+      <td><strong>4. Prep Handoff</strong></td>
+      <td><span class="phase-tag mcp">MCP-assisted</span></td>
+      <td>Push all changes to origin. Ensure instruction files are synchronized (<code>generate-tool-docs.js --check</code>). Verify the spec is self-contained for the CLI agent.</td>
+      <td><code>git push origin develop</code>, instruction file sync, CHANGELOG</td>
+    </tr>
+    <tr>
+      <td><strong>5. /plan Decompose</strong></td>
+      <td><span class="phase-tag cli">CLI Agent</span></td>
+      <td>The Copilot CLI reads the SDD spec, <code>.github/copilot-instructions.md</code>, and existing source code. Generates its own implementation plan from the spec.</td>
+      <td><code>copilot --model claude-opus-4.6 --yolo --additional-mcp-config @.copilot/mcp-config.json</code></td>
+    </tr>
+    <tr>
+      <td><strong>6. Start Session</strong></td>
+      <td><span class="phase-tag cli">CLI Agent</span></td>
+      <td>Calls <code>start_sdd_session()</code> to activate tracking. Creates <code>active_session.json</code> and first <code>history.jsonl</code> entry. From this point, all progress is durable.</td>
+      <td><code>start_sdd_session({ phase, totalSteps })</code></td>
+    </tr>
+    <tr>
+      <td><strong>7. Implement + Record</strong></td>
+      <td><span class="phase-tag cli">CLI Agent</span></td>
+      <td>Iterative loop: edit code, then call <code>record_sdd_step()</code> after each milestone. Session state updates on every step. Calls <code>complete_sdd_session()</code> when done.</td>
+      <td><code>record_sdd_step({ step, name, tag, notes })</code>, <code>complete_sdd_session({ summary })</code></td>
+    </tr>
+    <tr>
+      <td><strong>8. Monitor + Review</strong></td>
+      <td><span class="phase-tag human">Human + AI</span></td>
+      <td>The IDE session monitors CLI progress in real-time via <code>get_sdd_session()</code> or <code>tail -f history.jsonl</code>. After completion: review changes, run validation gates, merge.</td>
+      <td><code>get_sdd_session()</code>, <code>get_sdd_execution_history()</code>, <code>git diff</code>, code review</td>
+    </tr>
+  </table>
+
+  <h3>Validation Pipeline (Automated Gates)</h3>
+  <p>Before any CLI-produced code is merged, it passes through five automated checks:</p>
+  <table>
+    <tr><th>Gate</th><th>What It Checks</th><th>Pass Criteria</th></tr>
+    <tr><td><code>generate-tool-docs.js --check</code></td><td>All MCP tools documented in instruction files with correct required params</td><td>44/44 tools, 0 warnings</td></tr>
+    <tr><td><code>npm test</code></td><td>Unit + integration test suite</td><td>All pass</td></tr>
+    <tr><td><code>mcp_health_check(deep)</code></td><td>Server + ChromaDB + Neo4j + all components</td><td>7/7 healthy</td></tr>
+    <tr><td>Docker rebuild</td><td>Image builds with new code baked in</td><td><code>docker build</code> succeeds</td></tr>
+    <tr><td>Gateway smoke test</td><td>New tools callable via Streamable HTTP gateway</td><td>Tools respond correctly</td></tr>
+  </table>
+
+  <h3>Persistent State Layer</h3>
+  <p>All state is filesystem-based (no Redis, no SQLite), following the Phase 31 session model decision:</p>
+  <table>
+    <tr><th>File</th><th>Purpose</th><th>Lifecycle</th></tr>
+    <tr><td><code>active_session.json</code></td><td>Current session: phase, completedSteps[], modifications[], examined[], checkpoints[]</td><td>Created on <code>start_sdd_session</code>, deleted on <code>complete_sdd_session</code></td></tr>
+    <tr><td><code>history.jsonl</code></td><td>Append-only event log for audit trail</td><td>Grows forever, one JSON line per event</td></tr>
+    <tr><td><code>checkpoints/*.json</code></td><td>Named snapshots of session state (Phase 24H-3 extension)</td><td>Created by <code>checkpoint_state</code>, read by <code>restore_checkpoint</code></td></tr>
+    <tr><td><code>workflows/*.md</code></td><td>SDD specifications &#8212; Single Point of Truth for each feature</td><td>Authored in Steps 2-3, read by CLI in Step 5</td></tr>
+    <tr><td><code>CHANGELOG.md</code></td><td>Semantic versioning with dated headers</td><td>Updated at every version change</td></tr>
+  </table>
+
+  <h3>Key Design Principle: Modality-Aware Execution</h3>
+  <p>The same session model serves both modalities. In <strong>IDE mode</strong> (Steps 1-4, 8), the chat window is the
+  approval mechanism&#8212;every tool call requires a human turn. In <strong>CLI mode</strong> (Steps 5-7, <code>--yolo</code>),
+  the agent runs autonomously with the SDD spec as its guardrail. The persistent state layer bridges the gap:
+  the CLI writes to the same <code>active_session.json</code> and <code>history.jsonl</code> that the IDE reads.
+  This enables true cross-modality session handoff.</p>
+
+  <p>When Phase 4C USD delivers the ISD approval infrastructure for CLI mode, the same file-based state
+  will gain enforcement semantics&#8212;step types will gate tool permissions rather than just describe intent.
+  Until then, the SDD spec itself is the control plane.</p>
+</div>
+
+</div>
+</body>
+</html>
