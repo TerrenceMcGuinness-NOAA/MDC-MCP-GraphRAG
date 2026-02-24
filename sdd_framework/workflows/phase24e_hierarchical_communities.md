@@ -1,10 +1,10 @@
 # SDD: Phase 24E - Hierarchical Community Summarization
 
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 **Created:** 2026-02-05  
-**Updated:** 2026-02-23  
+**Updated:** 2026-02-24  
 **Author:** AI Assistant + Terry McGuinness  
-**Status:** PARTIALLY COMPLETE — 24E-1/2/3 operational (flat communities + ChromaDB summaries); 24E-4 deferred; **24E-5 NOT STARTED** (Community node materialization & hierarchy)  
+**Status:** COMPLETE — 24E-1/2/3 operational (flat communities + ChromaDB summaries); 24E-4 deferred; **24E-5 COMPLETE** (v7.20.0: 1,036 Community nodes, 4 levels, 21,559 MEMBER_OF, 978 PARENT_OF, 1,297 INTERACTS_WITH, 828 summaries)  
 **Dependency:** Phase 24A-D (Graph-Guided Speculative Retrieval)
 
 > **📋 MASTER REFERENCE:** [phase24_consolidated_architecture.md](phase24_consolidated_architecture.md)
@@ -338,7 +338,7 @@ class DualRetrievalRouter {
 - [x] Install/enable Neo4j GDS plugin (GDS 2.13.7, Neo4j 5.26.20-community)
 - [x] Create graph projection with appropriate relationships (9 labels, 10 rel types → 25,352 nodes, 958,660 rels)
 - [x] Run Leiden community detection (3,841 communities, modularity 0.8184)
-- [ ] **GAP:** Leiden ran with `gds.leiden.write` (single-level `communityId` only). `includeIntermediateCommunities: true` was NOT used — no hierarchical level data exists. See 24E-5.
+- [x] **RESOLVED (24E-5, v7.20.0):** Leiden re-run with `includeIntermediateCommunities: true`. 25,377 nodes now have `communityLevels` array property. 4 hierarchical levels materialized.
 - [x] Validate: Do communities align with intuitive code boundaries? (size distribution: 3,767 singleton, 17 size 2-3, 16 size 200+)
 - [x] Store community assignments as node properties (`communityId` written to all 25,352 nodes)
 
@@ -365,7 +365,7 @@ LIMIT 20
 **Steps:**
 - [x] Implement summary generation prompt (§3.5) — template-based with 16 keyword patterns for purpose inference
 - [x] Build summary pipeline: `CommunitySummarizer.summarizeAll()` processes communities with 3+ members
-- [ ] **GAP:** No `Community` label nodes created in Neo4j. Summaries stored in ChromaDB only. No `:MEMBER_OF`, `:PARENT_OF`, or `:INTERACTS_WITH` relationships exist. The spec's §3.2 schema was never materialized. See 24E-5.
+- [x] **RESOLVED (24E-5, v7.20.0):** 1,036 Community nodes created (L0:694, L1:175, L2:86, L3:81). 21,559 MEMBER_OF, 978 PARENT_OF, 1,297 INTERACTS_WITH. 828 summaries in Neo4j + ChromaDB. `retrieveGlobal()` updated with level-aware drill-down.
 - [ ] **GAP:** Bottom-up L1→L2→L3 summarization not done (no hierarchy). All 63 summaries are flat/leaf-level.
 - [x] Embed summaries and store vectors — `Xenova/all-mpnet-base-v2` embeddings, batch upsert
 - [x] Create ChromaDB collection `community-summaries` — 63 summaries, 2 batches (50+13)
@@ -491,7 +491,7 @@ SET ancestor.stale = true
 
 **Motivation:** The Global Workflow is one of the most complex computational pipelines on Earth — modeling the planet's atmosphere, ocean, sea ice, land surface, and chemistry across multiple coupled models (FV3, MOM6, CICE, WW3, GOCART). Understanding how these subsystems interact at different levels of abstraction is essential for the developers evolving this infrastructure. Flat `communityId` properties are insufficient; the system needs navigable hierarchical communities as first-class graph entities.
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE (v7.20.0, commit 27ad4e5, February 24, 2026)
 
 **Prerequisites:**
 - Neo4j GDS 2.13+ (available: v2.13.7)
