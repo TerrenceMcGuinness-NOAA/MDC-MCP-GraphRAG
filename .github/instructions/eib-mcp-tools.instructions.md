@@ -1,9 +1,8 @@
-# EIB MCP Tool Usage Instructions
-#
-# These instructions are loaded when the eib-mcp-rag-full MCP server is available.
-# They guide AI agents on how to use the custom MCP toolset effectively.
-#
-# applyWhen: hasActiveMCPServer("eib-mcp-rag-full")
+---
+applyWhen: hasActiveMCPServer("eib-mcp-rag-full")
+---
+
+# EIB MCP Tool Usage Instructions (42 tools / 9 modules)
 
 ## MCP-First Policy
 
@@ -31,6 +30,7 @@ These are the **exact parameter names** — using wrong names will fail:
 |------|----------------|-----------------|
 | `find_dependencies` | `target` | `direction`, `max_depth` |
 | `find_callers_callees` | `function_name` | `file_path`, `include_source` |
+| `trace_full_execution_chain` | `function_name` | `file_path`, `max_depth` |
 | `describe_component` | `component` | `show_content` |
 | `trace_execution_path` | `function_name` | `file_path`, `max_depth`, `include_callers` |
 | `get_code_context` | `symbol` | `depth`, `include_source` |
@@ -38,10 +38,18 @@ These are the **exact parameter names** — using wrong names will fail:
 | `search_architecture` | `query` | `max_results` |
 | `find_related_files` | `file_path` | `max_results`, `threshold` |
 | `search_documentation` | `query` | `max_results`, `collection` |
+| `extract_code_for_analysis` | `file_path` | `lines`, `context` |
+| `get_job_details` | `job_name` | `include_dependencies` |
+| `analyze_workflow_dependencies` | `target` | `direction`, `depth` |
+| `list_ingested_urls` | *(none)* | |
+| `get_ingested_urls_array` | *(none)* | |
 | `start_sdd_session` | `phase` | `totalSteps`, `notes` |
 | `record_sdd_step` | `step`, `name` | `tag`, `notes` |
 | `get_sdd_session` | *(none)* | |
 | `complete_sdd_session` | | `summary` |
+| `get_sdd_execution_history` | *(none)* | `limit` |
+| `validate_sdd_compliance` | `phase` | |
+| `get_sdd_framework_status` | *(none)* | |
 
 ## Tool Selection by Task
 
@@ -51,12 +59,15 @@ These are the **exact parameter names** — using wrong names will fail:
 - `find_callers_callees({ function_name })` — call graph traversal
 - `find_env_dependencies({ variable_name })` — environment variable lineage
 - `trace_execution_path({ function_name })` — execution flow tracing
+- `trace_full_execution_chain({ function_name })` — end-to-end execution chain across files
 
 ### Semantic Search & RAG (ChromaDB-backed)
 - `search_documentation({ query })` — semantic search across ingested docs
 - `explain_with_context({ query })` — RAG-powered explanations with citations
 - `find_related_files({ file_path })` — vector similarity for related code/docs
 - `get_knowledge_base_status()` — DB health and collection stats
+- `list_ingested_urls()` — documentation sources ingested into RAG
+- `get_ingested_urls_array()` — structured URL array for programmatic access
 
 ### GraphRAG (Combined Neo4j + ChromaDB)
 - `get_code_context({ symbol })` — GGSR neighborhood + community summary
@@ -70,11 +81,13 @@ These are the **exact parameter names** — using wrong names will fail:
 - `scan_repository_compliance({ repository_path })` — bulk compliance scan
 - `search_ee2_standards({ query })` — search EE2 standards document
 - `generate_compliance_report({ scope })` — formatted compliance report
+- `extract_code_for_analysis({ file_path })` — extract code snippets for LLM passthrough analysis
 
 ### Operational Guidance
 - `get_operational_guidance({ topic })` — HPC procedures for Hera, WCOSS2, etc.
 - `list_job_scripts()` — inventory of workflow job scripts
 - `explain_workflow_component({ component })` — deep component explanation
+- `get_job_details({ job_name })` — detailed job script analysis
 
 ### Workflow Info (Filesystem only — always available)
 - `get_workflow_structure()` — system architecture overview
@@ -88,6 +101,9 @@ These are the **exact parameter names** — using wrong names will fail:
 - `record_sdd_step({ step, name, tag, notes })` — record step completion (tags: research, design, implement, configure, validate, document, ingest)
 - `get_sdd_session()` — get current active session state (resume across conversations)
 - `complete_sdd_session({ summary })` — complete session, archive to history
+- `get_sdd_execution_history()` — view execution history
+- `validate_sdd_compliance({ phase })` — validate code against SDD framework
+- `get_sdd_framework_status()` — framework status and metrics
 
 **Session lifecycle**: `start_sdd_session` → `record_sdd_step` (repeat) → `complete_sdd_session`
 
@@ -97,6 +113,7 @@ These are the **exact parameter names** — using wrong names will fail:
 - `search_issues({ query })` — search issues across repos
 - `get_pull_requests()` — list and filter PRs
 - `analyze_repository_structure()` — repo structure analysis
+- `analyze_workflow_dependencies({ target })` — cross-repo dependency analysis
 
 ### Health & Diagnostics
 - `mcp_health_check()` — full server + database health

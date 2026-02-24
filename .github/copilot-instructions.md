@@ -101,14 +101,14 @@ BaseServer (src/core/) → MCP SDK → stdio transport → AI client
 
 | Module | Key Tools | Requires |
 |--------|-----------|----------|
-| WorkflowInfoTools | `get_workflow_structure`, `get_system_configs`, `describe_component` | Filesystem only |
-| CodeAnalysisTools | `analyze_code_structure`, `find_dependencies`, `find_callers_callees`, `find_env_dependencies` | Neo4j |
-| SemanticSearchTools | `search_documentation`, `explain_with_context`, `get_knowledge_base_status` | ChromaDB + Neo4j |
-| EE2ComplianceTools | `analyze_ee2_compliance`, `scan_repository_compliance`, `search_ee2_standards` | ChromaDB |
-| OperationalTools | `get_operational_guidance`, `list_job_scripts`, `explain_workflow_component` | ChromaDB |
-| GraphRAGTools | `get_code_context`, `search_architecture`, `find_similar_code`, `get_change_impact`, `trace_data_flow` | ChromaDB + Neo4j |
-| GitHubTools | `search_issues`, `get_pull_requests`, `analyze_repository_structure` | GitHub API |
-| SDDWorkflowTools | `list_sdd_workflows`, `get_sdd_workflow`, `start_sdd_session`, `record_sdd_step`, `get_sdd_session`, `complete_sdd_session` | Filesystem |
+| WorkflowInfoTools (3) | `get_workflow_structure`, `get_system_configs`, `describe_component` | Filesystem only |
+| CodeAnalysisTools (6) | `analyze_code_structure`, `find_dependencies`, `find_callers_callees`, `find_env_dependencies`, `trace_execution_path`, `trace_full_execution_chain` | Neo4j |
+| SemanticSearchTools (6) | `search_documentation`, `explain_with_context`, `find_related_files`, `get_knowledge_base_status`, `list_ingested_urls`, `get_ingested_urls_array` | ChromaDB + Neo4j |
+| EE2ComplianceTools (5) | `analyze_ee2_compliance`, `scan_repository_compliance`, `search_ee2_standards`, `generate_compliance_report`, `extract_code_for_analysis` | ChromaDB |
+| OperationalTools (4) | `get_operational_guidance`, `list_job_scripts`, `explain_workflow_component`, `get_job_details` | ChromaDB |
+| GraphRAGTools (5) | `get_code_context`, `search_architecture`, `find_similar_code`, `get_change_impact`, `trace_data_flow` | ChromaDB + Neo4j |
+| GitHubTools (4) | `search_issues`, `get_pull_requests`, `analyze_repository_structure`, `analyze_workflow_dependencies` | GitHub API |
+| SDDWorkflowTools (9) | `list_sdd_workflows`, `get_sdd_workflow`, `start_sdd_session`, `record_sdd_step`, `get_sdd_session`, `complete_sdd_session`, `get_sdd_execution_history`, `validate_sdd_compliance`, `get_sdd_framework_status` | Filesystem |
 
 ### SDD Methodology (REQUIRED for new features)
 
