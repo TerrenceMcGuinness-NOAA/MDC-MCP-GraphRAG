@@ -68,11 +68,13 @@ Phase 24: True GraphRAG Fusion
 │   │   ├── Result: 60% vs 40% baseline (+20pp), cross-lang 100%
 │   │   └── GO decision for Phase 24H
 │   │
-│   └── 24H: Agentic MCP Tool Surface       [Weeks 19-24]  ✅ Done (v7.11.0)
+│   └── 24H: Agentic MCP Tool Surface       [Weeks 19-24]  ✅ Partial (v7.11.0)
 │       ├── 24H-1: Discovery Tools (get_code_context, search_architecture, find_similar_code)  ✅
 │       ├── 24H-2: Impact + Trace Tools (get_change_impact, trace_data_flow)  ✅
-│       ├── 24H-3: Session State (checkpoint, resume) — deferred (persistence design TBD)
-│       └── 24H-4: Integration & Documentation — deferred (post-validation)
+│       ├── 24H-2b: get_test_coverage — ⏸ blocked (needs :Test graph nodes)
+│       ├── 24H-3: Session State — 📋 READY (extend Phase 31 SessionManager, filesystem persistence)
+│       │   └── Decision: Open Question #2 resolved → filesystem, not Redis/SQLite (2026-02-24)
+│       └── 24H-4: Integration & Documentation — 📋 READY (after 24H-3)
 │
 └── Q4 2026: Advanced (Future)
     ├── 24I: Learned Graph Embeddings (node2vec, GNN)

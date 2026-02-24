@@ -1,10 +1,11 @@
 # SDD: Phase 24H - Agentic MCP Tool Surface
 
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Created:** 2026-02-05  
+**Updated:** 2026-02-24  
 **Author:** AI Assistant + Terry McGuinness  
-**Status:** Supplement (Integrated into Consolidated Architecture)  
-**Dependencies:** Phase 24A-D (GGSR), Phase 24E (Community Summarization), Phase 24F (Cross-Language), Phase 24G (Benchmark)
+**Status:** Partially Complete — 24H-1/24H-2 delivered (v7.11.0), 24H-3/24H-4 ready for CLI handoff  
+**Dependencies:** Phase 24A-D (GGSR), Phase 24E (Community Summarization), Phase 24F (Cross-Language), Phase 24G (Benchmark), Phase 31 (SDD Session Model)
 
 > **📋 MASTER REFERENCE:** [phase24_consolidated_architecture.md](phase24_consolidated_architecture.md)
 
@@ -906,52 +907,74 @@ async function get_graph_stats() {
 
 ## 5. Implementation Phases
 
-### Phase 24H-1: Core Discovery Tools (Week 1-2)
+### Phase 24H-1: Core Discovery Tools ✅ Complete (v7.11.0)
 
 **Deliverables:**
-- [ ] `get_code_context` - Full implementation with GGSR integration
-- [ ] `find_similar_code` - ChromaDB semantic search with graph enrichment
-- [ ] Tool registration in MCP server
+- [x] `get_code_context` - Full implementation with GGSR integration (GraphRAGTools.js)
+- [x] `find_similar_code` - ChromaDB semantic search with graph enrichment (GraphRAGTools.js)
+- [x] `search_architecture` - Community summary search (GraphRAGTools.js)
+- [x] Tool registration in MCP server
+- [x] Parameter aliases added for backward compatibility (Phase 29, v7.20.2)
 
-**Success Criteria:**
-- `get_code_context` returns complete context in <500ms
-- Tools registered and callable from LLM
+**Success Criteria:** Met — tools registered and callable, <500ms typical latency.
 
-### Phase 24H-2: Impact Analysis Tools (Week 3-4)
-
-**Deliverables:**
-- [ ] `get_change_impact` - Full blast radius analysis
-- [ ] `get_test_coverage` - Test discovery and coverage analysis
-- [ ] `trace_data_flow` - Path finding through data relationships
-
-**Success Criteria:**
-- Impact analysis covers direct + indirect dependents
-- Risk scoring produces actionable assessments
-
-### Phase 24H-3: Session State Tools (Week 5-6)
+### Phase 24H-2: Impact Analysis + Trace Tools ✅ Complete (v7.11.0)
 
 **Deliverables:**
-- [ ] `mark_as_modified` - Modification tracking with graph dirty flagging
-- [ ] `get_session_context` - Session state retrieval
-- [ ] `checkpoint_state` / `restore_checkpoint` - Durable checkpointing
-- [ ] Session persistence layer (Redis or SQLite)
+- [x] `get_change_impact` - Blast radius analysis with risk scoring (GraphRAGTools.js)
+- [x] `trace_data_flow` - Data flow tracing across codebase (GraphRAGTools.js)
+- [ ] `get_test_coverage` - **Deferred** — requires `:Test` nodes + `:TESTS` relationships in Neo4j graph schema (not yet ingested)
 
-**Success Criteria:**
-- Session state persists across MCP server restarts
-- Checkpoints enable work resumption
+**Success Criteria:** Partially met — impact analysis and data flow work. Test coverage blocked on graph schema extension.
 
-### Phase 24H-4: Integration & Documentation (Week 7-8)
+### Phase 24H-3: Session State Tools — READY FOR IMPLEMENTATION
+
+> **Design Decision (2026-02-24):** Open Question #2 resolved — **extend Phase 31 SessionManager.js** with filesystem persistence. No Redis or SQLite needed. The existing `active_session.json` + `history.jsonl` pattern handles all 24H session requirements.
 
 **Deliverables:**
-- [ ] Full MCP tool manifest with descriptions
-- [ ] Integration tests for all tools
-- [ ] Agent workflow examples
-- [ ] Performance benchmarks
+- [ ] Extend `SessionManager.js` with `modifications[]`, `examined[]`, `checkpoints[]` arrays on active session schema
+- [ ] `mark_as_modified` tool — append to `modifications[]` + set `dirty=true` on Neo4j nodes + flag communities as stale
+- [ ] `get_session_context` tool — aggregated view of examined symbols, modifications, checkpoints, graph dirty state
+- [ ] `checkpoint_state` tool — snapshot current modifications/examined to `execution_state/checkpoints/<id>.json`
+- [ ] `restore_checkpoint` tool — roll back session state to named checkpoint
+- [ ] Auto-record examined symbols when `get_code_context` is called (internal, no new tool)
+
+**Persistence Design:**
+- Session state: `sdd_framework/execution_state/active_session.json` (existing file, extended schema)
+- Checkpoint files: `sdd_framework/execution_state/checkpoints/<checkpoint_id>.json` (new directory)
+- Audit trail: `sdd_framework/execution_state/history.jsonl` (existing file, new event types: `symbol_examined`, `file_modified`, `checkpoint_created`, `checkpoint_restored`)
+- No new dependencies (no Redis, no SQLite)
+
+**Tool Registration:** Register in `GraphRAGTools.js` (not SDDWorkflowTools — these are agent-workflow tools, not plan-tracking tools). The tools call `SessionManager` methods but are part of the GraphRAG discovery/impact workflow.
+
+**Overlap with SDD Tools:**
+- SDD `record_sdd_step` tracks *plan progress* ("Step 3: implement X") → SDDWorkflowTools.js
+- 24H `mark_as_modified` tracks *code changes* ("modified config.resources") → GraphRAGTools.js
+- Both write to the same `active_session.json` via `SessionManager` — orthogonal concerns, shared state
 
 **Success Criteria:**
-- All tools documented in MCP manifest
+- Session state persists across MCP server restarts (same as Phase 31 — guaranteed by filesystem writes)
+- Checkpoints enable work resumption within a session
+- `get_session_context` returns examined + modified + checkpoint data in single call
+
+### Phase 24H-4: Integration & Documentation — READY FOR IMPLEMENTATION
+
+**Deliverables:**
+- [ ] `get_graph_stats` tool — Neo4j aggregation query (node counts, relationship coverage, community health)
+- [ ] Update instruction files with new tools via `generate-tool-docs.js --check`
+- [ ] Agent workflow examples in `eib-mcp-tools.instructions.md`
+- [ ] Performance benchmarks for all 24H tools
+
+**De-scoped from original spec:**
+- `find_dependents` — already covered by `find_dependencies({ target, direction: 'downstream' })`
+- `check_interface_compliance` — requires `:Interface` + `:IMPLEMENTS` relationships (not in graph schema)
+- `get_node_neighborhood` — covered by GGSR internals exposed via `get_code_context`
+- `explain_relationship` — low priority (P3), defer to future phase
+
+**Success Criteria:**
+- All new tools documented in MCP manifest and instruction files
+- `generate-tool-docs.js --check` passes with 0 warnings
 - End-to-end agent workflow demonstrated
-- P95 latency <1s for all tools
 
 ---
 
@@ -1007,13 +1030,22 @@ Agent: Let me verify what I've done so far.
 
 ---
 
-## 8. Open Questions
+## 8. Open Questions — RESOLVED
 
 1. **Tool Granularity:** Should `get_change_impact` be split into separate tools for different concerns (tests, deps, docs)?
+   > **Resolved (v7.11.0):** No. `get_change_impact` returns a unified response with `direct_impacts`, `indirect_impacts`, and `risk_assessment` sections. Splitting would increase round-trips — the opposite of the 24H design goal.
+
 2. **Session Persistence:** Redis vs SQLite vs filesystem for checkpoint storage?
+   > **Resolved (2026-02-24):** **Filesystem** — extend Phase 31 `SessionManager.js`. The existing `active_session.json` + `history.jsonl` pattern handles all session state requirements. Checkpoints stored as individual JSON files in `execution_state/checkpoints/`. No new dependencies needed. See Phase 24H-3 implementation plan above.
+
 3. **Rate Limiting:** Should expensive tools (data flow tracing) have rate limits?
+   > **Resolved (v7.11.0):** Not rate-limited, but guarded by a 15-second GGSR timeout. Results still return partial data on timeout. This is sufficient for IDE modality where the human controls call frequency.
+
 4. **Async Tools:** Should long-running tools (full impact analysis) be async with polling?
+   > **Resolved:** No. MCP stdio transport is synchronous by design. The 15s GGSR guard ensures no tool blocks indefinitely. If async execution becomes needed for CLI/YOLO modality (Phase 4C USD), it would be a transport-layer concern, not a tool-layer concern.
+
 5. **Tool Composition:** Should we provide meta-tools that compose multiple tools (e.g., `prepare_for_refactor`)?
+   > **Resolved:** Deferred. LLM agents already compose tools naturally via multi-step reasoning. Meta-tools would reduce agent flexibility. Revisit if CLI batch execution (Phase 4C) shows a need for atomic multi-tool operations.
 
 ---
 
@@ -1048,4 +1080,15 @@ const GRAPHRAG_MCP_TOOLS = {
 
 ---
 
-*Document generated as part of SDD Phase 24H prospectus - Q3 2026*
+### Implementation Status Summary (2026-02-24)
+
+| Sub-Phase | Status | Tools | Version |
+|-----------|--------|-------|--------|
+| 24H-1 Discovery | ✅ Complete | `get_code_context`, `find_similar_code`, `search_architecture` | v7.11.0 |
+| 24H-2 Impact/Trace | ✅ Complete | `get_change_impact`, `trace_data_flow` | v7.11.0 |
+| 24H-2 Test Coverage | ⏸ Blocked | `get_test_coverage` | Needs `:Test` graph nodes |
+| 24H-3 Session State | 📋 Ready | `mark_as_modified`, `get_session_context`, `checkpoint_state`, `restore_checkpoint` | Extend Phase 31 SessionManager |
+| 24H-4 Integration | 📋 Ready | `get_graph_stats` + docs | After 24H-3 |
+| De-scoped | — | `find_dependents` (covered by `find_dependencies`), `check_interface_compliance`, `get_node_neighborhood`, `explain_relationship` | — |
+
+*Document generated as part of SDD Phase 24H prospectus. Updated 2026-02-24 with Open Question resolutions and Phase 31 extension plan.*
