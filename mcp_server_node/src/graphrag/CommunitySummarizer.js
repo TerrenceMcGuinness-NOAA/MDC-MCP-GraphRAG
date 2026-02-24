@@ -211,6 +211,152 @@ class CommunitySummarizer {
   }
 
   /**
+   * Generate hierarchical summaries bottom-up: L0 from raw members, L1+ from child summaries.
+   * Stores in both Neo4j Community nodes and ChromaDB collection.
+   * @param {object} opts
+   * @param {number} [opts.minSize=3]
+   * @param {number} [opts.maxCommunities=500]
+   * @param {number} [opts.batchSize=50]
+   * @returns {Promise<{generated: number, levels: number, elapsedMs: number}>}
+   */
+  async summarizeHierarchical({ minSize = MIN_COMMUNITY_SIZE, maxCommunities = 500, batchSize = 50 } = {}) {
+    const startTime = Date.now();
+    console.log('[INFO] Phase 24E-5: Generating hierarchical community summaries...');
+
+    const maxLevel = await this.cd.getMaxCommunityLevel();
+    console.log(`[INFO] Max community level: ${maxLevel}`);
+
+    const documents = [];
+
+    for (let level = 0; level <= maxLevel; level++) {
+      const communities = await this.cd.getCommunitiesAtLevel(level, level === 0 ? minSize : 1);
+      console.log(`[INFO] Level ${level}: ${communities.length} communities`);
+
+      let levelGenerated = 0;
+      for (const c of communities) {
+        let summary;
+        if (level === 0) {
+          // Leaf: summarize from raw member nodes + internal relationships
+          const members = await this.cd.getCommunityMembers(c.communityId, 200);
+          let rels = [];
+          try {
+            rels = await this.cd.getCommunityRelationships(c.communityId, 50);
+          } catch { /* non-fatal */ }
+          summary = this.generateSummary(c.communityId, members, rels);
+        } else {
+          // Parent: summarize from child community summaries + interactions
+          const children = await this.cd.getChildCommunities(c.communityId, level);
+          const interactions = await this.cd.getCommunityInteractions(c.communityId, level);
+          summary = this.generateParentSummary(c.communityId, level, children, interactions);
+        }
+
+        // Write summary to Neo4j Community node
+        try {
+          await this.cd._writeQuery(
+            'MATCH (c:Community {communityId: $cid, level: $level}) SET c.summary = $summary',
+            { cid: c.communityId, level, summary }
+          );
+        } catch { /* non-fatal */ }
+
+        // Determine dominant language
+        const langs = c.languages || [];
+        const dominantLang = langs.length > 0 ? langs[0] : 'Mixed';
+
+        documents.push({
+          id: `community-L${level}-${c.communityId}`,
+          text: summary,
+          metadata: {
+            communityId: c.communityId,
+            level,
+            size: c.memberCount || 0,
+            language: dominantLang,
+            generatedAt: new Date().toISOString()
+          }
+        });
+
+        levelGenerated++;
+        if (levelGenerated % 100 === 0) {
+          console.log(`[INFO] Level ${level}: processed ${levelGenerated}/${communities.length}...`);
+        }
+      }
+      console.log(`[OK] Level ${level}: ${levelGenerated} summaries generated`);
+    }
+
+    // Replace ChromaDB collection
+    console.log(`[INFO] Storing ${documents.length} hierarchical summaries in ChromaDB...`);
+
+    if (!this.vectorDB.connected) {
+      await this.vectorDB.connect();
+    }
+    try {
+      await this.vectorDB.deleteCollection(COLLECTION_NAME);
+    } catch { /* may not exist */ }
+    await this.vectorDB.getOrCreateCollection(COLLECTION_NAME, {
+      description: 'Hierarchical community summaries from Leiden detection (Phase 24E-5)'
+    });
+
+    for (let i = 0; i < documents.length; i += batchSize) {
+      const batch = documents.slice(i, i + batchSize);
+      await this.vectorDB.addDocuments(COLLECTION_NAME, batch);
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[OK] Phase 24E-5 summarization complete: ${documents.length} summaries in ${elapsed}ms`);
+
+    return {
+      generated: documents.length,
+      levels: maxLevel + 1,
+      elapsedMs: elapsed
+    };
+  }
+
+  /**
+   * Generate a summary for a parent community from its children and interactions.
+   * @param {number} communityId
+   * @param {number} level
+   * @param {Array} children - Child community objects with summaries
+   * @param {Array} interactions - INTERACTS_WITH edges
+   * @returns {string}
+   */
+  generateParentSummary(communityId, level, children, interactions) {
+    const parts = [];
+    const totalMembers = children.reduce((sum, c) => sum + (c.memberCount || 0), 0);
+    const allLangs = [...new Set(children.flatMap(c => c.languages || []))].filter(l => l !== 'Other');
+
+    parts.push(`Community L${level}_${communityId}: ${totalMembers} nodes across ${children.length} sub-communities (${allLangs.join(', ') || 'Mixed'})`);
+
+    // Child summaries
+    if (children.length > 0) {
+      parts.push(`Sub-communities: ${children.slice(0, 8).map(c => {
+        const childName = c.name || `L${c.level}_${c.communityId}`;
+        return `${childName} (${c.memberCount} nodes)`;
+      }).join(', ')}`);
+
+      // Include child purposes if available
+      const childPurposes = children
+        .filter(c => c.summary)
+        .map(c => {
+          const purposeMatch = (c.summary || '').match(/Likely purpose: (.+?)(\.|$)/);
+          return purposeMatch ? purposeMatch[1] : null;
+        })
+        .filter(Boolean);
+
+      if (childPurposes.length > 0) {
+        parts.push(`Contains: ${[...new Set(childPurposes)].slice(0, 5).join('; ')}`);
+      }
+    }
+
+    // Interactions
+    if (interactions.length > 0) {
+      parts.push(`Interacts with: ${interactions.slice(0, 5).map(i =>
+        `${i.name || 'Community_' + i.communityId} (strength: ${i.strength})`
+      ).join(', ')}`);
+    }
+
+    return parts.join('. ');
+  }
+
+  /**
    * Infer the likely purpose of a community from member names.
    * Uses keyword pattern matching on subroutine/function names.
    */

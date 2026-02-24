@@ -194,7 +194,8 @@ export class GraphGuidedRetrieval {
 
   /**
    * Retrieve community summaries for a global/system-level query.
-   * Searches the community-summaries ChromaDB collection.
+   * Level-aware search: prefers higher-level summaries for global context,
+   * then drills down to children for detail.
    *
    * @param {string} query - Query text
    * @param {number} [nResults=5] - Number of summaries to return
@@ -207,8 +208,9 @@ export class GraphGuidedRetrieval {
 
     const startTime = Date.now();
     try {
+      // Search community summaries (fetch extra for filtering)
       const results = await this.vectorDB.query(COMMUNITY_COLLECTION, query, {
-        nResults,
+        nResults: nResults * 2,
         include: ['documents', 'metadatas', 'distances']
       });
 
@@ -216,20 +218,73 @@ export class GraphGuidedRetrieval {
         return { section: '', count: 0, latencyMs: Date.now() - startTime };
       }
 
+      // Sort by level descending (prefer higher-level for global overview),
+      // then by relevance score
+      const sorted = results
+        .map(r => ({
+          ...r,
+          level: r.metadata?.level ?? 0,
+          score: r.score ?? 0
+        }))
+        .sort((a, b) => {
+          const levelDiff = (b.level || 0) - (a.level || 0);
+          if (levelDiff !== 0) return levelDiff;
+          return (b.score || 0) - (a.score || 0);
+        })
+        .slice(0, nResults);
+
       let md = '\n## Community Context\n';
       md += '*Hierarchical summaries from Leiden community detection (Phase 24E)*\n\n';
 
-      for (const r of results) {
+      for (const r of sorted) {
         const score = r.score != null ? r.score.toFixed(2) : 'N/A';
         const size = r.metadata?.size || '?';
         const lang = r.metadata?.language || '?';
-        md += `### Community (${size} nodes, ${lang}) — relevance: ${score}\n`;
+        const level = r.metadata?.level ?? '?';
+        md += `### Community L${level} (${size} nodes, ${lang}) — relevance: ${score}\n`;
         md += `${r.text || ''}\n\n`;
+
+        // Drill down: for higher-level communities, show children
+        if (level >= 1 && r.metadata?.communityId != null) {
+          try {
+            const children = await this.dataAccess?.graphDB?.query(`
+              MATCH (c:Community {communityId: $cid, level: $level})-[:PARENT_OF]->(child:Community)
+              RETURN child.name AS name, child.summary AS summary, child.memberCount AS memberCount
+              ORDER BY child.memberCount DESC LIMIT 5
+            `, { cid: r.metadata.communityId, level }) || [];
+
+            if (children.length > 0) {
+              md += `**Sub-communities:**\n`;
+              for (const child of children) {
+                md += `- ${child.name} (${child.memberCount} nodes)`;
+                if (child.summary) {
+                  const shortSummary = child.summary.substring(0, 150);
+                  md += `: ${shortSummary}${child.summary.length > 150 ? '...' : ''}`;
+                }
+                md += '\n';
+              }
+              md += '\n';
+            }
+
+            // Show inter-community interactions
+            const interactions = await this.dataAccess?.graphDB?.query(`
+              MATCH (c:Community {communityId: $cid, level: $level})-[ix:INTERACTS_WITH]->(other:Community)
+              RETURN other.name AS name, ix.strength AS strength
+              ORDER BY ix.strength DESC LIMIT 3
+            `, { cid: r.metadata.communityId, level }) || [];
+
+            if (interactions.length > 0) {
+              md += `**Interacts with:** ${interactions.map(i => `${i.name} (strength: ${i.strength})`).join(', ')}\n\n`;
+            }
+          } catch {
+            // Drill-down failure is non-fatal
+          }
+        }
       }
 
       return {
         section: md,
-        count: results.length,
+        count: sorted.length,
         latencyMs: Date.now() - startTime
       };
     } catch (err) {

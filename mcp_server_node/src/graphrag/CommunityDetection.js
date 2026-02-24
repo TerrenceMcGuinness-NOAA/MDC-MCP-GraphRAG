@@ -296,6 +296,297 @@ class CommunityDetection {
   }
 
   /**
+   * Re-run Leiden with includeIntermediateCommunities to capture hierarchy.
+   * Writes communityId (coarsest level) and communityLevels (array, index 0 = finest)
+   * back to each node.
+   *
+   * @param {object} opts
+   * @param {number} [opts.maxLevels=5] - Maximum hierarchical levels
+   * @param {number} [opts.gamma=1.0] - Resolution parameter
+   * @returns {Promise<{nodesUpdated: number, topCommunities: number, maxDepth: number}>}
+   */
+  async runHierarchicalLeiden({ maxLevels = 5, gamma = 1.0 } = {}) {
+    console.log('[INFO] Running hierarchical Leiden with includeIntermediateCommunities...');
+    const cypher = `
+      CALL gds.leiden.stream('${GRAPH_NAME}', {
+        maxLevels: ${Math.floor(maxLevels)},
+        gamma: ${gamma},
+        includeIntermediateCommunities: true
+      })
+      YIELD nodeId, communityId, intermediateCommunityIds
+      WITH gds.util.asNode(nodeId) AS node,
+           communityId AS topLevel,
+           intermediateCommunityIds AS levels
+      SET node.communityId = topLevel,
+          node.communityLevels = levels
+      RETURN count(*) AS nodesUpdated,
+             count(DISTINCT topLevel) AS topCommunities,
+             max(size(levels)) AS maxDepth
+    `;
+    const result = await this._writeQuery(cypher);
+    const row = result[0] || {};
+    return {
+      nodesUpdated: this._toInt(row.nodesUpdated),
+      topCommunities: this._toInt(row.topCommunities),
+      maxDepth: this._toInt(row.maxDepth)
+    };
+  }
+
+  /**
+   * Materialize Community nodes from communityLevels arrays.
+   * Creates (:Community {communityId, level}) nodes and uniqueness constraint.
+   * @returns {Promise<{communityNodesCreated: number, levels: number}>}
+   */
+  async materializeCommunityNodes() {
+    console.log('[INFO] Creating Community label nodes...');
+
+    // Create uniqueness constraint first
+    try {
+      await this._writeQuery(
+        `CREATE CONSTRAINT community_unique IF NOT EXISTS
+         FOR (c:Community) REQUIRE (c.communityId, c.level) IS UNIQUE`
+      );
+      console.log('[OK] Community uniqueness constraint created');
+    } catch (err) {
+      console.log('[INFO] Community constraint may already exist:', err.message);
+    }
+
+    // Determine max depth
+    const depthResult = await this.graphDB.query(`
+      MATCH (n) WHERE n.communityLevels IS NOT NULL
+      RETURN max(size(n.communityLevels)) AS maxDepth
+    `);
+    const maxDepth = this._toInt(depthResult[0]?.maxDepth);
+    console.log(`[INFO] Max hierarchy depth: ${maxDepth}`);
+
+    let totalCreated = 0;
+    for (let levelIdx = 0; levelIdx < maxDepth; levelIdx++) {
+      const result = await this._writeQuery(`
+        MATCH (n)
+        WHERE n.communityLevels IS NOT NULL
+          AND size(n.communityLevels) > ${levelIdx}
+        WITH ${levelIdx} AS levelIdx, n.communityLevels[${levelIdx}] AS cid, collect(n) AS members
+        WITH levelIdx, cid, size(members) AS memberCount
+        WHERE memberCount >= 2
+        MERGE (c:Community {communityId: cid, level: levelIdx})
+        SET c.memberCount = memberCount,
+            c.createdAt = datetime(),
+            c.name = 'Community_L' + toString(levelIdx) + '_' + toString(cid)
+        RETURN count(c) AS created
+      `);
+      const created = this._toInt(result[0]?.created);
+      totalCreated += created;
+      console.log(`[OK] Level ${levelIdx}: ${created} Community nodes`);
+    }
+
+    return { communityNodesCreated: totalCreated, levels: maxDepth };
+  }
+
+  /**
+   * Create MEMBER_OF relationships from code nodes to their L0 community.
+   * @returns {Promise<{relationshipsCreated: number}>}
+   */
+  async createMemberOfRelationships() {
+    console.log('[INFO] Creating MEMBER_OF relationships...');
+    const result = await this._writeQuery(`
+      MATCH (n)
+      WHERE n.communityLevels IS NOT NULL AND size(n.communityLevels) > 0
+      WITH n, n.communityLevels[0] AS leafCid
+      MATCH (c:Community {communityId: leafCid, level: 0})
+      MERGE (n)-[:MEMBER_OF]->(c)
+      RETURN count(*) AS created
+    `);
+    const created = this._toInt(result[0]?.created);
+    console.log(`[OK] Created ${created} MEMBER_OF relationships`);
+    return { relationshipsCreated: created };
+  }
+
+  /**
+   * Create PARENT_OF hierarchy between community levels.
+   * @returns {Promise<{relationshipsCreated: number}>}
+   */
+  async createParentOfHierarchy() {
+    console.log('[INFO] Creating PARENT_OF hierarchy...');
+    const result = await this._writeQuery(`
+      MATCH (n)
+      WHERE n.communityLevels IS NOT NULL AND size(n.communityLevels) >= 2
+      UNWIND range(0, size(n.communityLevels) - 2) AS idx
+      WITH DISTINCT n.communityLevels[idx] AS childCid, idx AS childLevel,
+           n.communityLevels[idx + 1] AS parentCid, idx + 1 AS parentLevel
+      MATCH (child:Community {communityId: childCid, level: childLevel})
+      MATCH (parent:Community {communityId: parentCid, level: parentLevel})
+      MERGE (parent)-[:PARENT_OF]->(child)
+      RETURN count(*) AS created
+    `);
+    const created = this._toInt(result[0]?.created);
+    console.log(`[OK] Created ${created} PARENT_OF relationships`);
+    return { relationshipsCreated: created };
+  }
+
+  /**
+   * Compute INTERACTS_WITH between communities at each level.
+   * Aggregates cross-community code edges.
+   * @param {number} [minStrength=3] - Minimum edge count for significance
+   * @returns {Promise<{relationshipsCreated: number}>}
+   */
+  async computeInteractsWith(minStrength = 3) {
+    console.log('[INFO] Computing INTERACTS_WITH between communities...');
+
+    const depthResult = await this.graphDB.query(`
+      MATCH (n) WHERE n.communityLevels IS NOT NULL
+      RETURN max(size(n.communityLevels)) AS maxDepth
+    `);
+    const maxDepth = this._toInt(depthResult[0]?.maxDepth);
+
+    let totalCreated = 0;
+    for (let levelIdx = 0; levelIdx < maxDepth; levelIdx++) {
+      const result = await this._writeQuery(`
+        MATCH (a)-[r]->(b)
+        WHERE a.communityLevels IS NOT NULL AND b.communityLevels IS NOT NULL
+          AND size(a.communityLevels) > ${levelIdx}
+          AND size(b.communityLevels) > ${levelIdx}
+          AND a.communityLevels[${levelIdx}] <> b.communityLevels[${levelIdx}]
+          AND NOT a:Community AND NOT b:Community
+        WITH ${levelIdx} AS levelIdx,
+             a.communityLevels[${levelIdx}] AS aCid,
+             b.communityLevels[${levelIdx}] AS bCid,
+             type(r) AS relType,
+             count(*) AS strength
+        WHERE strength >= ${minStrength}
+        MATCH (ca:Community {communityId: aCid, level: ${levelIdx}})
+        MATCH (cb:Community {communityId: bCid, level: ${levelIdx}})
+        MERGE (ca)-[ix:INTERACTS_WITH]->(cb)
+        SET ix.strength = strength,
+            ix.level = ${levelIdx}
+        RETURN count(ix) AS created
+      `);
+      const created = this._toInt(result[0]?.created);
+      totalCreated += created;
+      console.log(`[OK] Level ${levelIdx}: ${created} INTERACTS_WITH edges`);
+    }
+
+    return { relationshipsCreated: totalCreated };
+  }
+
+  /**
+   * Enrich Community nodes with language breakdown and key member names.
+   * @returns {Promise<{enriched: number}>}
+   */
+  async enrichCommunityMetadata() {
+    console.log('[INFO] Enriching Community nodes with metadata...');
+    const result = await this._writeQuery(`
+      MATCH (c:Community)<-[:MEMBER_OF]-(n)
+      WITH c,
+           CASE
+             WHEN 'FortranSubroutine' IN labels(n) OR 'FortranFunction' IN labels(n) OR 'FortranModule' IN labels(n) THEN 'Fortran'
+             WHEN 'PythonFunction' IN labels(n) OR 'PythonModule' IN labels(n) THEN 'Python'
+             WHEN 'ShellScript' IN labels(n) OR 'File' IN labels(n) THEN 'Shell'
+             ELSE 'Other'
+           END AS lang,
+           n.name AS nname
+      WITH c,
+           collect(DISTINCT lang) AS languages,
+           collect(nname)[0..10] AS keyMembers,
+           count(*) AS memberSize
+      SET c.languages = languages,
+          c.keyMembers = keyMembers,
+          c.memberCount = memberSize
+      RETURN count(c) AS enriched
+    `);
+    const enriched = this._toInt(result[0]?.enriched);
+    console.log(`[OK] Enriched ${enriched} Community nodes`);
+    return { enriched };
+  }
+
+  /**
+   * Get communities at a specific hierarchical level.
+   * @param {number} level
+   * @param {number} [minSize=2]
+   * @returns {Promise<Array<{communityId: number, level: number, memberCount: number, name: string}>>}
+   */
+  async getCommunitiesAtLevel(level, minSize = 2) {
+    const result = await this.graphDB.query(`
+      MATCH (c:Community {level: $level})
+      WHERE c.memberCount >= $minSize
+      RETURN c.communityId AS communityId, c.level AS level,
+             c.memberCount AS memberCount, c.name AS name,
+             c.languages AS languages, c.keyMembers AS keyMembers,
+             c.summary AS summary
+      ORDER BY c.memberCount DESC
+    `, { level, minSize });
+    return result.map(r => ({
+      communityId: this._toInt(r.communityId),
+      level: this._toInt(r.level),
+      memberCount: this._toInt(r.memberCount),
+      name: r.name,
+      languages: r.languages || [],
+      keyMembers: r.keyMembers || [],
+      summary: r.summary || null
+    }));
+  }
+
+  /**
+   * Get child communities of a parent community.
+   * @param {number} communityId
+   * @param {number} level - Level of the parent
+   * @returns {Promise<Array>}
+   */
+  async getChildCommunities(communityId, level) {
+    const result = await this.graphDB.query(`
+      MATCH (parent:Community {communityId: $cid, level: $level})-[:PARENT_OF]->(child:Community)
+      RETURN child.communityId AS communityId, child.level AS level,
+             child.memberCount AS memberCount, child.name AS name,
+             child.summary AS summary, child.languages AS languages,
+             child.keyMembers AS keyMembers
+      ORDER BY child.memberCount DESC
+    `, { cid: communityId, level });
+    return result.map(r => ({
+      communityId: this._toInt(r.communityId),
+      level: this._toInt(r.level),
+      memberCount: this._toInt(r.memberCount),
+      name: r.name,
+      summary: r.summary || null,
+      languages: r.languages || [],
+      keyMembers: r.keyMembers || []
+    }));
+  }
+
+  /**
+   * Get inter-community interactions at a given level.
+   * @param {number} communityId
+   * @param {number} level
+   * @returns {Promise<Array>}
+   */
+  async getCommunityInteractions(communityId, level) {
+    const result = await this.graphDB.query(`
+      MATCH (c:Community {communityId: $cid, level: $level})-[ix:INTERACTS_WITH]->(other:Community)
+      RETURN other.communityId AS communityId, other.name AS name,
+             ix.strength AS strength, other.memberCount AS memberCount,
+             other.languages AS languages
+      ORDER BY ix.strength DESC LIMIT 10
+    `, { cid: communityId, level });
+    return result.map(r => ({
+      communityId: this._toInt(r.communityId),
+      name: r.name,
+      strength: this._toInt(r.strength),
+      memberCount: this._toInt(r.memberCount),
+      languages: r.languages || []
+    }));
+  }
+
+  /**
+   * Get the maximum community hierarchy level.
+   * @returns {Promise<number>}
+   */
+  async getMaxCommunityLevel() {
+    const result = await this.graphDB.query(`
+      MATCH (c:Community)
+      RETURN max(c.level) AS maxLevel
+    `);
+    return this._toInt(result[0]?.maxLevel);
+  }
+
+  /**
    * Full pipeline: project → detect → stats → cleanup.
    * @param {object} opts - Leiden parameters
    * @returns {Promise<{projection: object, leiden: object, stats: object}>}

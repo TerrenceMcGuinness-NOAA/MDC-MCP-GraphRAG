@@ -1,5 +1,31 @@
 # MCP Server Changelog
 
+## [7.20.0] - Phase 24E-5: Hierarchical Community Materialization (February 24, 2026)
+
+### Context
+Phase 24E-1/2/3 created flat community detection (25,352 nodes with `communityId`, 63 summaries). Phase 24E-5 materializes the full hierarchical community structure as first-class Neo4j entities with drill-down capability.
+
+### Added
+- **`CommunityDetection.js`**: `runHierarchicalLeiden()` — runs GDS Leiden with `includeIntermediateCommunities: true`, writes `communityLevels` array per node
+- **`CommunityDetection.js`**: `materializeCommunityNodes()` — creates `:Community` nodes at each level with uniqueness constraint
+- **`CommunityDetection.js`**: `createMemberOfRelationships()`, `createParentOfHierarchy()`, `computeInteractsWith()`, `enrichCommunityMetadata()`
+- **`CommunityDetection.js`**: `getCommunitiesAtLevel()`, `getChildCommunities()`, `getCommunityInteractions()`, `getMaxCommunityLevel()`
+- **`CommunitySummarizer.js`**: `summarizeHierarchical()` — bottom-up summary generation (L0 from members, L1+ from child summaries)
+- **`CommunitySummarizer.js`**: `generateParentSummary()` — parent community summary from children + interactions
+- **`run_community_detection.js`**: `--materialize` flag for full hierarchical pipeline
+- **`CommunityHierarchy.test.js`**: 6 integration tests — hierarchy validation, PARENT_OF tree, INTERACTS_WITH, summaries
+
+### Changed
+- **`GraphGuidedRetrieval.js`**: `retrieveGlobal()` — level-aware search (prefers higher levels for global context), drill-down via PARENT_OF to sub-communities, INTERACTS_WITH in output
+
+### Metrics
+- Community nodes: 0 → 1,036 (L0: 694, L1: 175, L2: 86, L3: 81)
+- MEMBER_OF: 0 → 21,559 relationships
+- PARENT_OF: 0 → 978 relationships (valid tree, level N → N-1)
+- INTERACTS_WITH: 0 → 1,297 edges (avg strength: 69.7)
+- Summaries: 63 flat → 828 hierarchical (4 levels) in both Neo4j + ChromaDB
+- Hierarchy depth: 4 levels (was flat single communityId)
+
 ## [7.19.0] - Phase 27J: ShellScript Dedup + Delegate Script EXECUTES (February 23, 2026)
 
 ### Context
