@@ -139,3 +139,15 @@ The project spans two repositories with five instruction files that overlap, con
 
 **Current state (Use Case A)**: 434 + 217 = 651 lines (~8.5K tokens) loaded even without MCP — **35% waste**.
 **Target state (Use Case A)**: 430 lines (~5.5K tokens) — **36% reduction**.
+
+## 6. Dependency: Phase 29 Calling Surface
+
+**Phase 29 Steps 3-4** (Tool Usability — calling surface) may add, rename, or remove MCP tools. If the tool surface changes (tool count ≠ 42, module count ≠ 9, or tool names change), the following files require a corresponding update:
+
+| File | What to update |
+|------|----------------|
+| `global-workflow/.github/instructions/mcp.instructions.md` | Tool tables per module, total count in header |
+| `eib-mcp-rag-server/.github/instructions/eib-mcp-tools.instructions.md` | Quick Reference table, Tool Selection sections |
+| `eib-mcp-rag-server/.github/copilot-instructions.md` | Tool Modules → Database Dependencies table |
+
+**Rule**: After any `server.registerTool()` change in `mcp_server_node/src/tools/*.js`, re-run the tool coverage check and update all three files. The ground truth is always the source code.
