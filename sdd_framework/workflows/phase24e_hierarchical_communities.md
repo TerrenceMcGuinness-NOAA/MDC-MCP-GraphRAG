@@ -1020,6 +1020,200 @@ async function main() {
 - [x] 1,036 Community nodes with hierarchy in Neo4j
 - [x] `VectorDatabase.addDocuments()` auto-generates embeddings
 
+#### Execution Runbook (24E-6)
+
+> **Intent:** Execute the committed pipeline scripts to replace all 828 template-based
+> community summaries with LLM-generated narrative summaries. This is a one-time batch
+> operation that upgrades global query accuracy from ~60% to >75%. After completion,
+> the MCP server's `search_architecture` and `search_documentation` tools will return
+> richer, semantically meaningful community context for holistic codebase questions.
+
+**Executor:** GitHub CLI session (Claude Opus 4.6 or human operator)
+**Working directory:** `mcp_server_node/`
+**Estimated wall-clock time:** ~45 minutes total
+
+##### Pre-flight Checks (run ALL before proceeding)
+
+```bash
+cd /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+
+# 1. Verify GitHub auth (MUST show TerrenceMcGuinness-NOAA)
+gh auth status
+
+# 2. Verify GitHub Models API is reachable
+TOKEN=$(gh auth token)
+curl -s -o /dev/null -w "%{http_code}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"ping"}],"max_tokens":5}' \
+  https://models.inference.ai.azure.com/chat/completions
+# Expected: 200
+
+# 3. Verify Neo4j is running and has Community nodes
+curl -s -o /dev/null -w "%{http_code}" http://localhost:7474
+# Expected: 200
+
+# 4. Verify ChromaDB is running
+curl -s http://localhost:8080/api/v2/heartbeat | head -1
+# Expected: {"nanosecond heartbeat":...}
+
+# 5. Verify Node.js can import required modules
+node -e "
+  Promise.all([
+    import('./src/data/GraphDatabase.js'),
+    import('./src/data/VectorDatabase.js'),
+    import('./src/graphrag/CommunityDetection.js')
+  ]).then(() => console.log('[OK] All modules importable'))
+    .catch(e => { console.error('[FAIL]', e.message); process.exit(1); });
+"
+
+# 6. Verify scripts exist and parse
+node --check scripts/export_community_contexts.js && echo "[OK] export"
+node --check scripts/generate_llm_summaries.js && echo "[OK] generate"
+node --check scripts/import_llm_summaries.js && echo "[OK] import"
+```
+
+**STOP** if any check fails. Do not proceed to execution.
+
+##### Execution Sequence (strict order — do NOT parallelize)
+
+```bash
+cd /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+
+# ──────────────────────────────────────────────────────────
+# STEP 1: Export community contexts from Neo4j → JSON
+# ──────────────────────────────────────────────────────────
+# Reads all Community nodes (L0-L3) with members, relationships,
+# child summaries, and interactions. Writes data/community_contexts.json.
+# Expected: ~828 communities exported, file size ~5-10MB, runtime ~2-3 min.
+
+node scripts/export_community_contexts.js
+
+# CHECKPOINT: Verify output exists and has expected count
+node -e "
+  const d = JSON.parse(require('fs').readFileSync('data/community_contexts.json','utf8'));
+  console.log('Communities exported:', d.length);
+  const byLevel = {};
+  d.forEach(c => byLevel[c.level] = (byLevel[c.level]||0)+1);
+  Object.entries(byLevel).sort().forEach(([l,n]) => console.log('  L'+l+':', n));
+  if (d.length < 800) { console.error('[WARN] Expected ~828, got', d.length); process.exit(1); }
+  console.log('[OK] Export verified');
+"
+
+# ──────────────────────────────────────────────────────────
+# STEP 2: Generate LLM summaries via GitHub Models API
+# ──────────────────────────────────────────────────────────
+# Calls gpt-4o-mini for each community context. Bottom-up order:
+# L0 first (694), then L1 (175), L2 (86), L3 (81).
+# Resume-safe: saves after every 5 communities. If interrupted,
+# re-run the same command — it skips already-completed entries.
+# Expected: ~828 summaries, runtime ~35 min, $0 cost.
+
+# RECOMMENDED: Dry-run first to verify API connectivity (processes 3 only)
+node scripts/generate_llm_summaries.js --dry-run
+
+# FULL RUN (only after dry-run succeeds):
+node scripts/generate_llm_summaries.js
+
+# CHECKPOINT: Verify all communities have summaries
+node -e "
+  const d = JSON.parse(require('fs').readFileSync('data/llm_summaries.json','utf8'));
+  const ok = d.filter(r => r.summary);
+  const fail = d.filter(r => !r.summary);
+  console.log('Total:', d.length, '| Success:', ok.length, '| Failed:', fail.length);
+  if (fail.length > 0) {
+    console.log('[WARN] Failed communities:');
+    fail.forEach(f => console.log('  L'+f.level+'-'+f.communityId+':', f.error));
+    console.log('Re-run generate_llm_summaries.js to retry failed entries.');
+  } else {
+    console.log('[OK] All summaries generated');
+  }
+"
+
+# ──────────────────────────────────────────────────────────
+# STEP 3: Import LLM summaries → Neo4j + ChromaDB
+# ──────────────────────────────────────────────────────────
+# Writes summaries to Neo4j Community nodes (summary, summarySource,
+# summaryModel, summaryTimestamp) and to ChromaDB community-summaries
+# collection (with auto-generated embeddings via Xenova/all-mpnet-base-v2).
+# Expected: ~828 nodes updated in Neo4j, ~828 docs in ChromaDB, runtime ~5 min.
+
+# RECOMMENDED: Dry-run first to preview
+node scripts/import_llm_summaries.js --dry-run
+
+# FULL RUN:
+node scripts/import_llm_summaries.js
+
+# CHECKPOINT: Verify Neo4j and ChromaDB state
+node -e "
+  import('./src/data/GraphDatabase.js').then(async ({ GraphDatabase }) => {
+    const db = new GraphDatabase();
+    await db.connect();
+    const r = await db.query(
+      'MATCH (c:Community) WHERE c.summary IS NOT NULL ' +
+      'RETURN c.summarySource AS source, count(*) AS n ORDER BY source'
+    );
+    console.log('Neo4j summaries by source:');
+    r.forEach(row => console.log('  ' + row.source + ':', row.n));
+    const llm = r.find(x => x.source === 'llm');
+    if (!llm || llm.n < 800) {
+      console.error('[WARN] Expected ~828 LLM summaries, got', llm?.n || 0);
+    } else {
+      console.log('[OK] Neo4j import verified');
+    }
+    await db.close();
+  });
+"
+```
+
+##### Post-Execution Actions
+
+1. **Spot-check 5 summaries** — pick one from each level and verify it reads as a coherent, technically accurate subsystem description (not a keyword list):
+   ```bash
+   node -e "
+     import('./src/data/GraphDatabase.js').then(async ({ GraphDatabase }) => {
+       const db = new GraphDatabase();
+       await db.connect();
+       for (const level of [0, 1, 2, 3]) {
+         const r = await db.query(
+           'MATCH (c:Community {level: \$level}) WHERE c.summarySource = \"llm\" ' +
+           'RETURN c.communityId, c.name, c.summary LIMIT 1', { level }
+         );
+         if (r[0]) console.log('--- L' + level + ':', r[0].name, '---\n' + r[0].summary + '\n');
+       }
+       await db.close();
+     });
+   "
+   ```
+
+2. **Git commit the generated data files** (optional but recommended for reproducibility):
+   ```bash
+   cd /mcp_rag_eib/eib-mcp-rag-server
+   git add mcp_server_node/data/community_contexts.json mcp_server_node/data/llm_summaries.json
+   git commit -m "Phase 24E-6: LLM summary batch output (828 communities) [data artifacts]"
+   ```
+
+3. **Start SDD session for validation** — return to VS Code Copilot session and use:
+   - `start_sdd_session` (phase: `phase24e_hierarchical_communities`, steps: 3)
+   - Step 1: Run Phase 24G benchmark queries against new summaries
+   - Step 2: Compare accuracy metrics (template vs LLM)
+   - Step 3: Record final metrics and close
+
+4. **Update this spec** — change 24E-6 status from `SCRIPTS IMPLEMENTED` to `COMPLETE` and record actual metrics.
+
+5. **Update CHANGELOG.md** — add entry for the batch execution results.
+
+##### Failure Recovery
+
+| Failure | Recovery |
+|---------|----------|
+| Step 1 export fails (Neo4j down) | Verify Neo4j: `curl localhost:7474`. Restart if needed: `docker compose -f docker-compose.devops.yaml up -d neo4j` |
+| Step 2 API rate-limited (429) | Script auto-retries with exponential backoff (3 attempts). If persistent, increase `DELAY_MS` via `--batch-size 1` |
+| Step 2 interrupted mid-run | Re-run same command — resume-safe, skips completed entries |
+| Step 2 partial failures | Re-run same command — only retries entries with `summary: null` |
+| Step 3 import fails (ChromaDB down) | Use `--skip-chromadb` to do Neo4j only, then `--skip-neo4j` after ChromaDB restart |
+| Wrong summaries imported | Re-run Step 2 with fresh output (`rm data/llm_summaries.json`), then Step 3 |
+
 ---
 
 ### Phase 24E-7: Staleness Propagation & Selective Re-Summarization
