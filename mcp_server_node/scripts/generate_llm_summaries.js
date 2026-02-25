@@ -43,8 +43,22 @@ const dryRun = args.includes('--dry-run');
 const batchSize = parseInt(getArg('batch-size', '5'), 10);
 
 const API_URL = 'https://models.inference.ai.azure.com/chat/completions';
-const MODEL = 'gpt-4o-mini';
-const DELAY_MS = 2500;
+const MODEL_POOL = [
+  'Ministral-3B',
+  'Cohere-command-r-08-2024',
+  'Llama-3.3-70B-Instruct',
+  'Codestral-2501',
+  'Mistral-small-2503',
+  'Phi-4-multimodal-instruct'
+];
+let currentModelIdx = 0;
+function getCurrentModel() { return MODEL_POOL[currentModelIdx]; }
+function rotateModel() {
+  currentModelIdx = (currentModelIdx + 1) % MODEL_POOL.length;
+  console.log(`[INFO] Rotated to model: ${getCurrentModel()}`);
+  return currentModelIdx !== 0; // false = wrapped around to start (all exhausted)
+}
+const DELAY_MS = 5000;  // 12 req/min — conservative to avoid 429s
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 10000;
 
@@ -128,8 +142,9 @@ function buildUserPrompt(ctx) {
 }
 
 async function callGitHubModels(token, systemPrompt, userPrompt, retryCount = 0) {
+  const model = getCurrentModel();
   const body = JSON.stringify({
-    model: MODEL,
+    model,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -147,7 +162,22 @@ async function callGitHubModels(token, systemPrompt, userPrompt, retryCount = 0)
     body
   });
 
-  if (response.status === 429 || response.status >= 500) {
+  if (response.status === 429) {
+    if (retryCount < MAX_RETRIES) {
+      const wait = RETRY_DELAY_MS * (retryCount + 1);
+      console.log(`[WARN] 429 on ${model} — retrying in ${wait / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await new Promise(r => setTimeout(r, wait));
+      return callGitHubModels(token, systemPrompt, userPrompt, retryCount + 1);
+    }
+    // All retries failed — rotate to next model
+    const hasMore = rotateModel();
+    if (hasMore) {
+      return callGitHubModels(token, systemPrompt, userPrompt, 0);
+    }
+    throw new Error(`All models exhausted (429 on all ${MODEL_POOL.length} models)`);
+  }
+
+  if (response.status >= 500) {
     if (retryCount < MAX_RETRIES) {
       const wait = RETRY_DELAY_MS * (retryCount + 1);
       console.log(`[WARN] ${response.status} — retrying in ${wait / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
@@ -173,7 +203,7 @@ function sleep(ms) {
 async function main() {
   console.log('============================================================');
   console.log('Phase 24E-6 Step 2: Generate LLM Summaries');
-  console.log(`  Model: ${MODEL}`);
+  console.log(`  Model pool: ${MODEL_POOL.join(', ')}`);
   console.log(`  API: ${API_URL}`);
   console.log(`  Dry run: ${dryRun}`);
   console.log(`  Batch save interval: ${batchSize}`);
@@ -249,7 +279,7 @@ async function main() {
         name: ctx.name,
         memberCount: ctx.memberCount,
         summary,
-        model: MODEL,
+        model: getCurrentModel(),
         timestamp: new Date().toISOString()
       };
 
@@ -279,7 +309,7 @@ async function main() {
         memberCount: ctx.memberCount,
         summary: null,
         error: err.message,
-        model: MODEL,
+        model: getCurrentModel(),
         timestamp: new Date().toISOString()
       };
     }

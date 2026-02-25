@@ -23,7 +23,8 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { GraphDatabase } from '../src/data/GraphDatabase.js';
-import VectorDatabase from '../src/data/VectorDatabase.js';
+import { VectorDatabase } from '../src/data/VectorDatabase.js';
+import neo4j from 'neo4j-driver';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = resolve(__dirname, '..', 'data');
@@ -49,8 +50,12 @@ async function importToNeo4j(graphDB, summaries) {
   let errors = 0;
 
   for (const s of summaries) {
+    const session = graphDB.driver.session({
+      database: graphDB.config.database,
+      defaultAccessMode: neo4j.session.WRITE
+    });
     try {
-      await graphDB.query(`
+      await session.run(`
         MATCH (c:Community {communityId: $communityId})
         SET c.summary = $summary,
             c.summarySource = 'llm',
@@ -67,6 +72,8 @@ async function importToNeo4j(graphDB, summaries) {
     } catch (err) {
       errors++;
       console.error(`[ERROR] Neo4j update failed for ${s.communityId}: ${err.message}`);
+    } finally {
+      await session.close();
     }
 
     if (updated % 100 === 0 && updated > 0) {
@@ -182,7 +189,7 @@ async function main() {
     // ChromaDB import
     if (!skipChromadb) {
       vectorDB = new VectorDatabase();
-      await vectorDB.initialize();
+      await vectorDB.connect();
       console.log('[OK] Connected to ChromaDB');
       stats.chromadb = await importToChromaDB(vectorDB, summaries);
     }
