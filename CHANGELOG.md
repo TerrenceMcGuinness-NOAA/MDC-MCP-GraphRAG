@@ -1,5 +1,23 @@
 # MCP Server Changelog
 
+## [7.23.0] - Phase 24E-6: LLM Summary Batch Execution (February 25, 2026)
+
+### Context
+Phase 24E-6 batch execution — generated and imported 820/828 LLM community summaries via GitHub Models API. Used model rotation across 10 models (gpt-4o-mini, gpt-4.1-mini, gpt-4o, gpt-4.1-nano, gpt-4.1, Phi-4, Meta-Llama-3.1-8B-Instruct, Meta-Llama-3.1-405B-Instruct, DeepSeek-R1, Ministral-3B) to work around daily rate limits (~100 requests/model/day). 3 communities exceeded 8K token API limit on all models.
+
+SDD Session: `session_2026-02-25_ahgtb6` (phase24e_hierarchical_communities)
+
+### Added
+- **`data/community_contexts.json`**: 828 community contexts exported from Neo4j (1.9MB). L0:486, L1:175, L2:86, L3:81.
+- **`data/llm_summaries.json`**: 820 LLM-generated summaries (1.0MB). Developer-quality narrative descriptions replacing keyword-based templates.
+- **Neo4j**: 820 Community nodes updated with `summarySource='llm'`, `summaryModel`, `summaryTimestamp`.
+- **ChromaDB**: 820 documents in `community-summaries` collection with auto-generated embeddings (Xenova/all-mpnet-base-v2).
+
+### Changed
+- **`scripts/generate_llm_summaries.js`**: Added MODEL_POOL rotation (auto-switches model on 429), increased DELAY_MS from 2500 to 5000ms.
+- **`scripts/import_llm_summaries.js`**: Fixed VectorDatabase import (named vs default export), fixed Neo4j write access (used WRITE session mode instead of READ-only `query()`).
+- **`phase24e_hierarchical_communities.md`**: 24E-6 status updated from SCRIPTS IMPLEMENTED to COMPLETE.
+
 ## [7.22.0] - Phase 24E-6: LLM Summary Pipeline Scripts (February 25, 2026)
 
 ### Context

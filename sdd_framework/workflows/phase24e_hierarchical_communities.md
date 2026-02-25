@@ -4,7 +4,7 @@
 **Created:** 2026-02-05  
 **Updated:** 2026-02-25  
 **Author:** AI Assistant + Terry McGuinness  
-**Status:** IN PROGRESS — 24E-1/2/3/5 COMPLETE (hierarchy materialized, template summaries); 24E-4 superseded by 24E-7; **24E-6 SCRIPTS IMPLEMENTED** (pipeline scripts committed, awaiting batch execution via GitHub CLI); **24E-7 PLANNED** (staleness propagation, unifying deferred 24E-4 with 24H-3 `_dirty` infrastructure)  
+**Status:** IN PROGRESS — 24E-1/2/3/5 COMPLETE (hierarchy materialized, template summaries); 24E-4 superseded by 24E-7; **24E-6 COMPLETE** (820/828 LLM summaries generated and imported to Neo4j + ChromaDB; 3 oversized communities pending context truncation); **24E-7 PLANNED** (staleness propagation, unifying deferred 24E-4 with 24H-3 `_dirty` infrastructure)  
 **Dependency:** Phase 24A-D (Graph-Guided Speculative Retrieval)
 
 > **📋 MASTER REFERENCE:** [phase24_consolidated_architecture.md](phase24_consolidated_architecture.md)
@@ -773,7 +773,7 @@ Add `--materialize` flag to the script for backward compatibility.
 
 **Objective:** Replace the 828 template-based keyword-inference summaries with true LLM-generated narrative summaries, closing the global query accuracy gap from 60% to >75%.
 
-**Status:** SCRIPTS IMPLEMENTED (February 25, 2026) — SDD session `session_2026-02-25_et3ltn`. Awaiting batch execution via GitHub CLI.
+**Status:** COMPLETE (February 25, 2026) — 820/828 summaries generated and imported. SDD sessions: `session_2026-02-25_et3ltn` (scripts), `session_2026-02-25_ahgtb6` (execution). 3 communities (L1-639, L1-668, L2-447) exceeded 8K token API limit on all available GitHub Models API models; pending context truncation. Model rotation used across 10 models to work around daily rate limits (~100 requests/model/day).
 
 **Motivation:** The current `CommunitySummarizer.generateSummary()` uses 16 hardcoded keyword patterns to infer purpose (e.g., `['gsi', 'radiance', 'satellite'] → "Data assimilation / observation processing"`). This produces structurally repetitive summaries that list *what's in* each community but cannot explain *what it does*, describe data flow, or identify cross-cutting patterns. An LLM can synthesize member metadata + relationships into developer-quality subsystem overviews that enable semantic search to match conceptual queries (e.g., "How does error handling work?") even when no member name contains the query terms.
 
