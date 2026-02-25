@@ -1,5 +1,21 @@
 # MCP Server Changelog
 
+## [7.22.0] - Phase 24E-6: LLM Summary Pipeline Scripts (February 25, 2026)
+
+### Context
+Phase 24E-6 (LLM-Generated Community Summaries) — three-script offline batch pipeline for replacing 828 template-based keyword-inference summaries with LLM-generated narrative summaries via GitHub Models API (`gpt-4o-mini`). Scripts committed and validated; batch execution deferred to GitHub CLI session with Claude Opus 4.6.
+
+SDD Session: `session_2026-02-25_et3ltn` (phase24e_hierarchical_communities)
+
+### Added
+- **`scripts/export_community_contexts.js`**: Extracts community context (members, internal/external relationships, child summaries, interactions) from Neo4j for all non-singleton communities at levels 0-3. Uses `CommunityDetection` API methods. Outputs `data/community_contexts.json`.
+- **`scripts/generate_llm_summaries.js`**: Calls GitHub Models API (`gpt-4o-mini`) via `gh auth token` for each community context. Bottom-up processing (L0 first), 2.5s rate-limit delay, resume-safe with batch checkpointing. Supports `--dry-run` and `--batch-size`. Outputs `data/llm_summaries.json`.
+- **`scripts/import_llm_summaries.js`**: Imports LLM summaries to Neo4j (`SET c.summary, c.summarySource='llm', c.summaryModel, c.summaryTimestamp`) and ChromaDB (`community-summaries` collection with auto-generated embeddings). Supports `--dry-run`, `--skip-neo4j`, `--skip-chromadb`.
+- **`data/` directory**: Created for pipeline intermediate/output files.
+
+### Changed
+- **`phase24e_hierarchical_communities.md`**: v2.0.0 → v2.1.0 — 24E-6 status updated from PLANNED to SCRIPTS IMPLEMENTED. Implementation files table marked COMMITTED. SDD session reference added.
+
 ## [7.21.0] - Phase 24H-3: Session State Tools (February 24, 2026)
 
 ### Context

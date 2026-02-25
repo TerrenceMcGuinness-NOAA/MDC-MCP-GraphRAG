@@ -1,9 +1,10 @@
 # SDD: Phase 24 - True GraphRAG Fusion (Consolidated Architecture)
 
-**Version:** 3.0.0  
+**Version:** 3.1.0  
 **Created:** 2026-02-05  
+**Updated:** 2026-02-25  
 **Author:** Terry McGuinness + AI Assistants  
-**Status:** COMPLETE — All sub-phases 24A through 24H delivered. GraphRAG core loop closed (v7.20.0, February 24, 2026).  
+**Status:** IN PROGRESS — 24A-D/24F/24G/24H delivered. **24E re-opened**: 24E-6 (LLM summaries via GitHub Models API) and 24E-7 (staleness propagation) planned to close global query accuracy gap (60% → ≥75%).  
 **Supersedes:** Initial Phase 24 fragments
 
 ---
@@ -42,15 +43,22 @@ Phase 24: True GraphRAG Fusion
 │   └── 24D: Core Retrieval Integration     [Weeks 7-10]  → GraphGuidedRetrieval class
 │
 ├── Q2-Q3 2026: Extension (Weeks 9-16)
-│   ├── 24E: Hierarchical Community Summaries [Weeks 9-16]  ✅ COMPLETE (v7.20.0)
+│   ├── 24E: Hierarchical Community Summaries [Weeks 9-16+]  🟡 IN PROGRESS
 │   │   ├── 24E-1: Community Detection (Leiden) — 3,841 communities, flat, modularity 0.82  ✅
-│   │   ├── 24E-2: Summary Generation (template-based) — 63 summaries in ChromaDB  ✅
+│   │   ├── 24E-2: Summary Generation (template-based) — 828 summaries in ChromaDB  ✅
 │   │   ├── 24E-3: Dual Retrieval Router (Local/Global/Trace/Hybrid)  ✅
-│   │   ├── 24E-4: Incremental Update Pipeline — deferred
-│   │   └── 24E-5: Community Node Materialization & Hierarchy — ✅ COMPLETE (v7.20.0)
-│   │         1,036 Community nodes (L0:694, L1:175, L2:86, L3:81),
-│   │         21,559 MEMBER_OF, 978 PARENT_OF, 1,297 INTERACTS_WITH,
-│   │         828 hierarchical summaries in Neo4j + ChromaDB
+│   │   ├── 24E-4: Incremental Update Pipeline — SUPERSEDED by 24E-7
+│   │   ├── 24E-5: Community Node Materialization & Hierarchy — ✅ COMPLETE (v7.20.0)
+│   │   │       1,036 Community nodes (L0:694, L1:175, L2:86, L3:81),
+│   │   │       21,559 MEMBER_OF, 978 PARENT_OF, 1,297 INTERACTS_WITH,
+│   │   │       828 hierarchical summaries in Neo4j + ChromaDB
+│   │   ├── 24E-6: LLM-Generated Summaries via GitHub Models API — 📋 PLANNED
+│   │   │       export_community_contexts.js → generate_llm_summaries.js → import_llm_summaries.js
+│   │   │       828 communities × gpt-4o-mini, ~35 min batch, $0 (Copilot subscription)
+│   │   │       Target: global query accuracy 60% → ≥75%
+│   │   └── 24E-7: Staleness Propagation & Selective Re-Summarization — 📋 PLANNED
+│   │           Connect 24H-3 _dirty flags → Community._stale → selective LLM re-gen
+│   │           Typical PR (5-10 files) → 2-5 re-summarizations (~15-30s vs full 35min)
 │   │
 │   └── 24F: Cross-Language Graph Integration [NEW] [Weeks 13-18]
 │       ├── 24F-0: Python Graph Ingestion (Neo4j) [Weeks 13-14]  ✅ Done (624 modules, 3267 functions)
@@ -484,7 +492,10 @@ Keep under 400 words. Be specific about scientific computing aspects.
 | 15-16 | 24F-1 | Fortran CALLS/USES integration | Phase 10 ✓ |
 | 17 | 24F-2 | Cross-language path queries | 24F-0, 24F-1 |
 | 18 | 24F-3 | End-to-end J-Job traces | 24F-2 |
-| 15-16 | 24E-4 | Incremental update pipeline | 24E-3 |
+| 15-16 | ~~24E-4~~ | ~~Incremental update pipeline~~ | ~~24E-3~~ | SUPERSEDED by 24E-7 |
+| **Q1 2026 (current)** | | | |
+| TBD | 24E-6 | LLM summaries via GitHub Models API | 24E-5 |
+| TBD | 24E-7 | Staleness propagation + selective re-summarization | 24E-6, 24H-3 |
 | **Q3 2026** | | | |
 | 17-18 | 24G | Benchmark: GGSR vs baseline ✅ 60% vs 40% | 24D, 24E |
 | 19-20 | 24H-1 | Discovery tools | 24D, 24E |
@@ -498,15 +509,16 @@ Keep under 400 words. Be specific about scientific computing aspects.
 
 ## 8. Success Metrics (Consolidated)
 
-| Metric | Baseline | 24D Target | 24E Target | 24H Target |
-|--------|----------|------------|------------|------------|
-| Queries per complete answer | 3-5 | 1-2 | 1 | 1 |
-| Global query accuracy | ~30% | ~30% | >75% | >75% |
-| Cross-language trace success | 0% | 0% | - | >90% |
-| Session resumption success | N/A | N/A | N/A | >90% |
-| Impact prediction accuracy | N/A | N/A | N/A | >85% |
-| P95 latency | ~500ms | <800ms | <1000ms | <1000ms |
-| Token efficiency | Unknown | >60% | >60% | >60% |
+| Metric | Baseline | 24D Target | 24E Target | 24E Current | 24E-6 Target | 24H Target |
+|--------|----------|------------|------------|-------------|-------------|------------|
+| Queries per complete answer | 3-5 | 1-2 | 1 | 1-2 | 1 | 1 |
+| Global query accuracy | ~30% | ~30% | >75% | 60% (template) | ≥75% (LLM) | >75% |
+| Cross-language trace success | 0% | 0% | - | - | - | >90% |
+| Session resumption success | N/A | N/A | N/A | N/A | N/A | >90% |
+| Impact prediction accuracy | N/A | N/A | N/A | N/A | N/A | >85% |
+| P95 latency | ~500ms | <800ms | <1000ms | ~120ms | <1000ms | <1000ms |
+| Token efficiency | Unknown | >60% | >60% | >60% | >60% | >60% |
+| Stale summary turnaround | N/A | N/A | N/A | Full re-run (~35m) | N/A | <2 min (24E-7) |
 
 ---
 
@@ -525,6 +537,11 @@ From all three documents:
 1. **Session Persistence** (24H): Redis vs SQLite for checkpoints? (Currently filesystem-based via Phase 31)
 2. **Rate Limiting** (24H): Should expensive tools have rate limits?
 3. **Fortran Test Detection** (24F): How do we identify which subroutines are tested?
+
+### Newly Planned (February 25, 2026)
+4. **24E-6 LLM Summaries**: Replace 828 template-based summaries with LLM-generated narratives via GitHub Models API (`gpt-4o-mini`, authenticated via `gh auth token`). Three-script offline pipeline: export → generate → import. ~35 min batch run. Closes the global query accuracy gap from 60% to ≥75%.
+5. **24E-7 Staleness Propagation**: Connect 24H-3 `mark_as_modified` `_dirty` flags to Community node `_stale` flags via MEMBER_OF/PARENT_OF traversal. Selective re-summarization of only affected communities. Supersedes original 24E-4.
+6. **24E-4 SUPERSEDED**: Original incremental update pipeline scope reorganized into 24E-7, which integrates with the LLM pipeline from 24E-6 and the dirty tracking from 24H-3.
 
 ---
 

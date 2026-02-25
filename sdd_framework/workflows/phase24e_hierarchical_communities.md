@@ -1,10 +1,10 @@
 # SDD: Phase 24E - Hierarchical Community Summarization
 
-**Version:** 1.2.0  
+**Version:** 2.1.0  
 **Created:** 2026-02-05  
-**Updated:** 2026-02-24  
+**Updated:** 2026-02-25  
 **Author:** AI Assistant + Terry McGuinness  
-**Status:** COMPLETE — 24E-1/2/3 operational (flat communities + ChromaDB summaries); 24E-4 deferred; **24E-5 COMPLETE** (v7.20.0: 1,036 Community nodes, 4 levels, 21,559 MEMBER_OF, 978 PARENT_OF, 1,297 INTERACTS_WITH, 828 summaries)  
+**Status:** IN PROGRESS — 24E-1/2/3/5 COMPLETE (hierarchy materialized, template summaries); 24E-4 superseded by 24E-7; **24E-6 SCRIPTS IMPLEMENTED** (pipeline scripts committed, awaiting batch execution via GitHub CLI); **24E-7 PLANNED** (staleness propagation, unifying deferred 24E-4 with 24H-3 `_dirty` infrastructure)  
 **Dependency:** Phase 24A-D (Graph-Guided Speculative Retrieval)
 
 > **📋 MASTER REFERENCE:** [phase24_consolidated_architecture.md](phase24_consolidated_architecture.md)
@@ -440,16 +440,16 @@ async function generateAllSummaries(neo4j, llm, embedder) {
 - Global queries return relevant community summaries
 - Response latency <1s for community retrieval
 
-### Phase 24E-4: Incremental Update Pipeline (Week 7-8)
+### Phase 24E-4: Incremental Update Pipeline (SUPERSEDED by 24E-7)
 
-**Objective:** Keep communities and summaries fresh as code changes
+**Status:** SUPERSEDED — Original scope (file-level dirty tracking, staleness propagation, incremental re-clustering) has been reorganized. File-level dirty tracking was partially delivered in Phase 24H-3 (`mark_as_modified` sets `_dirty` on Neo4j nodes). The remaining work (staleness propagation to Community nodes, selective re-summarization) is now captured in **24E-7** below, which also integrates the new LLM summary pipeline from 24E-6.
 
-**Steps:**
-- [ ] Implement file-level dirty tracking
-- [ ] Define staleness propagation rules
-- [ ] Build incremental re-clustering for small changes
-- [ ] Build full re-clustering trigger for large changes
-- [ ] Implement summary invalidation cascade
+**Original Steps (for reference):**
+- [x] Implement file-level dirty tracking — **Partial (24H-3)**: `mark_as_modified` sets `n._dirty = true` on Neo4j nodes
+- [ ] ~~Define staleness propagation rules~~ → moved to 24E-7
+- [ ] ~~Build incremental re-clustering for small changes~~ → moved to 24E-7
+- [ ] ~~Build full re-clustering trigger for large changes~~ → moved to 24E-7
+- [ ] ~~Implement summary invalidation cascade~~ → moved to 24E-7
 
 **Staleness Rules:**
 ```javascript
@@ -769,17 +769,381 @@ Add `--materialize` flag to the script for backward compatibility.
 
 **Estimated Effort:** 4-6 hours across 10 steps
 
+### Phase 24E-6: LLM-Generated Community Summaries via GitHub Models API
+
+**Objective:** Replace the 828 template-based keyword-inference summaries with true LLM-generated narrative summaries, closing the global query accuracy gap from 60% to >75%.
+
+**Status:** SCRIPTS IMPLEMENTED (February 25, 2026) — SDD session `session_2026-02-25_et3ltn`. Awaiting batch execution via GitHub CLI.
+
+**Motivation:** The current `CommunitySummarizer.generateSummary()` uses 16 hardcoded keyword patterns to infer purpose (e.g., `['gsi', 'radiance', 'satellite'] → "Data assimilation / observation processing"`). This produces structurally repetitive summaries that list *what's in* each community but cannot explain *what it does*, describe data flow, or identify cross-cutting patterns. An LLM can synthesize member metadata + relationships into developer-quality subsystem overviews that enable semantic search to match conceptual queries (e.g., "How does error handling work?") even when no member name contains the query terms.
+
+**Approach:** Three-script offline batch pipeline using the GitHub Models API (`https://models.inference.ai.azure.com/chat/completions`) authenticated via `gh auth token`. This requires no new API keys — it uses the existing GitHub Copilot subscription.
+
+**Prerequisites:**
+- [x] GitHub CLI authenticated (`gh auth status` confirmed: TerrenceMcGuinness-NOAA)
+- [x] GitHub Models API accessible (`gpt-4o-mini` confirmed working, Feb 25 2026)
+- [x] 1,036 Community nodes in Neo4j with MEMBER_OF, PARENT_OF, INTERACTS_WITH relationships
+- [x] 828 template summaries in `community-summaries` ChromaDB collection (to be replaced)
+
+#### Step 1: Export Community Contexts (`scripts/export_community_contexts.js`)
+
+Extract, for each of the 828 non-singleton communities, the full context an LLM needs:
+
+```javascript
+// Output: community_contexts.json
+// For each community at each level:
+{
+  "communityId": 42,
+  "level": 0,
+  "memberCount": 87,
+  "members": [
+    {"name": "gsi_main", "type": "FortranSubroutine", "path": "sorc/gsi.fd/..."},
+    {"name": "setuprad", "type": "FortranSubroutine", "path": "sorc/gsi.fd/..."},
+    ...
+  ],
+  "internalRelationships": [
+    {"source": "gsi_main", "rel": "CALLS", "target": "setuprad"},
+    {"source": "gsi_main", "rel": "CALLS", "target": "read_obs"},
+    ...
+  ],
+  "externalRelationships": [
+    {"source": "hybens_info", "rel": "CALLS", "target": "enkf_update", "targetCommunity": 55}
+  ],
+  "languages": ["Fortran", "Shell"],
+  "childSummaries": []  // Populated for L1+ after L0 generation
+}
+```
+
+**Queries:**
+```cypher
+// Members
+MATCH (c:Community {communityId: $cid, level: $level})<-[:MEMBER_OF]-(n)
+RETURN n.name, labels(n)[0] AS type, n.path LIMIT 200
+
+// Internal relationships
+MATCH (c:Community {communityId: $cid, level: $level})<-[:MEMBER_OF]-(a)
+      -[r]->(b)-[:MEMBER_OF]->(c)
+RETURN a.name, type(r), b.name LIMIT 100
+
+// External relationships  
+MATCH (c:Community {communityId: $cid, level: $level})<-[:MEMBER_OF]-(a)
+      -[r]->(b)-[:MEMBER_OF]->(other:Community)
+WHERE other <> c
+RETURN a.name, type(r), b.name, other.communityId LIMIT 50
+
+// Children (for L1+)
+MATCH (c:Community {communityId: $cid, level: $level})-[:PARENT_OF]->(child:Community)
+RETURN child.communityId, child.level, child.summary, child.memberCount
+```
+
+**Output:** `mcp_server_node/data/community_contexts.json` (~5-10MB)
+
+#### Step 2: Generate LLM Summaries (`scripts/generate_llm_summaries.js`)
+
+Loop through exported contexts, call `gpt-4o-mini` via GitHub Models API, produce summaries bottom-up (L0 first, then L1 using L0 summaries, etc.).
+
+```javascript
+import { execSync } from 'child_process';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+
+const API_URL = 'https://models.inference.ai.azure.com/chat/completions';
+const MODEL = 'gpt-4o-mini';
+const MAX_TOKENS = 500;
+const DELAY_MS = 2500;  // ~24 req/min, within Copilot rate limits
+
+// Get token from gh CLI (no hardcoded secrets)
+function getGitHubToken() {
+  return execSync('gh auth token', { encoding: 'utf8' }).trim();
+}
+
+// Resume support: skip communities already in output file
+const OUTPUT_FILE = 'data/llm_summaries.json';
+const existing = existsSync(OUTPUT_FILE) 
+  ? JSON.parse(readFileSync(OUTPUT_FILE, 'utf8')) 
+  : [];
+const doneIds = new Set(existing.map(s => `${s.level}-${s.communityId}`));
+
+async function generateSummary(context, token) {
+  const prompt = buildPrompt(context);  // Section 3.5 prompt template
+  
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: 'You are a senior software engineer analyzing a code community in the NOAA Global Workflow — one of the most complex computational weather forecasting pipelines on Earth.' },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: MAX_TOKENS,
+      temperature: 0.3  // Low creativity, high factual consistency
+    })
+  });
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || null;
+}
+
+// Process bottom-up: L0 → L1 → L2 → L3
+for (const level of [0, 1, 2, 3]) {
+  const communities = contexts.filter(c => c.level === level);
+  console.log(`[INFO] Level ${level}: ${communities.length} communities`);
+  
+  for (const ctx of communities) {
+    const key = `${ctx.level}-${ctx.communityId}`;
+    if (doneIds.has(key)) continue;  // Resume support
+    
+    // For L1+, inject child summaries from prior level
+    if (level > 0) {
+      ctx.childSummaries = existing
+        .filter(s => ctx.childCommunityIds?.includes(s.communityId) && s.level === level - 1)
+        .map(s => s.summary);
+    }
+    
+    const summary = await generateSummary(ctx, token);
+    if (summary) {
+      existing.push({ communityId: ctx.communityId, level: ctx.level, summary });
+      writeFileSync(OUTPUT_FILE, JSON.stringify(existing, null, 2));  // Save after each (resume-safe)
+    }
+    
+    await sleep(DELAY_MS);
+  }
+}
+```
+
+**Rate Limiting & Resumability:**
+- `gpt-4o-mini` rate limit with Copilot: ~15-30 req/min
+- 2.5s delay between calls → ~24 req/min (conservative)
+- 828 communities / 24 req/min = ~35 minutes total runtime
+- Output saved after each community — if interrupted, re-run skips completed entries
+- Bottom-up ordering ensures L1+ summaries have child context available
+
+**Estimated Cost:** $0 (included in GitHub Copilot subscription via GitHub Models API)
+
+**Output:** `mcp_server_node/data/llm_summaries.json`
+
+#### Step 3: Import LLM Summaries (`scripts/import_llm_summaries.js`)
+
+Load the generated summaries into both Neo4j (Community node `summary` property) and ChromaDB (`community-summaries` collection). Embeddings are generated automatically by `VectorDatabase.addDocuments()` via `Xenova/all-mpnet-base-v2`.
+
+```javascript
+import { readFileSync } from 'fs';
+import { GraphDatabase } from '../src/data/GraphDatabase.js';
+import { VectorDatabase } from '../src/data/VectorDatabase.js';
+
+const COLLECTION = 'community-summaries';
+
+async function main() {
+  const summaries = JSON.parse(readFileSync('data/llm_summaries.json', 'utf8'));
+  console.log(`[INFO] Importing ${summaries.length} LLM-generated summaries...`);
+
+  const graphDB = new GraphDatabase();
+  const vectorDB = new VectorDatabase();
+  await graphDB.connect();
+  await vectorDB.connect();
+
+  // 1. Write summaries to Neo4j Community nodes
+  let neo4jUpdated = 0;
+  for (const s of summaries) {
+    try {
+      await graphDB.query(
+        'MATCH (c:Community {communityId: $cid, level: $level}) SET c.summary = $summary, c.summarySource = "llm", c.summaryModel = "gpt-4o-mini", c.summaryGeneratedAt = datetime()',
+        { cid: s.communityId, level: s.level, summary: s.summary }
+      );
+      neo4jUpdated++;
+    } catch (e) {
+      console.error(`[WARN] Neo4j update failed for L${s.level}-${s.communityId}: ${e.message}`);
+    }
+  }
+  console.log(`[OK] Neo4j: ${neo4jUpdated}/${summaries.length} Community nodes updated`);
+
+  // 2. Replace ChromaDB collection (embeddings auto-generated)
+  try { await vectorDB.deleteCollection(COLLECTION); } catch {}
+  await vectorDB.getOrCreateCollection(COLLECTION, {
+    description: 'LLM-generated hierarchical community summaries (Phase 24E-6)'
+  });
+
+  const documents = summaries.map(s => ({
+    id: `community-L${s.level}-${s.communityId}`,
+    text: s.summary,
+    metadata: {
+      communityId: s.communityId,
+      level: s.level,
+      summarySource: 'llm',
+      generatedAt: new Date().toISOString()
+    }
+  }));
+
+  const BATCH = 50;
+  for (let i = 0; i < documents.length; i += BATCH) {
+    await vectorDB.addDocuments(COLLECTION, documents.slice(i, i + BATCH));
+  }
+  console.log(`[OK] ChromaDB: ${documents.length} summaries stored in '${COLLECTION}'`);
+
+  await graphDB.close();
+}
+```
+
+**Output:** 828 community summaries replaced in both Neo4j and ChromaDB.
+
+#### Step 4: Validation
+
+- Re-run Phase 24G 50-query benchmark corpus against the new LLM summaries
+- Compare global query accuracy: template (60%) vs LLM (target >75%)
+- Verify `search_architecture` returns richer, more relevant context
+- Spot-check 10-20 summaries manually for factual accuracy and coherence
+
+**Success Criteria:**
+- All 828 communities have LLM-generated summaries in both Neo4j and ChromaDB
+- Global query accuracy improves from 60% to ≥75% on Phase 24G benchmark
+- No regression in LOCAL/TRACE query performance or latency
+- Summaries are <400 words, specific, and technically accurate
+- `Community.summarySource = "llm"` set on all updated nodes (for auditability)
+
+**Implementation Files:**
+| File | New/Modified | Description |
+|------|-------------|-------------|
+| `scripts/export_community_contexts.js` | New (COMMITTED) | Extract community context from Neo4j → JSON |
+| `scripts/generate_llm_summaries.js` | New (COMMITTED) | Call GitHub Models API for each community → JSON |
+| `scripts/import_llm_summaries.js` | New (COMMITTED) | Load JSON summaries → Neo4j + ChromaDB |
+| `data/community_contexts.json` | New (generated) | Intermediate context file (~5-10MB) |
+| `data/llm_summaries.json` | New (generated) | LLM output file (~1-2MB) |
+
+**Estimated Effort:** 3-4 hours (scripts) + ~35 min (batch run) + 1 hour (validation)
+
+**Dependencies:**
+- [x] GitHub CLI authenticated with Copilot subscription
+- [x] GitHub Models API access confirmed (`gpt-4o-mini`)
+- [x] 1,036 Community nodes with hierarchy in Neo4j
+- [x] `VectorDatabase.addDocuments()` auto-generates embeddings
+
+---
+
+### Phase 24E-7: Staleness Propagation & Selective Re-Summarization
+
+**Objective:** Connect Phase 24H-3's `mark_as_modified` dirty tracking to Community node staleness, enabling selective LLM re-summarization of only the affected communities instead of a full pipeline re-run.
+
+**Status:** PLANNED (February 25, 2026). Supersedes the original 24E-4.
+
+**Motivation:** The current workaround for stale summaries is a full `run_community_detection.js --materialize` re-run (~828 API calls, ~35 min). With staleness propagation, only the communities whose members actually changed need re-summarization. In a typical PR touching 5-10 files, this means re-generating 2-5 summaries instead of 828.
+
+**Prerequisites:**
+- [x] `mark_as_modified` sets `_dirty = true` on Neo4j nodes (24H-3)
+- [ ] 24E-6 LLM summary pipeline operational (for selective re-generation)
+
+#### Step 1: Staleness Propagation Query
+
+When files are marked dirty (via `mark_as_modified` or after a graph re-ingestion), propagate staleness up the community hierarchy:
+
+```cypher
+// Propagate _dirty from member nodes to their Community ancestors
+MATCH (n {_dirty: true})-[:MEMBER_OF]->(c:Community)
+SET c._stale = true, c._staleAt = datetime()
+WITH c
+MATCH (c)<-[:PARENT_OF*]-(ancestor:Community)
+SET ancestor._stale = true, ancestor._staleAt = datetime()
+RETURN count(DISTINCT ancestor) + count(DISTINCT c) AS staleCommunities
+```
+
+#### Step 2: Selective Re-Summarization Script (`scripts/resummarize_stale.js`)
+
+Re-export context for only stale communities, re-generate their LLM summaries, and re-import:
+
+```javascript
+// 1. Find stale communities
+const stale = await graphDB.query(`
+  MATCH (c:Community {_stale: true})
+  RETURN c.communityId, c.level, c.memberCount
+  ORDER BY c.level ASC
+`);
+
+// 2. Export context for stale communities only
+// 3. Call GitHub Models API for each (same as 24E-6 Step 2)
+// 4. Import updated summaries (same as 24E-6 Step 3)
+
+// 5. Clear staleness
+await graphDB.query(`
+  MATCH (c:Community {_stale: true})
+  REMOVE c._stale, c._staleAt
+`);
+await graphDB.query(`
+  MATCH (n {_dirty: true})
+  REMOVE n._dirty, n._dirtyAt
+`);
+```
+
+#### Step 3: Community Structure Re-evaluation Trigger
+
+If >20% of nodes in a Level 0 community are dirty, the community boundaries themselves may have shifted. Trigger a localized Leiden re-run:
+
+```javascript
+// Check if community structure needs re-computation
+const overThreshold = await graphDB.query(`
+  MATCH (c:Community {level: 0, _stale: true})<-[:MEMBER_OF]-(n)
+  WITH c, count(n) AS total, sum(CASE WHEN n._dirty = true THEN 1 ELSE 0 END) AS dirty
+  WHERE toFloat(dirty) / total > 0.2
+  RETURN c.communityId, dirty, total
+`);
+
+if (overThreshold.length > 0) {
+  console.log(`[WARN] ${overThreshold.length} communities may need re-clustering`);
+  // Flag for full re-run in next scheduled pipeline
+}
+```
+
+#### Step 4: Integration with `mark_as_modified` Tool
+
+Add a post-hook to `mark_as_modified` that propagates staleness immediately:
+
+```javascript
+// In GraphRAGTools.markAsModified(), after setting _dirty on the node:
+try {
+  await this.dataAccess.graphDB.query(`
+    MATCH (n {_dirty: true})-[:MEMBER_OF]->(c:Community)
+    WHERE NOT c._stale = true
+    SET c._stale = true, c._staleAt = datetime()
+    WITH c
+    MATCH (c)<-[:PARENT_OF*]-(ancestor:Community)
+    WHERE NOT ancestor._stale = true
+    SET ancestor._stale = true, ancestor._staleAt = datetime()
+  `);
+} catch (_) { /* non-fatal */ }
+```
+
+**Success Criteria:**
+- `mark_as_modified` propagates staleness to Community nodes in <100ms
+- `resummarize_stale.js` regenerates only stale summaries
+- Typical PR (5-10 files) triggers 2-5 community re-summarizations (~15-30 seconds)
+- Full re-clustering triggered only when >20% of a community's members change
+
+**Implementation Files:**
+| File | New/Modified | Description |
+|------|-------------|-------------|
+| `scripts/resummarize_stale.js` | New | Selective re-summarization of stale communities |
+| `src/tools/GraphRAGTools.js` | Modified | Add staleness propagation hook to `markAsModified` |
+
+**Estimated Effort:** 2-3 hours
+
+**Dependencies:**
+- 24E-6 complete (LLM summary pipeline must exist for selective re-generation)
+- 24H-3 `mark_as_modified` operational (already delivered)
+
 ---
 
 ## 5. Success Metrics
 
-| Metric | Baseline (24D only) | Target (24E) | Measurement |
-|--------|---------------------|--------------|-------------|
-| Global query accuracy | ~30% | >75% | 40% (Phase 24G benchmark — template summaries; LLM upgrade needed) |
-| Queries for architecture understanding | 5-10 | 1-2 | 1-2 via `search_architecture` tool |
-| Community boundary alignment | N/A | >70% match dirs | Reasonable — 63 of 3,841 communities are multi-node |
-| Summary freshness | N/A | <24hr stale | Manual re-run via `run_community_detection.js` |
-| Global retrieval latency | N/A | <1000ms | ~120ms P95 (Phase 24G benchmark) |
+| Metric | Baseline (24D only) | Target (24E complete) | Current (24E-5) | Measurement |
+|--------|---------------------|----------------------|-----------------|-------------|
+| Global query accuracy | ~30% | >75% | 60% (template) | Phase 24G benchmark; 24E-6 LLM upgrade targets ≥75% |
+| Queries for architecture understanding | 5-10 | 1-2 | 1-2 | via `search_architecture` tool |
+| Community boundary alignment | N/A | >70% match dirs | Reasonable | 63 of 3,841 communities are multi-node |
+| Summary freshness | N/A | <24hr stale | Manual re-run | 24E-7 will enable selective re-summarization |
+| Global retrieval latency | N/A | <1000ms | ~120ms P95 | Phase 24G benchmark |
+| Summary quality | N/A | Developer-grade narratives | Keyword enumeration | 24E-6 replaces templates with LLM |
+| Stale summary turnaround | N/A | <2 min (5-10 file PR) | Full re-run (~35 min) | 24E-7 selective re-summarization |
 
 ---
 
@@ -788,20 +1152,21 @@ Add `--materialize` flag to the script for backward compatibility.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Communities don't match intuitive boundaries | Medium | High | Manual override capability; tune Leiden parameters |
-| Summary generation too expensive | Medium | Medium | Batch during off-hours; cache aggressively |
-| Staleness cascade invalidates too much | Low | Medium | Tune thresholds; lazy regeneration |
+| GitHub Models API rate limits hit during batch | Medium | Low | Resume-safe script; 2.5s delay; run during off-hours |
+| LLM summaries hallucinate incorrect relationships | Low | Medium | Low temperature (0.3); validation step; spot-check |
+| Staleness cascade invalidates too many summaries | Low | Medium | Tune threshold (20%); lazy regeneration |
 | Neo4j GDS not available/licensed | Low | High | Fallback to external clustering (NetworkX) |
-| Summaries become stale faster than regenerated | Medium | Medium | Priority queue for high-traffic communities |
+| GitHub token scope changes break Models API | Low | Medium | `gh auth refresh` as fallback; document required scopes |
 
 ---
 
 ## 7. Dependencies
 
 ### Required Infrastructure
-- [ ] Neo4j GDS plugin (Graph Data Science library)
-- [ ] LLM access for summary generation (budget ~$50-100 for full corpus)
-- [ ] Embedding model for summary vectors
-- [ ] ChromaDB collection for community summaries
+- [x] Neo4j GDS plugin (Graph Data Science library) — v2.13.7 installed
+- [x] LLM access — GitHub Models API via `gh auth token` (Copilot subscription)
+- [x] Embedding model for summary vectors — `Xenova/all-mpnet-base-v2` (auto-generated)
+- [x] ChromaDB collection for community summaries — `community-summaries` (828 docs)
 
 ### Phase 24 Integration Points
 - **24A**: Cypher patterns extended for community traversal
