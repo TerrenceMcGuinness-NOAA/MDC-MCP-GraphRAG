@@ -161,10 +161,10 @@ All repos use CMake build system, are predominantly Fortran (75-99%) with some C
 
 ```
                           ┌──────────────────────────────────┐
-                          │          Neo4j Graph              │
-                          │                                   │
-  global-workflow ───────►│  File ─USES──► FortranModule      │
-  (existing 589K rels)    │   │                │              │
+                          │          Neo4j Graph             │
+                          │                                  │
+  global-workflow ───────►│  File ─USES──► FortranModule     │
+  (existing 589K rels)    │   │                │             │
                           │  CALLS         PROVIDED_BY ◄──┐  │
                           │   │                │          │  │
                           │   ▼                ▼          │  │
@@ -173,17 +173,17 @@ All repos use CMake build system, are predominantly Fortran (75-99%) with some C
                           │  CALLS         w3emc, ip..)   │  │
                           │   ▼                           │  │
                           │  ExternalLibrary ◄─ BUILT_BY ─┘  │
-                          │  {family:"NCEPLIBS"               │
-                          │   version:"12.1.0"                │
-                          │   platforms:{spack,wcoss2}}       │
+                          │  {family:"NCEPLIBS"              │
+                          │   version:"12.1.0"               │
+                          │   platforms:{spack,wcoss2}}      │
                           └──────────────┬───────────────────┘
                                          │
                                DOCUMENTED_BY
                                          │
                           ┌──────────────▼───────────────────┐
-                          │       ChromaDB Vectors            │
-                          │    1,747 NCEPLIBS API docs        │
-                          │    (ingested Feb 26, 2026)        │
+                          │       ChromaDB Vectors           │
+                          │    1,747 NCEPLIBS API docs       │
+                          │    (ingested Feb 26, 2026)       │
                           └──────────────────────────────────┘
 ```
 
