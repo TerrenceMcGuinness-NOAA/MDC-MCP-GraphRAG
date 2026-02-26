@@ -204,8 +204,103 @@ DOCUMENTATION_SOURCES = {
             'description': 'Spack package manager - LLNL HPC package management',
             'max_pages': 100,
             'enabled': True
-        }
+        },
         # hpc-stack removed (2026-02-17) - legacy, superseded by spack-stack
+
+        # --- NCEPLIBS: individual library API documentation (Doxygen) ---
+        # Dashboard at https://noaa-emc.github.io/NCEPLIBS/ is usage tracking only;
+        # actual API docs live at per-library github_pages sites below.
+        # Added 2026-02-26 - libraries used by GFS/GEFS/Global Workflow
+        {
+            'name': 'nceplibs-bufr',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-bufr/',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'NCEPLIBS-bufr - BUFR format encoding/decoding (300+ subroutines, Python API)',
+            'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-ip',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-ip/',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'NCEPLIBS-ip - General interpolation library (6 methods, spectral transforms)',
+            'max_pages': 80,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-w3emc',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-w3emc/',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'NCEPLIBS-w3emc - GRIB1 decoder/encoder, date/time, bit manipulation',
+            'max_pages': 80,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-g2',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-g2/',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'NCEPLIBS-g2 - GRIB2 encoding/decoding, file API, utilities',
+            'max_pages': 80,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-bacio',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-bacio/',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'NCEPLIBS-bacio - Binary I/O for NCEP models',
+            'max_pages': 30,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-g2tmpl',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-g2tmpl/',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'NCEPLIBS-g2tmpl - GRIB2 template utilities',
+            'max_pages': 40,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-nemsio',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-nemsio/',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'NCEPLIBS-nemsio - I/O for NCEP models using NEMS',
+            'max_pages': 40,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-sfcio',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-sfcio/',
+            'type': 'github_pages',
+            'priority': 4,
+            'description': 'NCEPLIBS-sfcio - Surface files I/O',
+            'max_pages': 20,
+            'enabled': True
+        },
+        {
+            'name': 'nceplibs-sigio',
+            'url': 'https://noaa-emc.github.io/NCEPLIBS-sigio/',
+            'type': 'github_pages',
+            'priority': 4,
+            'description': 'NCEPLIBS-sigio - Sigma restart file I/O for global spectral model',
+            'max_pages': 20,
+            'enabled': True
+        },
+        {
+            'name': 'wgrib2',
+            'url': 'https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/',
+            'type': 'single_page',
+            'priority': 3,
+            'description': 'wgrib2 - GRIB2 file utility (most loaded NCEP module on Hera/Jet)',
+            'max_pages': 30,
+            'enabled': True
+        }
     ],
 
     # =========================================================================

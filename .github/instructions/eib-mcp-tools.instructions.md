@@ -1,12 +1,12 @@
 ---
-applyWhen: hasActiveMCPServer("eib-mcp-rag-full")
+applyWhen: hasActiveMCPServer("eib-mcp-rag-full") || hasActiveMCPServer("eib-mcp-gateway")
 ---
 
 # EIB MCP Tool Usage Instructions (48 tools / 9 modules)
 
 ## MCP-First Policy
 
-When the `eib-mcp-rag-full` server is connected, **always prefer MCP tools over shell commands** for code analysis, documentation search, and compliance checking.
+When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), **always prefer MCP tools over shell commands** for code analysis, documentation search, and compliance checking.
 
 ### When to Use MCP Tools vs Direct File Access
 
@@ -22,57 +22,71 @@ When the `eib-mcp-rag-full` server is connected, **always prefer MCP tools over 
 
 **Best practice**: Start with MCP tools for discovery, then use `read_file` for specific line-level details.
 
-## Quick Reference: Required Parameters
+## Quick Reference: Required Parameters (auto-generated)
+
+<!-- Regenerate with: cd mcp_server_node && node scripts/generate-tool-docs.js -->
 
 These are the **exact parameter names** — using wrong names will fail:
 
 | Tool | Required Param | Optional Params |
 |------|----------------|-----------------|
-| **Code Analysis (Neo4j)** | | |
-| `analyze_code_structure` | `file_path` | `include_dependencies`, `depth` |
-| `find_dependencies` | `target` | `direction`, `max_depth` |
-| `find_callers_callees` | `function_name` | `file_path`, `include_source` |
-| `find_env_dependencies` | `variable_name` | |
-| `trace_execution_path` | `function_name` | `file_path`, `max_depth`, `include_callers` |
+| **Workflow Info (3 — Filesystem)** | | |
+| `get_workflow_structure` | *(none)* | `component`, `structure_data` |
+| `get_system_configs` | *(none)* | `platform`, `config_type`, `content` |
+| `describe_component` | `component` | `show_content`, `content`, `file_type` |
+| **Code Analysis (6 — Neo4j)** | | |
+| `analyze_code_structure` | `file_path` | `include_dependencies`, `depth`, `token_budget` |
+| `find_dependencies` | `target` | `direction`, `max_depth`, `token_budget` |
+| `trace_execution_path` | `function_name` | `file_path`, `max_depth`, `include_callers`, `include_weights`, `token_budget` |
+| `find_callers_callees` | `function_name` | `file_path`, `include_source`, `token_budget`, `cross_language` |
 | `trace_full_execution_chain` | `start` | `direction`, `max_depth`, `languages` |
-| **GraphRAG (Neo4j + ChromaDB)** | | |
-| `get_code_context` | `symbol` | `depth`, `include_source` |
+| `find_env_dependencies` | `variable_name` | `show_exports`, `limit`, `token_budget` |
+| **Semantic Search (6 — ChromaDB + Neo4j)** | | |
+| `search_documentation` | `query` | `collection`, `max_results`, `include_graph`, `similarity_threshold` |
+| `find_related_files` | `file_path` | `max_results`, `include_documentation` |
+| `explain_with_context` | `topic` | `context_type`, `detail_level` |
+| `get_knowledge_base_status` | *(none)* | `include_graph`, `include_vector` |
+| `list_ingested_urls` | *(none)* | `format`, `source_filter` |
+| `get_ingested_urls_array` | *(none)* | `include_failed` |
+| **EE2 Compliance (5 — ChromaDB)** | | |
+| `search_ee2_standards` | `query` | `category`, `max_results`, `include_examples` |
+| `analyze_ee2_compliance` | `content` | `analysis_type`, `include_recommendations` |
+| `generate_compliance_report` | *(none)* | `scope`, `categories`, `format` |
+| `scan_repository_compliance` | `name`, `content` | `files`, `path`, `repository_path`, `file_patterns`, `sample_size`, `categories` |
+| `extract_code_for_analysis` | `name`, `content` | `files`, `path`, `content_type`, `categories`, `file_pattern`, `max_files` |
+| **Operational (4 — ChromaDB)** | | |
+| `get_operational_guidance` | `operation` | `platform`, `urgency` |
+| `explain_workflow_component` | `component` | `detail_level` |
+| `list_job_scripts` | *(none)* | `category`, `search`, `format`, `job_list`, `files`, `name`, `content` |
+| `get_job_details` | `job_name` | `include_content`, `include_config`, `include_chromadb` |
+| **GraphRAG (9 — ChromaDB + Neo4j)** | | |
+| `get_code_context` | `symbol` | `depth`, `include_community`, `token_budget` |
 | `search_architecture` | `query` | `max_results` |
-| `find_similar_code` | `code_or_symbol` | `max_results` |
+| `find_similar_code` | `code_or_symbol` | `similarity_threshold`, `max_results` |
 | `get_change_impact` | `symbol` | `change_type`, `include_indirect` |
-| `trace_data_flow` | `from_symbol` | `max_depth` |
-| **Session State (Phase 24H-3)** | | |
+| `trace_data_flow` | `from_symbol` | `to_symbol`, `max_depth` |
 | `mark_as_modified` | `file_path` | `change_type`, `description` |
 | `get_session_context` | *(none)* | `include_dirty` |
 | `checkpoint_state` | `name` | `description` |
-| `restore_checkpoint` | `checkpoint_id` | |
-| **Semantic Search & RAG** | | |
-| `search_documentation` | `query` | `max_results`, `collection` |
-| `explain_with_context` | `topic` | `context_type`, `detail_level` |
-| `find_related_files` | `file_path` | `max_results`, `threshold` |
-| **EE2 Compliance** | | |
-| `analyze_ee2_compliance` | `content` | `analysis_type` |
-| `scan_repository_compliance` | `name`, `content` | `repository_path`, `file_patterns` |
-| `search_ee2_standards` | `query` | |
-| `extract_code_for_analysis` | `name`, `content` | `content_type`, `categories` |
-| **Operational** | | |
-| `get_operational_guidance` | `operation` | `platform`, `urgency` |
-| `explain_workflow_component` | `component` | `detail_level` |
-| `get_job_details` | `job_name` | `include_dependencies` |
-| **Workflow Info** | | |
-| `describe_component` | `component` | `show_content` |
-| **GitHub** | | |
-| `search_issues` | `query` | |
+| `restore_checkpoint` | `checkpoint_id` | *(none)* |
+| **GitHub (4 — GitHub API)** | | |
 | `analyze_workflow_dependencies` | `component` | `analysis_type`, `include_external` |
-| **SDD** | | |
-| `get_sdd_workflow` | `workflow_name` | |
-| `start_sdd_session` | `phase` | `totalSteps`, `notes` |
+| `search_issues` | `query` | `repository`, `state`, `labels` |
+| `get_pull_requests` | *(none)* | `repository`, `state`, `limit` |
+| `analyze_repository_structure` | *(none)* | `repositories`, `analysis_depth` |
+| **SDD Workflows (9 — Filesystem)** | | |
+| `list_sdd_workflows` | *(none)* | `include_metadata` |
+| `get_sdd_workflow` | `workflow_name` | *(none)* |
+| `start_sdd_session` | `phase` | `notes`, `total_steps` |
 | `record_sdd_step` | `step`, `name` | `tag`, `notes` |
-| `validate_sdd_compliance` | *(none)* | `content`, `target` |
-| `complete_sdd_session` | *(none)* | `summary`, `abandon` |
-| `get_sdd_execution_history` | *(none)* | `limit` |
-
-Tools with no required params: `get_workflow_structure`, `get_system_configs`, `list_job_scripts`, `list_ingested_urls`, `get_ingested_urls_array`, `get_knowledge_base_status`, `list_sdd_workflows`, `get_sdd_session`, `get_sdd_framework_status`, `generate_compliance_report`, `get_pull_requests`, `analyze_repository_structure`, `mcp_health_check`, `get_server_info`, `get_session_context`
+| `get_sdd_session` | *(none)* | `resume` |
+| `complete_sdd_session` | *(none)* | `summary`, `abandon`, `reason` |
+| `get_sdd_execution_history` | *(none)* | `limit`, `workflow_name` |
+| `validate_sdd_compliance` | *(none)* | `content`, `target`, `framework_version`, `content_type` |
+| `get_sdd_framework_status` | *(none)* | `detailed` |
+| **Utility (2 — Built-in)** | | |
+| `get_server_info` | *(none)* | `include_capabilities` |
+| `mcp_health_check` | *(none)* | `detailed`, `deep`, `functional` |
 
 ## Tool Selection by Task
 
