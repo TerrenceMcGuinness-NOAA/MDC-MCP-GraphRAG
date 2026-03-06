@@ -176,37 +176,34 @@ SUBMODULE_PATHS = [
 
 ## 4. Data Quality Issues
 
-### 4.1 Path Prefix Inconsistency (CRITICAL)
+> **Status: RESOLVED (Phase 38, 2026-03-06)**
+> All critical data quality issues below have been fixed. See remediation notes.
 
-The same file appears with different path prefixes depending on which ingestion script created the entry:
+### 4.1 Path Prefix Inconsistency — FIXED
 
-| Database | Node/Doc Type | Path Convention | Count | Correct? |
-|----------|--------------|----------------|-------|----------|
-| ChromaDB code | file_path | `global-workflow/sorc/...` | 29,495 (50.2%) | **NO** — repo name is arbitrary |
-| ChromaDB code | file_path | `sorc/...` | 29,205 (49.7%) | YES |
-| ChromaDB code | file_path | `dev/...` | 61 (0.1%) | YES |
-| Neo4j File | absolutePath | `/mcp_rag_eib/global-workflow_MCP_node.js-RAG/...` | 178 | **NO** — old checkout path |
-| Neo4j Fortran | file_path | `sorc/...` | ~13,000 | YES |
-| Neo4j Python | file_path | `sorc/`, `dev/`, `ush/` | ~362 | YES |
-| Neo4j Shell | path | `dev/`, `ush/` | ~172 | YES |
+~~The same file appears with different path prefixes depending on which ingestion script created the entry.~~
 
-**Impact:** Tools that match paths across databases (e.g., `find_related_files`, `get_code_context`) may fail to join correctly when one database has `global-workflow/sorc/foo.F90` and the other has `sorc/foo.F90`.
+| Database | Node/Doc Type | Path Convention | Count | Status |
+|----------|--------------|----------------|-------|--------|
+| ChromaDB code | file_path | `global-workflow/sorc/...` | ~~29,495~~ → 0 | **FIXED** by `fix_chromadb_paths.py` |
+| ChromaDB code | file_path | `sorc/...`, `dev/...`, `ush/...` | 58,761 (100%) | Correct |
+| Neo4j File | path | relative (`scripts/`, `ush/`, `sorc/`, `dev/`) | 2,709 (98.7%) | Correct |
+| Neo4j File | path | variable refs (`${USHgfs}/...`) | 35 (1.3%) | Expected (shell variable references) |
+| Neo4j Fortran | file_path | `sorc/...` | ~13,000 | Correct |
+| Neo4j Python | file_path | `sorc/`, `dev/`, `ush/` | ~362 | Correct |
+| Neo4j Shell | path | `dev/`, `ush/`, `scripts/` | 274 | Correct |
 
-### 4.2 Shell Script Parse Artifacts
+**Prevention:** Path normalization guard added to `ingest_code_v8.py` to strip leading repo directory names on future ingestions.
 
-The ShellScript graph contains ~60 spurious nodes from regex parsing errors:
+### 4.2 Shell Script Parse Artifacts — FIXED
 
-```
-ABORT!, Aborting., -maxdepth, -name, -type, ..., ./PDY, 0p25, =,
-Adding, Can, Check, Either, Exiting., Giving, Hera,, Must, No,
-Override, PLEASE, Please, REPLIES, Skipping, Snow, Syncing, The, etc.
-```
+~~The ShellScript graph contained ~60 spurious nodes from regex parsing errors.~~
 
-These are string literals or error messages that the `source` regex incorrectly matched.
+**Remediation:** 42 spurious nodes purged by `purge_shell_artifacts.py`. Source regex in `ingest_shell_graph_v8.py` tightened to require path-like structure (must contain `/` or shell extension). Post-filter added to reject flags, wildcards, and error messages.
 
-### 4.3 Stale File Nodes
+### 4.3 Stale File Nodes — ALREADY RESOLVED
 
-All 178 `File` nodes reference `/mcp_rag_eib/global-workflow_MCP_node.js-RAG/` — an old checkout location that no longer exists. The current repo is at `/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/`.
+~~178 `File` nodes referenced an old checkout path.~~ Audit found 0 stale nodes — this issue was resolved in a prior phase. All 2,744 File nodes now use correct relative paths.
 
 ---
 
@@ -363,7 +360,7 @@ All 178 `File` nodes reference `/mcp_rag_eib/global-workflow_MCP_node.js-RAG/` �
 | **External libs** (ESMF, NUOPC, FMS, MPI) | 0% | 0% | **0%** | **F** |
 | **wxflow** | 95% | 90% | 90% | **A** |
 | **Build system** (CMake, spack-stack) | 30% | CMake nodes | 90% | **B** |
-| **Path consistency** | 50% correct | mixed | N/A | **D** |
+| **Path consistency** | 100% correct | 99% correct | N/A | **A** |
 
 ### Bottom Line
 

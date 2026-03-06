@@ -86,7 +86,7 @@ class ShellScriptParser:
         
         # Regex patterns
         self.source_pattern = re.compile(
-            r'(?:source|\.|\.)\s+["\']?([^"\';\s\n]+)["\']?',
+            r'(?:source|\.) +["\']?([^\s;|&"\']+/[^\s;|&"\']+|[^\s;|&"\']+\.(?:sh|bash|ksh|env|conf))["\']?',
             re.MULTILINE
         )
         self.invoke_pattern = re.compile(
@@ -146,6 +146,11 @@ class ShellScriptParser:
             # Source statements
             for match in self.source_pattern.finditer(line):
                 source_path = match.group(1)
+                # Post-filter: reject non-path matches
+                if (source_path.startswith('-')
+                        or source_path in ('*', '...')
+                        or (source_path[0:1].isupper() and '/' not in source_path and '.' not in source_path)):
+                    continue
                 result['sources'].append({
                     'path': source_path,
                     'line': i,

@@ -1,5 +1,26 @@
 # MCP Server Changelog
 
+## [7.28.0] - SDD Phase 38: Knowledge Base Data Quality Normalization (March 6, 2026)
+
+### Phase 38: Knowledge Base Data Quality Normalization
+
+#### Fixed
+- ChromaDB path prefix: stripped `global-workflow/` from 29,495 of 58,761 docs (50.2%) in `code-with-context-v8-0-0`
+- Neo4j spurious ShellScript nodes: purged 42 regex parse artifacts (`ABORT!`, `*`, `-maxdepth`, etc.)
+- Source regex in `ingest_shell_graph_v8.py`: now requires path-like structure (contains `/` or shell extension)
+- Path normalization guard in `ingest_code_v8.py`: strips leading repo directory name to prevent future prefix drift
+
+#### Improved
+- Ex-script graph coverage: 41 → 82 ShellScript nodes after re-ingestion with fixed regex
+- Cross-database path consistency: ChromaDB 100%, Neo4j 99% (35 expected variable-reference nodes remain)
+
+#### Added
+- `scripts/fix_chromadb_paths.py` — batch ChromaDB metadata path normalization (with `--dry-run`)
+- `scripts/purge_shell_artifacts.py` — Neo4j spurious node cleanup (with `--dry-run`)
+
+#### Updated
+- `docs/EIB_MCP_KNOWLEDGE_BASE_GAP_ANALYSIS.md` — §4 (Data Quality) marked RESOLVED, §8 scorecard path consistency D→A
+
 ## [7.27.0] - SDD Phase 44: RAG Quality Assurance & Regression Framework (March 6, 2026)
 
 ### Phase 44: RAG Quality Assurance & Regression Framework

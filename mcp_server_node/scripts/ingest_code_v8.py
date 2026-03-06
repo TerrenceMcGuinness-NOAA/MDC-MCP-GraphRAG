@@ -562,6 +562,10 @@ class CodeIngesterV8:
                     continue
                 
                 rel_path = str(file_path.relative_to(dir_path.parent.parent))
+                # Phase 38: Strip leading repo directory name to ensure consistent relative paths
+                _repo_dir = os.path.basename(str(dir_path.parent))
+                if rel_path.startswith(_repo_dir + "/"):
+                    rel_path = rel_path[len(_repo_dir) + 1:]
                 
                 # Parse structure
                 structure = self.parser.parse_file(rel_path, content, language)
