@@ -1,5 +1,131 @@
 # MCP Server Changelog
 
+## [7.26.0] - SDD Phase 37: Parallel Works MCP Server Tool Expansion (March 6, 2026)
+
+### Context
+A live API survey of `noaa.parallel.works` (v7.15.1) discovered 4 responsive endpoints with no MCP tool coverage (`/api/resources`, `/api/ips`, `/api/networks`, `/api/settings`). Phase 37 adds tools for these endpoints, enhances 3 existing tools with filters, and creates 3 composite/derived tools. Total PW MCP server tools: 19 → 26.
+
+### Added (Phase 37A — New Endpoint Tools)
+- `list_resources`: Unified compute resource list from `/api/resources` with status/type/user/group filters and derived `createdAt` timestamps
+- `list_ips`: Static/elastic IP addresses from `/api/ips` with csp/provisioned/user filters
+- `list_networks`: VPC networks from `/api/networks` with csp/provisioned filters
+- `get_platform_settings`: Platform config, version, maintenance status from `/api/settings`
+
+### Enhanced (Phase 37B — Existing Tool Improvements)
+- `list_clusters`: Added `status`, `type`, `user` client-side filters
+- `list_sessions`: Added `status` filter (running/stopped)
+- `get_groups`: Added `budget_summary` option showing per-group allocation budget table
+
+### Added (Phase 37C — Composite/Derived Tools)
+- `get_resource_detail`: Single resource deep-dive by name with full metadata
+- `get_cluster_status`: Concise cluster status summary (name, status, IP, health, sessions)
+- `get_cost_summary`: Aggregated budget/cost summary across all groups with percent-used calculations
+
+### SDD Reference
+- Spec: `sdd_framework/workflows/phase37_pw_mcp_tool_expansion.md` (v1.0.0)
+- Target: `supported_repos/parallel-works-mcp/src/index.js`
+- Branch: `adding_local_mcptools`
+- Commit: 50b89dd
+
+## [7.25.4] - SDD Phase 35/35b: GitLab Runner Launch Script Hardening + Cross-Node Health Checks (March 4, 2026)
+
+### Context
+The GitLab runner launch script (`dev/ci/scripts/utils/gitlab/launch_gitlab_runner.sh`) lacked the operational maturity of its Jenkins counterpart. Phase 35 brought it to parity with `getopts` argument parsing, 3-tier health checks, idempotent run behavior, and structured logging. Phase 35b addresses a critical gap: on multi-head-node RDHPCS clusters (Hera, Hercules, Orion), cron jobs can fire on any login node, but `pgrep` and `curl localhost` only see processes/ports on the local node — causing false-negative health checks and duplicate runner launches.
+
+### Added (Phase 35 — commit a5ef89ed, February 27 2026)
+- `getopts` argument parsing (`-f` force, `-n` skip-wait, `-h` help) replacing positional args
+- 3-tier `check_runner_status()`: pgrep (process) → Prometheus metrics (liveness) → `gitlab-runner verify` (registration)
+- Idempotent `run` subcommand: does nothing if runner healthy, waits 5min + relaunches if offline
+- New `status` subcommand reporting all 3 health tiers with appropriate exit codes
+- `check_port_available()` detecting port conflicts before launch (distinguishes runner vs non-runner)
+- `runner.state` file written at launch for cron-safe health checks (PID, port, timestamp, hostname)
+- `log_msg()` helper with timestamps replacing raw `echo` statements
+- Dependency validation before `register` (GITLAB_URL reachable, token present)
+- Module environment loading (`module-setup.sh` + `gw_setup.${MACHINE_ID}`)
+- Cloud platform (`noaacloud`) config sourcing matching Jenkins pattern
+- `GITLAB_RUNNER_METRICS_PORT=9252` added to all 6 platform configs
+
+### Added (Phase 35b — March 4 2026)
+- **Cross-node health checks**: `run_on_runner_host()` SSH wrapper for Tier 1+2 checks when cron fires on a different head node than the runner's host
+- `RUNNER_HOST` comparison: reads runner's node from `runner.state`, SSHs if hostname differs
+- Remote stale process cleanup: `launch_runner()` kills orphaned processes on remote host via SSH before local relaunch
+- `status` subcommand now reports runner host and cross-node check status
+- SSH uses `BatchMode=yes`, `ConnectTimeout=5`, `StrictHostKeyChecking=no` for non-interactive cron safety
+
+### SDD Reference
+- Spec: `sdd_framework/workflows/phase35_gitlab_runner_launch_hardening.md` (v1.1.0)
+- Target: `supported_repos/global-workflow/dev/ci/scripts/utils/gitlab/launch_gitlab_runner.sh`
+
+## [7.25.3] - PW VNC Nginx→KasmVNC Port Mismatch Fix Script (March 4, 2026)
+
+### Context
+After launching a PW desktop session, the portal shows "502 Bad Gateway" or "504 Gateway Timeout" even though KasmVNC starts successfully. Root cause: PW's `start-template-v3.sh` generates independent random ports for KasmVNC (`-websocketPort`) and the nginx `proxy_pass` target via separate `pw agent open-port` calls. On re-launches, stale config files from prior sessions (owned by nginx UID 101) block the script from writing updated configs, causing nginx to proxy to a port where nothing is listening.
+
+This is a **separate issue** from the OpenSSL/SSL cert problem fixed in v7.25.1/v7.25.2. The SSL fix prevents KasmVNC from crashing on startup; this fix corrects the port wiring between nginx and KasmVNC.
+
+### Added
+- **`SETUP/scripts/fix-pw-vnc-port-mismatch.sh`**: Idempotent fix script that detects and corrects the nginx→KasmVNC port mismatch:
+  - Reads the running KasmVNC `-websocketPort` from the process table
+  - Reads the nginx container's `proxy_pass` port from the bind-mounted config
+  - If they differ, overwrites the config in-place (handles Docker bind-mount inode issues)
+  - Reloads nginx and verifies end-to-end HTTP 200
+  - Supports `--check` (dry-run) mode
+  - Falls back to host-side config overwrite if in-container tee fails
+
+### Root Cause Analysis
+PW `start-template-v3.sh` (vncserver/) port assignment:
+1. `service_port` — set by PW session runner (nginx listen port, portal connects here)
+2. `kasmvnc_port` — `pw agent open-port` (line 378, KasmVNC websocket)
+3. `proxy_port` — initially `kasmvnc_port` (line 539), BUT on line 562 writes `config.conf` with `>>` (append)
+4. On re-launch, `nginx.conf` is owned by UID 101 → **Permission denied** → config write fails silently
+5. Old container with stale config is reused → port mismatch → 502
+
+### Usage
+```bash
+# After PW VNC session shows 502/504:
+SETUP/scripts/fix-pw-vnc-port-mismatch.sh          # auto-fix
+SETUP/scripts/fix-pw-vnc-port-mismatch.sh --check   # dry-run only
+```
+
+## [7.25.2] - OpenSSL 3.2.2 Downgrade + Versionlock (March 3, 2026)
+
+### Context
+The v7.25.1 `--exclude='openssl*'` approach only protected our own `dnf update` in `bootstrap.sh`. Parallel Works' own update scripts could still upgrade OpenSSL to 3.5.x, re-triggering the KasmVNC defects. Replaced with a proper downgrade-and-lock strategy: downgrade from Rocky 9.6 vault repo + `dnf versionlock` so no `dnf update` from any source can upgrade OpenSSL past 3.2.x.
+
+### Changed
+- **`SETUP/bootstrap.sh`**: Replaced `--exclude='openssl*'` with vault-repo downgrade + versionlock:
+  - Checks current OpenSSL version; skips if already at 3.2.2 (idempotent)
+  - Removes `openssl-fips-provider` (has exact version pin on 3.5.x that blocks downgrade)
+  - Downgrades `openssl`, `openssl-libs`, `openssl-devel` to `1:3.2.2-6.el9_5.1` from Rocky 9.6 vault
+  - Applies `dnf versionlock` on all three packages
+  - `dnf update` now runs without `--exclude='openssl*'` — versionlock handles it transparently
+
+### Technical Details
+- Safe version: `openssl-1:3.2.2-6.el9_5.1` (Rocky 9.6 base image)
+- Broken version: `openssl-1:3.5.1-7.el9_7` (Rocky 9.7 repos)
+- Vault repo: `https://dl.rockylinux.org/vault/rocky/9.6/{BaseOS,AppStream}/x86_64/os/`
+- KasmVNC 1.4.0 only requires `OPENSSL_3.0.0` ABI — works with any 3.x
+
+## [7.25.1] - KasmVNC OpenSSL 3.5.x Auto-Fix Script (March 2, 2026)
+
+### Context
+Every VM boot risks breaking KasmVNC because Parallel Works runs `dnf update` which can upgrade OpenSSL from 3.2.x to 3.5.x, triggering three compounding defects: SSL cert rejection (CA:TRUE), null-pointer segfault in WebUDP code path, and JS client defaulting WebRTC to enabled. Previously required manual 4-step fix on every startup. Now automated and integrated into bootstrap.
+
+### Added
+- **`SETUP/scripts/fix-kasmvnc-openssl3.sh`**: Idempotent fix script that auto-applies all KasmVNC OpenSSL 3.5.x compatibility patches:
+  - Step 1: Regenerates SSL cert with `CA:FALSE`, RSA-4096, SHA-256, proper keyUsage extensions
+  - Step 2: Configures `~/.vnc/kasmvnc.yaml` with STUN/UDP disabled for all users with `.vnc` dirs
+  - Step 3: Patches `screen.bundle.js` and `ui-*.js` to hardcode `enableWebRTC=false` (prevents null-pointer crash)
+  - Step 4: Replaces `select-de.sh` with no-op for Parallel Works desktop compatibility
+  - Supports `--check` (dry-run), `--force` (re-apply), and normal (idempotent) modes
+  - Backs up originals with `.bak.orig` suffix (only on first patch)
+
+### Changed
+- **`SETUP/bootstrap.sh`**: Added `--exclude='openssl*'` to `dnf update` to prevent OpenSSL upgrades from breaking KasmVNC; integrated `fix-kasmvnc-openssl3.sh` to run automatically after system update
+
+### Reference
+- `supported_repos/global-workflow.wiki/KasmVNC-SSL-Certificate-Failure-on-EL9-OpenSSL-3.md` — full root cause analysis
+
 ## [7.25.0] - SDD Phase 34: NCEPLIBS GraphRAG Integration Spec (February 26, 2026)
 
 ### Context
