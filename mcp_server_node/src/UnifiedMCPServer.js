@@ -41,6 +41,7 @@ import { GraphRAGTools } from './tools/GraphRAGTools.js';
 import { UnifiedDataAccess } from './data/UnifiedDataAccess.js';
 import { logEnvironment, MCP_ENV } from './config/environment.js';
 import path from 'path';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 class UnifiedMCPServer {
   constructor(options = {}) {
@@ -220,6 +221,27 @@ class UnifiedMCPServer {
       },
       this.healthCheck.bind(this)
     );
+
+    this.server.registerTool(
+      'get_quality_metrics',
+      'Get RAG quality benchmark metrics. Reads latest benchmark results and returns formatted summary with optional regression comparison.',
+      {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description: 'Filter results to a specific category',
+            enum: ['code_structure', 'semantic_search', 'architecture', 'ee2_compliance', 'operational', 'cross_language']
+          },
+          compare: {
+            type: 'boolean',
+            description: 'Show delta comparison against previous benchmark run',
+            default: false
+          }
+        }
+      },
+      this.getQualityMetrics.bind(this)
+    );
   }
 
   /**
@@ -287,9 +309,10 @@ class UnifiedMCPServer {
     info += `- validate_sdd_compliance - SDD compliance validation\n`;
     info += `- get_sdd_framework_status - Framework status and metrics\n\n`;
 
-    info += `### Utility Tools (2 tools)\n`;
+    info += `### Utility Tools (3 tools)\n`;
     info += `- get_server_info - This tool\n`;
-    info += `- mcp_health_check - MCP server infrastructure health status\n\n`;
+    info += `- mcp_health_check - MCP server infrastructure health status\n`;
+    info += `- get_quality_metrics - RAG quality benchmark metrics\n\n`;
 
     if (include_capabilities) {
       info += `## Configuration\n`;
@@ -749,6 +772,165 @@ class UnifiedMCPServer {
     }
 
     return status;
+  }
+
+  /**
+   * Get RAG quality benchmark metrics
+   */
+  async getQualityMetrics(args = {}) {
+    const { category, compare = false } = args;
+    const resultsDir = join(__dirname, '..', 'test', 'benchmark', 'results');
+
+    if (!existsSync(resultsDir)) {
+      return {
+        content: [{
+          type: 'text',
+          text: '# RAG Quality Metrics\n\nNo benchmark results directory found.\n\nRun the benchmark harness to generate results:\n```\nnpm run benchmark\n```\nExpected path: `test/benchmark/results/`'
+        }]
+      };
+    }
+
+    let jsonFiles;
+    try {
+      jsonFiles = readdirSync(resultsDir)
+        .filter(f => f.endsWith('.json'))
+        .sort()
+        .reverse();
+    } catch (err) {
+      return {
+        content: [{
+          type: 'text',
+          text: `# RAG Quality Metrics\n\n[ERROR] Failed to read results directory: ${err.message}`
+        }]
+      };
+    }
+
+    if (jsonFiles.length === 0) {
+      return {
+        content: [{
+          type: 'text',
+          text: '# RAG Quality Metrics\n\nNo benchmark result files found.\n\nRun the benchmark harness to generate results:\n```\nnpm run benchmark\n```'
+        }]
+      };
+    }
+
+    let latest;
+    try {
+      latest = JSON.parse(readFileSync(join(resultsDir, jsonFiles[0]), 'utf-8'));
+    } catch (err) {
+      return {
+        content: [{
+          type: 'text',
+          text: `# RAG Quality Metrics\n\n[ERROR] Failed to parse latest result (${jsonFiles[0]}): ${err.message}`
+        }]
+      };
+    }
+
+    const fmtPct = (v) => v != null ? `${(v * 100).toFixed(0)}%` : 'N/A';
+    const fmtVal = (v) => v != null ? v.toFixed(2) : 'N/A';
+    const fmtMs = (v) => v != null ? `${v}ms` : 'N/A';
+    const fmtCategoryName = (key) => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    let md = '# RAG Quality Metrics\n\n';
+    md += `**Benchmark**: ${latest.timestamp || 'Unknown'}\n`;
+    md += `**Corpus Version**: ${latest.corpus_version || latest.version || 'Unknown'}`;
+    md += ` (${latest.total_queries || 'N/A'} queries)\n\n`;
+
+    // Overall metrics
+    if (latest.overall) {
+      const o = latest.overall;
+      md += '## Overall\n\n';
+      md += '| Metric | Value |\n';
+      md += '|--------|-------|\n';
+      md += `| Precision@5 | ${fmtVal(o.precision_at_k)} |\n`;
+      md += `| Recall@5 | ${fmtVal(o.recall_at_k)} |\n`;
+      md += `| MRR | ${fmtVal(o.mrr)} |\n`;
+      md += `| Coverage | ${fmtPct(o.coverage)} |\n`;
+      md += `| Latency P50 | ${fmtMs(o.latency_p50_ms)} |\n`;
+      md += `| Latency P95 | ${fmtMs(o.latency_p95_ms)} |\n`;
+      md += '\n';
+    }
+
+    // Per-category breakdown
+    if (latest.categories) {
+      const cats = Object.entries(latest.categories);
+      const filtered = category
+        ? cats.filter(([key]) => key === category)
+        : cats;
+
+      if (filtered.length > 0) {
+        md += category ? `## Category: ${fmtCategoryName(category)}\n\n` : '## By Category\n\n';
+        md += '| Category | P@5 | R@5 | MRR | Coverage | P50 |\n';
+        md += '|----------|-----|-----|-----|----------|-----|\n';
+        for (const [key, c] of filtered) {
+          md += `| ${fmtCategoryName(key)} | ${fmtVal(c.precision_at_k)} | ${fmtVal(c.recall_at_k)} | ${fmtVal(c.mrr)} | ${fmtPct(c.coverage)} | ${fmtMs(c.latency_p50_ms)} |\n`;
+        }
+        md += '\n';
+      } else if (category) {
+        md += `## Category: ${fmtCategoryName(category)}\n\nNo results found for category \`${category}\`.\n\n`;
+      }
+    }
+
+    // Regression comparison
+    if (compare && jsonFiles.length >= 2) {
+      let previous;
+      try {
+        previous = JSON.parse(readFileSync(join(resultsDir, jsonFiles[1]), 'utf-8'));
+      } catch (err) {
+        md += `## Regression\n\n[WARN] Failed to parse previous result (${jsonFiles[1]}): ${err.message}\n`;
+      }
+
+      if (previous && previous.categories && latest.categories) {
+        md += `## Regression (vs ${previous.timestamp || jsonFiles[1]})\n\n`;
+        md += '| Category | Metric | Previous | Current | Delta |\n';
+        md += '|----------|--------|----------|---------|-------|\n';
+
+        const metrics = [
+          { key: 'precision_at_k', label: 'P@5', fmt: fmtVal },
+          { key: 'recall_at_k', label: 'R@5', fmt: fmtVal },
+          { key: 'mrr', label: 'MRR', fmt: fmtVal },
+          { key: 'coverage', label: 'Coverage', fmt: fmtPct },
+          { key: 'latency_p50_ms', label: 'P50', fmt: fmtMs }
+        ];
+
+        const allCats = new Set([
+          ...Object.keys(latest.categories),
+          ...Object.keys(previous.categories)
+        ]);
+        const filteredCats = category
+          ? [...allCats].filter(k => k === category)
+          : [...allCats];
+
+        for (const cat of filteredCats) {
+          const cur = latest.categories[cat] || {};
+          const prev = previous.categories[cat] || {};
+          for (const m of metrics) {
+            const curVal = cur[m.key];
+            const prevVal = prev[m.key];
+            if (curVal == null && prevVal == null) continue;
+
+            let deltaStr = 'N/A';
+            if (curVal != null && prevVal != null && prevVal !== 0) {
+              const deltaPct = ((curVal - prevVal) / Math.abs(prevVal)) * 100;
+              const sign = deltaPct >= 0 ? '+' : '';
+              // For latency, lower is better (invert tag logic)
+              const isLatency = m.key.startsWith('latency_');
+              const tag = isLatency
+                ? (deltaPct <= 0 ? '[IMPROVED]' : '[DEGRADED]')
+                : (deltaPct >= 0 ? '[IMPROVED]' : '[DEGRADED]');
+              deltaStr = `${sign}${deltaPct.toFixed(0)}% ${tag}`;
+            }
+
+            md += `| ${fmtCategoryName(cat)} | ${m.label} | ${m.fmt(prevVal)} | ${m.fmt(curVal)} | ${deltaStr} |\n`;
+          }
+        }
+        md += '\n';
+      }
+    } else if (compare) {
+      md += '## Regression\n\nOnly one benchmark result available. Run the benchmark again to enable comparison.\n';
+    }
+
+    return { content: [{ type: 'text', text: md }] };
   }
 
   /**

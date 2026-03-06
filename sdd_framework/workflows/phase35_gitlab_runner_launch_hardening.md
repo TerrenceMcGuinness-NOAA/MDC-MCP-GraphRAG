@@ -1,9 +1,10 @@
 # SDD: Phase 35 — GitLab Runner Launch Script Hardening
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Created:** 2026-02-27
+**Updated:** 2026-03-04 (Phase 35b: cross-node health checks)
 **Author:** Terry McGuinness + AI Assistants
-**Status:** SPEC COMPLETE — Ready for Execution
+**Status:** EXECUTED — Phase 35 committed a5ef89ed, Phase 35b in progress
 **Execution Mode:** ISD (Interactive Supervised Development)
 **Builds On:** Existing CI/CD infrastructure in `dev/ci/`
 **Audience:** Global Workflow CI/CD Team, RDHPCS Platform Admins
@@ -211,140 +212,42 @@ The Jenkins script clears the `remoting/` cache directory. The GitLab equivalent
 
 The Jenkins script handles `noaacloud` by sourcing `config.${PW_CSP}` instead of `config.${MACHINE_ID}`. The GitLab script should adopt the same pattern if GitLab runners are deployed on Parallel Works cloud nodes.
 
-### 3.7 Local Development with `config.local`
+### 3.7 Cross-Node Health Checks (Phase 35b)
 
-**Problem:** The script cannot be tested or developed on a local VM because `detect_machine.sh` won't match any known HPC hostname, and the `case` statement will exit with "Unsupported platform."
+**Problem:** On multi-head-node RDHPCS clusters (Hera has 3 login nodes, Hercules has 4, etc.), cron jobs can execute on ANY login node. Tiers 1 and 2 are inherently node-local:
+- `pgrep` only sees processes on the current node
+- `curl localhost:9252` only reaches the current node's port bindings
 
-**Solution:** `detect_machine.sh` already supports pre-setting `MACHINE_ID`:
-```bash
-# Line 11-12 of detect_machine.sh:
-if [[ -n "${MACHINE_ID:-}" ]]; then
-    return  # skip hostname detection entirely
-fi
-```
+If cron fires on `hera-login2` but the runner is on `hera-login1`, both tiers return false negatives → the script either launches a duplicate runner or kills nothing and relaunches unnecessarily.
 
-So the developer simply exports `MACHINE_ID=local` before invoking the script, and we:
-1. Add `local` to the case statement in `launch_gitlab_runner.sh`
-2. Create `dev/ci/platforms/config.local` with VM-appropriate paths and a mock GitLab URL
-3. Use `$HOME`-relative paths so it works for any user without root or role accounts
+**Decision:** Use SSH-based remote health checks when the runner is on a different node:
 
-**`config.local` design:**
+1. Read `RUNNER_HOST` from `runner.state` (written at launch time with `$(hostname)`)
+2. Compare against current `$(hostname)`
+3. If they differ, wrap Tier 1 and Tier 2 checks in `ssh ${RUNNER_HOST}`
+4. Tier 3 (`gitlab-runner verify`) is unaffected — it talks to the GitLab server, not local
 
 ```bash
-#!/usr/bin/bash
-
-#########################################################################
-# config.local - Local VM / development workstation configuration
-#
-# For testing and developing CI/CD scripts outside HPC platforms.
-# Usage: export MACHINE_ID=local before running launch_gitlab_runner.sh
-#
-# This config uses $HOME-relative paths so it works for any user.
-# The GITLAB_URL can be pointed at a real GitLab instance or left
-# as a placeholder for dry-run testing.
-#########################################################################
-
-# Main CI root directory - uses $HOME so no role account needed
-export GFS_CI_ROOT="${HOME}/GFS_CI_CD/LOCAL"
-
-# ICSDIR root directory (can be empty for runner testing)
-export ICSDIR_ROOT="${GFS_CI_ROOT}/data/ICSDIR"
-
-#########################################################################
-# Jenkins configuration settings (not used for GitLab runner testing)
-#########################################################################
-export JENKINS_AGENT_LAUNCH_DIR=${GFS_CI_ROOT}/Jenkins/agent
-export JENKINS_WORK_DIR=${GFS_CI_ROOT}/Jenkins/workspace
-
-#########################################################################
-# GitLab CI configuration
-#########################################################################
-
-# Point at your GitLab instance (can be a local GitLab, vlab, or placeholder)
-# For dry-run testing without a real server, leave as-is — register will fail
-# but run/status/health-check logic can still be exercised
-export GITLAB_URL=${GITLAB_URL:-"https://vlab.noaa.gov/gitlab-community"}
-export GITLAB_RUNNER_NAME="Local Dev $(hostname -s)"
-
-# Build and runner directories (auto-created by launch script)
-export GITLAB_BUILDS_DIR=${GFS_CI_ROOT}/BUILDS/GITLAB
-export GITLAB_RUNNER_DIR="${GFS_CI_ROOT}/GitLab/Runner"
-
-#########################################################################
-# Port for GitLab Runner's embedded Prometheus metrics endpoint
-#########################################################################
-export GITLAB_RUNNER_METRICS_PORT=9252
-
-#########################################################################
-# CTest directories (not used for runner testing, but included for parity)
-#########################################################################
-export STAGED_CTESTS=${GITLAB_BUILDS_DIR}/stable/RUNTESTS
-
-# No HPC account needed locally
-export HPC_ACCOUNT=${HPC_ACCOUNT:-"none"}
-
-#########################################################################
-# System-specific settings
-#########################################################################
-export GFS_CI_UTIL_PATH="${HOME}/utils"
-export GFS_CI_ROCOTO_PATH="${GFS_CI_UTIL_PATH}/src/rocoto/bin"
+run_on_runner_host() {
+    if [[ "${RUNNER_ON_REMOTE}" == "True" ]]; then
+        ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+            "${RUNNER_HOST_NODE}" "$*" 2>/dev/null
+    else
+        eval "$*"
+    fi
+}
 ```
 
-**Local development workflow:**
+**Why SSH is safe here:**
+- RDHPCS service accounts (e.g., `role.glopara`) have passwordless SSH between head nodes (shared home directory, SSH keys pre-deployed)
+- `BatchMode=yes` ensures no interactive prompts — fails fast if keys are missing
+- `ConnectTimeout=5` prevents hanging if a head node is down
+- If SSH fails, the check falls through to "offline" → relaunch on the current node (correct behavior)
 
-```bash
-# 1. Set up (one-time)
-export MACHINE_ID=local
-export HOMEgfs_=$(git rev-parse --show-toplevel)  # or set manually
-mkdir -p ~/GFS_CI_CD/LOCAL/GitLab/Runner
-
-# 2. Source the config to verify paths
-source ${HOMEgfs_}/dev/ci/platforms/config.local
-echo "Runner dir: ${GITLAB_RUNNER_DIR}"
-echo "Builds dir: ${GITLAB_BUILDS_DIR}"
-
-# 3. Download the gitlab-runner binary (script does this automatically)
-# Or manually: curl -L --output gitlab-runner https://...  && chmod +x gitlab-runner
-
-# 4. Test status subcommand (no runner running yet)
-./launch_gitlab_runner.sh status
-# Expected: all 3 tiers fail, exit 1
-
-# 5. Test run with -n (skip wait) — will launch a runner process
-./launch_gitlab_runner.sh run -n
-# Expected: launches runner, writes runner.state
-
-# 6. Verify health check
-./launch_gitlab_runner.sh status
-# Expected: process alive, metrics responding (if port available), verify may fail without real GitLab server
-
-# 7. Verify state file
-cat ~/GFS_CI_CD/LOCAL/GitLab/Runner/runner.state
-
-# 8. Test idempotency
-./launch_gitlab_runner.sh run
-# Expected: "GitLab Runner is online (nothing done)"
-
-# 9. Test force relaunch
-./launch_gitlab_runner.sh run -f
-# Expected: kills existing, relaunches
-
-# 10. Port conflict test
-python3 -m http.server 9252 &
-./launch_gitlab_runner.sh run -f
-# Expected: detects port conflict, fails with clear message
-kill %1
-```
-
-**What works without a real GitLab server:**
-- `run` / `run -f` / `run -n` — process launches, metrics endpoint responds, state file written
-- `status` — tier-1 (process) and tier-2 (metrics) work; tier-3 (verify) will fail without server
-- Port conflict detection, state file persistence, idempotency, logging, argument parsing
-
-**What requires a real GitLab server:**
-- `register` — needs valid token and reachable GITLAB_URL
-- `unregister` — needs existing registration
-- Tier-3 `verify` check — needs server connectivity
+**`launch_runner()` cross-node behavior:**
+- When relaunching, kill stale processes on the remote host via SSH before launching locally
+- The new launch always happens on the current node (the runner doesn't care which head node it runs on; `GITLAB_RUNNER_DIR` is on shared filesystem)
+- `runner.state` is updated with the new hostname
 
 ---
 
@@ -575,35 +478,11 @@ Manual validation checklist (to be executed on a target platform):
 14. Verify `runner.state` file exists in `GITLAB_RUNNER_DIR` after launch and contains correct PID/port
 15. Simulate port conflict (e.g., `python3 -m http.server 9252 &`) → verify launch fails with clear error message
 16. Cron-style invocation: `source runner.state && curl -sf http://localhost:${RUNNER_METRICS_PORT}/metrics` succeeds while runner is running
-17. `export MACHINE_ID=local && ./launch_gitlab_runner.sh status` — runs without error using `config.local` paths
-18. `export MACHINE_ID=local && ./launch_gitlab_runner.sh run -n` — launches runner in local dev mode, creates `~/GFS_CI_CD/LOCAL/GitLab/Runner/runner.state`
-19. Full local dev workflow (Section 3.7 steps 1-10) — exercises all subcommands and edge cases on VM
 
-### Step 10: Create `config.local` and update platform configs
+
+### Step 10: Update platform configs with metrics port
 **Tag:** implement, document
-**Target:** `dev/ci/platforms/config.local` (new), `dev/ci/platforms/config.*` (existing)
-
-Create `config.local` as described in Section 3.7. This file uses `$HOME`-relative paths and serves as the development/testing platform config.
-
-Add `local` to the `case` statement in `launch_gitlab_runner.sh`:
-
-```bash
-case "${MACHINE_ID}" in
-    hera | orion | hercules | wcoss2 | gaeac6)
-        echo "Running GitLab Runner script on ${MACHINE_ID}"
-        ;;
-    local)
-        echo "Running GitLab Runner script in local development mode"
-        ;;
-    noaacloud)
-        echo "Running GitLab Runner script on ${PW_CSP}"
-        ;;
-    *)
-        echo "Unsupported platform. Exiting with error."
-        exit 1
-        ;;
-esac
-```
+**Target:** `dev/ci/platforms/config.*` (existing)
 
 Add the new `GITLAB_RUNNER_METRICS_PORT` variable to all existing platform config files:
 
@@ -615,7 +494,7 @@ Add the new `GITLAB_RUNNER_METRICS_PORT` variable to all existing platform confi
 export GITLAB_RUNNER_METRICS_PORT=9252
 ```
 
-Verify that the new variable is added to all platform configs: `config.hera`, `config.hercules`, `config.orion`, `config.wcoss2`, `config.gaeac6`, `config.local`.
+Verify that the new variable is added to all platform configs: `config.hera`, `config.hercules`, `config.orion`, `config.wcoss2`, `config.gaeac6`.
 
 ---
 
@@ -628,9 +507,9 @@ launch_gitlab_runner.sh <command> [options] [token]
         │
         ├── print_usage() if -h
         │
-        ├── Detect machine (detect_machine.sh) — or skip if MACHINE_ID pre-set (e.g., local)
-        ├── Load modules (module-setup.sh + gw_setup.${MACHINE_ID}) — skip if local
-        ├── Source platform config (config.${MACHINE_ID} or config.${PW_CSP} or config.local)
+        ├── Detect machine (detect_machine.sh)
+        ├── Load modules (module-setup.sh + gw_setup.${MACHINE_ID})
+        ├── Source platform config (config.${MACHINE_ID} or config.${PW_CSP})
         ├── cd to GITLAB_RUNNER_DIR
         ├── Download gitlab-runner binary if missing
         ├── Resolve token ($2 → env var → file)
@@ -665,8 +544,9 @@ launch_gitlab_runner.sh <command> [options] [token]
 | Metrics endpoint not available (old binary) | If `curl` to metrics port fails AND `pgrep` shows process alive, fall back to tier-1 + tier-3 only; log a warning that metrics are unavailable |
 | Stale `runner.state` after crash | `check_runner_status()` validates PID is actually alive and metrics respond — a stale state file with a dead PID is handled by the tier-1 check |
 | Cron job can't source platform config | `runner.state` file is self-contained — cron only needs to `source` it, no module setup or platform config required |
-| `config.local` accidentally committed with user-specific paths | All paths are `$HOME`-relative — config works for any user. No hardcoded paths. |
-| Module loading fails in local mode | Skip module loading when `MACHINE_ID=local` — modules are only available on supported HPC platforms |
+| Cron fires on wrong head node (Phase 35b) | `runner.state` records `RUNNER_HOST`; `check_runner_status()` SSHs to recorded host for Tier 1+2 when hostname differs. If SSH fails, treat as offline → relaunch on current node |
+| SSH between head nodes fails | `BatchMode=yes` + `ConnectTimeout=5` fails fast; script falls through to relaunch on current node — runner migrates to the reachable node |
+
 | Hung runner process (PID alive, metrics dead) | Detect this specific case in `status` subcommand — report as "possible hung process" for operator attention |
 
 ---
@@ -680,10 +560,7 @@ launch_gitlab_runner.sh <command> [options] [token]
 - [ ] `launch_gitlab_runner.sh status` reports runner health with appropriate exit code
 - [ ] All log entries include timestamps and PIDs
 - [ ] Stale processes are cleaned up before relaunch
-- [ ] Script works on all supported platforms: Hera, Hercules, Orion, WCOSS2, Gaea C6, **local**
-- [ ] `config.local` exists in `dev/ci/platforms/` with `$HOME`-relative paths
-- [ ] `export MACHINE_ID=local` enables full local development workflow on any VM
-- [ ] Module loading is skipped when `MACHINE_ID=local` (no Spack/Lmod available)
+- [ ] Script works on all supported platforms: Hera, Hercules, Orion, WCOSS2, Gaea C6
 - [ ] No functional regression in `register` or `unregister` subcommands
 - [ ] Cloud platform (`noaacloud`) config sourcing matches Jenkins pattern
 - [ ] Prometheus metrics endpoint enabled on `localhost:${GITLAB_RUNNER_METRICS_PORT}` (default 9252)
@@ -693,3 +570,7 @@ launch_gitlab_runner.sh <command> [options] [token]
 - [ ] `status` subcommand reports all three health tiers (process, metrics, verify)
 - [ ] `status` detects and reports hung-process condition (PID alive, metrics dead)
 - [ ] `GITLAB_RUNNER_METRICS_PORT` added to all platform config files
+- [ ] Cross-node: `check_runner_status()` SSHs to `RUNNER_HOST` for Tier 1+2 when on different head node
+- [ ] Cross-node: `launch_runner()` kills stale process on remote host before local relaunch
+- [ ] Cross-node: `status` reports runner host and remote check status
+- [ ] Cross-node: `run_on_runner_host()` helper uses `BatchMode=yes`, `ConnectTimeout=5`

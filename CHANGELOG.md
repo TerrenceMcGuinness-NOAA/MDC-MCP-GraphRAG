@@ -1,5 +1,24 @@
 # MCP Server Changelog
 
+## [7.27.0] - SDD Phase 44: RAG Quality Assurance & Regression Framework (March 6, 2026)
+
+### Phase 44: RAG Quality Assurance & Regression Framework
+
+#### Added
+- Ground truth test corpus with 60 curated queries across 6 categories (`test/benchmark/ground_truth.json`)
+- Benchmark harness script with Precision@K, Recall@K, MRR, Coverage, Latency metrics (`scripts/run_benchmark.js`)
+- Regression detection with configurable thresholds (5% warn, 15% error, 80% coverage floor)
+- `get_quality_metrics` MCP tool — reads benchmark results and returns formatted quality dashboard
+- CLI flags: `--dry-run`, `--category <name>`, `--compare` for flexible benchmark execution
+
+#### Categories Tested
+- Code Structure (Neo4j graph queries)
+- Semantic Search (ChromaDB vector retrieval)
+- Architecture (community summary matching)
+- EE2 Compliance (standards coverage)
+- Operational (J-job and HPC guidance)
+- Cross-Language (Shell/Fortran/Python tracing)
+
 ## [7.26.0] - SDD Phase 37: Parallel Works MCP Server Tool Expansion (March 6, 2026)
 
 ### Context

@@ -40,11 +40,67 @@ if [ -f "${SETUP}/gh.txt" ]; then
     ~/bin/gh auth login --with-token < "${SETUP}/gh.txt"
 fi
 
-# Update system (except kernel — exclude by package name, not version, to block ALL kernel updates)
+# ── OpenSSL version lock ──────────────────────────────────────────────────────
+# KasmVNC 1.4.0 (used by Parallel Works desktop) has three compounding defects
+# triggered by OpenSSL >= 3.5.x: CA:TRUE cert rejection, WebUDP null-pointer
+# segfault, and JS client defaulting WebRTC to enabled.
+# OpenSSL 3.2.2 (the Rocky 9.6 base image version) works perfectly.
+# We downgrade to 3.2.2 from the Rocky 9.6 vault repo and versionlock it so
+# neither our dnf update nor PW's own dnf update can ever re-upgrade it.
+# See: supported_repos/global-workflow.wiki/KasmVNC-SSL-Certificate-Failure-on-EL9-OpenSSL-3.md
+# ──────────────────────────────────────────────────────────────────────────────
+
+OPENSSL_SAFE_VERSION="3.2.2-6.el9_5.1"
+VAULT_BASEOS="https://dl.rockylinux.org/vault/rocky/9.6/BaseOS/x86_64/os/"
+VAULT_APPSTREAM="https://dl.rockylinux.org/vault/rocky/9.6/AppStream/x86_64/os/"
+
+current_ssl=$(rpm -q openssl-libs --qf '%{VERSION}-%{RELEASE}' 2>/dev/null || echo "unknown")
+echo "Current OpenSSL: ${current_ssl}"
+echo "Target OpenSSL:  ${OPENSSL_SAFE_VERSION}"
+
+if [[ "${current_ssl}" == "${OPENSSL_SAFE_VERSION}" ]]; then
+    echo "[OK] OpenSSL already at safe version ${OPENSSL_SAFE_VERSION}"
+else
+    echo "Downgrading OpenSSL from ${current_ssl} to ${OPENSSL_SAFE_VERSION}..."
+
+    # Remove openssl-fips-provider first — it has an exact version pin on 3.5.x
+    sudo rpm -e --nodeps openssl-fips-provider 2>/dev/null || true
+
+    # Downgrade openssl, openssl-libs, openssl-devel from the Rocky 9.6 vault
+    sudo dnf downgrade -y \
+        --repofrompath=vault96baseos,"${VAULT_BASEOS}" \
+        --repofrompath=vault96appstream,"${VAULT_APPSTREAM}" \
+        --repo=vault96baseos --repo=vault96appstream \
+        "openssl-1:${OPENSSL_SAFE_VERSION}" \
+        "openssl-libs-1:${OPENSSL_SAFE_VERSION}" \
+        "openssl-devel-1:${OPENSSL_SAFE_VERSION}" \
+    || echo "[WARN] OpenSSL downgrade had issues — may already be at target version"
+
+    echo "[OK] OpenSSL downgraded to ${OPENSSL_SAFE_VERSION}"
+fi
+
+# Apply versionlock so no future dnf update (ours or PW's) can upgrade OpenSSL
+if ! sudo dnf versionlock list 2>/dev/null | grep -q "openssl"; then
+    echo "Applying dnf versionlock on openssl packages..."
+    sudo dnf versionlock add openssl openssl-libs openssl-devel 2>/dev/null || true
+    echo "[OK] OpenSSL versionlocked"
+else
+    echo "[OK] OpenSSL versionlock already in place"
+fi
+
+# Update system (except kernel)
 echo "Current kernel version:"
 uname -a
-echo "Updating system packages (excluding all kernel packages)..."
+echo "Updating system packages (excluding kernel)..."
 sudo dnf -y update --nobest --exclude='kernel*'
+
+# The fix-kasmvnc-openssl3.sh script is still run as a safety net — it's
+# idempotent and handles cert regeneration + WebRTC/STUN config regardless
+# of OpenSSL version. With 3.2.x these are mostly no-ops.
+if command -v vncserver &>/dev/null; then
+    echo "Running KasmVNC compatibility check..."
+    sudo "${SETUP}/scripts/fix-kasmvnc-openssl3.sh" || true
+fi
 
 # Install Code
 sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc

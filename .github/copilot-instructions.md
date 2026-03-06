@@ -97,31 +97,20 @@ UnifiedDataAccess (src/data/)
 BaseServer (src/core/) → MCP SDK → stdio transport → AI client
 ```
 
-### Tool Modules → Database Dependencies
+### Tool Modules (9 modules, 48 tools)
 
-| Module | Key Tools | Requires |
-|--------|-----------|----------|
-| WorkflowInfoTools (3) | `get_workflow_structure`, `get_system_configs`, `describe_component` | Filesystem only |
-| CodeAnalysisTools (6) | `analyze_code_structure`, `find_dependencies`, `find_callers_callees`, `find_env_dependencies`, `trace_execution_path`, `trace_full_execution_chain` | Neo4j |
-| SemanticSearchTools (6) | `search_documentation`, `explain_with_context`, `find_related_files`, `get_knowledge_base_status`, `list_ingested_urls`, `get_ingested_urls_array` | ChromaDB + Neo4j |
-| EE2ComplianceTools (5) | `analyze_ee2_compliance`, `scan_repository_compliance`, `search_ee2_standards`, `generate_compliance_report`, `extract_code_for_analysis` | ChromaDB |
-| OperationalTools (4) | `get_operational_guidance`, `list_job_scripts`, `explain_workflow_component`, `get_job_details` | ChromaDB |
-| GraphRAGTools (9) | `get_code_context`, `search_architecture`, `find_similar_code`, `get_change_impact`, `trace_data_flow`, `mark_as_modified`, `get_session_context`, `checkpoint_state`, `restore_checkpoint` | ChromaDB + Neo4j |
-| GitHubTools (4) | `search_issues`, `get_pull_requests`, `analyze_repository_structure`, `analyze_workflow_dependencies` | GitHub API |
-| SDDWorkflowTools (9) | `list_sdd_workflows`, `get_sdd_workflow`, `start_sdd_session`, `record_sdd_step`, `get_sdd_session`, `complete_sdd_session`, `get_sdd_execution_history`, `validate_sdd_compliance`, `get_sdd_framework_status` | Filesystem |
+Full tool reference with parameters, descriptions, and usage workflows is in `.github/instructions/eib-mcp-tools.instructions.md` (auto-loaded when MCP server is connected).
+
+**Database requirements by module**: WorkflowInfoTools (Filesystem), CodeAnalysisTools (Neo4j), SemanticSearchTools (ChromaDB + Neo4j), EE2ComplianceTools (ChromaDB), OperationalTools (ChromaDB), GraphRAGTools (ChromaDB + Neo4j), GitHubTools (GitHub API), SDDWorkflowTools (Filesystem), Utility (Built-in).
 
 ### SDD Methodology (REQUIRED for new features)
 
 **SDD = Spec-Driven Development**: "If it's not in the SDD, it doesn't get coded."
 
 1. **Plan** → Create spec in `sdd_framework/workflows/phaseX_feature_name.md`
-2. **Execute** → Start a session (`start_sdd_session`), record steps as you work (`record_sdd_step`), complete when done (`complete_sdd_session`)
+2. **Execute** → Use SDD MCP tools to track session (see tool reference for full lifecycle)
 
-Session model: `start_sdd_session` → `record_sdd_step` (repeat) → `complete_sdd_session`. State persists in `sdd_framework/execution_state/`.
-
-Phase naming: `phase<N><letter>_<descriptor>.md` (e.g., `phase24e_hierarchical_communities.md`). Currently 31+ phases with sub-phases.
-
-See `sdd_framework/methodology/spec_driven_design_core.md` for the full protocol.
+Phase naming: `phase<N><letter>_<descriptor>.md` (e.g., `phase24e_hierarchical_communities.md`). Currently 31+ phases with sub-phases. See `sdd_framework/methodology/spec_driven_design_core.md` for the full protocol.
 
 ## Key Conventions
 
