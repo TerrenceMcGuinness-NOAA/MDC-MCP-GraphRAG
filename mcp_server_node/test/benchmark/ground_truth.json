@@ -1,0 +1,625 @@
+{
+  "version": "1.0.0",
+  "created": "2026-03-06",
+  "description": "RAG Quality Assurance ground truth corpus — 60 curated queries across 6 categories",
+  "metrics_config": {
+    "k": 5,
+    "regression_threshold_pct": 5,
+    "critical_threshold_pct": 15,
+    "minimum_coverage_pct": 80
+  },
+  "categories": {
+    "code_structure": [
+      {
+        "id": "cs_001",
+        "question": "What functions does exglobal_forecast.sh call or source?",
+        "tool": "find_callers_callees",
+        "tool_args": { "function_name": "exglobal_forecast" },
+        "expected_results": ["forecast_predet", "forecast_det", "forecast_postdet", "parsing_ufs_configure"],
+        "expected_min_results": 3,
+        "category": "code_structure",
+        "notes": "Core forecast script sources 4 major utility scripts"
+      },
+      {
+        "id": "cs_002",
+        "question": "What are the upstream dependencies of gfs_forecast.py?",
+        "tool": "find_dependencies",
+        "tool_args": { "target": "ush/python/pygfs/task/gfs_forecast.py", "direction": "upstream" },
+        "expected_results": ["GFS", "Task", "wxflow"],
+        "expected_min_results": 2,
+        "category": "code_structure",
+        "notes": "Python task imports GFS wrapper and wxflow Task base"
+      },
+      {
+        "id": "cs_003",
+        "question": "What is the code structure of atm_analysis.py?",
+        "tool": "analyze_code_structure",
+        "tool_args": { "file_path": "ush/python/pygfs/task/atm_analysis.py" },
+        "expected_results": ["Analysis", "AtmAnalysis", "Jedi", "initialize", "execute", "finalize"],
+        "expected_min_results": 3,
+        "category": "code_structure",
+        "notes": "Analysis task with JEDI interface and lifecycle methods"
+      },
+      {
+        "id": "cs_004",
+        "question": "What calls the analysis.py base class?",
+        "tool": "find_callers_callees",
+        "tool_args": { "function_name": "Analysis" },
+        "expected_results": ["atm_analysis", "aero_analysis", "marine_analysis", "snow_analysis"],
+        "expected_min_results": 2,
+        "category": "code_structure",
+        "notes": "Base analysis class used by multiple analysis types"
+      },
+      {
+        "id": "cs_005",
+        "question": "What are the dependencies of gridmod.F90?",
+        "tool": "find_dependencies",
+        "tool_args": { "target": "sorc/gsi_enkf.fd/src/gsi/gridmod.F90" },
+        "expected_results": ["kinds", "general_specmod", "general_sub2grid_mod", "constants"],
+        "expected_min_results": 2,
+        "category": "code_structure",
+        "notes": "Fortran grid module with complex module dependencies"
+      },
+      {
+        "id": "cs_006",
+        "question": "What files depend on bash_utils.sh?",
+        "tool": "find_callers_callees",
+        "tool_args": { "function_name": "bash_utils" },
+        "expected_results": ["exglobal", "exgfs", "source"],
+        "expected_min_results": 1,
+        "category": "code_structure",
+        "notes": "Utility library sourced by multiple ex-scripts"
+      },
+      {
+        "id": "cs_007",
+        "question": "What is the structure of archive.py?",
+        "tool": "analyze_code_structure",
+        "tool_args": { "file_path": "ush/python/pygfs/task/archive.py" },
+        "expected_results": ["Archive", "configure_vrfy", "FileHandler", "glob"],
+        "expected_min_results": 2,
+        "category": "code_structure",
+        "notes": "Archive task with file handling and verification methods"
+      },
+      {
+        "id": "cs_008",
+        "question": "What does gfs.py inherit from and what calls it?",
+        "tool": "find_callers_callees",
+        "tool_args": { "function_name": "GFS" },
+        "expected_results": ["UFS", "gfs_forecast", "ufswm"],
+        "expected_min_results": 1,
+        "category": "code_structure",
+        "notes": "GFS class extends UFS, called by forecast task"
+      },
+      {
+        "id": "cs_009",
+        "question": "What are the dependencies of exglobal_atmos_analysis.sh?",
+        "tool": "find_dependencies",
+        "tool_args": { "target": "scripts/exglobal_atmos_analysis.sh" },
+        "expected_results": ["prep_step", "post_step", "err_chk"],
+        "expected_min_results": 1,
+        "category": "code_structure",
+        "notes": "Complex analysis script with many data dependencies"
+      },
+      {
+        "id": "cs_010",
+        "question": "What is the structure of parsing_ufs_configure.sh?",
+        "tool": "analyze_code_structure",
+        "tool_args": { "file_path": "ush/parsing_ufs_configure.sh" },
+        "expected_results": ["UFS", "configure", "parsing", "namelist"],
+        "expected_min_results": 1,
+        "category": "code_structure",
+        "notes": "UFS configuration parser used by forecast pipeline"
+      }
+    ],
+    "semantic_search": [
+      {
+        "id": "ss_001",
+        "question": "How is the FV3 dynamical core configured in the UFS Weather Model?",
+        "tool": "search_documentation",
+        "tool_args": { "query": "FV3 dynamical core configuration UFS Weather Model" },
+        "expected_results": ["FV3", "dynamical core", "cubed-sphere", "namelist"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 3 documentation — UFS Weather Model docs"
+      },
+      {
+        "id": "ss_002",
+        "question": "What preprocessing steps does chgres_cube perform?",
+        "tool": "search_documentation",
+        "tool_args": { "query": "chgres_cube preprocessing initial conditions" },
+        "expected_results": ["chgres_cube", "initial conditions", "interpolation", "grid"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 1 documentation — UFS Utilities"
+      },
+      {
+        "id": "ss_003",
+        "question": "Explain the Rocoto dependency system for cycling workflows",
+        "tool": "search_documentation",
+        "tool_args": { "query": "Rocoto dependency system cycling workflow XML" },
+        "expected_results": ["Rocoto", "dependency", "cycling", "XML", "task"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 2 documentation — Rocoto workflow engine"
+      },
+      {
+        "id": "ss_004",
+        "question": "How does ecFlow manage job scheduling and monitoring?",
+        "tool": "search_documentation",
+        "tool_args": { "query": "ecFlow job scheduling monitoring suite definition" },
+        "expected_results": ["ecFlow", "scheduling", "suite", "task", "trigger"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 2 documentation — ecFlow"
+      },
+      {
+        "id": "ss_005",
+        "question": "What is the wxflow Python task execution framework?",
+        "tool": "explain_with_context",
+        "tool_args": { "topic": "wxflow Python task execution framework" },
+        "expected_results": ["wxflow", "Task", "Python", "execution", "configuration"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 2 documentation — wxflow framework"
+      },
+      {
+        "id": "ss_006",
+        "question": "How are GRIB2 files processed with wgrib2?",
+        "tool": "search_documentation",
+        "tool_args": { "query": "wgrib2 GRIB2 file processing utilities" },
+        "expected_results": ["wgrib2", "GRIB2", "decode", "encode"],
+        "expected_min_results": 1,
+        "category": "semantic_search",
+        "notes": "Tier 4 documentation — wgrib2 utilities"
+      },
+      {
+        "id": "ss_007",
+        "question": "What BUFR library subroutines are available for observation processing?",
+        "tool": "search_documentation",
+        "tool_args": { "query": "BUFR library subroutines observation processing NCEPLIBS" },
+        "expected_results": ["BUFR", "observation", "NCEPLIBS", "subroutine"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 4 documentation — NCEPLIBS BUFR"
+      },
+      {
+        "id": "ss_008",
+        "question": "How does spack-stack manage HPC module environments?",
+        "tool": "search_documentation",
+        "tool_args": { "query": "spack-stack HPC module environment management" },
+        "expected_results": ["spack-stack", "module", "HPC", "environment"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 4 documentation — spack-stack build system"
+      },
+      {
+        "id": "ss_009",
+        "question": "What is the JEDI data assimilation framework?",
+        "tool": "explain_with_context",
+        "tool_args": { "topic": "JEDI data assimilation framework observation operators" },
+        "expected_results": ["JEDI", "data assimilation", "observation", "variational"],
+        "expected_min_results": 2,
+        "category": "semantic_search",
+        "notes": "Tier 3 documentation — JEDI framework"
+      },
+      {
+        "id": "ss_010",
+        "question": "How does the global workflow generate orography data?",
+        "tool": "search_documentation",
+        "tool_args": { "query": "orography generation orog_gsl surface climatology" },
+        "expected_results": ["orography", "orog_gsl", "surface", "terrain"],
+        "expected_min_results": 1,
+        "category": "semantic_search",
+        "notes": "Tier 1 documentation — UFS Utilities orography"
+      }
+    ],
+    "architecture": [
+      {
+        "id": "ar_001",
+        "question": "How does the global workflow integrate GDAS analysis with GFS forecast?",
+        "tool": "search_architecture",
+        "tool_args": { "query": "GDAS analysis GFS forecast integration cycling" },
+        "expected_results": ["GDAS", "GFS", "analysis", "forecast", "cycling"],
+        "expected_min_results": 2,
+        "category": "architecture",
+        "notes": "Core workflow architecture — analysis-forecast cycling"
+      },
+      {
+        "id": "ar_002",
+        "question": "What is the data assimilation subsystem architecture?",
+        "tool": "search_architecture",
+        "tool_args": { "query": "data assimilation subsystem architecture components" },
+        "expected_results": ["assimilation", "analysis", "observation", "increment"],
+        "expected_min_results": 2,
+        "category": "architecture",
+        "notes": "DA subsystem — community summary matching"
+      },
+      {
+        "id": "ar_003",
+        "question": "What is the context of the forecast subsystem?",
+        "tool": "get_code_context",
+        "tool_args": { "symbol": "exglobal_forecast" },
+        "expected_results": ["forecast", "UFS", "FV3", "atmosphere"],
+        "expected_min_results": 2,
+        "category": "architecture",
+        "notes": "Forecast pipeline community context"
+      },
+      {
+        "id": "ar_004",
+        "question": "How does wave modeling integrate with atmospheric modeling?",
+        "tool": "search_architecture",
+        "tool_args": { "query": "wave modeling atmospheric coupling integration" },
+        "expected_results": ["wave", "atmosphere", "coupling", "WW3"],
+        "expected_min_results": 1,
+        "category": "architecture",
+        "notes": "Wave-atmosphere coupling architecture"
+      },
+      {
+        "id": "ar_005",
+        "question": "What is the post-processing pipeline architecture?",
+        "tool": "search_architecture",
+        "tool_args": { "query": "post-processing UPP product generation pipeline" },
+        "expected_results": ["post", "UPP", "product", "GRIB"],
+        "expected_min_results": 1,
+        "category": "architecture",
+        "notes": "Post-processing subsystem"
+      },
+      {
+        "id": "ar_006",
+        "question": "What is the context of the GSI analysis system?",
+        "tool": "get_code_context",
+        "tool_args": { "symbol": "gsi" },
+        "expected_results": ["GSI", "analysis", "observation", "variational"],
+        "expected_min_results": 2,
+        "category": "architecture",
+        "notes": "GSI code context from graph"
+      },
+      {
+        "id": "ar_007",
+        "question": "How does the ensemble system work?",
+        "tool": "search_architecture",
+        "tool_args": { "query": "ensemble Kalman filter EnKF perturbation members" },
+        "expected_results": ["ensemble", "EnKF", "member", "perturbation"],
+        "expected_min_results": 1,
+        "category": "architecture",
+        "notes": "Ensemble subsystem architecture"
+      },
+      {
+        "id": "ar_008",
+        "question": "What is the archive and cleanup subsystem?",
+        "tool": "search_architecture",
+        "tool_args": { "query": "archive cleanup data management HPSS" },
+        "expected_results": ["archive", "cleanup", "HPSS", "data"],
+        "expected_min_results": 1,
+        "category": "architecture",
+        "notes": "Archive subsystem"
+      },
+      {
+        "id": "ar_009",
+        "question": "What is the context of the ocean-ice coupling?",
+        "tool": "get_code_context",
+        "tool_args": { "symbol": "oceanice" },
+        "expected_results": ["ocean", "ice", "MOM6", "CICE", "coupling"],
+        "expected_min_results": 1,
+        "category": "architecture",
+        "notes": "Ocean-ice coupling community context"
+      },
+      {
+        "id": "ar_010",
+        "question": "How does the verification and validation subsystem work?",
+        "tool": "search_architecture",
+        "tool_args": { "query": "verification validation fit2obs statistics MET" },
+        "expected_results": ["verification", "fit2obs", "statistics"],
+        "expected_min_results": 1,
+        "category": "architecture",
+        "notes": "Verification subsystem"
+      }
+    ],
+    "ee2_compliance": [
+      {
+        "id": "ee_001",
+        "question": "What environment variables are mandatory in a J-job?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "mandatory environment variables J-job", "category": "environment_variables" },
+        "expected_results": ["COMROOT", "DATAROOT", "cyc", "PDY", "NET", "RUN"],
+        "expected_min_results": 3,
+        "category": "ee2_compliance",
+        "notes": "Core EE2 requirement — standard env vars"
+      },
+      {
+        "id": "ee_002",
+        "question": "What error handling patterns must be used in production scripts?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "error handling patterns production scripts err_chk err_exit", "category": "error_handling" },
+        "expected_results": ["err_chk", "err_exit", "trap", "exit code"],
+        "expected_min_results": 2,
+        "category": "ee2_compliance",
+        "notes": "Error handling with err_chk/err_exit utilities"
+      },
+      {
+        "id": "ee_003",
+        "question": "How should output file names be formatted for the com directory?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "output file naming convention com directory format", "category": "file_naming" },
+        "expected_results": ["model", "tHHz", "type", "res", "filetype"],
+        "expected_min_results": 2,
+        "category": "ee2_compliance",
+        "notes": "Standard file naming: model.tHHz.type.res.f###.domain.filetype"
+      },
+      {
+        "id": "ee_004",
+        "question": "What is the workflow hierarchy from job card to ush script?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "workflow hierarchy job card J-job ex-script ush", "category": "workflow_structure" },
+        "expected_results": ["job card", "J-job", "ex-script", "ush"],
+        "expected_min_results": 3,
+        "category": "ee2_compliance",
+        "notes": "4-layer workflow execution hierarchy"
+      },
+      {
+        "id": "ee_005",
+        "question": "What are the code delivery and version control standards?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "code delivery version control release standards" },
+        "expected_results": ["delivery", "version", "release", "tag"],
+        "expected_min_results": 1,
+        "category": "ee2_compliance",
+        "notes": "NCO code delivery workflow"
+      },
+      {
+        "id": "ee_006",
+        "question": "What are the shebang line requirements for production scripts?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "shebang line requirements bash ksh production scripts" },
+        "expected_results": ["shebang", "#!/bin", "bash", "ksh"],
+        "expected_min_results": 1,
+        "category": "ee2_compliance",
+        "notes": "Script header requirements"
+      },
+      {
+        "id": "ee_007",
+        "question": "How should production utilities be invoked via module system?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "production utilities module system invocation", "category": "production_utilities" },
+        "expected_results": ["module", "load", "utility", "production"],
+        "expected_min_results": 2,
+        "category": "ee2_compliance",
+        "notes": "Module-based utility invocation patterns"
+      },
+      {
+        "id": "ee_008",
+        "question": "What directory structure standards apply to com and wmo directories?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "directory structure com wmo data organization", "category": "directory_structure" },
+        "expected_results": ["com", "wmo", "directory", "structure"],
+        "expected_min_results": 2,
+        "category": "ee2_compliance",
+        "notes": "Standard directory layout"
+      },
+      {
+        "id": "ee_009",
+        "question": "What are the DBNet distributed brokered networking patterns?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "DBNet distributed brokered networking data transfer" },
+        "expected_results": ["DBNet", "distributed", "transfer"],
+        "expected_min_results": 1,
+        "category": "ee2_compliance",
+        "notes": "DBNet data distribution patterns"
+      },
+      {
+        "id": "ee_010",
+        "question": "What compiled code standards apply (Intel/Cray compilers, Makefiles)?",
+        "tool": "search_ee2_standards",
+        "tool_args": { "query": "compiled code standards Intel Cray compiler Makefile" },
+        "expected_results": ["compiler", "Makefile", "Intel", "compiled"],
+        "expected_min_results": 1,
+        "category": "ee2_compliance",
+        "notes": "Compiled code build standards"
+      }
+    ],
+    "operational": [
+      {
+        "id": "op_001",
+        "question": "What does JGLOBAL_FORECAST do and what are its inputs/outputs?",
+        "tool": "get_job_details",
+        "tool_args": { "job_name": "JGLOBAL_FORECAST" },
+        "expected_results": ["forecast", "JGLOBAL", "input", "output", "atmosphere"],
+        "expected_min_results": 2,
+        "category": "operational",
+        "notes": "Core forecast J-job details"
+      },
+      {
+        "id": "op_002",
+        "question": "Which J-jobs comprise the atmospheric analysis cycle?",
+        "tool": "list_job_scripts",
+        "tool_args": { "category": "analysis", "format": "json" },
+        "expected_results": ["JGLOBAL_ATM_ANALYSIS", "JGLOBAL_ATMOS", "JGDAS"],
+        "expected_min_results": 2,
+        "category": "operational",
+        "notes": "Analysis job inventory"
+      },
+      {
+        "id": "op_003",
+        "question": "How do you run a workflow on Hera?",
+        "tool": "get_operational_guidance",
+        "tool_args": { "operation": "running workflow on Hera", "platform": "hera" },
+        "expected_results": ["Hera", "scratch", "module", "workflow"],
+        "expected_min_results": 2,
+        "category": "operational",
+        "notes": "Hera-specific operational guidance"
+      },
+      {
+        "id": "op_004",
+        "question": "What are the WCOSS2 production paths and procedures?",
+        "tool": "get_operational_guidance",
+        "tool_args": { "operation": "WCOSS2 production paths and procedures", "platform": "wcoss2" },
+        "expected_results": ["WCOSS2", "production", "lfs", "ops"],
+        "expected_min_results": 2,
+        "category": "operational",
+        "notes": "WCOSS2 production platform guidance"
+      },
+      {
+        "id": "op_005",
+        "question": "What does JGLOBAL_ATMOS_ANALYSIS handle?",
+        "tool": "get_job_details",
+        "tool_args": { "job_name": "JGLOBAL_ATMOS_ANALYSIS" },
+        "expected_results": ["analysis", "atmosphere", "observation"],
+        "expected_min_results": 1,
+        "category": "operational",
+        "notes": "Atmospheric analysis job details"
+      },
+      {
+        "id": "op_006",
+        "question": "What wave modeling jobs are available?",
+        "tool": "list_job_scripts",
+        "tool_args": { "search": "WAVE", "format": "json" },
+        "expected_results": ["WAVE", "JGLOBAL_WAVE", "JGEFS_WAVE"],
+        "expected_min_results": 1,
+        "category": "operational",
+        "notes": "Wave job inventory"
+      },
+      {
+        "id": "op_007",
+        "question": "How do you configure an experiment for GFS?",
+        "tool": "get_operational_guidance",
+        "tool_args": { "operation": "configure experiment GFS setup", "platform": "generic" },
+        "expected_results": ["experiment", "configuration", "GFS", "setup"],
+        "expected_min_results": 1,
+        "category": "operational",
+        "notes": "Experiment configuration guidance"
+      },
+      {
+        "id": "op_008",
+        "question": "What does JGLOBAL_ENKF_UPDATE do?",
+        "tool": "get_job_details",
+        "tool_args": { "job_name": "JGLOBAL_ENKF_UPDATE" },
+        "expected_results": ["EnKF", "update", "ensemble", "analysis"],
+        "expected_min_results": 1,
+        "category": "operational",
+        "notes": "Ensemble Kalman filter update job"
+      },
+      {
+        "id": "op_009",
+        "question": "What marine/ocean jobs are in the workflow?",
+        "tool": "list_job_scripts",
+        "tool_args": { "search": "MARINE", "format": "json" },
+        "expected_results": ["MARINE", "JGLOBAL_MARINE", "ocean"],
+        "expected_min_results": 1,
+        "category": "operational",
+        "notes": "Marine job inventory"
+      },
+      {
+        "id": "op_010",
+        "question": "How do you troubleshoot a failed job on Orion?",
+        "tool": "get_operational_guidance",
+        "tool_args": { "operation": "troubleshoot failed job Orion", "platform": "orion" },
+        "expected_results": ["Orion", "troubleshoot", "log", "error"],
+        "expected_min_results": 1,
+        "category": "operational",
+        "notes": "Orion troubleshooting guidance"
+      }
+    ],
+    "cross_language": [
+      {
+        "id": "cl_001",
+        "question": "Trace the execution chain from JGLOBAL_FORECAST",
+        "tool": "trace_full_execution_chain",
+        "tool_args": { "start": "JGLOBAL_FORECAST", "direction": "forward" },
+        "expected_results": ["exglobal_forecast", "forecast_predet", "forecast_det", "ufs_model"],
+        "expected_min_results": 2,
+        "category": "cross_language",
+        "notes": "J-job → ex-script → ush → Fortran execution chain"
+      },
+      {
+        "id": "cl_002",
+        "question": "Trace data flow from exglobal_atmos_analysis",
+        "tool": "trace_data_flow",
+        "tool_args": { "from_symbol": "exglobal_atmos_analysis" },
+        "expected_results": ["analysis", "gsi", "observation", "increment"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "Analysis script data flow across languages"
+      },
+      {
+        "id": "cl_003",
+        "question": "What is the full execution chain of the atmospheric analysis?",
+        "tool": "trace_full_execution_chain",
+        "tool_args": { "start": "JGLOBAL_ATM_ANALYSIS_INITIALIZE", "direction": "forward" },
+        "expected_results": ["exglobal", "atm_analysis", "initialize"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "Analysis initialization chain"
+      },
+      {
+        "id": "cl_004",
+        "question": "What triggers the forecast script (reverse trace)?",
+        "tool": "trace_full_execution_chain",
+        "tool_args": { "start": "exglobal_forecast", "direction": "reverse" },
+        "expected_results": ["JGLOBAL_FORECAST", "job", "trigger"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "Reverse trace from ex-script to J-job"
+      },
+      {
+        "id": "cl_005",
+        "question": "Trace data flow from the EnKF update",
+        "tool": "trace_data_flow",
+        "tool_args": { "from_symbol": "enkf_main" },
+        "expected_results": ["enkf", "update", "ensemble", "analysis"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "EnKF Fortran program data flow"
+      },
+      {
+        "id": "cl_006",
+        "question": "Trace execution from JGDAS_ATMOS_ANALYSIS",
+        "tool": "trace_full_execution_chain",
+        "tool_args": { "start": "JGDAS_ATMOS_ANALYSIS", "direction": "forward" },
+        "expected_results": ["JGDAS", "analysis", "atmos", "gsi"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "GDAS analysis execution chain"
+      },
+      {
+        "id": "cl_007",
+        "question": "Trace data flow through the post-processing pipeline",
+        "tool": "trace_data_flow",
+        "tool_args": { "from_symbol": "exgfs_atmos_post" },
+        "expected_results": ["post", "UPP", "GRIB", "product"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "Post-processing pipeline data flow"
+      },
+      {
+        "id": "cl_008",
+        "question": "What is the full chain for wave initialization?",
+        "tool": "trace_full_execution_chain",
+        "tool_args": { "start": "JGLOBAL_WAVE_INIT", "direction": "forward" },
+        "expected_results": ["wave", "init", "WW3"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "Wave model initialization chain"
+      },
+      {
+        "id": "cl_009",
+        "question": "Trace data flow from the aerosol analysis",
+        "tool": "trace_data_flow",
+        "tool_args": { "from_symbol": "exglobal_aero_analysis" },
+        "expected_results": ["aero", "analysis", "aerosol"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "Aerosol analysis cross-language flow"
+      },
+      {
+        "id": "cl_010",
+        "question": "What is the reverse chain into the archive process?",
+        "tool": "trace_full_execution_chain",
+        "tool_args": { "start": "JGLOBAL_ARCHIVE", "direction": "both" },
+        "expected_results": ["archive", "HPSS", "cleanup"],
+        "expected_min_results": 1,
+        "category": "cross_language",
+        "notes": "Archive bidirectional execution chain"
+      }
+    ]
+  }
+}
