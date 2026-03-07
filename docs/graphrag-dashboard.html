@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html><head>
+<title>GraphRAG Dashboard - EIB MCP RAG</title>
+<style>
+  body { font-family: -apple-system, sans-serif; margin: 2em; background: #1a1a2e; color: #eee; }
+  h1 { color: #00bcd4; }
+  h2 { color: #ff9800; margin-top: 2em; }
+  h3 { color: #4fc3f7; margin-top: 1.5em; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.5em; }
+  th { background: #16213e; padding: 10px; text-align: left; color: #00bcd4; }
+  td { padding: 8px 10px; border-bottom: 1px solid #333; }
+  tr:hover { background: #16213e44; }
+  code { background: #16213e; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; word-break: break-all; }
+  a { color: #4fc3f7; text-decoration: none; font-weight: bold; }
+  a:hover { text-decoration: underline; }
+  .btn { display: inline-block; padding: 6px 16px; background: #00bcd4; border: none; color: #fff; cursor: pointer; font-size: 0.95em; border-radius: 4px; text-decoration: none; margin: 2px; }
+  .btn:hover { background: #0097a7; }
+  .btn-orange { background: #ff9800; }
+  .btn-orange:hover { background: #e68900; }
+  .btn-green { background: #4caf50; }
+  .btn-green:hover { background: #388e3c; }
+  .note { color: #aaa; font-size: 0.9em; margin-top: 1em; }
+  .stats { display: flex; gap: 20px; flex-wrap: wrap; margin: 1em 0; }
+  .stat-box { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px 24px; text-align: center; min-width: 140px; }
+  .stat-box .number { font-size: 2em; font-weight: bold; color: #00bcd4; }
+  .stat-box .label { font-size: 0.85em; color: #aaa; margin-top: 4px; }
+  textarea { background: #16213e; color: #eee; font-family: monospace; padding: 10px; border: 1px solid #333; border-radius: 4px; width: 100%; box-sizing: border-box; }
+  .section { background: #16213e22; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-top: 1em; }
+</style>
+</head><body>
+
+<h1>GraphRAG Knowledge Graph Dashboard</h1>
+<p>Global Workflow (GFS/GEFS) code intelligence — <strong>41,355 nodes</strong> and <strong>589,396 relationships</strong></p>
+
+<div class="stats">
+  <div class="stat-box"><div class="number">41,355</div><div class="label">Total Nodes</div></div>
+  <div class="stat-box"><div class="number">589,396</div><div class="label">Total Relationships</div></div>
+  <div class="stat-box"><div class="number">28</div><div class="label">Node Labels</div></div>
+  <div class="stat-box"><div class="number">23</div><div class="label">Relationship Types</div></div>
+  <div class="stat-box"><div class="number">1,036</div><div class="label">Communities</div></div>
+  <div class="stat-box"><div class="number">66,552</div><div class="label">ChromaDB Docs</div></div>
+</div>
+
+<h2>Quick Queries</h2>
+<p>Click to open in Neo4j Browser (press <kbd>Ctrl+Enter</kbd> to execute):</p>
+
+<h3>Schema &amp; Overview</h3>
+<table>
+  <tr><th>Query</th><th>Description</th><th>Action</th></tr>
+  <tr>
+    <td><code>CALL db.schema.visualization()</code></td>
+    <td>Full schema — all node types and relationships</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=CALL%20db.schema.visualization()" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (n) RETURN labels(n)[0] AS label, count(*) AS count ORDER BY count DESC</code></td>
+    <td>Node counts by label</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(n)%20RETURN%20labels(n)%5B0%5D%20AS%20label%2C%20count(*)%20AS%20count%20ORDER%20BY%20count%20DESC" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH ()-[r]->() RETURN type(r) AS rel_type, count(*) AS count ORDER BY count DESC</code></td>
+    <td>Relationship counts by type</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20()-%5Br%5D-%3E()%20RETURN%20type(r)%20AS%20rel_type%2C%20count(*)%20AS%20count%20ORDER%20BY%20count%20DESC" target="_blank">Open</a></td>
+  </tr>
+</table>
+
+<h3>Code Structure (Visual Graphs)</h3>
+<table>
+  <tr><th>Query</th><th>Description</th><th>Action</th></tr>
+  <tr>
+    <td><code>MATCH (n:FortranSubroutine)-[r:CALLS]-&gt;(m:FortranSubroutine) RETURN n,r,m LIMIT 50</code></td>
+    <td>Fortran subroutine call graph</td>
+    <td><a class="btn btn-orange" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(n%3AFortranSubroutine)-%5Br%3ACALLS%5D-%3E(m%3AFortranSubroutine)%20RETURN%20n%2Cr%2Cm%20LIMIT%2050" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (n:Function)-[r:CALLS]-&gt;(m:Function) RETURN n,r,m LIMIT 25</code></td>
+    <td>General function call tree</td>
+    <td><a class="btn btn-orange" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(n%3AFunction)-%5Br%3ACALLS%5D-%3E(m%3AFunction)%20RETURN%20n%2Cr%2Cm%20LIMIT%2025" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (m:FortranModule)-[r:USES]-&gt;(m2:FortranModule) RETURN m,r,m2 LIMIT 30</code></td>
+    <td>Fortran module dependency graph</td>
+    <td><a class="btn btn-orange" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(m%3AFortranModule)-%5Br%3AUSES%5D-%3E(m2%3AFortranModule)%20RETURN%20m%2Cr%2Cm2%20LIMIT%2030" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (m:PythonModule)-[r:DEFINES]-&gt;(f:PythonFunction) RETURN m,r,f LIMIT 30</code></td>
+    <td>Python module → function graph</td>
+    <td><a class="btn btn-orange" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(m%3APythonModule)-%5Br%3ADEFINES%5D-%3E(f%3APythonFunction)%20RETURN%20m%2Cr%2Cf%20LIMIT%2030" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (s)-[r:INVOKES|EXECUTES]-&gt;(t) RETURN s,r,t LIMIT 30</code></td>
+    <td>Cross-language bridges (Shell→Python, etc.)</td>
+    <td><a class="btn btn-orange" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(s)-%5Br%3AINVOKES%7CEXECUTES%5D-%3E(t)%20RETURN%20s%2Cr%2Ct%20LIMIT%2030" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (ex:File)-[inv:INVOKES]-&gt;(py:PythonModule)-[def:DEFINES]-&gt;(fn:PythonFunction) RETURN ex,inv,py,def,fn</code></td>
+    <td>Shell → Python → Function chain</td>
+    <td><a class="btn btn-orange" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(ex%3AFile)-%5Binv%3AINVOKES%5D-%3E(py%3APythonModule)-%5Bdef%3ADEFINES%5D-%3E(fn%3APythonFunction)%20RETURN%20ex%2Cinv%2Cpy%2Cdef%2Cfn" target="_blank">Open</a></td>
+  </tr>
+</table>
+
+<h3>Environment Variables &amp; Configuration</h3>
+<table>
+  <tr><th>Query</th><th>Description</th><th>Action</th></tr>
+  <tr>
+    <td><code>MATCH (s)-[r]-(e:EnvironmentVariable {name: 'HOMEgfs'}) RETURN s,r,e LIMIT 50</code></td>
+    <td>HOMEgfs usage across codebase</td>
+    <td><a class="btn btn-green" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(s)-%5Br%5D-(e%3AEnvironmentVariable%20%7Bname%3A%20%27HOMEgfs%27%7D)%20RETURN%20s%2Cr%2Ce%20LIMIT%2050" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (e:EnvironmentVariable)&lt;-[r:DEPENDS_ON_ENV]-(f) RETURN e.name AS var, count(r) AS refs ORDER BY refs DESC LIMIT 25</code></td>
+    <td>Most-referenced environment variables</td>
+    <td><a class="btn btn-green" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(e%3AEnvironmentVariable)%3C-%5Br%3ADEPENDS_ON_ENV%5D-(f)%20RETURN%20e.name%20AS%20var%2C%20count(r)%20AS%20refs%20ORDER%20BY%20refs%20DESC%20LIMIT%2025" target="_blank">Open</a></td>
+  </tr>
+</table>
+
+<h3>Community Structure (Phase 24e)</h3>
+<table>
+  <tr><th>Query</th><th>Description</th><th>Action</th></tr>
+  <tr>
+    <td><code>MATCH (c:Community)-[r:PARENT_OF]-&gt;(child:Community) RETURN c,r,child LIMIT 50</code></td>
+    <td>Community hierarchy graph</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(c%3ACommunity)-%5Br%3APARENT_OF%5D-%3E(child%3ACommunity)%20RETURN%20c%2Cr%2Cchild%20LIMIT%2050" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (c:Community) RETURN c.level AS level, count(*) AS communities ORDER BY level</code></td>
+    <td>Communities per hierarchy level</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(c%3ACommunity)%20RETURN%20c.level%20AS%20level%2C%20count(*)%20AS%20communities%20ORDER%20BY%20level" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (c:Community)-[r:MEMBER_OF]-(n) RETURN c.name AS community, count(n) AS members ORDER BY members DESC LIMIT 20</code></td>
+    <td>Largest communities by member count</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(c%3ACommunity)-%5Br%3AMEMBER_OF%5D-(n)%20RETURN%20c.name%20AS%20community%2C%20count(n)%20AS%20members%20ORDER%20BY%20members%20DESC%20LIMIT%2020" target="_blank">Open</a></td>
+  </tr>
+</table>
+
+<h3>Developer &amp; Git History</h3>
+<table>
+  <tr><th>Query</th><th>Description</th><th>Action</th></tr>
+  <tr>
+    <td><code>MATCH (d:Developer)-[r:AUTHORED]-&gt;(c:Commit) RETURN d.name AS dev, count(c) AS commits ORDER BY commits DESC LIMIT 20</code></td>
+    <td>Top contributors by commit count</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(d%3ADeveloper)-%5Br%3AAUTHORED%5D-%3E(c%3ACommit)%20RETURN%20d.name%20AS%20dev%2C%20count(c)%20AS%20commits%20ORDER%20BY%20commits%20DESC%20LIMIT%2020" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (d:Developer)-[:AUTHORED]-&gt;(c:Commit)-[:CONTRIBUTED_TO]-&gt;(f) RETURN d,c,f LIMIT 30</code></td>
+    <td>Developer → Commit → File graph</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(d%3ADeveloper)-%5B%3AAUTHORED%5D-%3E(c%3ACommit)-%5B%3ACONTRIBUTED_TO%5D-%3E(f)%20RETURN%20d%2Cc%2Cf%20LIMIT%2030" target="_blank">Open</a></td>
+  </tr>
+</table>
+
+<h3>J-Jobs &amp; Build System</h3>
+<table>
+  <tr><th>Query</th><th>Description</th><th>Action</th></tr>
+  <tr>
+    <td><code>MATCH (c:CodeFile {script_type: 'j-job'}) RETURN c LIMIT 25</code></td>
+    <td>J-Job scripts</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(c%3ACodeFile%20%7Bscript_type%3A%20%27j-job%27%7D)%20RETURN%20c%20LIMIT%2025" target="_blank">Open</a></td>
+  </tr>
+  <tr>
+    <td><code>MATCH (t:CMakeTarget)-[r:BUILT_BY]-&gt;(b) RETURN t,r,b LIMIT 30</code></td>
+    <td>CMake build targets</td>
+    <td><a class="btn" href="http://localhost:7474/browser/?cmd=edit&arg=MATCH%20(t%3ACMakeTarget)-%5Br%3ABUILT_BY%5D-%3E(b)%20RETURN%20t%2Cr%2Cb%20LIMIT%2030" target="_blank">Open</a></td>
+  </tr>
+</table>
+
+<h2>Custom Query Builder</h2>
+<div class="section">
+  <textarea id="q" rows="4" placeholder="Enter any Cypher query...">MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 25</textarea><br>
+  <button class="btn btn-orange" onclick="window.open('http://localhost:7474/browser/?cmd=edit&arg='+encodeURIComponent(document.getElementById('q').value))" style="margin-top:8px;padding:10px 24px;font-size:1em;">Open in Neo4j Browser</button>
+</div>
+
+<p class="note">
+  Neo4j Browser: <a href="http://localhost:7474/browser/">http://localhost:7474/browser/</a> |
+  Bolt: <code>bolt://localhost:7687</code> |
+  Auth: <code>neo4j</code> / <code>gfsworkflow2025</code> |
+  n8n: <a href="http://localhost:5678/">http://localhost:5678/</a>
+</p>
+
+</body></html>

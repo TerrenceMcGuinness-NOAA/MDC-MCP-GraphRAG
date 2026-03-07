@@ -29,6 +29,7 @@ COPY src/ ./src/
 COPY utils/ ./utils/
 COPY config/ ./config/
 COPY phase2_anti_patterns.json ./
+COPY test/benchmark/ ./test/benchmark/
 
 # Environment configuration
 ENV NODE_ENV=production
