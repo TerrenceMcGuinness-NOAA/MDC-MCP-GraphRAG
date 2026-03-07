@@ -20,7 +20,7 @@
  * @date 2026-02-09
  */
 
-// Relationship weight matrix per Phase 24 spec
+// Relationship weight matrix per Phase 24 spec (Phase 34C: +4 NCEPLIBS types)
 const RELATIONSHIP_WEIGHTS = {
   CALLS:              1.0,
   EXECUTES:           1.0,
@@ -33,15 +33,19 @@ const RELATIONSHIP_WEIGHTS = {
   USES:               0.7,
   INHERITS:           0.7,
   DEFINES:            0.65,
+  PROVIDED_BY:        0.6,   // Phase 34C: links Fortran USE → NCEPLIBS ExternalLibrary
   EXPORTS:            0.6,
   DOC_REFERENCES:     0.6,
   DOC_DESCRIBES:      0.55,
+  TRANSITIVELY_DEPENDS: 0.5, // Phase 34C: indirect library deps (nemsio→w3emc)
   HAS_METHOD:         0.5,
   CONTAINS:           0.5,
   SETS:               0.5,
+  DOCUMENTED_BY:      0.4,   // Phase 34C: links graph nodes → ChromaDB docs
   SAME_DIRECTORY:     0.4,
   BUILT_BY:           0.35,
   BUILD_ORCHESTRATES: 0.35,
+  REQUIRES_VERSION:   0.3,   // Phase 34C: platform version constraints
   AUTHORED:           0.3,
   AUTHORED_BY:        0.3,
   CONTRIBUTED_TO:     0.3

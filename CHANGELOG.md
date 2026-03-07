@@ -1,5 +1,32 @@
 # MCP Server Changelog
 
+## [7.29.0] - SDD Phase 34: NCEPLIBS GraphRAG Integration (March 7, 2026)
+
+### Phase 34: NCEPLIBS GraphRAG Integration
+
+#### Added — Phase 34A: Fortran Source Ingestion
+- Cloned 11 NCEPLIBS repos to `supported_repos/nceplibs/` (bufr, ip, w3emc, g2, bacio, g2tmpl, nemsio, sfcio, sigio, landsfcutil, ncio)
+- `--repo-name` and `--root-dir` CLI args in `ingest_fortran_graph.py` (v1.1.0) — all nodes tagged with `repo` property
+- 2,011 new Fortran nodes (FortranSubroutine, FortranFunction, FortranModule, FortranProgram) across 11 repos
+- 13,076 new NCEPLIBS relationships (CALLS, USES, CONTAINS)
+
+#### Added — Phase 34B: CMake Enhancement
+- `parseCMakeExternalPackages()` in `CMakeGraphIngester.js` (v1.1.0) — parses `find_package()` directives
+- 88 ExternalLibrary nodes (13 tagged `family: "NCEPLIBS"`), 589 external DEPENDS_ON edges
+- Namespace target resolution (`bufr::bufr_4` -> ExternalLibrary `bufr` with precision variant)
+- `scripts/parse-ver-files.js` — parses `.ver` files into 19 PlatformVersion nodes + REQUIRES_VERSION edges
+- Detected 5 version divergences between wcoss2 and spack platforms
+
+#### Added — Phase 34C: Graph Bridge Edges
+- 137 PROVIDED_BY edges linking GW Fortran modules to NCEPLIBS ExternalLibrary nodes
+- 3 TRANSITIVELY_DEPENDS edges (nemsio->w3emc, nemsio->bacio, w3emc->bacio)
+- 4 new GGSR weights in `GGSRTraversalPrototypes.js`: PROVIDED_BY(0.6), TRANSITIVELY_DEPENDS(0.5), DOCUMENTED_BY(0.4), REQUIRES_VERSION(0.3)
+
+#### Added — Phase 34D: ChromaDB Linkage
+- `scripts/link-nceplibs-chromadb.py` — matches NCEPLIBS Fortran nodes to ChromaDB API docs
+- 472 nodes linked to ChromaDB docs (25.4% link rate at distance < 0.3; bufr: 409, g2: 31, ip: 28)
+- E2E validation: search_architecture, get_change_impact, trace_full_execution_chain, find_dependencies all return NCEPLIBS-enriched results
+
 ## [7.28.0] - SDD Phase 38: Knowledge Base Data Quality Normalization (March 6, 2026)
 
 ### Phase 38: Knowledge Base Data Quality Normalization

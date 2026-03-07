@@ -36,6 +36,9 @@ Usage:
   
   # Full ingestion
   python ingest_fortran_graph.py
+  
+  # Phase 34: Ingest an external NCEPLIBS repo
+  python ingest_fortran_graph.py --repo-name nceplibs-bufr --root-dir ../supported_repos/nceplibs/NCEPLIBS-bufr
 """
 
 import os
@@ -69,7 +72,7 @@ except ImportError:
 # CONFIGURATION
 # ============================================================================
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
@@ -376,9 +379,13 @@ class Neo4jIngester:
         
         print("[OK] Neo4j indexes created")
     
-    def ingest_file_result(self, result: Dict[str, Any]) -> Dict[str, int]:
+    def ingest_file_result(self, result: Dict[str, Any], repo_name: str = None) -> Dict[str, int]:
         """
         Ingest a single file's parse result into Neo4j.
+        
+        Args:
+            result: Parsed file structure from FortranParser.
+            repo_name: Optional repo tag (e.g., 'nceplibs-bufr') for multi-repo support.
         
         Returns counts of nodes/relationships created.
         """
@@ -401,39 +408,43 @@ class Neo4jIngester:
         file_path = result['file']
         rel_path = result.get('relative_path', file_path)
         
+        # Build optional repo SET clause for multi-repo tagging (Phase 34)
+        repo_set = ", n.repo = $repo" if repo_name else ""
+        repo_params = {'repo': repo_name} if repo_name else {}
+        
         with self.driver.session() as session:
             # Create Module nodes
             for mod in result.get('modules', []):
-                session.run("""
-                    MERGE (m:FortranModule {name: $name})
-                    SET m.file_path = $file_path,
-                        m.line_start = $line_start
-                """, name=mod['name'], file_path=rel_path, line_start=mod.get('line_start'))
+                session.run(f"""
+                    MERGE (n:FortranModule {{name: $name}})
+                    SET n.file_path = $file_path,
+                        n.line_start = $line_start{repo_set}
+                """, name=mod['name'], file_path=rel_path, line_start=mod.get('line_start'), **repo_params)
                 counts['nodes'] += 1
             
             # Create Subroutine nodes
             for sub in result.get('subroutines', []):
-                session.run("""
-                    MERGE (s:FortranSubroutine {name: $name, file_path: $file_path})
-                    SET s.line_start = $line_start
-                """, name=sub['name'], file_path=rel_path, line_start=sub.get('line_start'))
+                session.run(f"""
+                    MERGE (n:FortranSubroutine {{name: $name, file_path: $file_path}})
+                    SET n.line_start = $line_start{repo_set}
+                """, name=sub['name'], file_path=rel_path, line_start=sub.get('line_start'), **repo_params)
                 counts['nodes'] += 1
             
             # Create Function nodes
             for func in result.get('functions', []):
-                session.run("""
-                    MERGE (f:FortranFunction {name: $name, file_path: $file_path})
-                    SET f.line_start = $line_start
-                """, name=func['name'], file_path=rel_path, line_start=func.get('line_start'))
+                session.run(f"""
+                    MERGE (n:FortranFunction {{name: $name, file_path: $file_path}})
+                    SET n.line_start = $line_start{repo_set}
+                """, name=func['name'], file_path=rel_path, line_start=func.get('line_start'), **repo_params)
                 counts['nodes'] += 1
             
             # Create Program nodes
             for prog in result.get('programs', []):
-                session.run("""
-                    MERGE (p:FortranProgram {name: $name})
-                    SET p.file_path = $file_path,
-                        p.executable_name = $exe_name
-                """, name=prog['name'], file_path=rel_path, exe_name=prog.get('executable_name'))
+                session.run(f"""
+                    MERGE (n:FortranProgram {{name: $name}})
+                    SET n.file_path = $file_path,
+                        n.executable_name = $exe_name{repo_set}
+                """, name=prog['name'], file_path=rel_path, exe_name=prog.get('executable_name'), **repo_params)
                 counts['nodes'] += 1
             
             # Create CALLS relationships
@@ -558,10 +569,12 @@ def run_sample_test(sample_size: int = 100):
         print(f"  USES:  ~{projected_uses:,}")
 
 
-def run_full_ingestion(dry_run: bool = False):
+def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     """Run full ingestion of all Fortran files to Neo4j."""
     print(f"\n{'='*60}")
     print(f"Phase 10: Full Fortran Graph Ingestion")
+    if repo_name:
+        print(f"Repository: {repo_name}")
     print(f"{'='*60}")
     print(f"Mode: {'DRY-RUN (no Neo4j writes)' if dry_run else 'LIVE'}")
     
@@ -591,7 +604,7 @@ def run_full_ingestion(dry_run: bool = False):
         
         result = parser.parse_file(filepath)
         if result:
-            counts = ingester.ingest_file_result(result)
+            counts = ingester.ingest_file_result(result, repo_name=repo_name)
             total_nodes += counts['nodes']
             total_rels += counts['relationships']
     
@@ -653,20 +666,31 @@ Examples:
                         help='Number of files for sample validation')
     parser.add_argument('--dry-run', '-n', action='store_true',
                         help='Parse files but do not write to Neo4j')
+    parser.add_argument('--repo-name', metavar='NAME',
+                        help='Tag all nodes with this repo name (e.g., nceplibs-bufr)')
+    parser.add_argument('--root-dir', metavar='DIR',
+                        help='Root directory to scan instead of WORKFLOW_ROOT')
     parser.add_argument('--version', '-v', action='version',
                         version=f'%(prog)s {VERSION}')
     
     args = parser.parse_args()
     
+    # Override WORKFLOW_ROOT if --root-dir is specified
+    global WORKFLOW_ROOT
+    if args.root_dir:
+        WORKFLOW_ROOT = os.path.abspath(args.root_dir)
+    
     print(f"Fortran Call Graph Ingestion v{VERSION}")
     print(f"WORKFLOW_ROOT: {WORKFLOW_ROOT}")
+    if args.repo_name:
+        print(f"REPO_NAME: {args.repo_name}")
     
     if args.test:
         test_single_file(args.test)
     elif args.sample:
         run_sample_test(args.sample_size)
     else:
-        run_full_ingestion(dry_run=args.dry_run)
+        run_full_ingestion(dry_run=args.dry_run, repo_name=args.repo_name)
 
 
 if __name__ == '__main__':

@@ -31,7 +31,7 @@
  *   - BUILT_BY -> Component node (links CMake target to owning component)
  * 
  * @author Claude Code CLI + GitHub Copilot
- * @version 1.0.0
+ * @version 1.1.0 (Phase 34B: ExternalLibrary + find_package + namespace targets)
  * @since 2025-01-15
  */
 
@@ -58,15 +58,23 @@ export class CMakeGraphIngester {
     this.rootDir = options.rootDir || process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
     this.verbose = options.verbose || false;
     
+    // Known NCEPLIBS packages (Phase 34B)
+    this.NCEPLIBS_PACKAGES = new Set([
+      'bufr', 'ip', 'w3emc', 'w3nco', 'g2', 'g2tmpl', 'bacio',
+      'nemsio', 'sfcio', 'sigio', 'landsfcutil', 'ncio', 'sp'
+    ]);
+    
     // Statistics tracking
     this.stats = {
       buildOrchestratorNodes: 0,
       libraryNodes: 0,
       executableNodes: 0,
+      externalLibraryNodes: 0,
       cmakeFiles: 0,
       buildOrchestrationRelationships: 0,
       dependencyRelationships: 0,
       builtByRelationships: 0,
+      externalDependencyRelationships: 0,
       errors: [],
       processingTime: 0
     };
@@ -383,6 +391,9 @@ export class CMakeGraphIngester {
       // Parse target_link_libraries() for dependencies
       const dependencies = this.parseCMakeDependencies(content, cmakeFile);
       
+      // Parse find_package() for external library dependencies (Phase 34B)
+      const externalPackages = this.parseCMakeExternalPackages(content, cmakeFile);
+      
       // Create Library nodes
       if (libraries.length > 0) {
         await this.createLibraryNodes(libraries, cmakeFile.componentId);
@@ -393,7 +404,12 @@ export class CMakeGraphIngester {
         await this.createExecutableNodes(executables, cmakeFile.componentId);
       }
       
-      // Create DEPENDS_ON relationships
+      // Create ExternalLibrary nodes from find_package() (Phase 34B)
+      if (externalPackages.length > 0) {
+        await this.createExternalLibraryNodes(externalPackages);
+      }
+      
+      // Create DEPENDS_ON relationships (includes namespace target resolution)
       if (dependencies.length > 0) {
         await this.createDependencyRelationships(dependencies, cmakeFile.componentId);
       }
@@ -493,6 +509,37 @@ export class CMakeGraphIngester {
   }
 
   /**
+   * Parse find_package() directives for external library detection (Phase 34B)
+   * @param {string} content - CMakeLists.txt content
+   * @param {Object} cmakeFile - File metadata
+   * @returns {Array<Object>} Array of external package objects
+   */
+  parseCMakeExternalPackages(content, cmakeFile) {
+    const packages = [];
+    
+    // Pattern: find_package(name [version] [REQUIRED] [QUIET] [CONFIG] [MODULE] [COMPONENTS ...])
+    const findPkgRegex = /find_package\s*\(\s*([A-Za-z0-9_]+)(?:\s+([0-9][0-9.]*))?([^)]*)\)/g;
+    
+    let match;
+    while ((match = findPkgRegex.exec(content)) !== null) {
+      const [, packageName, version, rest] = match;
+      const isRequired = rest ? rest.includes('REQUIRED') : false;
+      const isNCEPLIBS = this.NCEPLIBS_PACKAGES.has(packageName.toLowerCase());
+      
+      packages.push({
+        name: packageName.toLowerCase(),
+        version: version || null,
+        required: isRequired,
+        family: isNCEPLIBS ? 'NCEPLIBS' : null,
+        repo_url: isNCEPLIBS ? `https://github.com/NOAA-EMC/NCEPLIBS-${packageName.toLowerCase()}` : null,
+        cmakeFile: cmakeFile.relativePath
+      });
+    }
+    
+    return packages;
+  }
+
+  /**
    * Create Library nodes in Neo4j
    */
   async createLibraryNodes(libraries, componentId) {
@@ -567,33 +614,109 @@ export class CMakeGraphIngester {
   }
 
   /**
+   * Create ExternalLibrary nodes from find_package() results (Phase 34B)
+   */
+  async createExternalLibraryNodes(packages) {
+    const nodes = packages.map(pkg => ({
+      name: pkg.name,
+      version: pkg.version,
+      family: pkg.family,
+      repo_url: pkg.repo_url,
+      required: pkg.required,
+      cmakeFile: pkg.cmakeFile
+    }));
+    
+    const query = `
+      UNWIND $nodes AS node
+      MERGE (el:ExternalLibrary {name: node.name})
+      SET el.version = CASE WHEN node.version IS NOT NULL THEN node.version ELSE el.version END,
+          el.family = CASE WHEN node.family IS NOT NULL THEN node.family ELSE el.family END,
+          el.repo_url = CASE WHEN node.repo_url IS NOT NULL THEN node.repo_url ELSE el.repo_url END,
+          el.required = node.required,
+          el.cmake_target = node.name,
+          el.lastUpdated = datetime()
+      RETURN count(el) as nodeCount
+    `;
+    
+    const result = await this.neo4jClient.runWriteQuery(query, { nodes });
+    const nodeCount = result.records[0]?.get('nodeCount')?.toNumber() || 0;
+    
+    this.stats.externalLibraryNodes += nodeCount;
+    
+    this.log(`Created ${nodeCount} ExternalLibrary nodes`);
+  }
+
+  /**
    * Create DEPENDS_ON relationships between targets
+   * Enhanced in Phase 34B: resolves namespace targets (e.g., bufr::bufr_4 → ExternalLibrary bufr)
    */
   async createDependencyRelationships(dependencies, componentId) {
     if (dependencies.length === 0) {
       return;
     }
     
-    // Use a more flexible query that matches by name instead of exact ID
-    // This handles cases where dependencies might be in different components
-    const query = `
-      UNWIND $dependencies AS dep
-      MATCH (target) WHERE (target:Library OR target:Executable) AND target.name = dep.target
-      MATCH (dependency) WHERE (dependency:Library OR dependency:Executable) AND dependency.name = dep.dependency
-      MERGE (target)-[r:DEPENDS_ON]->(dependency)
-      SET r.linkType = 'cmake_target_link',
-          r.cmakeFile = dep.cmakeFile,
-          r.lastUpdated = datetime()
-      RETURN count(r) as relCount
-    `;
+    // Separate internal dependencies from namespace (external) dependencies
+    const internalDeps = [];
+    const externalDeps = [];
     
-    const result = await this.neo4jClient.runWriteQuery(query, { dependencies });
-    const relCount = result.records[0]?.get('relCount')?.toNumber() || 0;
+    for (const dep of dependencies) {
+      if (dep.dependency.includes('::')) {
+        // Namespace target: bufr::bufr_4 → library "bufr", variant "bufr_4"
+        const [namespace] = dep.dependency.split('::');
+        externalDeps.push({
+          target: dep.target,
+          externalLib: namespace.toLowerCase(),
+          fullTarget: dep.dependency,
+          cmakeFile: dep.cmakeFile
+        });
+      } else {
+        internalDeps.push(dep);
+      }
+    }
     
-    this.stats.dependencyRelationships += relCount;
+    // Create internal DEPENDS_ON relationships (existing behavior)
+    if (internalDeps.length > 0) {
+      const query = `
+        UNWIND $dependencies AS dep
+        MATCH (target) WHERE (target:Library OR target:Executable) AND target.name = dep.target
+        MATCH (dependency) WHERE (dependency:Library OR dependency:Executable) AND dependency.name = dep.dependency
+        MERGE (target)-[r:DEPENDS_ON]->(dependency)
+        SET r.linkType = 'cmake_target_link',
+            r.cmakeFile = dep.cmakeFile,
+            r.lastUpdated = datetime()
+        RETURN count(r) as relCount
+      `;
+      
+      const result = await this.neo4jClient.runWriteQuery(query, { dependencies: internalDeps });
+      const relCount = result.records[0]?.get('relCount')?.toNumber() || 0;
+      this.stats.dependencyRelationships += relCount;
+      
+      if (relCount > 0) {
+        this.log(`Created ${relCount} internal DEPENDS_ON relationships`);
+      }
+    }
     
-    if (relCount > 0) {
-      this.log(`Created ${relCount} DEPENDS_ON relationships`);
+    // Create external DEPENDS_ON relationships to ExternalLibrary nodes (Phase 34B)
+    if (externalDeps.length > 0) {
+      const query = `
+        UNWIND $dependencies AS dep
+        MATCH (target) WHERE (target:Library OR target:Executable) AND target.name = dep.target
+        MERGE (el:ExternalLibrary {name: dep.externalLib})
+        MERGE (target)-[r:DEPENDS_ON]->(el)
+        SET r.linkType = 'cmake_namespace_target',
+            r.fullTarget = dep.fullTarget,
+            r.cmakeFile = dep.cmakeFile,
+            r.lastUpdated = datetime()
+        RETURN count(r) as relCount
+      `;
+      
+      const result = await this.neo4jClient.runWriteQuery(query, { dependencies: externalDeps });
+      const relCount = result.records[0]?.get('relCount')?.toNumber() || 0;
+      this.stats.externalDependencyRelationships += relCount;
+      
+      if (relCount > 0) {
+        this.log(`Created ${relCount} external DEPENDS_ON relationships (namespace targets)`);
+      }
     }
   }
 
@@ -605,9 +728,11 @@ export class CMakeGraphIngester {
     console.log(`BuildOrchestrator nodes: ${this.stats.buildOrchestratorNodes}`);
     console.log(`Library nodes: ${this.stats.libraryNodes}`);
     console.log(`Executable nodes: ${this.stats.executableNodes}`);
+    console.log(`ExternalLibrary nodes: ${this.stats.externalLibraryNodes}`);
     console.log(`CMakeLists.txt files processed: ${this.stats.cmakeFiles}`);
     console.log(`BUILD_ORCHESTRATES relationships: ${this.stats.buildOrchestrationRelationships}`);
-    console.log(`DEPENDS_ON relationships: ${this.stats.dependencyRelationships}`);
+    console.log(`DEPENDS_ON relationships (internal): ${this.stats.dependencyRelationships}`);
+    console.log(`DEPENDS_ON relationships (external): ${this.stats.externalDependencyRelationships}`);
     console.log(`BUILT_BY relationships: ${this.stats.builtByRelationships}`);
     console.log(`Processing time: ${this.stats.processingTime}s`);
     
