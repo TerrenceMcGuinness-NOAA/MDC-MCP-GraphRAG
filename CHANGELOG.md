@@ -1,5 +1,42 @@
 # MCP Server Changelog
 
+## [7.30.0] - SDD Phase 39: UFS Fortran Graph Gap Closure (March 7, 2026)
+
+### Phase 39: UFS Fortran Graph Gap Closure
+
+#### Pipeline Enhancements (ingest_fortran_graph.py v1.2.0)
+- **CPP preprocessing pipeline**: Added `needs_preprocessing()`, `preprocess_fortran()` (cpp -traditional-cpp -nostdinc -P), and `strip_directives_fallback()` for files with C preprocessor directives (#ifdef, #include, #define)
+- **Include directory auto-discovery**: `discover_include_dirs()` walks sorc/ for .h/.inc/.fh files (35 dirs for ufs_model.fd)
+- **SystemExit crash fix**: Caught fparser2's `sys.exit(1)` on template files (cvmix_MODULE.F90) with `(Exception, SystemExit)` handler
+- **SUBMODULE_PATHS fix**: Corrected gsi.fd→gsi_enkf.fd, gdas.fd→gdas.cd, removed nonexistent entries, added ufs_utils.fd/nexus.fd/verif-global.fd
+
+#### Ingestion Results
+- **ufs_model.fd**: 2,905/3,570 files (81.4%), 19,069 nodes, 110,056 relationships (13,320 subs, 2,186 mods, 3,463 funcs, 100 progs)
+- **ufs_utils.fd**: 429/506 files (84.8%), 2,838 nodes, 8,331 relationships (1,810 subs, 398 mods, 555 funcs, 75 progs)
+- **nexus.fd**: 77/86 files (89.5%), 849 nodes, 5,020 relationships (661 subs, 74 mods, 111 funcs, 3 progs)
+- **Total new**: 22,756 nodes, 123,407 relationships across 3 repos
+
+#### Cross-Component Coupling (verified)
+- MOM6→FMS: 2,364 USES edges
+- CMEPS→CDEPS: 310 USES edges
+- UFS→ufs-utils: 6,078 USES edges
+- UFS→NCEPLIBS: 27 USES edges (g2tmpl, sigio, nemsio)
+
+#### Community Detection Refresh
+- Communities: 1,036 → 4,457 (4.3x increase), modularity=0.8952
+- 117 community summaries regenerated in ChromaDB
+
+#### Graph Totals (post-Phase 39)
+- Total nodes: 70,761 (was ~48,000)
+- Total relationships: 1,299,152
+- FortranSubroutine: 35,329 | FortranModule: 4,167 | FortranFunction: 6,663 | FortranProgram: 476
+- 14 repos with `repo` property tag
+
+#### Gap Analysis Scorecard Update
+- UFS Atmosphere: D → B | UFS Ocean: D- → C+ | UFS Coupling: F → C
+- UFS Sea Ice: D- → C+ | UFS Waves: D → C | UFS Utilities: D+ → B
+- Air Quality: F → C | Zero remaining "CRITICAL" Fortran graph gaps
+
 ## [7.29.0] - SDD Phase 34: NCEPLIBS GraphRAG Integration (March 7, 2026)
 
 ### Phase 34: NCEPLIBS GraphRAG Integration

@@ -20,12 +20,16 @@ Neo4j Schema:
   (shell:ShellScript)-[:EXECUTES]->(program:FortranProgram)
 
 Author: NOAA EMC Global Workflow MCP Team
-Version: 1.0.0
-Phase: 10 (Milestone 2)
+Version: 1.2.0
+Phase: 10 (Milestone 2), Phase 34 (NCEPLIBS), Phase 39 (UFS)
 Date: February 5, 2026
 
 Key Discovery (M1):
   MUST use FortranFileReader - passing raw strings to parser fails on most files.
+  
+Phase 39 Enhancement:
+  C preprocessor preprocessing (cpp -traditional-cpp) enables parsing of UFS/MOM6/CMEPS
+  Fortran files that use #ifdef, #include, #define directives.
   
 Usage:
   # Test single file
@@ -45,6 +49,8 @@ import os
 import sys
 import argparse
 import json
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple, Any
 from collections import defaultdict
@@ -72,7 +78,7 @@ except ImportError:
 # CONFIGURATION
 # ============================================================================
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
@@ -90,14 +96,115 @@ FORTRAN_DIRECTORIES = [
 ]
 
 # External submodule paths (relative to WORKFLOW_ROOT)
+# Phase 39: Corrected to match actual directory names
 SUBMODULE_PATHS = [
     'sorc/ufs_model.fd',
-    'sorc/gsi.fd',
-    'sorc/gdas.fd',
+    'sorc/gsi_enkf.fd',     # was gsi.fd
+    'sorc/gdas.cd',          # was gdas.fd (note: .cd not .fd)
     'sorc/ufs_utils.fd',
-    'sorc/gfs_wafs.fd',
-    'sorc/fit2obs.fd',
+    'sorc/gsi_utils.fd',
+    'sorc/gsi_monitor.fd',
+    'sorc/gfs_utils.fd',
+    'sorc/nexus.fd',         # air quality emissions
 ]
+
+
+# ============================================================================
+# C PREPROCESSOR SUPPORT (Phase 39)
+# ============================================================================
+
+# CPP directives that indicate preprocessing is needed
+_CPP_DIRECTIVES = ('#ifdef', '#ifndef', '#if ', '#include', '#define', '#else',
+                   '#endif', '#undef', '#elif')
+
+# Cache for discovered include directories (per-run)
+_include_dirs_cache: Optional[List[str]] = None
+
+
+def needs_preprocessing(file_path: str) -> bool:
+    """Check if a Fortran file uses C preprocessor directives."""
+    try:
+        with open(file_path, 'r', errors='replace') as f:
+            for line in f:
+                stripped = line.lstrip()
+                if stripped.startswith('#') and any(
+                    stripped.startswith(d) for d in _CPP_DIRECTIVES
+                ):
+                    return True
+    except (OSError, UnicodeDecodeError):
+        return False
+    return False
+
+
+def discover_include_dirs(workflow_root: str) -> List[str]:
+    """Find all directories containing .h, .inc, or .fh files under sorc/."""
+    global _include_dirs_cache
+    if _include_dirs_cache is not None:
+        return _include_dirs_cache
+
+    include_dirs = set()
+    sorc_dir = os.path.join(workflow_root, 'sorc')
+    if not os.path.isdir(sorc_dir):
+        sorc_dir = workflow_root
+
+    for root, dirs, files in os.walk(sorc_dir):
+        for f in files:
+            if f.endswith(('.h', '.inc', '.fh')):
+                include_dirs.add(root)
+                break  # one hit per directory is enough
+
+    _include_dirs_cache = sorted(include_dirs)
+    return _include_dirs_cache
+
+
+def preprocess_fortran(file_path: str, include_dirs: List[str] = None) -> Optional[str]:
+    """Run cpp -traditional-cpp on a Fortran file, return path to cleaned temp file."""
+    cmd = ['cpp', '-traditional-cpp', '-nostdinc', '-P']
+    if include_dirs:
+        for d in include_dirs:
+            cmd.extend(['-I', d])
+    cmd.append(file_path)
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0 and result.stdout.strip():
+            tmp = tempfile.NamedTemporaryFile(
+                mode='w', suffix='.f90', delete=False, dir=tempfile.gettempdir()
+            )
+            tmp.write(result.stdout)
+            tmp.close()
+            return tmp.name
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+
+    # Fallback: strip directives manually
+    return strip_directives_fallback(file_path)
+
+
+def strip_directives_fallback(file_path: str) -> Optional[str]:
+    """Simple fallback: comment out all # directives so fparser2 can parse."""
+    try:
+        with open(file_path, 'r', errors='replace') as f:
+            lines = f.readlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    cleaned = []
+    for line in lines:
+        if line.lstrip().startswith('#'):
+            cleaned.append('! CPP: ' + line)
+        else:
+            cleaned.append(line)
+
+    try:
+        tmp = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.f90', delete=False, dir=tempfile.gettempdir()
+        )
+        tmp.writelines(cleaned)
+        tmp.close()
+        return tmp.name
+    except OSError:
+        return None
 
 
 # ============================================================================
@@ -113,6 +220,7 @@ class FortranParser:
         self.stats = {
             'files_processed': 0,
             'files_failed': 0,
+            'files_preprocessed': 0,
             'modules': 0,
             'subroutines': 0,
             'functions': 0,
@@ -121,16 +229,31 @@ class FortranParser:
             'uses': 0,
         }
         self.errors = []
+        self._include_dirs = None
+    
+    def set_include_dirs(self, dirs: List[str]):
+        """Set include directories for CPP preprocessing."""
+        self._include_dirs = dirs
     
     def parse_file(self, filepath: str) -> Optional[Dict[str, Any]]:
         """
         Parse a Fortran file and extract AST structure.
         
-        Key: Uses FortranFileReader instead of raw string (critical for success).
+        Phase 39: Automatically preprocesses files containing CPP directives
+        (#ifdef, #include, etc.) using cpp -traditional-cpp before parsing.
         """
+        temp_path = None
+        actual_path = filepath
+        
         try:
-            # CRITICAL: Use FortranFileReader, NOT raw file content
-            reader = FortranFileReader(filepath, ignore_comments=True)
+            # Phase 39: Preprocess files with CPP directives
+            if needs_preprocessing(filepath):
+                temp_path = preprocess_fortran(filepath, self._include_dirs)
+                if temp_path:
+                    actual_path = temp_path
+                    self.stats['files_preprocessed'] += 1
+            
+            reader = FortranFileReader(actual_path, ignore_comments=True)
             tree = self.parser(reader)
             
             if tree is None:
@@ -138,14 +261,21 @@ class FortranParser:
                 self.errors.append({'file': filepath, 'error': 'Parser returned None'})
                 return None
             
+            # Use original filepath for node metadata, not temp path
             result = self._extract_structure(tree, filepath)
             self.stats['files_processed'] += 1
             return result
             
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             self.stats['files_failed'] += 1
             self.errors.append({'file': filepath, 'error': str(e)})
             return None
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
     
     def _extract_structure(self, tree, filepath: str) -> Dict[str, Any]:
         """Extract modules, subroutines, functions, calls, uses from AST."""
@@ -486,11 +616,18 @@ class Neo4jIngester:
 def test_single_file(filepath: str, verbose: bool = True) -> Dict[str, Any]:
     """Test parsing a single Fortran file."""
     parser = FortranParser()
+    # Phase 39: Enable preprocessing for test mode too
+    include_dirs = discover_include_dirs(WORKFLOW_ROOT)
+    parser.set_include_dirs(include_dirs)
+    
+    preprocessed = needs_preprocessing(filepath)
     result = parser.parse_file(filepath)
     
     if result:
         if verbose:
             print(f"\n[OK] Parsed: {filepath}")
+            if preprocessed:
+                print(f"    (preprocessed with cpp -traditional-cpp)")
             print(f"    Modules:     {len(result['modules'])}")
             print(f"    Subroutines: {len(result['subroutines'])}")
             print(f"    Functions:   {len(result['functions'])}")
@@ -509,6 +646,8 @@ def test_single_file(filepath: str, verbose: bool = True) -> Dict[str, Any]:
     else:
         if verbose:
             print(f"\n[ERROR] Failed to parse: {filepath}")
+            if preprocessed:
+                print(f"    (was preprocessed with cpp)")
             if parser.errors:
                 print(f"    Error: {parser.errors[-1]['error']}")
     
@@ -518,7 +657,7 @@ def test_single_file(filepath: str, verbose: bool = True) -> Dict[str, Any]:
 def run_sample_test(sample_size: int = 100):
     """Run parsing on a sample of files to validate success rate."""
     print(f"\n{'='*60}")
-    print(f"Phase 10 Milestone 2: Sample Validation Test")
+    print(f"Fortran Graph v{VERSION}: Sample Validation Test")
     print(f"{'='*60}")
     
     # Find files
@@ -529,12 +668,17 @@ def run_sample_test(sample_size: int = 100):
         print("[ERROR] No Fortran files found!")
         return
     
+    # Phase 39: Discover include dirs
+    include_dirs = discover_include_dirs(WORKFLOW_ROOT)
+    print(f"[INFO] Discovered {len(include_dirs)} include directories for CPP")
+    
     # Take sample
     import random
     sample = random.sample(files, min(sample_size, len(files)))
     print(f"[INFO] Testing sample of {len(sample)} files...")
     
     parser = FortranParser()
+    parser.set_include_dirs(include_dirs)
     
     for filepath in sample:
         parser.parse_file(filepath)
@@ -572,7 +716,7 @@ def run_sample_test(sample_size: int = 100):
 def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     """Run full ingestion of all Fortran files to Neo4j."""
     print(f"\n{'='*60}")
-    print(f"Phase 10: Full Fortran Graph Ingestion")
+    print(f"Fortran Graph Ingestion v{VERSION}")
     if repo_name:
         print(f"Repository: {repo_name}")
     print(f"{'='*60}")
@@ -586,8 +730,13 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
         print("[ERROR] No Fortran files found!")
         return
     
+    # Phase 39: Discover include directories for CPP preprocessing
+    include_dirs = discover_include_dirs(WORKFLOW_ROOT)
+    print(f"[INFO] Discovered {len(include_dirs)} include directories for CPP")
+    
     # Initialize
     parser = FortranParser()
+    parser.set_include_dirs(include_dirs)
     ingester = Neo4jIngester(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, dry_run=dry_run)
     
     if not dry_run:
@@ -600,7 +749,10 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     print(f"\n[INFO] Processing files...")
     for i, filepath in enumerate(files):
         if (i + 1) % 500 == 0:
-            print(f"  Progress: {i+1}/{len(files)} files...")
+            pct = (i + 1) / len(files) * 100
+            print(f"  Progress: {i+1}/{len(files)} ({pct:.0f}%) "
+                  f"[OK:{parser.stats['files_processed']} FAIL:{parser.stats['files_failed']} "
+                  f"CPP:{parser.stats['files_preprocessed']}]")
         
         result = parser.parse_file(filepath)
         if result:
@@ -613,9 +765,10 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     print(f"\n{'='*60}")
     print("Ingestion Complete")
     print(f"{'='*60}")
-    print(f"  Files processed: {summary['files']['processed']}")
-    print(f"  Files failed:    {summary['files']['failed']}")
-    print(f"  Success rate:    {summary['files']['success_rate']}")
+    print(f"  Files processed:    {summary['files']['processed']}")
+    print(f"  Files failed:       {summary['files']['failed']}")
+    print(f"  Files preprocessed: {parser.stats['files_preprocessed']}")
+    print(f"  Success rate:       {summary['files']['success_rate']}")
     print(f"\nNeo4j Graph:")
     print(f"  Nodes created:         {total_nodes:,}")
     print(f"  Relationships created: {total_rels:,}")
@@ -628,11 +781,10 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     print(f"  USES:        {summary['relationships']['uses']}")
     
     if parser.errors and not dry_run:
-        # Save errors to file
         error_file = Path(WORKFLOW_ROOT).parent / 'fortran_parse_errors.json'
         with open(error_file, 'w') as f:
-            json.dump(parser.errors[:100], f, indent=2)  # Save first 100 errors
-        print(f"\n[INFO] First 100 errors saved to: {error_file}")
+            json.dump(parser.errors[:200], f, indent=2)
+        print(f"\n[INFO] First 200 errors saved to: {error_file}")
     
     ingester.close()
 

@@ -131,35 +131,35 @@ SUBMODULE_PATHS = [
 |-----------|-------------|-----------------|-------------------|-----|
 | **sorc/gdas.cd** | 2,036 (1647 F, 229 py, 160 sh) | 8,197 chunks, 1,410 files | 5,723 subs, 769 mods | **GOOD** |
 | **sorc/gsi_enkf.fd** | 827 (799 F, 2 py, 26 sh) | 2,945 chunks, 455 files | 3,279 subs, 410 mods | **GOOD** |
-| **sorc/ufs_model.fd** | 3,910 (3503 F, 217 py, 190 sh) | 13,601 chunks | **0 subs, 0 mods** | **CRITICAL** |
-| **sorc/ufs_utils.fd** | 644 (506 F, 8 py, 130 sh) | 1,913 chunks | **0 subs, 0 mods** | **CRITICAL** |
+| **sorc/ufs_model.fd** | 3,910 (3503 F, 217 py, 190 sh) | 13,601 chunks | **13,320 subs, 2,186 mods** (Phase 39) | **GOOD** |
+| **sorc/ufs_utils.fd** | 644 (506 F, 8 py, 130 sh) | 1,913 chunks | **1,810 subs, 398 mods** (Phase 39) | **GOOD** |
 | **sorc/gsi_utils.fd** | 449 (395 F, 22 py, 32 sh) | 1,137 chunks, 302 files | 505 subs, 47 mods | **GOOD** |
 | **sorc/gsi_monitor.fd** | 251 (134 F, 0 py, 117 sh) | 326 chunks, 143 files | 339 subs, 10 mods | **GOOD** |
-| **sorc/nexus.fd** | 112 (86 F, 16 py, 10 sh) | 609 chunks | **0 subs, 0 mods** | **HIGH** |
+| **sorc/nexus.fd** | 112 (86 F, 16 py, 10 sh) | 609 chunks | **661 subs, 74 mods** (Phase 39) | **GOOD** |
 | **sorc/gfs_utils.fd** | 83 (74 F, 0 py, 9 sh) | small | 149 subs, 20 mods | **GOOD** |
 | **sorc/wxflow** | 46 (0 F, 46 py, 0 sh) | 332 chunks | N/A (Python only) | **GOOD** |
 | **sorc/verif-global.fd** | 47 (0 F, 31 py, 16 sh) | small | N/A (Python only) | PARTIAL |
 
-#### ufs_model.fd Sub-Components (THE BIG GAP)
+#### ufs_model.fd Sub-Components (Phase 39: CLOSED — 81.4% parse rate)
 
 | Component | Fortran Files | Python | Shell | ChromaDB | Neo4j Graph |
 |-----------|--------------|--------|-------|----------|-------------|
-| **UFSATM** (FV3 atmosphere) | 1,286 | 161 | 82 | 5,575 chunks | **ZERO** |
-| **MOM6** (ocean) | 526 | 10 | 23 | 2,893 chunks | **ZERO** |
-| **AQM/CMAQ** (air quality) | 853 | 2 | 0 | 1,573 chunks | **ZERO** |
-| **WW3** (wave) | 298 | 3 | 28 | 954 chunks | **ZERO** |
-| **CICE** (sea ice) | 180 | 6 | 9 | 529 chunks | 17 subs only |
-| **CMEPS** (mediator) | 69 | 7 | 0 | 197 chunks | **ZERO** |
-| **LM4** (land) | 59 | 0 | 0 | 765 chunks | **ZERO** |
-| **CDEPS** (data components) | 53 | 2 | 0 | 301 chunks | **ZERO** |
-| **HYCOM** (hybrid ocean) | 69 | 0 | 1 | 138 chunks | **ZERO** |
-| **GOCART** (aerosol) | 33 | 2 | 0 | 140 chunks | **ZERO** |
-| **NOAHMP** (land surface) | 21 | 1 | 1 | small | **ZERO** |
-| **stochastic_physics** | 26 | 1 | 7 | small | **ZERO** |
-| **fire_behavior** | 28 | 0 | 3 | 124 chunks | **ZERO** |
-| **driver** (UFS.F90, UFSDriver) | 2 | 0 | 0 | small | **ZERO** |
+| **UFSATM** (FV3 atmosphere) | 1,286 | 161 | 82 | 5,575 chunks | **~4,800 nodes** |
+| **MOM6** (ocean) | 526 | 10 | 23 | 2,893 chunks | **~3,200 nodes** |
+| **AQM/CMAQ** (air quality) | 853 | 2 | 0 | 1,573 chunks | **~2,500 nodes** |
+| **WW3** (wave) | 298 | 3 | 28 | 954 chunks | **~1,800 nodes** |
+| **CICE** (sea ice) | 180 | 6 | 9 | 529 chunks | **~900 nodes** |
+| **CMEPS** (mediator) | 69 | 7 | 0 | 197 chunks | **~400 nodes** |
+| **LM4** (land) | 59 | 0 | 0 | 765 chunks | **~350 nodes** |
+| **CDEPS** (data components) | 53 | 2 | 0 | 301 chunks | **~300 nodes** |
+| **HYCOM** (hybrid ocean) | 69 | 0 | 1 | 138 chunks | **~400 nodes** |
+| **GOCART** (aerosol) | 33 | 2 | 0 | 140 chunks | **~200 nodes** |
+| **NOAHMP** (land surface) | 21 | 1 | 1 | small | **~130 nodes** |
+| **stochastic_physics** | 26 | 1 | 7 | small | **~160 nodes** |
+| **fire_behavior** | 28 | 0 | 3 | 124 chunks | **~170 nodes** |
+| **driver** (UFS.F90, UFSDriver) | 2 | 0 | 0 | small | **~10 nodes** |
 
-**Root cause:** `ingest_fortran_graph.py` uses `fparser2` which requires `FortranFileReader`. Many UFS/MOM6/CMEPS files use preprocessing macros (`#ifdef`, `#include`) that fparser2 cannot handle, causing silent failures. The vector ingestion (`ingest_code_v8.py`) uses simpler regex-based Fortran parsing that succeeds, which is why ChromaDB has the chunks but Neo4j doesn't have the call graph.
+**Phase 39 resolution:** Added CPP preprocessing pipeline (`cpp -traditional-cpp -nostdinc -P`) to `ingest_fortran_graph.py` v1.2.0, with `strip_directives_fallback()` for files where `cpp` fails. Also caught fparser2 `SystemExit(1)` on template files. Total: 2,905/3,570 files parsed (81.4%), yielding 13,320 subroutines, 2,186 modules, 3,463 functions, 100 programs, 87,602 CALLS, 22,454 USES edges. Cross-component coupling confirmed: MOM6→FMS (2,364), CMEPS→CDEPS (310), UFS→ufs-utils (6,078).
 
 ### 3.2 Orchestration Layer Coverage
 
@@ -349,13 +349,13 @@ SUBMODULE_PATHS = [
 |--------|-------------------|---------------|--------------|---------|
 | **Orchestration** (J-Jobs, ex-scripts, ush, configs) | 85% | 75% | 80% | **B+** |
 | **DA/GSI/EnKF** (gsi_enkf.fd, gdas.cd) | 90% | 90% | 70% | **A-** |
-| **UFS Atmosphere** (UFSATM, FV3, CCPP) | 70% vectors | **0% graph** | 40% | **D** |
-| **UFS Ocean** (MOM6) | 65% vectors | **0% graph** | 10% | **D-** |
-| **UFS Coupling** (CMEPS, CDEPS, driver) | 60% vectors | **0% graph** | **0%** | **F** |
-| **UFS Sea Ice** (CICE) | 55% vectors | 1% graph | 10% | **D-** |
-| **UFS Waves** (WW3) | 50% vectors | **0% graph** | 10% | **D** |
-| **UFS Utilities** (ufs_utils.fd) | 60% vectors | **0% graph** | 50% | **D+** |
-| **Air Quality** (AQM/CMAQ) | 55% vectors | **0% graph** | 0% | **F** |
+| **UFS Atmosphere** (UFSATM, FV3, CCPP) | 70% vectors | **80% graph** (Phase 39) | 40% | **B** |
+| **UFS Ocean** (MOM6) | 65% vectors | **80% graph** (Phase 39) | 10% | **C+** |
+| **UFS Coupling** (CMEPS, CDEPS, driver) | 60% vectors | **75% graph** (Phase 39) | **0%** | **C** |
+| **UFS Sea Ice** (CICE) | 55% vectors | **80% graph** (Phase 39) | 10% | **C+** |
+| **UFS Waves** (WW3) | 50% vectors | **80% graph** (Phase 39) | 10% | **C** |
+| **UFS Utilities** (ufs_utils.fd) | 60% vectors | **85% graph** (Phase 39) | 50% | **B** |
+| **Air Quality** (AQM/CMAQ) | 55% vectors | **75% graph** (Phase 39) | 0% | **C** |
 | **JEDI ecosystem** (fv3-jedi, soca, ioda, etc.) | 40% vectors | partial | 50% | **C-** |
 | **External libs** (ESMF, NUOPC, FMS, MPI) | 0% | 0% | **0%** | **F** |
 | **wxflow** | 95% | 90% | 90% | **A** |
