@@ -1,6 +1,6 @@
 # Phase 40: Configuration and CI File Ingestion
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Status**: Planned
 **Created**: 2026-03-06
 **Author**: AI Assistant + Terry McGuinness
@@ -275,7 +275,78 @@ Create Neo4j nodes:
 
 ---
 
-### Step 40-6: Run Config Ingestion
+### Step 40-6: Create EXPDIR Config & XML Ingestion Script
+**Tag**: implement
+**Target**: `mcp_server_node/scripts/ingest_expdir_configs.py`
+**Requires**: Integrated terminal session hosted directly on RDHPC (Hera/Hercules/WCOSS2)
+
+Ingest experiment directory (EXPDIR) XML and config files from real experiment runs on RDHPC systems. EXPDIRs contain the materialized configuration that drives a specific experiment — the resolved versions of template configs with experiment-specific values filled in.
+
+The integrated terminal will be hosted directly on the RDHPC system, so EXPDIR paths are accessed as local filesystem reads — no SSH or rsync required. `create_experiment.py` from the global-workflow can be run at will to generate fresh EXPDIRs on demand for any experiment configuration.
+
+**EXPDIR structure** (typical path: `/scratch1/NCEPDEV/global/USER/ROTDIRS/EXPDIR/EXPERIMENT/`):
+```
+EXPDIR/
+├── config.*              # Resolved config files (config.fcst, config.anal, config.base, ...)
+├── xml/
+│   └── workflow.xml      # Resolved Rocoto XML (entities expanded, no Jinja2)
+├── *.yaml                # YAML configs (post.yaml, archiving.yaml, etc.)
+└── logs/                 # Runtime logs (optional for ingestion)
+```
+
+The script should:
+1. **Read EXPDIR from local filesystem**: Accept `--expdir-path` argument pointing to the EXPDIR on the RDHPC host
+2. **Parse resolved configs**: Extract final variable values (no `${..}` references — these are the resolved values)
+3. **Parse resolved Rocoto XML**: Unlike template XML, EXPDIR XML has all entities expanded — parse the concrete job DAG
+4. **Create Neo4j nodes**: `(:EXPDIRConfig {name, experiment, platform, resolution})` linked to ConfigFile templates via `[:RESOLVES_FROM]`
+5. **Diff template vs resolved**: Identify config deltas between the template (`parm/config/`) and experiment-specific values
+6. **ChromaDB ingestion**: Ingest resolved configs with `file_type: 'expdir-config'` metadata and experiment name
+
+```python
+# Key relationships
+# (:EXPDIRConfig)-[:RESOLVES_FROM]->(:ConfigFile)     # template origin
+# (:EXPDIRConfig)-[:SETS_ENV]->(:EnvironmentVariable)  # resolved values
+# (:EXPDIRConfig)-[:PART_OF]->(:Experiment)            # experiment grouping
+# (:Experiment {name, platform, resolution, date})
+```
+
+**Acceptance**: Script runs with `--dry-run` locally. Full ingestion executes on RDHPC-hosted terminal with direct filesystem access.
+
+---
+
+### Step 40-7: Run EXPDIR Ingestion on RDHPC
+**Tag**: execute
+**Target**: Integrated terminal hosted on RDHPC system (Hera/Hercules/WCOSS2)
+**Requires**: Terminal session running directly on the RDHPC host
+
+```bash
+# Step 0: Generate a fresh EXPDIR using create_experiment.py (run as needed)
+cd /path/to/global-workflow
+./workflow/create_experiment.py --yaml <experiment_yaml> --overwrite
+# This produces a fully resolved EXPDIR at the configured ROTDIRS path
+
+cd /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
+
+# Step 1: Dry run (verify EXPDIR path and file discovery)
+python scripts/ingest_expdir_configs.py \
+  --expdir-path /scratch1/NCEPDEV/global/$USER/ROTDIRS/EXPDIR/C384_S2SWA \
+  --experiment-name C384_S2SWA \
+  --dry-run 2>&1 | tee logs/phase40_expdir_dryrun.log
+
+# Step 2: Full ingestion (after dry-run review)
+python scripts/ingest_expdir_configs.py \
+  --expdir-path /scratch1/NCEPDEV/global/$USER/ROTDIRS/EXPDIR/C384_S2SWA \
+  --experiment-name C384_S2SWA \
+  2>&1 | tee logs/phase40_expdir_ingest.log
+```
+
+**Note**: `create_experiment.py` can be run at will to generate EXPDIRs for different experiment configurations (resolutions, coupling modes, platforms). This allows ingesting multiple experiment variants to build a comprehensive knowledge base of resolved configurations.
+
+**Acceptance**: EXPDIRConfig nodes created in Neo4j. `[:RESOLVES_FROM]` edges link to template ConfigFile nodes from Step 40-2.
+
+---
+
+### Step 40-8: Run Config Ingestion
 **Tag**: execute
 **Target**: Terminal
 
@@ -288,7 +359,7 @@ python scripts/ingest_config_files.py 2>&1 | tee logs/phase40_config_ingest.log
 
 ---
 
-### Step 40-7: Run CI + Jinja2 + XML Ingestion
+### Step 40-9: Run CI + Jinja2 + XML Ingestion
 **Tag**: execute
 **Target**: Terminal
 
@@ -302,7 +373,7 @@ python scripts/ingest_rocoto_xml.py 2>&1 | tee logs/phase40_rocoto_ingest.log
 
 ---
 
-### Step 40-8: Validate Config-to-Script Tracing
+### Step 40-10: Validate Config-to-Script Tracing
 **Tag**: validate
 **Target**: Terminal (Cypher + MCP tools)
 
@@ -325,7 +396,7 @@ explain_with_context({ topic: "forecast length configuration", detail_level: "de
 
 ---
 
-### Step 40-9: Update Gap Analysis Report
+### Step 40-11: Update Gap Analysis Report
 **Tag**: document
 **Target**: `docs/EIB_MCP_KNOWLEDGE_BASE_GAP_ANALYSIS.md`
 
@@ -344,6 +415,9 @@ Update §3.2 (Orchestration Layer Coverage) to show configs, CI, and XML as inge
 | CI test YAML in ChromaDB | 0 | 78 | Metadata query `file_type: 'ci-test'` |
 | RocotoTask nodes | 0 | ~30-50 | `MATCH (t:RocotoTask) RETURN COUNT(t)` |
 | Jinja2 templates in ChromaDB | 0 | ~20 | Metadata query `file_type: 'jinja2-template'` |
+| EXPDIRConfig nodes | 0 | ~50-100 | `MATCH (e:EXPDIRConfig) RETURN COUNT(e)` |
+| RESOLVES_FROM edges | 0 | ~50-100 | `MATCH ()-[:RESOLVES_FROM]->() RETURN COUNT(*)` |
+| EXPDIR configs in ChromaDB | 0 | ~50-100 | Metadata query `file_type: 'expdir-config'` |
 
 ## 6. Risk Assessment
 
@@ -352,6 +426,8 @@ Update §3.2 (Orchestration Layer Coverage) to show configs, CI, and XML as inge
 | Config files use complex bash (arrays, command substitution) | Regex parser extracts simple `export VAR=val` patterns — complex logic documented but not fully parsed |
 | Rocoto XML has entity references (`&SCRIPTS;`) | Resolve entities before parsing or use regex fallback |
 | CI YAML structure varies across test cases | Parse with safe YAML loader, handle missing keys gracefully |
+| RDHPC filesystem access required for EXPDIR | Script supports `--dry-run` locally; full ingestion runs on integrated terminal hosted directly on RDHPC |
+| EXPDIR paths vary by user/experiment | Accept explicit `--expdir-path` argument; document common ROTDIRS patterns |
 
 ## 7. Cross-References
 
@@ -359,3 +435,4 @@ Update §3.2 (Orchestration Layer Coverage) to show configs, CI, and XML as inge
 - **Prerequisite**: Phase 38 (path normalization)
 - **Related**: Phase 27B (shell graph — provides ShellScript nodes for linking), Phase 30 (experiment config documentation)
 - **Downstream**: Config tracing enhances `find_env_dependencies` and `explain_workflow_component` tools
+- **RDHPC Access**: Steps 40-6 and 40-7 require integrated terminal hosted directly on Hera/Hercules — no SSH needed, direct filesystem access
