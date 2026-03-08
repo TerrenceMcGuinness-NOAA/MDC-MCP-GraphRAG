@@ -34,10 +34,10 @@ import os
 # VERSION CONFIGURATION
 # =============================================================================
 
-VERSION = "7.0.0"
+VERSION = "8.0.0"
 
 # Collection name can be overridden via environment variable
-DEFAULT_COLLECTION_NAME = "global-workflow-docs-v7-0-0"
+DEFAULT_COLLECTION_NAME = "global-workflow-docs-v8-0-0"
 COLLECTION_NAME = os.getenv("DOCS_COLLECTION", DEFAULT_COLLECTION_NAME)
 
 # =============================================================================
@@ -92,6 +92,24 @@ DOCUMENTATION_SOURCES = {
             'priority': 1,
             'description': 'UFS utilities - chgres_cube, grid generation, preprocessing',
             'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'esmf-user-guide',
+            'url': 'https://earthsystemmodeling.org/docs/release/latest/ESMF_usrdoc/',
+            'type': 'readthedocs',
+            'priority': 1,
+            'description': 'ESMF User Guide - Earth System Modeling Framework (coupling backbone)',
+            'max_pages': 250,
+            'enabled': True
+        },
+        {
+            'name': 'nuopc-layer-reference',
+            'url': 'https://earthsystemmodeling.org/docs/release/latest/NUOPC_refdoc/',
+            'type': 'readthedocs',
+            'priority': 1,
+            'description': 'NUOPC Layer Reference - component model interface standard',
+            'max_pages': 150,
             'enabled': True
         }
     ],
@@ -177,8 +195,62 @@ DOCUMENTATION_SOURCES = {
             'url': 'https://www.gfdl.noaa.gov/fv3/',
             'type': 'single_page',
             'priority': 3,
-            'description': 'FV3 Dynamical Core - GFDL cubed sphere atmospheric dynamics',
+            'description': 'FV3 Dynamical Core - GFDL cubed sphere atmospheric dynamics (superseded by fv3-docs)',
             'max_pages': 10,
+            'enabled': False
+        },
+        {
+            'name': 'cmeps',
+            'url': 'https://escomp.github.io/CMEPS/',
+            'type': 'github_pages',
+            'priority': 2,
+            'description': 'CMEPS Community Mediator - inter-model data exchange',
+            'max_pages': 50,
+            'enabled': True
+        },
+        {
+            'name': 'mom6',
+            'url': 'https://mom6.readthedocs.io/en/main/',
+            'type': 'readthedocs',
+            'priority': 2,
+            'description': 'MOM6 Ocean Model - modular ocean model v6',
+            'max_pages': 200,
+            'enabled': True
+        },
+        {
+            'name': 'cice',
+            'url': 'https://cice-consortium-cice.readthedocs.io/en/latest/',
+            'type': 'readthedocs',
+            'priority': 2,
+            'description': 'CICE Sea Ice Model - Los Alamos sea ice model',
+            'max_pages': 150,
+            'enabled': True
+        },
+        {
+            'name': 'ww3-wiki',
+            'url': 'https://github.com/NOAA-EMC/WW3/wiki',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'WAVEWATCH III - wave model wiki',
+            'max_pages': 50,
+            'enabled': True
+        },
+        {
+            'name': 'fv3-docs',
+            'url': 'https://github.com/NOAA-GFDL/GFDL_atmos_cubed_sphere/wiki',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'FV3 Dynamical Core - GFDL cubed-sphere atmospheric dynamics (expanded)',
+            'max_pages': 50,
+            'enabled': True
+        },
+        {
+            'name': 'gocart',
+            'url': 'https://geos-chem.readthedocs.io/en/latest/',
+            'type': 'readthedocs',
+            'priority': 4,
+            'description': 'GEOS-Chem / GOCART - aerosol transport model',
+            'max_pages': 100,
             'enabled': True
         }
     ],
@@ -300,6 +372,15 @@ DOCUMENTATION_SOURCES = {
             'description': 'wgrib2 - GRIB2 file utility (most loaded NCEP module on Hera/Jet)',
             'max_pages': 30,
             'enabled': True
+        },
+        {
+            'name': 'ccpp-techdoc',
+            'url': 'https://ccpp-techdoc.readthedocs.io/en/latest/',
+            'type': 'readthedocs',
+            'priority': 3,
+            'description': 'CCPP Common Community Physics Package - physics parameterization framework',
+            'max_pages': 100,
+            'enabled': True
         }
     ],
 
@@ -341,6 +422,24 @@ DOCUMENTATION_SOURCES = {
             'priority': 4,
             'description': 'Fortran best practices - modern Fortran guidelines',
             'max_pages': 10,
+            'enabled': True
+        },
+        {
+            'name': 'upp',
+            'url': 'https://upp.readthedocs.io/en/latest/',
+            'type': 'readthedocs',
+            'priority': 3,
+            'description': 'Unified Post Processor - model output post-processing',
+            'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'metplus',
+            'url': 'https://metplus.readthedocs.io/en/latest/',
+            'type': 'readthedocs',
+            'priority': 3,
+            'description': 'METplus Verification Framework - model verification and diagnostics',
+            'max_pages': 250,
             'enabled': True
         }
     ]

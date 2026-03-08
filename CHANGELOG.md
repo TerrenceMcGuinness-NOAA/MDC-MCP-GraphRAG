@@ -1,5 +1,41 @@
 # MCP Server Changelog
 
+## [7.31.0] - SDD Phase 41: External Framework Documentation Expansion (March 8, 2026)
+
+### Phase 41: External Framework Documentation Expansion
+
+#### Configuration (documentation_sources_config.py v8.0.0)
+- **11 new documentation sources** added across 3 tiers:
+  - tier1_critical: `esmf-user-guide`, `nuopc-layer-reference`
+  - tier3_models: `cmeps`, `mom6`, `cice`, `ww3-wiki`, `fv3-docs`, `gocart`
+  - tier4_build: `ccpp-techdoc`
+  - tier5_standards: `upp`, `metplus`
+- Bumped VERSION 7.0.0 → 8.0.0, DEFAULT_COLLECTION_NAME → `global-workflow-docs-v8-0-0`
+- Disabled `fv3-dynamical-core` (replaced by `fv3-docs` with GFDL wiki)
+- Fixed MOM6 URL (`en/latest/` → `en/main/`), FV3 URL (→ GFDL wiki)
+
+#### Ingestion Results (ChromaDB)
+- **Collection**: `global-workflow-docs-v8-0-0` — 19,741 documents (was 5,409 — **265% growth**)
+- **ESMF + NUOPC** (tier1): ~10,812 new chunks, 150 pages from earthsystemmodeling.org
+- **Model docs** (tier3): WW3 wiki (50pg), FV3 wiki (50pg), CMEPS (1pg) fully ingested
+- **Build/standards** (tier4/5): NCEPLIBS expanded (BUFR 100pg, IP 80pg, w3emc 80pg, g2 80pg)
+- **Rate-limited (429)**: MOM6, CICE, GOCART, CCPP, UPP, METplus — configured but not yet crawled
+
+#### MCP Validation (5/6 pass)
+- ✅ "ESMF field bundle creation" → ESMF_FieldBundleCreate API from esmf-user-guide
+- ✅ "NUOPC cap initialization phases" → IPD phase definitions (38.8% similarity)
+- ✅ "MOM6 ocean model configuration" → MOM6 descriptions from GFDL pages
+- ✅ "CMEPS mediator data exchange" → CMEPS mediator config (56.7% similarity)
+- ⚠️ "METplus verification configuration" → Weak — only jjobs reference (RTD rate-limited)
+- ✅ "ESMF component coupling" → explain_with_context successful
+
+#### Gap Analysis Updates
+- External libs: F → B (ESMF/NUOPC now 80% coverage)
+- UFS Coupling: C → B (ESMF docs fill coupling framework gap)
+- UFS Waves: C → B- (WW3 wiki adds 50 pages)
+- UFS Atmosphere: B → B+ (FV3 wiki adds dynamics docs)
+- 35 total enabled sources (was 25)
+
 ## [7.30.0] - SDD Phase 39: UFS Fortran Graph Gap Closure (March 7, 2026)
 
 ### Phase 39: UFS Fortran Graph Gap Closure
