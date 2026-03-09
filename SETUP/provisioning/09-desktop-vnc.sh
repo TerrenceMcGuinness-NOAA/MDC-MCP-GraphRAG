@@ -1,35 +1,28 @@
 #!/bin/bash
 ################################################################################
-# 09-desktop-vnc.sh - KasmVNC/VNC remote desktop setup
-# Part of modular provisioning system v4.0.0
+# 09-desktop-vnc.sh - TigerVNC/KasmVNC remote desktop setup
+# Part of modular provisioning system v4.1.0
 #
-# DEPRECATED (2026-02-19): VNC/KasmVNC remote desktop is now provided by
-# Parallel Works infrastructure. This script is no longer included in the
-# default provisioning run. Use --force to run it manually if needed.
+# RE-ENABLED (2026-03-09): Updated for Rocky 9 + TigerVNC 1.15.0 on PW AWS
+# GPU instances. Parallel Works provides noVNC/websockify bridge; this script
+# ensures MATE desktop, TigerVNC, and the NVIDIA GLX workaround are in place.
 #
-# Supports both KasmVNC (preferred) and TigerVNC
-# KasmVNC provides built-in HTTPS web interface on port 8443+display
+# Supports both KasmVNC (legacy) and TigerVNC (current)
+#
+# Rocky 9 NVIDIA GPU workaround:
+#   TigerVNC 1.15.0 segfaults in GlxExtensionInit when libnvidia-egl-gbm.so.1
+#   is loaded but no render nodes exist (headless VNC). Fix: -extension GLX.
+#   PW's noVNC bridge does not send VNC auth, so: -SecurityTypes None.
 #
 # Usage after provisioning:
-#   Start VNC:  sg kasmvnc-cert -c "vncserver :1 -geometry 1920x1080 -depth 24"
-#   Stop VNC:   vncserver -kill :1
-#   SSH tunnel: ssh -L 8444:localhost:8444 user@host -N
-#   Access:     https://localhost:8444
+#   Start VNC:  ~/bin/vnc-start.sh
+#   Stop VNC:   vncserver -kill :N  (or kill the Xvnc process)
 ################################################################################
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
-
-# ── Deprecation gate ─────────────────────────────────────────────────────────
-# Skip unless --force is passed. Parallel Works now provides VNC/desktop.
-if [[ " $* " != *" --force "* ]] && [[ " $* " != *" --status "* ]]; then
-    log_warning "09-desktop-vnc.sh is DEPRECATED — VNC is now provided by Parallel Works."
-    log_info "Pass --force to run this script anyway, or --status to check existing config."
-    exit 0
-fi
-# ─────────────────────────────────────────────────────────────────────────────
 
 require_root
 
@@ -553,7 +546,7 @@ if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
 ################################################################################
 
 elif [[ "${VNC_TYPE}" == "tigervnc" ]]; then
-    log_subsection "Configuring TigerVNC"
+    log_subsection "Configuring TigerVNC (Rocky 9 + NVIDIA GLX workaround)"
 
     USER_NAME=$(get_actual_user)
     USER_GROUP=$(get_user_group "${USER_NAME}")
@@ -563,20 +556,21 @@ elif [[ "${VNC_TYPE}" == "tigervnc" ]]; then
     # Create VNC directory
     su - "${USER_NAME}" -c "mkdir -p ${VNC_DIR}"
     
-    # Set VNC password (default: mcp2025vnc)
+    # Set VNC password (used if connecting directly, not via PW noVNC bridge)
     if [[ ! -f "${VNC_DIR}/passwd" ]]; then
         log_info "Setting default VNC password..."
-        su - "${USER_NAME}" -c "echo 'mcp2025vnc' | vncpasswd -f > ${VNC_DIR}/passwd"
+        su - "${USER_NAME}" -c "printf 'mcp2025vnc\nmcp2025vnc\nn\n' | vncpasswd"
         chmod 600 "${VNC_DIR}/passwd"
         chown "${USER_NAME}:${USER_GROUP}" "${VNC_DIR}/passwd"
         log_warning "Default VNC password set to 'mcp2025vnc' - please change with: vncpasswd"
     fi
     
-    # Create VNC startup script
+    # Create VNC startup script — MATE Desktop with NVIDIA GLX workaround
     log_info "Creating VNC xstartup script..."
     cat > "${VNC_DIR}/xstartup" << 'EOFVNC'
 #!/bin/bash
 # TigerVNC Desktop Startup Script - MATE Desktop
+# Rocky 9 + NVIDIA GPU node compatible
 
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 unset SESSION_MANAGER
@@ -610,23 +604,76 @@ depth=24
 localhost=no
 EOFCONFIG
     chown "${USER_NAME}:${USER_GROUP}" "${VNC_DIR}/config"
+
+    # ── PW noVNC bridge auto-start helper ─────────────────────────────────
+    # Parallel Works starts noVNC/websockify pointing at a dynamic VNC port.
+    # This helper detects that port and starts Xvnc (with the GLX workaround)
+    # plus a MATE session on it.  Called from ~/bin/vnc-start.sh or manually.
+    # ─────────────────────────────────────────────────────────────────────────
+    cat > "${USER_HOME}/bin/pw-vnc-autostart.sh" << 'EOFPW'
+#!/bin/bash
+# pw-vnc-autostart.sh — Detect PW noVNC bridge target port, start Xvnc + MATE
+# Rocky 9 / TigerVNC 1.15.0 / NVIDIA GPU node compatible
+set -euo pipefail
+
+# Detect the VNC port that the PW noVNC bridge (websockify) expects
+VNC_PORT=$(ps aux | grep -oP '(?<=--vnc )[^ ]+:\K\d+' | head -1 || true)
+if [[ -z "${VNC_PORT}" ]]; then
+    echo "[WARN] Could not detect PW noVNC bridge target port."
+    echo "       Falling back to display :48 (port 5948)."
+    VNC_PORT=5948
+fi
+
+DISPLAY_NUM=$((VNC_PORT - 5900))
+echo "[OK] PW noVNC bridge expects VNC on port ${VNC_PORT} (display :${DISPLAY_NUM})"
+
+# Kill any existing Xvnc on this display
+kill $(lsof -ti :"${VNC_PORT}" 2>/dev/null) 2>/dev/null || true
+sleep 1
+
+# Start Xvnc with NVIDIA GLX workaround + no auth for PW bridge
+#   -extension GLX : prevents segfault in libnvidia-egl-gbm.so.1
+#   -SecurityTypes None : PW noVNC bridge does not send VNC passwords
+#   -pn : skip broken X11 access control (peer not required)
+Xvnc :"${DISPLAY_NUM}" \
+    -geometry 1920x1080 \
+    -depth 24 \
+    -SecurityTypes None \
+    -extension GLX \
+    -pn &
+XVNC_PID=$!
+sleep 2
+
+if ! kill -0 "${XVNC_PID}" 2>/dev/null; then
+    echo "[ERROR] Xvnc failed to start. Check for port conflicts."
+    exit 1
+fi
+echo "[OK] Xvnc running (PID ${XVNC_PID}) on :${DISPLAY_NUM}"
+
+# Launch MATE desktop session
+export DISPLAY=:${DISPLAY_NUM}
+nohup mate-session &>/tmp/mate-vnc-${DISPLAY_NUM}.log &
+MATE_PID=$!
+sleep 3
+
+if kill -0 "${MATE_PID}" 2>/dev/null; then
+    echo "[OK] MATE session running (PID ${MATE_PID})"
+    echo "[OK] VNC desktop ready on display :${DISPLAY_NUM} (port ${VNC_PORT})"
+else
+    echo "[WARN] MATE session may have failed — check /tmp/mate-vnc-${DISPLAY_NUM}.log"
+fi
+EOFPW
+    chmod +x "${USER_HOME}/bin/pw-vnc-autostart.sh"
+    chown "${USER_NAME}:${USER_GROUP}" "${USER_HOME}/bin/pw-vnc-autostart.sh"
     
-    # SSL Certificate for noVNC
-    CERT_PATH="${USER_HOME}/novnc.pem"
-    if [[ ! -f "${CERT_PATH}" ]]; then
-        log_info "Generating self-signed SSL certificate for noVNC..."
-        /usr/bin/openssl req -x509 -nodes -newkey rsa:2048 \
-            -keyout "${CERT_PATH}" -out "${CERT_PATH}" \
-            -days 365 -subj "/CN=localhost" 2>/dev/null || log_warning "Certificate generation failed"
-        chown "${USER_NAME}:${USER_GROUP}" "${CERT_PATH}"
-    fi
-    
-    # Create TigerVNC systemd services
+    # Create TigerVNC systemd services (for direct use without PW)
     log_subsection "Creating TigerVNC Systemd Services"
     
+    # Note: ExecStart uses -extension GLX to work around NVIDIA EGL segfault
+    # and -SecurityTypes None for PW noVNC bridge compatibility
     cat > /etc/systemd/system/vncserver@.service << EOF
 [Unit]
-Description=TigerVNC Server for display %i
+Description=TigerVNC Server for display %i (Rocky 9 + NVIDIA GLX workaround)
 After=syslog.target network.target
 
 [Service]
@@ -635,9 +682,9 @@ User=${USER_NAME}
 Group=${USER_GROUP}
 WorkingDirectory=${USER_HOME}
 
-ExecStartPre=-/bin/sh -c '/usr/bin/vncserver -kill :%i > /dev/null 2>&1 || :'
-ExecStart=/usr/bin/vncserver :%i -geometry 1920x1080 -depth 24 -fg
-ExecStop=/usr/bin/vncserver -kill :%i
+ExecStartPre=-/bin/sh -c 'kill \$(lsof -ti :\$((5900 + %i))) 2>/dev/null || :'
+ExecStart=/usr/bin/Xvnc :%i -geometry 1920x1080 -depth 24 -SecurityTypes None -extension GLX -pn
+ExecStop=-/bin/sh -c 'kill \$(lsof -ti :\$((5900 + %i))) 2>/dev/null || :'
 
 Restart=on-failure
 RestartSec=5
@@ -646,28 +693,9 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-    # Websockify service (noVNC proxy)
-    cat > /etc/systemd/system/websockify.service << EOF
-[Unit]
-Description=Websockify for noVNC (Browser-based VNC)
-After=network.target vncserver@1.service
-Wants=vncserver@1.service
-
-[Service]
-Type=simple
-User=${USER_NAME}
-Group=${USER_GROUP}
-ExecStart=/usr/bin/websockify --web=/usr/share/novnc/ --cert=${CERT_PATH} 6080 localhost:5901
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
     systemctl daemon-reload
     
-    log_success "TigerVNC configuration complete"
+    log_success "TigerVNC configuration complete (Rocky 9 + NVIDIA GLX workaround)"
 fi
 
 ################################################################################
@@ -701,8 +729,15 @@ DISPLAY_NUM="${1:-1}"
 GEOMETRY="${2:-1920x1080}"
 DEPTH=24
 
+# Check if PW noVNC bridge is running and auto-detect its target port
+PW_VNC_PORT=$(ps aux | grep -oP '(?<=--vnc )[^ ]+:\K\d+' | head -1 || true)
+if [[ -n "${PW_VNC_PORT}" ]]; then
+    DISPLAY_NUM=$((PW_VNC_PORT - 5900))
+    echo "Detected PW noVNC bridge targeting port ${PW_VNC_PORT} (display :${DISPLAY_NUM})"
+fi
+
 # Detect VNC type
-if vncserver -help 2>&1 | grep -qi "kasmvnc\|kasm"; then
+if rpm -q kasmvncserver &>/dev/null || rpm -q kasmvnc &>/dev/null; then
     VNC_TYPE="kasmvnc"
     PORT=$((8443 + DISPLAY_NUM))
 else
@@ -714,12 +749,11 @@ echo "Starting ${VNC_TYPE} on display :${DISPLAY_NUM} (port ${PORT})..."
 echo "Resolution: ${GEOMETRY}"
 echo ""
 
-# Kill existing session if running
-vncserver -kill ":${DISPLAY_NUM}" 2>/dev/null || true
-sleep 1
-
-# Start VNC
 if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
+    # Kill existing session if running
+    vncserver -kill ":${DISPLAY_NUM}" 2>/dev/null || true
+    sleep 1
+
     # KasmVNC requires kasmvnc-cert group for SSL access
     if groups | grep -q kasmvnc-cert; then
         vncserver ":${DISPLAY_NUM}" -geometry "${GEOMETRY}" -depth "${DEPTH}"
@@ -737,16 +771,47 @@ if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
     echo ""
     echo "To stop:  vncserver -kill :${DISPLAY_NUM}"
 else
+    # TigerVNC with NVIDIA GLX workaround
+    # Kill any existing Xvnc on this port
+    kill $(lsof -ti :"${PORT}" 2>/dev/null) 2>/dev/null || true
+    sleep 1
+
+    # Start Xvnc directly (not via deprecated vncserver wrapper)
+    #   -extension GLX : prevent NVIDIA EGL segfault on GPU nodes
+    #   -SecurityTypes None : PW noVNC bridge doesn't send VNC passwords
+    #   -pn : skip broken X11 access control
+    Xvnc ":${DISPLAY_NUM}" -geometry "${GEOMETRY}" -depth "${DEPTH}" \
+         -SecurityTypes None -extension GLX -pn &
+    XVNC_PID=$!
+    sleep 2
+
+    if ! kill -0 "${XVNC_PID}" 2>/dev/null; then
+        echo "[ERROR] Xvnc failed to start on :${DISPLAY_NUM}"
+        exit 1
+    fi
+
+    # Launch MATE desktop
+    export DISPLAY=:${DISPLAY_NUM}
+    nohup mate-session &>/tmp/mate-vnc-${DISPLAY_NUM}.log &
+    sleep 3
+
     vncserver ":${DISPLAY_NUM}" -geometry "${GEOMETRY}" -depth "${DEPTH}"
     
     echo ""
     echo "VNC started successfully!"
     echo ""
-    echo "To access from your local machine:"
-    echo "  1. SSH tunnel:  ssh -L ${PORT}:localhost:${PORT} \$(hostname) -N"
-    echo "  2. VNC client:  localhost:${PORT}"
+    echo "Xvnc PID: ${XVNC_PID}"
+    echo "Display:  :${DISPLAY_NUM} (port ${PORT})"
     echo ""
-    echo "To stop:  vncserver -kill :${DISPLAY_NUM}"
+    if [[ -n "${PW_VNC_PORT:-}" ]]; then
+        echo "PW noVNC bridge should now connect automatically."
+    else
+        echo "To access from your local machine:"
+        echo "  1. SSH tunnel:  ssh -L ${PORT}:localhost:${PORT} \$(hostname) -N"
+        echo "  2. VNC client:  localhost:${PORT}"
+    fi
+    echo ""
+    echo "To stop:  kill ${XVNC_PID}"
 fi
 EOFHELPER
 
