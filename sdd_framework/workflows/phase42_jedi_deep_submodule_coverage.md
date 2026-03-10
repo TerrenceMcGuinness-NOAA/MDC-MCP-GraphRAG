@@ -1,9 +1,11 @@
 # Phase 42: Deep Submodule Coverage — JEDI/GDAS Ecosystem
 
-**Version**: 2.0.0
-**Status**: Planned
+**Version**: 3.0.0
+**Status**: Complete
 **Created**: 2026-03-06
-**Updated**: 2026-03-09 (disk audit — corrected file counts, added missing submodules, local-first docs)
+**Updated**: 2026-03-10 (execution complete — all ingestion, community detection, and validation done)
+**Completed**: 2026-03-10
+**SDD Session**: session_2026-03-10_3kfxj3
 **Author**: AI Assistant + Terry McGuinness
 **Dependency**: Phase 39 (UFS Fortran graph closure — reuses the cpp preprocessing pipeline)
 **Gap Analysis**: [docs/EIB_MCP_KNOWLEDGE_BASE_GAP_ANALYSIS.md](../../docs/EIB_MCP_KNOWLEDGE_BASE_GAP_ANALYSIS.md) §3, §7-E
@@ -22,29 +24,35 @@ All 17 sub-submodules under `sorc/gdas.cd/sorc/` are checked out. File counts ar
 
 | Sub-Submodule | Location | F90 Files | C++ Files | Python | Fortran LOC | Primary Lang | Neo4j Status |
 |---------------|----------|-----------|-----------|--------|-------------|-------------|-------------|
-| **crtm** (radiative transfer) | `sorc/gdas.cd/sorc/crtm/` | **813** | 0 | 1 | 569K | Fortran | NO graph |
-| **fv3-jedi-lm** (linearized model) | `sorc/gdas.cd/sorc/fv3-jedi-lm/` | **106** | 0 | 0 | 266K | Fortran | NO graph |
-| **gsw** (seawater toolbox) | `sorc/gdas.cd/sorc/gsw/` | **196** | 0 | 2 | 191K | Fortran | NO graph |
-| **gsibec** (GSI background error) | `sorc/gdas.cd/sorc/gsibec/` | **108** | 0 | 0 | 92K | Fortran | NO graph |
-| **ufo** (observation operators) | `sorc/gdas.cd/sorc/ufo/` | 210 | 1,089 | 2 | 68K | **C++ primary** | NO graph |
-| **fv3-jedi** (atmosphere DA) | `sorc/gdas.cd/sorc/fv3-jedi/` | 69 | 122 | 5 | 50K | Mixed | NO graph |
-| **oops** (abstract DA framework) | `sorc/gdas.cd/sorc/oops/` | 77 | 849 | 14 | 20K | **C++ primary** | NO graph |
-| **ioda** (observation database) | `sorc/gdas.cd/sorc/ioda/` | 27 | 495 | 33 | 6K | **C++ primary** | NO graph |
-| **soca** (ocean DA) | `sorc/gdas.cd/sorc/soca/` | 21 | 114 | 5 | 6K | **C++ primary** | NO graph |
-| **saber** (background error) | `sorc/gdas.cd/sorc/saber/` | 12 | 221 | 19 | 5K | **C++ primary** | NO graph |
-| **vader** (variable transforms) | `sorc/gdas.cd/sorc/vader/` | 2 | 170 | 1 | 316 | **C++ primary** | NO graph |
-| **bufr-query** (obs query library) | `sorc/gdas.cd/sorc/bufr-query/` | 7 | 112 | 20 | — | C++ | NO graph |
-| **da-utils** (DA utilities) | `sorc/gdas.cd/sorc/da-utils/` | 0 | 25 | 8 | — | C++ | NO graph |
-| **jcb** (JEDI config builder) | `sorc/gdas.cd/sorc/jcb/` | 0 | 0 | 18 | — | Python | NO graph |
-| **spoc** (dump scripts) | `sorc/gdas.cd/sorc/spoc/` | 0 | 0 | 35 | — | Python | Already in config |
-| **land-jediincr** (land DA incr.) | `sorc/gdas.cd/sorc/land-jediincr/` | 2 | 0 | 0 | — | Fortran | NO graph |
+| **crtm** (radiative transfer) | `sorc/gdas.cd/sorc/crtm/` | **813** | 0 | 1 | 569K | Fortran | **IN GRAPH** (109 modules) |
+| **fv3-jedi-lm** (linearized model) | `sorc/gdas.cd/sorc/fv3-jedi-lm/` | **106** | 0 | 0 | 266K | Fortran | **IN GRAPH** |
+| **gsw** (seawater toolbox) | `sorc/gdas.cd/sorc/gsw/` | **196** | 0 | 2 | 191K | Fortran | **IN GRAPH** |
+| **gsibec** (GSI background error) | `sorc/gdas.cd/sorc/gsibec/` | **108** | 0 | 0 | 92K | Fortran | **IN GRAPH** (1,052 nodes) |
+| **ufo** (observation operators) | `sorc/gdas.cd/sorc/ufo/` | 210 | 1,089 | 2 | 68K | **C++ primary** | **IN GRAPH** (F90 interfaces, 1,072 nodes) |
+| **fv3-jedi** (atmosphere DA) | `sorc/gdas.cd/sorc/fv3-jedi/` | 69 | 122 | 5 | 50K | Mixed | **IN GRAPH** (613 nodes) |
+| **oops** (abstract DA framework) | `sorc/gdas.cd/sorc/oops/` | 77 | 849 | 14 | 20K | **C++ primary** | **IN GRAPH** (F90 interfaces, 174 nodes) |
+| **ioda** (observation database) | `sorc/gdas.cd/sorc/ioda/` | 27 | 495 | 33 | 6K | **C++ primary** | **IN GRAPH** (F90+Python) |
+| **soca** (ocean DA) | `sorc/gdas.cd/sorc/soca/` | 21 | 114 | 5 | 6K | **C++ primary** | **IN GRAPH** (F90+Python) |
+| **saber** (background error) | `sorc/gdas.cd/sorc/saber/` | 12 | 221 | 19 | 5K | **C++ primary** | **IN GRAPH** (F90+Python) |
+| **vader** (variable transforms) | `sorc/gdas.cd/sorc/vader/` | 2 | 170 | 1 | 316 | **C++ primary** | **IN GRAPH** (F90 interfaces) |
+| **bufr-query** (obs query library) | `sorc/gdas.cd/sorc/bufr-query/` | 7 | 112 | 20 | — | C++ | **IN GRAPH** (F90+Python) |
+| **da-utils** (DA utilities) | `sorc/gdas.cd/sorc/da-utils/` | 0 | 25 | 8 | — | C++ | **IN GRAPH** (Python) |
+| **jcb** (JEDI config builder) | `sorc/gdas.cd/sorc/jcb/` | 0 | 0 | 18 | — | Python | **IN GRAPH** (Python) |
+| **spoc** (dump scripts) | `sorc/gdas.cd/sorc/spoc/` | 0 | 0 | 35 | — | Python | **IN GRAPH** (Python) |
+| **land-jediincr** (land DA incr.) | `sorc/gdas.cd/sorc/land-jediincr/` | 2 | 0 | 0 | — | Fortran | **IN GRAPH** |
 | **jedicmake** (cmake modules) | `sorc/gdas.cd/sorc/jedicmake/` | 0 | 0 | 0 | — | CMake | N/A |
 
 > **Note**: `femps` does NOT exist in this checkout — removed from scope.
 
 **Totals**: ~1,650 Fortran files (1.27M LOC) + ~3,197 C++ files (402K LOC) + ~163 Python files.
 
-Estimated new graph nodes: **3,500–5,500 FortranSubroutines**, **400–600 FortranModules**, **100–160 PythonModules**, **20,000+ CALLS/USES relationships**.
+**Actual ingestion results (2026-03-10)**:
+- **Fortran**: 7,214 files → 38,694 nodes (4,254 modules, 27,207 subroutines, 6,838 functions, 395 programs) + 213,224 relationships (82.7% success)
+- **Python**: 459 files → 4,035 nodes (459 modules, 285 classes, 3,291 functions) + 14,976 relationships (100% success)
+- **JEDI-specific**: 8,990 Fortran nodes + 188 Python modules under `gdas.cd/sorc/`
+- **Communities**: 1,753 Community nodes across 5 hierarchical levels, 2,113 summaries in ChromaDB
+- **Cross-package USES**: 4,971 inter-submodule edges (UFO→OOPS: 1,168, FV3-JEDI→OOPS: 533)
+- **Final graph**: 95,565 nodes / 2,635,130 relationships / 2,418 community nodes
 
 ### Language Gap: C++ Core
 

@@ -1,5 +1,33 @@
 # MCP Server Changelog
 
+## [7.32.0] - SDD Phase 42: JEDI Deep Submodule Coverage (March 10, 2026)
+
+### Phase 42: JEDI Deep Submodule Coverage — Complete
+
+#### Fortran Graph Ingestion (March 9)
+- Full re-ingestion with 14 JEDI submodule paths: **7,214 files → 38,694 nodes, 213,224 relationships** (82.7% success)
+- **8,990 JEDI nodes** under `gdas.cd/sorc/`: 6,070 subroutines, 1,901 functions, 767 modules, 75 programs
+- CRTM: 109 modules, 7,697 internal USES relationships
+- Key cross-package edges: UFO→OOPS (1,168), FV3-JEDI→OOPS (533), model→OOPS (695)
+
+#### Python Graph Ingestion (March 10)
+- **459 files → 4,035 nodes** (459 modules, 285 classes, 3,291 functions), 14,976 relationships (100% success)
+- JEDI Python modules: 91 → **188** (ioda, soca, eva, jcb, da-utils, spoc, bufr-query)
+
+#### Hierarchical Community Detection (March 10)
+- Leiden algorithm (GDS 2.13.7): **77,834 nodes** projected, **4,806** top communities, depth=5
+- **1,753 Community nodes**, 73,086 MEMBER_OF, 1,655 PARENT_OF, 4,630 INTERACTS_WITH
+- **2,113 summaries** embedded in ChromaDB `community-summaries` collection
+- JEDI nodes: 17,638 distributed across 246 communities
+
+#### Final Graph Stats
+- **95,565 nodes / 2,635,130 relationships / 2,418 community nodes**
+- All 16 applicable JEDI submodules now IN GRAPH (Fortran + Python interfaces)
+- Remaining gap: C++ core (402K LOC) — future phase
+
+#### SDD Session: `session_2026-03-10_3kfxj3` — 14/14 steps complete
+- Commits: `da3c046` (JEDI paths), `b36703b` (Phase 40+45 SDDs), `3d0c8c5` (config cleanup)
+
 ## [7.31.0] - SDD Phase 41: External Framework Documentation Expansion (March 8, 2026)
 
 ### Phase 41: External Framework Documentation Expansion
