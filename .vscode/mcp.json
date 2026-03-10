@@ -67,7 +67,7 @@
     // Verify tools: docker mcp tools ls
     // "eib-mcp-gateway": {
     //   "type": "http",
-    //   "url": "http://localhost:18888/mcp",
+    //   "url": "https://zxxt4dcb-18888.use.devtunnels.ms/mcp",
     //   "headers": {
     //     "Authorization": "Bearer eib-mcp-gateway-token-2025"
     //   }
