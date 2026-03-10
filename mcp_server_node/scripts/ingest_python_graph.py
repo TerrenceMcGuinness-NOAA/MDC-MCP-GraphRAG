@@ -81,6 +81,22 @@ PYTHON_DIRECTORIES = [
     "sorc/ufs_model.fd/UFSATM/ccpp/framework/scripts",  # CCPP framework
     "sorc/verif-global.fd/ush",                          # Verification plotting
     "sorc/nexus.fd/utils/python",                        # NEXUS utils
+    # JEDI operational Python — gdas.cd/ush subdirectories (Phase 42)
+    "sorc/gdas.cd/ush/ioda",            # 20+ bufr2ioda converter scripts
+    "sorc/gdas.cd/ush/ioda/bufr2ioda",  # individual converters
+    "sorc/gdas.cd/ush/soca",            # SOCA operational utilities
+    "sorc/gdas.cd/ush/eva",             # EVA observation YAML generators
+    "sorc/gdas.cd/ush/ufoeval",         # UFO evaluation setup scripts
+    # JEDI sub-submodule Python tools (Phase 42)
+    "sorc/gdas.cd/sorc/jcb/src/jcb",                # 18 files — JEDI config builder
+    "sorc/gdas.cd/sorc/jcb/src/jcb/configuration",  # JCB config subpackage
+    "sorc/gdas.cd/sorc/ioda/src/engines",            # IODA engine Python bindings
+    "sorc/gdas.cd/sorc/ioda/tools",                  # IODA converter tools
+    "sorc/gdas.cd/sorc/da-utils",                    # 8 DA utility Python scripts
+    "sorc/gdas.cd/sorc/saber",                       # 19 Python files (test + tools)
+    "sorc/gdas.cd/sorc/oops",                        # 14 Python files (ctest harnesses)
+    "sorc/gdas.cd/sorc/bufr-query",                  # 20 Python files (query API + tests)
+    # NOTE: sorc/gdas.cd/sorc/spoc already in config above — skip
 ]
 
 # Patterns to exclude (test files, __pycache__, setup.py boilerplate)

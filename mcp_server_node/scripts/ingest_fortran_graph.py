@@ -106,6 +106,23 @@ SUBMODULE_PATHS = [
     'sorc/gsi_monitor.fd',
     'sorc/gfs_utils.fd',
     'sorc/nexus.fd',         # air quality emissions
+    # JEDI DA ecosystem — pure Fortran heavyweights (Phase 42)
+    'sorc/gdas.cd/sorc/crtm',           # 813 F90, 569K LOC — radiative transfer
+    'sorc/gdas.cd/sorc/fv3-jedi-lm',    # 105 F90, 266K LOC — linearized model (TL/AD)
+    'sorc/gdas.cd/sorc/gsw',            # 196 F90, 191K LOC — seawater toolbox
+    'sorc/gdas.cd/sorc/gsibec',         # 108 F90,  92K LOC — GSI background error
+    # JEDI DA ecosystem — mixed C++/Fortran interfaces (Phase 42)
+    'sorc/gdas.cd/sorc/ufo',            # 209 F90,  68K LOC — observation operators
+    'sorc/gdas.cd/sorc/fv3-jedi',       #  69 F90,  50K LOC — atmosphere DA
+    'sorc/gdas.cd/sorc/oops',           #  69 F90,  20K LOC — abstract DA framework
+    'sorc/gdas.cd/sorc/ioda',           #  26 F90,   6K LOC — observation database
+    'sorc/gdas.cd/sorc/soca',           #  21 F90,   6K LOC — ocean DA
+    'sorc/gdas.cd/sorc/saber',          #  12 F90,   5K LOC — background error cov.
+    'sorc/gdas.cd/sorc/vader',          #   2 F90 — variable transforms
+    'sorc/gdas.cd/sorc/bufr-query',     #   7 F90 — obs query library
+    'sorc/gdas.cd/sorc/land-jediincr',  #   2 F90 — land DA increment
+    # NOTE: femps does NOT exist on disk — omitted
+    # NOTE: da-utils (0 F90), jcb (0 F90), jedicmake (CMake) — Python/CMake only
 ]
 
 
