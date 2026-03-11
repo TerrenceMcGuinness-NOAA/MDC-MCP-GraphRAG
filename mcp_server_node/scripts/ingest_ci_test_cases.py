@@ -40,6 +40,19 @@ from pathlib import Path
 from typing import Dict, List, Any
 from datetime import datetime
 
+# Phase 40: Neo4j integration for CITestCase graph nodes
+try:
+    from neo4j import GraphDatabase as Neo4jDriver
+    NEO4J_AVAILABLE = True
+except ImportError:
+    print("[WARN] neo4j package not found. Neo4j graph ingestion disabled.")
+    Neo4jDriver = None
+    NEO4J_AVAILABLE = False
+
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
+
 # Add parent directory to path for ingestion_base import
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -976,6 +989,108 @@ class CITestCaseIngestor:
             print(f"[ERROR] Ingestion failed: {e}")
 
 
+class CITestCaseGraphIngestor:
+    """Phase 40: Creates CITestCase nodes in Neo4j with platform and config links."""
+
+    def __init__(self, dry_run: bool = False):
+        self.dry_run = dry_run
+        self.driver = None
+        self.stats = {'nodes': 0, 'platform_edges': 0, 'config_edges': 0}
+
+    def connect(self) -> bool:
+        """Connect to Neo4j."""
+        if not NEO4J_AVAILABLE:
+            print("[WARN] Neo4j driver not available, skipping graph ingestion")
+            return False
+        try:
+            self.driver = Neo4jDriver.driver(
+                NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD),
+                max_connection_lifetime=3600)
+            with self.driver.session() as session:
+                session.run("RETURN 1")
+            print(f"[OK] Connected to Neo4j: {NEO4J_URI}")
+            return True
+        except Exception as e:
+            print(f"[ERROR] Neo4j connection failed: {e}")
+            return False
+
+    def close(self):
+        if self.driver:
+            self.driver.close()
+
+    def create_indexes(self):
+        """Create Neo4j indexes for CITestCase and Platform."""
+        indexes = [
+            "CREATE INDEX ci_test_name IF NOT EXISTS FOR (t:CITestCase) ON (t.name)",
+            "CREATE INDEX platform_name IF NOT EXISTS FOR (p:Platform) ON (p.name)",
+        ]
+        with self.driver.session() as session:
+            for idx in indexes:
+                try:
+                    session.run(idx)
+                except Exception:
+                    pass
+        print("[OK] Created CITestCase Neo4j indexes")
+
+    def ingest_test_case(self, parsed: Dict, categories: Dict):
+        """Create CITestCase node from parsed YAML data."""
+        name = parsed.get('filename', '').replace('.yaml', '')
+        if not name:
+            return
+
+        # Create CITestCase node
+        query = """
+        MERGE (t:CITestCase {name: $name})
+        SET t.resolution = $resolution,
+            t.mode = $mode,
+            t.app = $app,
+            t.net = $net,
+            t.idate = $idate,
+            t.edate = $edate,
+            t.category = $category,
+            t.test_type = $test_type,
+            t.resolution_tier = $resolution_tier,
+            t.skip_hosts = $skip_hosts,
+            t.yaml_path = $yaml_path,
+            t.version = '40.1.0',
+            t.updated_at = $updated_at
+        """
+        with self.driver.session() as session:
+            session.run(query,
+                        name=name,
+                        resolution=parsed.get('atmos_res', 'unknown'),
+                        mode=parsed.get('mode', 'unknown'),
+                        app=parsed.get('app', 'unknown'),
+                        net=parsed.get('net', 'unknown'),
+                        idate=parsed.get('idate', ''),
+                        edate=parsed.get('edate', ''),
+                        category=parsed.get('category', 'pr'),
+                        test_type=categories.get('test_type', 'unknown'),
+                        resolution_tier=categories.get('resolution_tier', 'unknown'),
+                        skip_hosts=parsed.get('skip', []),
+                        yaml_path=parsed.get('filepath', ''),
+                        updated_at=datetime.now().isoformat())
+        self.stats['nodes'] += 1
+
+        # Create Platform nodes and TESTS_ON edges
+        # All HPC platforms that are NOT in skip_hosts
+        all_platforms = ['hera', 'hercules', 'orion', 'gaeac5', 'gaeac6', 'wcoss2']
+        skip_hosts = [h.lower() for h in parsed.get('skip', [])]
+        for platform in all_platforms:
+            if platform not in skip_hosts:
+                query = """
+                MATCH (t:CITestCase {name: $name})
+                MERGE (p:Platform {name: $platform})
+                MERGE (t)-[:TESTS_ON]->(p)
+                """
+                with self.driver.session() as session:
+                    session.run(query, name=name, platform=platform)
+                self.stats['platform_edges'] += 1
+
+    def get_statistics(self) -> dict:
+        return self.stats
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Ingest CI test case documentation into ChromaDB"
@@ -1025,6 +1140,11 @@ def main():
         '--output-dir',
         help='Output directory for generated docs (optional)'
     )
+    parser.add_argument(
+        '--skip-neo4j',
+        action='store_true',
+        help='Skip Neo4j graph ingestion (ChromaDB only)'
+    )
 
     args = parser.parse_args()
 
@@ -1060,6 +1180,8 @@ def main():
 
         documents.append({
             'content': doc_content,
+            'parsed': parsed,
+            'categories': categories,
             'metadata': {
                 'filename': parsed['filename'],
                 'category': parsed.get('category', 'unknown'),
@@ -1106,6 +1228,29 @@ def main():
             print("\n[OK] Dry-run complete - no changes made")
         else:
             print("\n[OK] Full ingestion pipeline complete")
+
+    # Step 4: Neo4j graph ingestion (Phase 40)
+    if not args.skip_neo4j and not args.discover and not args.generate_docs:
+        if not NEO4J_AVAILABLE:
+            print("\n[SKIP] Neo4j driver not installed, skipping graph ingestion")
+        elif args.dry_run:
+            print(f"\n[STEP 4] Neo4j Graph Ingestion (dry-run)")
+            print(f"[DRY-RUN] Would create {len(documents)} CITestCase nodes")
+            print(f"[DRY-RUN] Would create Platform nodes + TESTS_ON edges")
+        else:
+            print(f"\n[STEP 4] Ingesting CITestCase nodes into Neo4j...")
+            graph_ingestor = CITestCaseGraphIngestor()
+            if graph_ingestor.connect():
+                graph_ingestor.create_indexes()
+                for doc in documents:
+                    graph_ingestor.ingest_test_case(
+                        doc['parsed'], doc['categories'])
+                stats = graph_ingestor.get_statistics()
+                print(f"[OK] Neo4j: {stats['nodes']} CITestCase nodes, "
+                      f"{stats['platform_edges']} TESTS_ON edges")
+                graph_ingestor.close()
+            else:
+                print("[WARN] Neo4j unavailable, skipping graph ingestion")
 
     return 0
 

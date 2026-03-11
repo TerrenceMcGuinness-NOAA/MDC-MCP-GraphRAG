@@ -1,9 +1,9 @@
 # Phase 40: Configuration and CI File Ingestion
 
-**Version**: 1.2.0
-**Status**: Planned (Steps 40-1 through 40-5 ready to execute locally; Steps 40-6/40-7 require RDHPCS terminal)
+**Version**: 1.3.0
+**Status**: Planned (all steps executable locally on MCP development platform)
 **Created**: 2026-03-06
-**Updated**: 2025-07-18 — Added CI nightly EXPDIR paths, per-platform case matrices, corrected file counts
+**Updated**: 2026-03-11 — EXPDIR ported locally from Gaea C6 CI nightly pipeline; removed RDHPCS dependency for ingestion
 **Author**: AI Assistant + Terry McGuinness
 **Dependency**: Phase 38 (path normalization), Phase 39 (Fortran graph — for community re-detection)
 **Downstream**: Phase 45 (EnKF esfc CTest — requires EXPDIR config data in GraphRAG)
@@ -21,7 +21,7 @@ Three categories of files are not ingested into any knowledge base collection:
 | **CI test definitions** | `dev/ci/cases/pr/*.yaml` | 21 | Define all supported test cases, platforms, and expected configurations |
 | **Jinja2 templates** | `dev/parm/*.j2`, `dev/scripts/*.j2` | 26 | Generate actual configs at runtime — the template logic is invisible |
 | **Rocoto generators** | `dev/workflow/rocoto/*.py` | ~12 | Generate job dependency XML — the orchestration backbone (no static XML in repo) |
-| **EXPDIR artifacts** | `{GFS_CI_ROOT}/.../RUNTESTS/EXPDIR/` | per-experiment | Resolved configs + generated XML from nightly CI — the ground truth |
+| **EXPDIR artifacts** | `supported_repos/EXPDIR/` (ported from Gaea C6 CI nightly) | 15 experiments | Resolved configs + generated XML from nightly CI — the ground truth |
 
 These files are critical for answering questions like "What configs control ocean coupling?", "Which CI tests cover the C384 resolution?", and "What's the job dependency for post-processing?" — but the expert system currently cannot search or reason about them.
 
@@ -102,52 +102,59 @@ Key Rocoto generator modules:
 
 **Consequence**: To ingest the Rocoto job DAG, we must parse the **generated** XML from EXPDIRs (Step 40-6), not static files from the repo.
 
-### 2.5 CI Nightly EXPDIR Artifacts (RDHPCS On-Disk)
+### 2.5 EXPDIR Artifacts (Ported from Gaea C6 CI Nightly)
 
-EXPDIRs from nightly CI runs contain the **resolved** (fully materialized) configuration:
+The EXPDIR has been copied from a Gaea C6 CI nightly pipeline run and ported to the local MCP development platform at `supported_repos/EXPDIR/`. This is a snapshot of the resolved (fully materialized) configuration for all 15 experiment cases defined in `dev/ci/cases/pr/`. Because the ingestion scripts must run on the MCP development platform (where ChromaDB and Neo4j are hosted), we port the EXPDIR artifacts here rather than running ingestion on an RDHPCS system.
+
+**Source**: Gaea C6 CI nightly pipeline (`/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/stable/RUNTESTS/EXPDIR/`)
+**Local path**: `supported_repos/EXPDIR/`
+
+Each experiment directory follows the naming convention `{CASE}_{COMMIT_HASH}/` and contains:
 
 ```
-{GFS_CI_ROOT}/BUILDS/GITLAB/stable/RUNTESTS/EXPDIR/{PSLOT}/
+supported_repos/EXPDIR/{PSLOT}_{HASH}/
 ├── config.base         # Resolved: FHMAX, resolution, paths all filled in
 ├── config.fcst         # Resolved: layout_x, layout_y, DELTIM concrete values
 ├── config.resources    # Resolved: node counts, memory, walltime per task
+├── config.resources.*  # Per-platform resource overrides (HERA, GAEAC6, etc.)
 ├── config.anal         # Resolved: analysis settings
 ├── config.*            # ... (mirrors dev/parm/config/gfs/ but with experiment values)
 ├── {PSLOT}.xml         # Generated Rocoto XML — full job DAG with concrete paths
-├── {PSLOT}.db          # Rocoto state database (runtime, not for ingestion)
-├── *.yaml              # YAML configs (post.yaml, archiving.yaml, etc.)
-└── logs/               # Runtime logs (optional for ingestion)
+├── {PSLOT}.crontab     # Cron schedule for the experiment
+└── {PSLOT}.scron.sh    # Slurm cron launcher script
 ```
 
-The `stable` symlink is created by the CI finalize template on nightly success — it always points to the latest passing nightly build.
+**15 ported experiments** (matching the Gaea C6 CI `pr` case matrix):
 
-#### Per-Platform EXPDIR Base Paths
+| Experiment | Type |
+|------------|------|
+| `C48_ATM` | Atmosphere-only |
+| `C48_S2SW` | Coupled S2SW |
+| `C48_S2SWA_gefs` | GEFS coupled |
+| `C48_gsienkf_atmDA` | GSI EnKF DA |
+| `C48_ufsenkf_atmDA` | UFS EnKF DA |
+| `C48mx500_3DVarAOWCDA` | 3DVar ocean-coupled DA |
+| `C48mx500_hybAOWCDA` | Hybrid ocean-coupled DA |
+| `C96_atm3DVar` | C96 atm 3DVar |
+| `C96_gcafs_cycled` | GCAFS cycled |
+| `C96_gcafs_cycled_noDA` | GCAFS cycled no DA |
+| `C96mx100_S2S` | C96 S2S |
+| `C96C48_hybatmDA` | Hybrid atm DA |
+| `C96C48_hybatmsnowDA` | Hybrid atm+snow DA |
+| `C96C48_hybatmsoilDA` | Hybrid atm+soil DA |
+| `C96C48mx500_S2SW_cyc_gfs` | Coupled cycled GFS |
 
-| Platform | GFS_CI_ROOT | EXPDIR Base |
-|----------|-------------|-------------|
-| **Hera** | `/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/HERA` | `${GFS_CI_ROOT}/BUILDS/GITLAB/stable/RUNTESTS/EXPDIR/` |
-| **Hercules** | `/work2/noaa/global/role-global/GFS_CI_CD/HERCULES` | `${GFS_CI_ROOT}/BUILDS/GITLAB/stable/RUNTESTS/EXPDIR/` |
-| **Orion** | `/work2/noaa/global/${USER}/GFS_CI_CD/ORION` | `${GFS_CI_ROOT}/BUILDS/GITLAB/stable/RUNTESTS/EXPDIR/` |
-| **GAEA-C6** | `/gpfs/f6/drsa-precip3/proj-shared/${USER}/GFS_CI_CD` | `GITLAB_BUILDS_DIR=/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB` → `stable/RUNTESTS/EXPDIR/` |
-| **Ursa** | `/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA` | Shares Hera's `/scratch3` filesystem (cross-mounted) |
+#### Original Per-Platform EXPDIR Paths (Reference)
 
-#### Per-Platform Nightly Case Matrices
+The ported EXPDIR was sourced from Gaea C6. For reference, the per-platform CI paths are:
 
-From `dev/ci/gitlab-ci-hosts.yml`:
+| Platform | EXPDIR Base |
+|----------|-------------|
+| **Gaea C6** (source) | `/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/stable/RUNTESTS/EXPDIR/` |
+| **Hera** | `${GFS_CI_ROOT}/BUILDS/GITLAB/stable/RUNTESTS/EXPDIR/` |
+| **Hercules** | `${GFS_CI_ROOT}/BUILDS/GITLAB/stable/RUNTESTS/EXPDIR/` |
 
-**Hera** (17 cases):
-`C48_ATM`, `C48_S2SW`, `C48_S2SWA_gefs`, `C48mx500_3DVarAOWCDA`, `C48mx500_hybAOWCDA`, `C96C48_hybatmDA`, `C96C48_hybatmsnowDA`, `C96C48_hybatmsoilDA`, `C96C48_ufsgsi_hybatmDA`, `C96C48_ufs_hybatmDA`, `C96C48mx500_S2SW_cyc_gfs`, `C96_atm3DVar`, `C96_gcafs_cycled`, `C96_gcafs_cycled_noDA`, `C96mx100_S2S`, `C48_gsienkf_atmDA`, `C48_ufsenkf_atmDA`
-
-**Ursa** (17 cases): Same as Hera (cross-mounted scratch3)
-
-**GAEA-C6** (15 cases):
-`C48_ATM`, `C48_S2SW`, `C48_S2SWA_gefs`, `C48mx500_3DVarAOWCDA`, `C48mx500_hybAOWCDA`, `C96C48_hybatmDA`, `C96C48_hybatmsnowDA`, `C96C48_hybatmsoilDA`, `C96C48mx500_S2SW_cyc_gfs`, `C96_atm3DVar`, `C96_gcafs_cycled`, `C96_gcafs_cycled_noDA`, `C96mx100_S2S`, `C48_gsienkf_atmDA`, `C48_ufsenkf_atmDA`
-
-**Hercules** (10 cases):
-`C48_ATM`, `C48_S2SW`, `C48_S2SWA_gefs`, `C48mx500_3DVarAOWCDA`, `C48mx500_hybAOWCDA`, `C96C48_hybatmDA`, `C96C48mx500_S2SW_cyc_gfs`, `C96_atm3DVar`, `C96mx100_S2S`, `C96_gcafs_cycled`
-
-**Orion** (8 cases):
-`C48_ATM`, `C48_S2SW`, `C48_S2SWA_gefs`, `C96C48_hybatmDA`, `C96C48mx500_S2SW_cyc_gfs`, `C96_atm3DVar`, `C96mx100_S2S`, `C96_gcafs_cycled`
+The 15 ported experiments match the Gaea C6 CI nightly `pr` case matrix. Hera runs 17 cases (adds `C96C48_ufsgsi_hybatmDA`, `C96C48_ufs_hybatmDA`); Hercules and Orion run fewer.
 
 **Notable**: Orion and Hercules do **not** run `C48_gsienkf_atmDA` or `C48_ufsenkf_atmDA` — the EnKF cases where the esfc bug manifests (see Phase 45). These cases are skipped via `skip_ci_on_hosts` in the PR YAML but the matrix here shows they're also absent from the nightly host matrices.
 
@@ -773,26 +780,25 @@ def match_command_to_script(command: str, neo4j_session) -> str | None:
 ### Step 40-6: Create EXPDIR Config & XML Ingestion Script
 **Tag**: implement
 **Target**: `mcp_server_node/scripts/ingest_expdir_configs.py`
-**Requires**: Integrated terminal session hosted directly on RDHPC (Hera/Hercules/WCOSS2)
 
-Ingest experiment directory (EXPDIR) XML and config files from real experiment runs on RDHPC systems. EXPDIRs contain the materialized configuration that drives a specific experiment — the resolved versions of template configs with experiment-specific values filled in.
+Ingest experiment directory (EXPDIR) XML and config files from the ported Gaea C6 CI nightly artifacts at `supported_repos/EXPDIR/`. EXPDIRs contain the materialized configuration that drives a specific experiment — the resolved versions of template configs with experiment-specific values filled in.
 
-The integrated terminal will be hosted directly on the RDHPC system, so EXPDIR paths are accessed as local filesystem reads — no SSH or rsync required. `create_experiment.py` from the global-workflow can be run at will to generate fresh EXPDIRs on demand for any experiment configuration.
+The EXPDIR has been ported to the MCP development platform so all ingestion runs locally — no RDHPCS access required. The 15 experiment directories cover all `ci/cases/pr/` test cases as generated on Gaea C6.
 
-**EXPDIR structure** (typical path: `/scratch1/NCEPDEV/global/USER/ROTDIRS/EXPDIR/EXPERIMENT/`):
+**Local EXPDIR structure** (path: `supported_repos/EXPDIR/{CASE}_{HASH}/`):
 ```
-EXPDIR/
+supported_repos/EXPDIR/{PSLOT}_{HASH}/
 ├── config.*              # Resolved config files (config.fcst, config.anal, config.base, ...)
-├── xml/
-│   └── workflow.xml      # Resolved Rocoto XML (entities expanded, no Jinja2)
-├── *.yaml                # YAML configs (post.yaml, archiving.yaml, etc.)
-└── logs/                 # Runtime logs (optional for ingestion)
+├── config.resources.*    # Per-platform resource overrides
+├── {PSLOT}.xml           # Generated Rocoto XML (entities expanded, concrete job DAG)
+├── {PSLOT}.crontab       # Cron schedule
+└── {PSLOT}.scron.sh      # Slurm cron launcher
 ```
 
 The script should:
-1. **Read EXPDIR from local filesystem**: Accept `--expdir-path` argument pointing to the EXPDIR on the RDHPC host
+1. **Scan local EXPDIR**: Accept `--expdir-base` argument defaulting to `supported_repos/EXPDIR/`, auto-discover all experiment directories
 2. **Parse resolved configs**: Extract final variable values (no `${..}` references — these are the resolved values)
-3. **Parse resolved Rocoto XML**: Unlike template XML, EXPDIR XML has all entities expanded — parse the concrete job DAG
+3. **Parse resolved Rocoto XML**: EXPDIR XML has all entities expanded — parse the concrete job DAG
 4. **Create Neo4j nodes**: `(:EXPDIRConfig {name, experiment, platform, resolution})` linked to ConfigFile templates via `[:RESOLVES_FROM]`
 5. **Diff template vs resolved**: Identify config deltas between the template (`parm/config/`) and experiment-specific values
 6. **ChromaDB ingestion**: Ingest resolved configs with `file_type: 'expdir-config'` metadata and experiment name
@@ -805,39 +811,33 @@ The script should:
 # (:Experiment {name, platform, resolution, date})
 ```
 
-**Acceptance**: Script runs with `--dry-run` locally. Full ingestion executes on RDHPC-hosted terminal with direct filesystem access.
+**Acceptance**: Script runs with `--dry-run` locally. Full ingestion of all 15 experiments completes on the MCP development platform.
 
 ---
 
-### Step 40-7: Run EXPDIR Ingestion on RDHPC
+### Step 40-7: Run EXPDIR Ingestion Locally
 **Tag**: execute
-**Target**: Integrated terminal hosted on RDHPC system (Hera/Hercules/WCOSS2)
-**Requires**: Terminal session running directly on the RDHPC host
+**Target**: MCP development platform terminal
+
+The EXPDIR artifacts have been ported from Gaea C6 to `supported_repos/EXPDIR/`, so ingestion runs entirely on the MCP development platform where ChromaDB and Neo4j are hosted.
 
 ```bash
-# Step 0: Generate a fresh EXPDIR using create_experiment.py (run as needed)
-cd /path/to/global-workflow
-./workflow/create_experiment.py --yaml <experiment_yaml> --overwrite
-# This produces a fully resolved EXPDIR at the configured ROTDIRS path
-
 cd /mcp_rag_eib/eib-mcp-rag-server/mcp_server_node
 
-# Step 1: Dry run (verify EXPDIR path and file discovery)
+# Step 1: Dry run (verify EXPDIR discovery and file counts)
 python scripts/ingest_expdir_configs.py \
-  --expdir-path /scratch1/NCEPDEV/global/$USER/ROTDIRS/EXPDIR/C384_S2SWA \
-  --experiment-name C384_S2SWA \
+  --expdir-base ../supported_repos/EXPDIR/ \
   --dry-run 2>&1 | tee logs/phase40_expdir_dryrun.log
 
-# Step 2: Full ingestion (after dry-run review)
+# Step 2: Full ingestion of all 15 experiments
 python scripts/ingest_expdir_configs.py \
-  --expdir-path /scratch1/NCEPDEV/global/$USER/ROTDIRS/EXPDIR/C384_S2SWA \
-  --experiment-name C384_S2SWA \
+  --expdir-base ../supported_repos/EXPDIR/ \
   2>&1 | tee logs/phase40_expdir_ingest.log
 ```
 
-**Note**: `create_experiment.py` can be run at will to generate EXPDIRs for different experiment configurations (resolutions, coupling modes, platforms). This allows ingesting multiple experiment variants to build a comprehensive knowledge base of resolved configurations.
+**Note**: The 15 experiments were generated on Gaea C6 by the CI nightly pipeline for all cases in `ci/cases/pr/`. To refresh the EXPDIR snapshot, re-copy from Gaea C6's `GITLAB_BUILDS_DIR/stable/RUNTESTS/EXPDIR/` after a passing nightly run.
 
-**Acceptance**: EXPDIRConfig nodes created in Neo4j. `[:RESOLVES_FROM]` edges link to template ConfigFile nodes from Step 40-2.
+**Acceptance**: EXPDIRConfig nodes created in Neo4j for all 15 experiments. `[:RESOLVES_FROM]` edges link to template ConfigFile nodes from Step 40-2.
 
 ---
 
@@ -984,8 +984,8 @@ Update §3.2 (Orchestration Layer Coverage) to show configs, CI, and XML as inge
 | Dependency trees use arbitrary `and`/`or`/`not` nesting | `parse_dependency_tree()` is fully recursive; flat dep list extracted separately for Neo4j edges |
 | No static XML in repository — XML is generated at experiment creation time | Parser targets EXPDIR artifacts on RDHPCS (`{PSLOT}.xml`), not repo files |
 | CI YAML structure varies across test cases | Parse with safe YAML loader, handle missing keys gracefully |
-| RDHPC filesystem access required for EXPDIR | Script supports `--dry-run` locally; full ingestion runs on integrated terminal hosted directly on RDHPC |
-| EXPDIR paths vary by user/experiment | Accept explicit `--expdir-path` argument; CI nightly paths documented per-platform in §2.5 |
+| EXPDIR snapshot may become stale | Re-copy from Gaea C6 CI nightly after passing runs; document snapshot date in commit message |
+| EXPDIR directory naming includes commit hash | Parse experiment name from directory prefix (strip `_{HASH}` suffix); auto-discover all experiments in `--expdir-base` |
 | Task→script matching may miss renamed scripts | Fuzzy match on basename + JJOB pattern (`JGDAS_`, `JGFS_`); log unmatched for manual review |
 
 ## 7. Cross-References
@@ -994,4 +994,4 @@ Update §3.2 (Orchestration Layer Coverage) to show configs, CI, and XML as inge
 - **Prerequisite**: Phase 38 (path normalization)
 - **Related**: Phase 27B (shell graph — provides ShellScript nodes for linking), Phase 30 (experiment config documentation)
 - **Downstream**: Config tracing enhances `find_env_dependencies` and `explain_workflow_component` tools
-- **RDHPC Access**: Steps 40-6 and 40-7 require integrated terminal hosted directly on Hera/Hercules — no SSH needed, direct filesystem access
+- **EXPDIR Source**: Ported from Gaea C6 CI nightly pipeline to `supported_repos/EXPDIR/` — all ingestion runs locally on the MCP development platform

@@ -1,7 +1,7 @@
 # EIB MCP Knowledge Base — Complete Gap Analysis
 
-**Date:** March 6, 2026  
-**Version:** 1.0.0  
+**Date:** March 11, 2026
+**Version:** 1.1.0 (Phase 40 update)
 **Author:** EIB MCP Team  
 **Scope:** Full survey of ingestion scripts, current vector/graph state, submodule coverage, and external library gaps
 
@@ -9,12 +9,12 @@
 
 ## Executive Summary
 
-The EIB MCP knowledge base contains **66,552 ChromaDB documents** across 5 collections and **589,396 Neo4j relationships** covering Fortran, Python, Shell, and documentation. However, significant gaps exist:
+The EIB MCP knowledge base contains **~68,000+ ChromaDB documents** across 5 collections and **~600,000+ Neo4j relationships** covering Fortran, Python, Shell, config files, CI tests, Rocoto job DAGs, and documentation. Key gaps addressed by Phase 40:
 
 1. **Neo4j Fortran graph covers only 5 of 14 sorc/ submodules** — the entire `ufs_model.fd` tree (UFSATM, MOM6, CICE, CMEPS, WW3, etc.) has **zero** Fortran graph nodes despite having 3,503 Fortran files
 2. **ChromaDB vectors exist for all submodules** but with **inconsistent path prefixes** — 50.2% use `global-workflow/` (checkout-specific), 49.7% use `sorc/` (correct)
 3. **Neo4j File nodes use absolute paths** from an old checkout (`/mcp_rag_eib/global-workflow_MCP_node.js-RAG/`)
-4. **149 config files**, **78 CI YAML files**, and **155 parm files** are not ingested into any collection
+4. ~~**149 config files**, **78 CI YAML files**, and **155 parm files** are not ingested into any collection~~ **RESOLVED (Phase 40)** — 187 config files, 37 Jinja2 templates, 74 CI test cases, 464 Rocoto tasks, 1,297 EXPDIR configs all ingested into ChromaDB + Neo4j
 5. **External library documentation** is partially covered (NCEPLIBS docs ingested) but the **ESMF/NUOPC framework** — the coupling backbone — has no dedicated documentation ingestion
 
 ---
@@ -44,6 +44,15 @@ The EIB MCP knowledge base contains **66,552 ChromaDB documents** across 5 colle
 | PythonClass | 248 | |
 | PythonFunction | 3,267 | |
 | ShellScript | 264 | J-Jobs (89), ush (63), ex-scripts (40), sourced (51) |
+| ConfigFile | 187 | Phase 40: 4 systems (gfs 86, gefs 31, gcafs 46, sfs 24) |
+| RocotoTask | 595 | Phase 40: 15 experiments, job dependency DAG |
+| RocotoMetatask | 116 | Phase 40: Metatask groupings |
+| RocotoCycledef | 36 | Phase 40: Cycle definitions |
+| DataDependency | 111 | Phase 40: File-based dependencies |
+| CITestCase | 74 | Phase 40: CI test cases across 6 HPC platforms |
+| Experiment | 15 | Phase 40: EXPDIR experiment directories |
+| EXPDIRConfig | 1,297 | Phase 40: Resolved config files |
+| Platform | 6 | Phase 40: hera, hercules, orion, gaeac5, gaeac6, wcoss2 |
 | EnvironmentVariable | 2,489 | |
 | Community | 1,036 | L0: 694, L1: 175, L2: 86, L3: 81 |
 | File | 2,744 | All 178 use absolute paths from old checkout |
@@ -58,6 +67,15 @@ The EIB MCP knowledge base contains **66,552 ChromaDB documents** across 5 colle
 | DEFINES | 9,753 | Module/class defines function |
 | IMPORTS | 8,034 | Python imports |
 | DEPENDS_ON_ENV | 5,522 | Script→environment variable |
+| SETS_ENV | ~7,151 | Phase 40: ConfigFile/EXPDIRConfig→EnvironmentVariable |
+| DEPENDS_ON (Rocoto) | 2,942 | Phase 40: RocotoTask→RocotoTask job DAG |
+| DEPENDS_ON_DATA | 146 | Phase 40: Task→DataDependency file deps |
+| RUNS_SCRIPT | 279 | Phase 40: RocotoTask→ShellScript |
+| MEMBER_OF (Rocoto) | 91,737 | Phase 40: Task→Metatask membership |
+| RUNS_ON | 520 | Phase 40: Task→CycleDef schedule |
+| TESTS_ON | 404 | Phase 40: CITestCase→Platform |
+| PART_OF | 1,297 | Phase 40: EXPDIRConfig→Experiment |
+| RESOLVES_FROM | 957 | Phase 40: EXPDIRConfig→ConfigFile template |
 | AUTHORED | 2,880 | Developer→commit |
 | HAS_METHOD | 2,579 | Class→method |
 | DOC_REFERENCES | 1,906 | Documentation cross-references |
@@ -82,7 +100,11 @@ The EIB MCP knowledge base contains **66,552 ChromaDB documents** across 5 colle
 | **ingest_documentation_v8.py** | External docs → vectors | ChromaDB | Active, v8 |
 | **ingest_ee2_enhanced_v5.py** | EE2 standards → vectors | ChromaDB | Active, v5 |
 | **ingest_env_variables.py** | Env vars → graph | Neo4j | Active |
-| **ingest_ci_test_cases.py** | CI test YAML → vectors | ChromaDB | Active |
+| **ingest_ci_test_cases.py** | CI test YAML → vectors + graph | ChromaDB + Neo4j | Active, Phase 40 enhanced |
+| **ingest_config_files.py** | Config files → vectors + graph | ChromaDB + Neo4j | Active, Phase 40 |
+| **ingest_jinja2_templates.py** | Jinja2 templates → vectors | ChromaDB | Active, Phase 40 |
+| **ingest_rocoto_xml.py** | Rocoto XML → job DAG graph | Neo4j | Active, Phase 40 |
+| **ingest_expdir_configs.py** | EXPDIR resolved configs → graph + vectors | Both | Active, Phase 40 |
 | **ingest-submodules.js** | Submodule structure → graph | Neo4j | Active, Phase 0 |
 | **ingest-code.js** | Legacy JS code ingestion | Neo4j | Superseded by v8.py |
 | **ingest-cmake.js** | CMake build targets → graph | Neo4j | Active |
@@ -163,14 +185,20 @@ SUBMODULE_PATHS = [
 
 ### 3.2 Orchestration Layer Coverage
 
+> **Status: RESOLVED (Phase 40, 2026-03-11)**
+> Config files, CI YAMLs, Jinja2 templates, Rocoto XML, and EXPDIR resolved configs are now fully ingested.
+
 | Area | Total Files | In Graph | In Vectors | Gap |
 |------|------------|----------|-----------|-----|
 | J-Jobs (`dev/jobs/`) | 90 | 89 ShellScript nodes | 700 chunks | **GOOD** |
 | Ex-Scripts (`dev/scripts/`) | 82 | 40 ShellScript nodes | 61 chunks | **PARTIAL** — 42 ex-scripts missing from graph |
 | USH scripts (`ush/`) | 63 shell | 63 ShellScript nodes | few | **GOOD** for graph, LOW vectors |
-| Config files (`dev/parm/`) | 155 | **0** | **0** | **MISSING** |
+| Config files (`dev/parm/`) | 187 | **187 ConfigFile** + 757 SETS_ENV | **187 chunks** | **DONE** (Phase 40) |
+| Jinja2 templates (`dev/parm/`, `dev/workflow/`) | 37 | — | **37 chunks** | **DONE** (Phase 40) |
 | Workflow Python (`dev/workflow/`) | 45 | 37 PythonModule nodes | few | **PARTIAL** |
-| CI YAML (`dev/ci/`) | 78 | **0** | **0** | **MISSING** |
+| CI YAML (`dev/ci/`) | 74 | **74 CITestCase** + 404 TESTS_ON | **74 chunks** | **DONE** (Phase 40) |
+| Rocoto XML (EXPDIR) | 15 | **595 RocotoTask** + 2,942 DEPENDS_ON | — | **DONE** (Phase 40) |
+| EXPDIR configs (resolved) | 1,297 | **1,297 EXPDIRConfig** + 957 RESOLVES_FROM | **1,297 chunks** | **DONE** (Phase 40) |
 
 ---
 
@@ -317,14 +345,15 @@ SUBMODULE_PATHS = [
 | **B5.** Ingest `sorc/nexus.fd/` Fortran into Neo4j graph | +86 files, AQM/emissions | Small |
 | **B6.** Re-run community detection after new Fortran nodes added | Updated L0-L3 community summaries | Medium |
 
-### Phase C: Ingest Missing File Types
+### Phase C: Ingest Missing File Types — ✅ DONE (Phase 40)
 
-| Task | Impact | Effort |
+| Task | Impact | Status |
 |------|--------|--------|
-| **C1.** Ingest `dev/parm/config.*` files (149 files) | Config→env var→script tracing | Medium |
-| **C2.** Ingest CI YAML test definitions (78 files) | Test case searchability | Small |
-| **C3.** Ingest Jinja2 templates (`.j2` files) | Template→config tracing | Small |
-| **C4.** Ingest XML workflow definitions if present | Rocoto XML → job dependency graph | Small |
+| **C1.** Ingest `dev/parm/config.*` files (187 files) | Config→env var→script tracing | ✅ Done — 187 ConfigFile nodes, 757 SETS_ENV edges |
+| **C2.** Ingest CI YAML test definitions (74 files) | Test case searchability | ✅ Done — 74 CITestCase nodes, 404 TESTS_ON edges |
+| **C3.** Ingest Jinja2 templates (37 `.j2` files) | Template→config tracing | ✅ Done — 37 ChromaDB docs |
+| **C4.** Ingest XML workflow definitions (15 experiments) | Rocoto XML → job dependency graph | ✅ Done — 595 tasks, 2,942 DEPENDS_ON, 146 DATA_DEP |
+| **C5.** Ingest EXPDIR resolved configs (15 experiments) | Experiment→template tracing | ✅ Done — 1,297 EXPDIRConfig, 957 RESOLVES_FROM |
 
 ### Phase D: Close External Library Documentation Gaps — ✅ DONE (Phase 41)
 
@@ -351,7 +380,7 @@ SUBMODULE_PATHS = [
 
 | Domain | Vector (ChromaDB) | Graph (Neo4j) | Documentation | Overall |
 |--------|-------------------|---------------|--------------|---------|
-| **Orchestration** (J-Jobs, ex-scripts, ush, configs) | 85% | 75% | 80% | **B+** |
+| **Orchestration** (J-Jobs, ex-scripts, ush, configs, CI, Rocoto) | **95%** (Phase 40) | **90%** (Phase 40) | 80% | **A-** |
 | **DA/GSI/EnKF** (gsi_enkf.fd, gdas.cd) | 90% | 90% | 70% | **A-** |
 | **UFS Atmosphere** (UFSATM, FV3, CCPP) | 70% vectors | **80% graph** (Phase 39) | **60%** (Phase 41) | **B+** |
 | **UFS Ocean** (MOM6) | 65% vectors | **80% graph** (Phase 39) | **25%** (Phase 41, partial) | **C+** |
@@ -368,4 +397,4 @@ SUBMODULE_PATHS = [
 
 ### Bottom Line
 
-The knowledge base is strong for **orchestration, data assimilation, and coupling frameworks** (ESMF/NUOPC). Phase 41 added **14,332 new documentation chunks** (265% growth) covering ESMF API references, NUOPC coupling patterns, WW3 wave model wiki, and FV3 dynamics wiki. Six ReadTheDocs sources (MOM6, CICE, GOCART, CCPP, UPP, METplus) were rate-limited during ingestion — these are configured and will be ingested on next retry. The UFS Fortran graph (Phase 39) combined with ESMF/NUOPC documentation (Phase 41) closes the critical coupling framework blind spot.
+The knowledge base is strong for **orchestration, data assimilation, and coupling frameworks** (ESMF/NUOPC). Phase 40 closed the orchestration blind spot by ingesting **187 config files** (4 systems), **37 Jinja2 templates**, **74 CI test cases**, **595 Rocoto tasks** across 15 experiments (2,942 job dependencies), and **1,297 EXPDIR resolved configs** with 957 RESOLVES_FROM template links. The config→env var→script tracing chain is now complete. Phase 41 added **14,332 new documentation chunks** (265% growth) covering ESMF API references, NUOPC coupling patterns, WW3 wave model wiki, and FV3 dynamics wiki. Six ReadTheDocs sources (MOM6, CICE, GOCART, CCPP, UPP, METplus) were rate-limited during ingestion — these are configured and will be ingested on next retry. The UFS Fortran graph (Phase 39) combined with ESMF/NUOPC documentation (Phase 41) closes the critical coupling framework blind spot.
