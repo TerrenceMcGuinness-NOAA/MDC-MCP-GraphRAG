@@ -845,10 +845,10 @@ class UnifiedMCPServer {
         if (graphDB) {
           try {
             const startMs = Date.now();
-            const nodeResult = await graphDB.runQuery(
+            const nodeResult = await graphDB.query(
               'MATCH (n) RETURN count(n) AS count'
             );
-            const relResult = await graphDB.runQuery(
+            const relResult = await graphDB.query(
               'MATCH ()-[r]->() RETURN count(r) AS count'
             );
             snapshot.neo4j.latency_ms = Date.now() - startMs;

@@ -762,13 +762,13 @@ export class SemanticSearchTools {
     // Check 2: Orphaned graph nodes — File nodes with no ChromaDB match
     try {
       if (this.dataAccess.graphDB) {
-        const result = await this.dataAccess.graphDB.runQuery(
+        const result = await this.dataAccess.graphDB.query(
           'MATCH (f:File) RETURN count(f) AS total'
         );
         const totalFiles = result?.[0]?.total || 0;
 
         // Sample some file nodes and check if they have paths that make sense
-        const sampleResult = await this.dataAccess.graphDB.runQuery(
+        const sampleResult = await this.dataAccess.graphDB.query(
           'MATCH (f:File) RETURN f.name AS name, f.absolutePath AS path LIMIT 20'
         );
         const orphaned = sampleResult?.filter(r => !r.path && !r.name) || [];
@@ -886,7 +886,7 @@ export class SemanticSearchTools {
     // Check 4: Coverage gap — Fortran files on disk vs in graph
     try {
       if (this.dataAccess.graphDB) {
-        const graphResult = await this.dataAccess.graphDB.runQuery(
+        const graphResult = await this.dataAccess.graphDB.query(
           'MATCH (n) WHERE n:FortranSubroutine OR n:FortranModule OR n:FortranFunction RETURN count(n) AS total'
         );
         const graphFortranCount = graphResult?.[0]?.total || 0;
