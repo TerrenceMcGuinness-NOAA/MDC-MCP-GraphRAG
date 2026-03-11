@@ -1,5 +1,15 @@
 # MCP Server Changelog
 
+## [7.33.1] - Phase 43 Hotfix: graphDB Casing + Neo4j Query Fix (March 11, 2026)
+
+### Bug Fixes
+- Fixed `graphDb` → `graphDB` property casing in `check_knowledge_integrity()` (SemanticSearchTools.js) — Checks 2 (Orphaned Nodes) and 4 (Coverage Gap) were silently skipped, reporting `[SKIP] Neo4j not available` when Neo4j was healthy
+- Fixed `graphDb` → `dataAccess.graphDB` property path in health snapshot persistence (UnifiedMCPServer.js) — Neo4j node/relationship counts were always 0 in `health_history.jsonl`
+- Split UNION ALL Cypher query into two separate queries for reliable Neo4j stats capture
+
+### Planned
+- Phase 43a spec created: `check_knowledge_integrity` improvements — replace `peek()` with `where` filter for path consistency, git-aware stale embedding comparison
+
 ## [7.33.0] - SDD Phase 43: Expert System Self-Diagnosis & Health Observability (March 11, 2026)
 
 ### Phase 43: Self-Diagnosis — Steps 1-10 Complete

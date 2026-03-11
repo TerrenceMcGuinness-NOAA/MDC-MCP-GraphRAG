@@ -841,19 +841,20 @@ class UnifiedMCPServer {
         }
 
         // Populate Neo4j stats via graph database query
-        if (this.codeAnalysisTools?.graphDb || this.graphRAGTools?.graphDb) {
-          const graphDb = this.codeAnalysisTools?.graphDb || this.graphRAGTools?.graphDb;
+        const graphDB = this.codeAnalysisTools?.dataAccess?.graphDB || this.graphRAGTools?.dataAccess?.graphDB;
+        if (graphDB) {
           try {
             const startMs = Date.now();
-            const countResult = await graphDb.runQuery(
-              'MATCH (n) RETURN count(n) AS nodes UNION ALL MATCH ()-[r]->() RETURN count(r) AS nodes'
+            const nodeResult = await graphDB.runQuery(
+              'MATCH (n) RETURN count(n) AS count'
+            );
+            const relResult = await graphDB.runQuery(
+              'MATCH ()-[r]->() RETURN count(r) AS count'
             );
             snapshot.neo4j.latency_ms = Date.now() - startMs;
             snapshot.neo4j.status = 'ok';
-            if (countResult?.length >= 2) {
-              snapshot.neo4j.nodes = countResult[0]?.nodes || 0;
-              snapshot.neo4j.relationships = countResult[1]?.nodes || 0;
-            }
+            snapshot.neo4j.nodes = nodeResult?.[0]?.count || 0;
+            snapshot.neo4j.relationships = relResult?.[0]?.count || 0;
           } catch {
             snapshot.neo4j.status = 'error';
           }
