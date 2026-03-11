@@ -1,5 +1,18 @@
 # MCP Server Changelog
 
+## [7.34.0] - SDD Phase 43a: Knowledge Integrity Check Improvements (March 11, 2026)
+
+### Improvements
+- **Path consistency check**: Replaced `peek({limit:100})` (biased, insertion-order) with random-offset `get()` sampling for representative coverage across full 81K+ doc collection
+- **Path consistency check**: Added `/mcp_rag_eib/` to bad-prefix list (checkout-specific path detection)
+- **Stale embeddings check**: Replaced static 30-day age threshold with git-aware comparison — compares `ingestedAt` against `git log -1 --format=%aI -- <path>` for each sampled document
+- **Stale embeddings check**: Added git date caching (Map) and 5-second timeout per git command for performance
+- **Stale embeddings check**: Falls back to 30-day heuristic with `[INFO]` note when git unavailable
+- **Bug fix**: Fixed metadata key mismatch `ingested_at` → `ingestedAt` in stale embeddings fallback chain — ingestion timestamp was never found
+
+### Documentation
+- Updated `eib-mcp-tools.instructions.md` with improved check descriptions
+
 ## [7.33.1] - Phase 43 Hotfix: graphDB Casing + Neo4j Query Fix (March 11, 2026)
 
 ### Bug Fixes

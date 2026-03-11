@@ -54,7 +54,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 | `get_knowledge_base_status` | — | `include_graph`, `include_vector` | Get comprehensive knowledge base statistics |
 | `list_ingested_urls` | — | `format`, `source_filter` | List all URLs that have been ingested into the RAG knowledge base |
 | `get_ingested_urls_array` | — | `include_failed` | Get a structured array of all ingested URLs for programmatic access |
-| `check_knowledge_integrity` | — | `sample_size` | Check knowledge base integrity: path consistency, orphaned nodes, stale embeddings, coverage gaps |
+| `check_knowledge_integrity` | — | `sample_size` | Check knowledge base integrity: path consistency (random-offset sampling), orphaned nodes, stale embeddings (git-aware comparison), coverage gaps |
 
 ### 4. EE2 Compliance (5 tools — ChromaDB)
 
@@ -151,7 +151,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 - `search_documentation({ query })` — semantic search across ingested docs
 - `explain_with_context({ topic })` — RAG-powered explanations with citations
 - `find_related_files({ file_path })` — vector similarity for related code/docs
-- `check_knowledge_integrity()` — knowledge base integrity: path consistency, orphaned nodes, stale embeddings, coverage gaps
+- `check_knowledge_integrity()` — knowledge base integrity: path consistency (random-offset sampling), orphaned nodes, stale embeddings (git-aware source comparison), coverage gaps
 - `get_knowledge_base_status()` — DB health and collection stats
 - `list_ingested_urls()` — documentation sources ingested into RAG
 - `get_ingested_urls_array()` — structured URL array for programmatic access
@@ -211,7 +211,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 ### Health & Diagnostics
 - `mcp_health_check()` — full server + database health (deep mode persists snapshots)
 - `get_health_trend()` — health trending over time with anomaly detection
-- `check_knowledge_integrity()` — knowledge base integrity monitoring
+- `check_knowledge_integrity()` — knowledge base integrity monitoring (random sampling, git-aware staleness)
 - `get_server_info()` — server version and tool count
 - `get_quality_metrics()` — RAG quality benchmark results and regression detection
 

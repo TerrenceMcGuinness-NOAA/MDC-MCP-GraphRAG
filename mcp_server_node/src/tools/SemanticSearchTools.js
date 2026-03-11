@@ -719,20 +719,26 @@ export class SemanticSearchTools {
     const checks = [];
 
     // Check 1: Path consistency — no checkout-specific prefixes in ChromaDB
+    // Uses random-offset sampling for representative coverage (Phase 43a)
     try {
       const collections = await this.dataAccess.vectorDB.listCollections();
       let badPathCount = 0;
-      let totalDocs = 0;
+      let totalSampled = 0;
+      const badPrefixes = ['/home/', '/scratch/', '/mcp_rag_eib/'];
 
       for (const col of collections) {
         try {
           const collection = await this.dataAccess.vectorDB.client.getCollection({ name: col.name || col });
-          const peek = await collection.peek({ limit: 100 });
-          totalDocs += (peek.ids?.length || 0);
-          if (peek.metadatas) {
-            for (const meta of peek.metadatas) {
+          const total = await collection.count();
+          const sampleSize = Math.min(sample_size, total);
+          if (sampleSize === 0) continue;
+          const offset = total > sampleSize ? Math.floor(Math.random() * (total - sampleSize)) : 0;
+          const sample = await collection.get({ limit: sampleSize, offset, include: ['metadatas'] });
+          totalSampled += (sample.ids?.length || 0);
+          if (sample.metadatas) {
+            for (const meta of sample.metadatas) {
               const fp = meta?.file_path || meta?.source_path || '';
-              if (fp.startsWith('/') || fp.includes('/home/') || fp.includes('/scratch/')) {
+              if (fp.startsWith('/') || badPrefixes.some(p => fp.includes(p))) {
                 badPathCount++;
               }
             }
@@ -746,8 +752,8 @@ export class SemanticSearchTools {
         name: 'Path Consistency',
         passed: badPathCount === 0,
         details: badPathCount === 0
-          ? `[OK] 0/${totalDocs} sampled docs have checkout-specific prefix`
-          : `[WARN] ${badPathCount}/${totalDocs} sampled docs have checkout-specific prefix`
+          ? `[OK] 0/${totalSampled} randomly sampled docs have checkout-specific prefix`
+          : `[WARN] ${badPathCount}/${totalSampled} randomly sampled docs have checkout-specific prefix`
       });
     } catch (error) {
       checks.push({ name: 'Path Consistency', passed: false, details: `[ERROR] ${error.message}` });
@@ -781,26 +787,80 @@ export class SemanticSearchTools {
       checks.push({ name: 'Orphaned Graph Nodes', passed: false, details: `[ERROR] ${error.message}` });
     }
 
-    // Check 3: Stale embeddings — sample docs and check for metadata staleness
+    // Check 3: Stale embeddings — git-aware comparison against source repo (Phase 43a)
     try {
       const collections = await this.dataAccess.vectorDB.listCollections();
       let checkedCount = 0;
       let staleCount = 0;
       const now = Date.now();
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      const repoBase = path.join(__dirname, '..', '..', '..', 'supported_repos', 'global-workflow');
+
+      // Determine if git-aware comparison is available
+      let gitAvailable = false;
+      let repoHeadDate = null;
+      let gitMethod = '30-day age threshold';
+      try {
+        const { execSync } = await import('child_process');
+        const headDateStr = execSync(
+          `git -C "${repoBase}" log -1 --format=%aI`,
+          { encoding: 'utf-8', timeout: 5000 }
+        ).trim();
+        repoHeadDate = new Date(headDateStr);
+        if (!isNaN(repoHeadDate.getTime())) {
+          gitAvailable = true;
+          gitMethod = 'git source comparison';
+        }
+      } catch {
+        // Git unavailable — fall back to 30-day heuristic
+      }
+
+      // Cache of git file dates to avoid repeated calls for the same path
+      const gitDateCache = new Map();
 
       for (const col of collections) {
         if (checkedCount >= sample_size) break;
         try {
           const collection = await this.dataAccess.vectorDB.client.getCollection({ name: col.name || col });
-          const peek = await collection.peek({ limit: Math.min(sample_size - checkedCount, 50) });
-          if (peek.metadatas) {
-            for (const meta of peek.metadatas) {
+          const total = await collection.count();
+          const sampleSize = Math.min(sample_size - checkedCount, 50, total);
+          if (sampleSize === 0) continue;
+          const offset = total > sampleSize ? Math.floor(Math.random() * (total - sampleSize)) : 0;
+          const sample = await collection.get({ limit: sampleSize, offset, include: ['metadatas'] });
+          if (sample.metadatas) {
+            for (const meta of sample.metadatas) {
               checkedCount++;
-              const lastMod = meta?.lastModified || meta?.ingested_at || meta?.timestamp;
-              if (lastMod) {
-                const modTime = new Date(lastMod).getTime();
-                if (!isNaN(modTime) && (now - modTime) > thirtyDaysMs) {
+              const lastMod = meta?.lastModified || meta?.ingestedAt || meta?.ingested_at || meta?.timestamp;
+              if (!lastMod) continue;
+              const modTime = new Date(lastMod).getTime();
+              if (isNaN(modTime)) continue;
+
+              if (gitAvailable) {
+                // Git-aware: compare embedding date against file's last commit date
+                const fp = meta?.file_path || meta?.source_path || '';
+                if (fp && !fp.startsWith('http')) {
+                  const relativePath = fp.replace(/^\/+/, '');
+                  if (!gitDateCache.has(relativePath)) {
+                    try {
+                      const { execSync } = await import('child_process');
+                      const fileDateStr = execSync(
+                        `git -C "${repoBase}" log -1 --format=%aI -- "${relativePath}"`,
+                        { encoding: 'utf-8', timeout: 5000 }
+                      ).trim();
+                      gitDateCache.set(relativePath, fileDateStr ? new Date(fileDateStr).getTime() : null);
+                    } catch {
+                      gitDateCache.set(relativePath, null);
+                    }
+                  }
+                  const fileCommitTime = gitDateCache.get(relativePath);
+                  if (fileCommitTime && modTime < fileCommitTime) {
+                    staleCount++;
+                  }
+                }
+                // URLs and docs without file paths — skip (not stale by definition)
+              } else {
+                // Fallback: 30-day age threshold
+                if ((now - modTime) > thirtyDaysMs) {
                   staleCount++;
                 }
               }
@@ -811,12 +871,13 @@ export class SemanticSearchTools {
         }
       }
 
+      const methodNote = gitAvailable ? '' : ' [INFO] Git comparison unavailable, using 30-day age threshold';
       checks.push({
         name: 'Stale Embeddings',
         passed: staleCount === 0 || staleCount / Math.max(checkedCount, 1) < 0.25,
         details: staleCount === 0
-          ? `[OK] ${checkedCount}/${checkedCount} sampled docs appear current`
-          : `[WARN] ${staleCount}/${checkedCount} sampled docs have metadata older than 30 days`
+          ? `[OK] ${checkedCount}/${checkedCount} sampled docs appear current (${gitMethod})${methodNote}`
+          : `[WARN] ${staleCount}/${checkedCount} sampled docs have embeddings older than source (${gitMethod})${methodNote}`
       });
     } catch (error) {
       checks.push({ name: 'Stale Embeddings', passed: false, details: `[ERROR] ${error.message}` });
