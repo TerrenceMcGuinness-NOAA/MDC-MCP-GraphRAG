@@ -1,0 +1,26 @@
+[
+  {
+    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/nceplibs/NCEPLIBS-bufr/test/intest1.F90",
+    "error": "at line 26\n>>>  character*20 filnam / 'testfiles/IN_1' /\n"
+  },
+  {
+    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/nceplibs/NCEPLIBS-bufr/test/intest11.F90",
+    "error": "at line 19\n>>>  character filnam*25 / 'testfiles/IN_11' /\n"
+  },
+  {
+    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/nceplibs/NCEPLIBS-bufr/test/intest14.F90",
+    "error": "at line 17\n>>>  character*20 filnam / 'testfiles/IN_1' /\n"
+  },
+  {
+    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/nceplibs/NCEPLIBS-bufr/test/intest4.F90",
+    "error": "at line 30\n>>>  character*20 filnam / 'testfiles/IN_4' /\n"
+  },
+  {
+    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/nceplibs/NCEPLIBS-bufr/test/outtest8.F90",
+    "error": "at line 21\n>>>  character*20 filnam / 'out8.bufr' /\n"
+  },
+  {
+    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/nceplibs/NCEPLIBS-bufr/test/test_ufbrw.F90",
+    "error": "at line 14\n>>>      character(255)file\n"
+  }
+]

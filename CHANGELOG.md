@@ -1,5 +1,41 @@
 # MCP Server Changelog
 
+## [7.33.0] - SDD Phase 43: Expert System Self-Diagnosis & Health Observability (March 11, 2026)
+
+### Phase 43: Self-Diagnosis — Steps 1-10 Complete
+
+#### Health Trending (Steps 1-3)
+- `mcp_health_check({ deep: true })` now persists health snapshots to `health_history.jsonl`
+- Drift detection: emits `[WARN]` when Neo4j node or ChromaDB doc counts change >10%
+- New tool: `get_health_trend({ limit })` — reads snapshot history, reports count/latency trends and anomalies
+
+#### Knowledge Base Integrity Monitor (Steps 4-5)
+- New tool: `check_knowledge_integrity()` in SemanticSearchTools — runs 4 checks:
+  - Path consistency (no checkout-specific prefixes)
+  - Orphaned graph nodes (File nodes without identity)
+  - Stale embeddings (metadata older than 30 days)
+  - Coverage gap (Fortran files on disk vs in graph)
+- Wired into `mcp_health_check({ functional: true })` as Test 6
+
+#### Auto-Remediation Suggestions (Steps 6-7)
+- Extended `phase2_anti_patterns.json` (v6.0.0 → v6.1.0): all 6 anti-patterns now have `suggested_fix`, `confidence`, `ee2_reference`
+- Named anti-patterns (was "unknown"): `set_eu_false_positive`, `set_e_not_required`, `forced_exit_prohibited`, etc.
+- Fixed critical bug: `analyze_ee2_compliance` was recommending `set -eu` — contradicted Phase 2 SME corrections
+- Remediation output now includes Confidence (HIGH/MEDIUM/LOW) and EE2 reference per finding
+
+#### Session Analytics (Step 8)
+- `get_sdd_execution_history({ analytics: true })` — computes from JSONL history:
+  - Phase status distribution, step tag distribution, avg duration, velocity trend
+
+#### Tool Count: 49 → 51 (2 new tools)
+- `get_health_trend` (Utility), `check_knowledge_integrity` (SemanticSearchTools)
+- 3 enhanced: `mcp_health_check`, `analyze_ee2_compliance`, `get_sdd_execution_history`
+
+#### Documentation
+- Updated `eib-mcp-tools.instructions.md` v7.27.0 → v7.28.0 (51 tools)
+
+#### SDD Session: `session_2026-03-11_ndttey`
+
 ## [7.32.0] - SDD Phase 42: JEDI Deep Submodule Coverage (March 10, 2026)
 
 ### Phase 42: JEDI Deep Submodule Coverage — Complete

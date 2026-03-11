@@ -41,7 +41,7 @@ import { GraphRAGTools } from './tools/GraphRAGTools.js';
 import { UnifiedDataAccess } from './data/UnifiedDataAccess.js';
 import { logEnvironment, MCP_ENV } from './config/environment.js';
 import path from 'path';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, appendFileSync, mkdirSync } from 'node:fs';
 
 class UnifiedMCPServer {
   constructor(options = {}) {
@@ -220,6 +220,23 @@ class UnifiedMCPServer {
         }
       },
       this.healthCheck.bind(this)
+    );
+
+    // Phase 43: Health trending tool
+    this.server.registerTool(
+      'get_health_trend',
+      'Get health trend data from persisted snapshots. Shows count trends, latency trends, and anomaly detection over time.',
+      {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'number',
+            description: 'Number of recent snapshots to analyze (default: 10)',
+            default: 10
+          }
+        }
+      },
+      this.getHealthTrend.bind(this)
     );
 
     this.server.registerTool(
@@ -738,6 +755,32 @@ class UnifiedMCPServer {
         }
       }
       
+      // Test 6 (Phase 43): Knowledge base integrity check
+      if (this.semanticSearchTools?.isInitialized && this.semanticSearchTools.checkKnowledgeIntegrity) {
+        try {
+          const result = await this.semanticSearchTools.checkKnowledgeIntegrity({ sample_size: 20 });
+          const text = result?.content?.[0]?.text || '';
+          const allPassed = text.includes('All checks passed');
+          functionalTests.push({
+            name: 'Knowledge Base Integrity',
+            tool: 'check_knowledge_integrity',
+            query: 'sample_size: 20',
+            passed: allPassed,
+            details: allPassed
+              ? 'All integrity checks passed'
+              : 'Some integrity checks flagged warnings — run check_knowledge_integrity() for details'
+          });
+        } catch (error) {
+          functionalTests.push({
+            name: 'Knowledge Base Integrity',
+            tool: 'check_knowledge_integrity',
+            query: 'sample_size: 20',
+            passed: false,
+            details: `Error: ${error.message}`
+          });
+        }
+      }
+      
       // Format functional test results
       const passedCount = functionalTests.filter(t => t.passed).length;
       const totalTests = functionalTests.length;
@@ -771,7 +814,213 @@ class UnifiedMCPServer {
       }
     }
 
+    // Phase 43: Health snapshot persistence + drift detection (deep mode only)
+    if (deep) {
+      try {
+        const healthHistoryPath = join(__dirname, '..', '..', 'sdd_framework', 'execution_state', 'health_history.jsonl');
+        const healthHistoryDir = dirname(healthHistoryPath);
+        if (!existsSync(healthHistoryDir)) {
+          mkdirSync(healthHistoryDir, { recursive: true });
+        }
+
+        // Build snapshot from collected health data
+        const snapshot = {
+          timestamp: new Date().toISOString(),
+          source: 'tool_call',
+          neo4j: { status: 'unknown', nodes: 0, relationships: 0, latency_ms: null },
+          chromadb: { status: 'unknown', collections: 0, total_docs: 0, latency_ms: null },
+          drift: { neo4j_node_delta: 0, chromadb_doc_delta: 0 }
+        };
+
+        // Populate ChromaDB stats from dataValidation (collected earlier)
+        if (dataValidation) {
+          snapshot.chromadb.status = dataValidation.status || 'unknown';
+          snapshot.chromadb.collections = dataValidation.collections?.length || 0;
+          snapshot.chromadb.total_docs = dataValidation.totalDocuments || 0;
+          snapshot.chromadb.latency_ms = dataValidation.latencyMs || null;
+        }
+
+        // Populate Neo4j stats via graph database query
+        if (this.codeAnalysisTools?.graphDb || this.graphRAGTools?.graphDb) {
+          const graphDb = this.codeAnalysisTools?.graphDb || this.graphRAGTools?.graphDb;
+          try {
+            const startMs = Date.now();
+            const countResult = await graphDb.runQuery(
+              'MATCH (n) RETURN count(n) AS nodes UNION ALL MATCH ()-[r]->() RETURN count(r) AS nodes'
+            );
+            snapshot.neo4j.latency_ms = Date.now() - startMs;
+            snapshot.neo4j.status = 'ok';
+            if (countResult?.length >= 2) {
+              snapshot.neo4j.nodes = countResult[0]?.nodes || 0;
+              snapshot.neo4j.relationships = countResult[1]?.nodes || 0;
+            }
+          } catch {
+            snapshot.neo4j.status = 'error';
+          }
+        }
+
+        // Compute drift from previous snapshot
+        let previousSnapshot = null;
+        if (existsSync(healthHistoryPath)) {
+          try {
+            const lines = readFileSync(healthHistoryPath, 'utf-8').trim().split('\n').filter(l => l);
+            if (lines.length > 0) {
+              previousSnapshot = JSON.parse(lines[lines.length - 1]);
+            }
+          } catch {
+            // Ignore parse errors on previous snapshot
+          }
+        }
+
+        if (previousSnapshot) {
+          snapshot.drift.neo4j_node_delta = snapshot.neo4j.nodes - (previousSnapshot.neo4j?.nodes || 0);
+          snapshot.drift.chromadb_doc_delta = snapshot.chromadb.total_docs - (previousSnapshot.chromadb?.total_docs || 0);
+
+          // Emit drift warnings if >10% change
+          const prevNodes = previousSnapshot.neo4j?.nodes || 0;
+          const prevDocs = previousSnapshot.chromadb?.total_docs || 0;
+          const driftWarnings = [];
+
+          if (prevNodes > 0) {
+            const nodePct = Math.abs(snapshot.drift.neo4j_node_delta) / prevNodes;
+            if (nodePct > 0.10) {
+              driftWarnings.push(`Neo4j node count changed by ${snapshot.drift.neo4j_node_delta} (${(nodePct * 100).toFixed(1)}% from ${prevNodes})`);
+            }
+          }
+          if (prevDocs > 0) {
+            const docPct = Math.abs(snapshot.drift.chromadb_doc_delta) / prevDocs;
+            if (docPct > 0.10) {
+              driftWarnings.push(`ChromaDB document count changed by ${snapshot.drift.chromadb_doc_delta} (${(docPct * 100).toFixed(1)}% from ${prevDocs})`);
+            }
+          }
+
+          if (driftWarnings.length > 0) {
+            status += `\n## Health Drift Warnings\n\n`;
+            driftWarnings.forEach(w => {
+              status += `[WARN] ${w}\n`;
+            });
+            status += '\n';
+          }
+        }
+
+        // Append snapshot
+        appendFileSync(healthHistoryPath, JSON.stringify(snapshot) + '\n');
+        status += `\n*Health snapshot persisted to health_history.jsonl*\n`;
+
+      } catch (error) {
+        console.error(`[WARN] Failed to persist health snapshot: ${error.message}`);
+      }
+    }
+
     return status;
+  }
+
+  /**
+   * Phase 43: Get health trend from persisted snapshots
+   */
+  async getHealthTrend(args = {}) {
+    const { limit = 10 } = args;
+    const healthHistoryPath = join(__dirname, '..', '..', 'sdd_framework', 'execution_state', 'health_history.jsonl');
+
+    if (!existsSync(healthHistoryPath)) {
+      return {
+        content: [{
+          type: 'text',
+          text: '# Health Trend\n\nNo health history found. Run `mcp_health_check({ deep: true })` to generate the first snapshot.'
+        }]
+      };
+    }
+
+    let snapshots;
+    try {
+      const lines = readFileSync(healthHistoryPath, 'utf-8').trim().split('\n').filter(l => l);
+      snapshots = lines.slice(-limit).map(l => JSON.parse(l));
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `# Health Trend\n\n[ERROR] Failed to read health history: ${error.message}`
+        }]
+      };
+    }
+
+    if (snapshots.length === 0) {
+      return {
+        content: [{
+          type: 'text',
+          text: '# Health Trend\n\nHealth history file is empty. Run `mcp_health_check({ deep: true })` to generate snapshots.'
+        }]
+      };
+    }
+
+    let md = `# Health Trend (last ${snapshots.length} snapshots)\n\n`;
+
+    // Summary table
+    md += '| Timestamp | Neo4j Nodes | Neo4j Rels | ChromaDB Docs | Collections | Node Drift | Doc Drift |\n';
+    md += '|-----------|-------------|------------|---------------|-------------|------------|----------|\n';
+    for (const s of snapshots) {
+      const ts = s.timestamp ? new Date(s.timestamp).toISOString().replace('T', ' ').slice(0, 19) : '?';
+      md += `| ${ts} | ${s.neo4j?.nodes ?? '?'} | ${s.neo4j?.relationships ?? '?'} | ${s.chromadb?.total_docs ?? '?'} | ${s.chromadb?.collections ?? '?'} | ${s.drift?.neo4j_node_delta ?? 0} | ${s.drift?.chromadb_doc_delta ?? 0} |\n`;
+    }
+    md += '\n';
+
+    // Count trends
+    if (snapshots.length >= 2) {
+      const first = snapshots[0];
+      const last = snapshots[snapshots.length - 1];
+
+      const nodeTrend = (last.neo4j?.nodes ?? 0) - (first.neo4j?.nodes ?? 0);
+      const docTrend = (last.chromadb?.total_docs ?? 0) - (first.chromadb?.total_docs ?? 0);
+      const trendLabel = (v) => v > 0 ? 'increasing' : v < 0 ? 'decreasing' : 'stable';
+
+      md += `## Trends\n\n`;
+      md += `- **Neo4j nodes**: ${trendLabel(nodeTrend)} (${nodeTrend >= 0 ? '+' : ''}${nodeTrend} over ${snapshots.length} snapshots)\n`;
+      md += `- **ChromaDB docs**: ${trendLabel(docTrend)} (${docTrend >= 0 ? '+' : ''}${docTrend} over ${snapshots.length} snapshots)\n`;
+
+      // Latency trends
+      const neo4jLatencies = snapshots.map(s => s.neo4j?.latency_ms).filter(v => v != null);
+      const chromaLatencies = snapshots.map(s => s.chromadb?.latency_ms).filter(v => v != null);
+
+      if (neo4jLatencies.length >= 2) {
+        const avgLatency = neo4jLatencies.reduce((a, b) => a + b, 0) / neo4jLatencies.length;
+        const latTrend = neo4jLatencies[neo4jLatencies.length - 1] - neo4jLatencies[0];
+        md += `- **Neo4j latency**: avg ${avgLatency.toFixed(0)}ms, trend ${latTrend >= 0 ? '+' : ''}${latTrend}ms (${latTrend > 0 ? 'degrading' : 'improving'})\n`;
+      }
+      if (chromaLatencies.length >= 2) {
+        const avgLatency = chromaLatencies.reduce((a, b) => a + b, 0) / chromaLatencies.length;
+        const latTrend = chromaLatencies[chromaLatencies.length - 1] - chromaLatencies[0];
+        md += `- **ChromaDB latency**: avg ${avgLatency.toFixed(0)}ms, trend ${latTrend >= 0 ? '+' : ''}${latTrend}ms (${latTrend > 0 ? 'degrading' : 'improving'})\n`;
+      }
+      md += '\n';
+
+      // Anomaly detection (>10% change between consecutive snapshots)
+      const anomalies = [];
+      for (let i = 1; i < snapshots.length; i++) {
+        const prev = snapshots[i - 1];
+        const curr = snapshots[i];
+        const prevNodes = prev.neo4j?.nodes || 0;
+        const currNodes = curr.neo4j?.nodes || 0;
+        const prevDocs = prev.chromadb?.total_docs || 0;
+        const currDocs = curr.chromadb?.total_docs || 0;
+
+        if (prevNodes > 0 && Math.abs(currNodes - prevNodes) / prevNodes > 0.10) {
+          anomalies.push(`[WARN] Neo4j node count jumped from ${prevNodes} to ${currNodes} at ${curr.timestamp}`);
+        }
+        if (prevDocs > 0 && Math.abs(currDocs - prevDocs) / prevDocs > 0.10) {
+          anomalies.push(`[WARN] ChromaDB doc count jumped from ${prevDocs} to ${currDocs} at ${curr.timestamp}`);
+        }
+      }
+
+      if (anomalies.length > 0) {
+        md += `## Anomalies Detected\n\n`;
+        anomalies.forEach(a => { md += `${a}\n`; });
+        md += '\n';
+      } else {
+        md += `## Anomalies\n\nNo anomalies detected (all consecutive changes within 10% threshold).\n\n`;
+      }
+    }
+
+    return { content: [{ type: 'text', text: md }] };
   }
 
   /**

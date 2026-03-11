@@ -104,6 +104,11 @@ export class SDDWorkflowTools {
           workflow_name: {
             type: 'string',
             description: 'Filter by workflow name (optional)'
+          },
+          analytics: {
+            type: 'boolean',
+            description: 'Include process analytics: phase status counts, step tag distribution, velocity trends, average duration',
+            default: false
           }
         }
       },
@@ -376,12 +381,12 @@ export class SDDWorkflowTools {
    * Get execution history from JSONL log (Phase 31: rewritten)
    */
   async getExecutionHistory(args = {}) {
-    const { limit = 10, workflow_name } = args;
+    const { limit = 10, workflow_name, analytics = false } = args;
 
     try {
       const history = this.sessionManager.getHistory({
         phase: workflow_name,
-        limit
+        limit: analytics ? 1000 : limit  // Fetch more for analytics
       });
 
       let output = '# SDD Session History\n\n';
@@ -390,8 +395,6 @@ export class SDDWorkflowTools {
         output += '*No session history found.*\n';
         return { content: [{ type: 'text', text: output }] };
       }
-
-      output += `Showing ${history.length} recent events\n\n`;
 
       // Group by session
       const sessions = {};
@@ -402,7 +405,13 @@ export class SDDWorkflowTools {
         sessions[entry.sessionId].push(entry);
       }
 
-      for (const [sessionId, events] of Object.entries(sessions)) {
+      // Show recent sessions (limited)
+      const sessionEntries = Object.entries(sessions);
+      const displayEntries = analytics ? sessionEntries.slice(-limit) : sessionEntries;
+
+      output += `Showing ${displayEntries.length} recent sessions\n\n`;
+
+      for (const [sessionId, events] of displayEntries) {
         const started = events.find(e => e.event === 'started');
         const completed = events.find(e => e.event === 'completed');
         const abandoned = events.find(e => e.event === 'abandoned');
@@ -430,6 +439,81 @@ export class SDDWorkflowTools {
         }
 
         output += '\n';
+      }
+
+      // Phase 43: Session analytics
+      if (analytics) {
+        output += '---\n\n# Session Analytics\n\n';
+
+        // Phases by status
+        let completedCount = 0, abandonedCount = 0, inProgressCount = 0;
+        const tagCounts = {};
+        const durations = [];
+        const stepsPerSession = [];
+
+        for (const [, events] of sessionEntries) {
+          const completed = events.find(e => e.event === 'completed');
+          const abandoned = events.find(e => e.event === 'abandoned');
+          const steps = events.filter(e => e.event === 'step_completed');
+
+          if (completed) completedCount++;
+          else if (abandoned) abandonedCount++;
+          else inProgressCount++;
+
+          stepsPerSession.push(steps.length);
+
+          // Collect step tags
+          for (const step of steps) {
+            const tag = step.tag || 'unknown';
+            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+          }
+
+          // Collect durations
+          if (completed) {
+            const durationStr = completed.duration || '';
+            const match = durationStr.match(/(\d+)m/);
+            if (match) {
+              durations.push(parseInt(match[1], 10));
+            }
+          }
+        }
+
+        output += '## Phases by Status\n\n';
+        output += `| Status | Count |\n|--------|-------|\n`;
+        output += `| Completed | ${completedCount} |\n`;
+        output += `| Abandoned | ${abandonedCount} |\n`;
+        output += `| In Progress | ${inProgressCount} |\n`;
+        output += `| **Total** | **${sessionEntries.length}** |\n\n`;
+
+        // Step tag distribution
+        const totalSteps = Object.values(tagCounts).reduce((a, b) => a + b, 0);
+        if (totalSteps > 0) {
+          output += '## Step Tag Distribution\n\n';
+          output += `| Tag | Count | Percent |\n|-----|-------|--------|\n`;
+          const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+          for (const [tag, count] of sortedTags) {
+            output += `| ${tag} | ${count} | ${((count / totalSteps) * 100).toFixed(0)}% |\n`;
+          }
+          output += `| **Total** | **${totalSteps}** | |\n\n`;
+        }
+
+        // Average session duration
+        if (durations.length > 0) {
+          const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
+          output += `## Duration\n\n`;
+          output += `- Average session duration: ${avgDuration.toFixed(0)} minutes\n`;
+          output += `- Shortest: ${Math.min(...durations)}m, Longest: ${Math.max(...durations)}m\n`;
+          output += `- Sessions with duration data: ${durations.length}\n\n`;
+        }
+
+        // Velocity trend (steps per session, last 10)
+        if (stepsPerSession.length > 0) {
+          const recentVelocity = stepsPerSession.slice(-10);
+          const avgVelocity = recentVelocity.reduce((a, b) => a + b, 0) / recentVelocity.length;
+          output += `## Velocity\n\n`;
+          output += `- Average steps per session (last ${recentVelocity.length}): ${avgVelocity.toFixed(1)}\n`;
+          output += `- Recent trend: ${recentVelocity.join(', ')} steps\n\n`;
+        }
       }
 
       return { content: [{ type: 'text', text: output }] };

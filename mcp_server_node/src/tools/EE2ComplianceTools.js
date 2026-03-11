@@ -380,18 +380,61 @@ export class EE2ComplianceTools {
       // Step 2: Analyze content against retrieved standards (consultative tone)
       const observations = [];
       
-      // Error handling analysis
+      // Error handling analysis (Phase 43: SME-corrected with remediation suggestions)
       if (standards.error_handling) {
-        const hasSetEu = /set -[eu]/.test(content);
+        const hasSetEu = /set -eu/.test(content);
+        const hasSetE = /set -e\b/.test(content);
         const isBashScript = /^#!\/bin\/(ba)?sh/.test(content);
-        
-        if (isBashScript && !hasSetEu) {
+        const hasErrChk = /err_chk/.test(content);
+        const hasPreamble = /preamble\.sh/.test(content);
+        const hasFileOps = /\b(cp|mv|ln)\b/.test(content);
+        const fileOpsWithoutErrChk = content.match(/\b(cp|mv|ln)\s+[^\n]*\n(?!\s*export\s+err)/g) || [];
+
+        // SME-corrected: set -eu is NOT required; flag it as anti-pattern if present
+        if (isBashScript && hasSetEu) {
+          const antiPattern = phase2Config?.anti_patterns?.error_handling?.find(p => p.name === 'set_eu_false_positive');
           observations.push({
             category: 'Error Handling',
-            pattern: 'Bash script without explicit error handling',
-            suggestion: 'Consider adding "set -eu" or "set -euo pipefail" near the script start',
-            reasoning: 'The EE2 standards suggest explicit error handling to improve reliability and debugging',
-            reference: standards.error_handling[0]?.metadata?.section_headers || 'General Application Standards'
+            pattern: 'Script uses set -eu (not required by EE2 standards)',
+            suggestion: antiPattern?.suggested_fix || 'Remove set -eu; use err_chk/err_exit utilities instead.',
+            reasoning: 'EE2 standards do NOT require set -eu. The err_chk/err_exit utilities provide proper error handling.',
+            reference: antiPattern?.ee2_reference || 'EE2 §4.2.1 Error Handling',
+            confidence: antiPattern?.confidence || 'HIGH'
+          });
+        } else if (isBashScript && hasSetE) {
+          const antiPattern = phase2Config?.anti_patterns?.error_handling?.find(p => p.name === 'set_e_not_required');
+          observations.push({
+            category: 'Error Handling',
+            pattern: 'Script uses set -e (not required by EE2 standards)',
+            suggestion: antiPattern?.suggested_fix || 'Remove set -e; use err_chk after critical operations instead.',
+            reasoning: 'set -e is not required by EE2. Use err_chk for controlled error handling.',
+            reference: antiPattern?.ee2_reference || 'EE2 §4.2.1 Error Handling',
+            confidence: antiPattern?.confidence || 'HIGH'
+          });
+        }
+
+        // Check for missing err_chk after file operations
+        if (isBashScript && hasFileOps && fileOpsWithoutErrChk.length > 0 && !hasErrChk) {
+          const antiPattern = phase2Config?.anti_patterns?.error_handling?.find(p => p.name === 'missing_err_chk_after_file_ops');
+          observations.push({
+            category: 'Error Handling',
+            pattern: `Found ${fileOpsWithoutErrChk.length} file operation(s) without err_chk`,
+            suggestion: antiPattern?.suggested_fix || "Add 'export err=$?; err_chk' after every cp, mv, ln operation.",
+            reasoning: 'File operations can fail silently. err_chk prevents downstream failures from missing/incomplete data.',
+            reference: antiPattern?.ee2_reference || 'EE2 §4.2.3 File Operations',
+            confidence: antiPattern?.confidence || 'HIGH'
+          });
+        }
+
+        // Positive: script uses preamble.sh or err_chk
+        if (isBashScript && (hasPreamble || hasErrChk) && !hasSetEu) {
+          observations.push({
+            category: 'Error Handling',
+            pattern: 'Script uses EE2-compliant error handling (err_chk/preamble.sh)',
+            suggestion: 'No changes needed — this follows EE2 standards correctly.',
+            reasoning: 'Using err_chk/err_exit via preamble.sh is the correct EE2 pattern.',
+            reference: 'EE2 §4.2.1 Error Handling',
+            confidence: 'HIGH'
           });
         }
       }
@@ -425,6 +468,9 @@ export class EE2ComplianceTools {
           output += `### ${obs.category}\n\n`;
           output += `**Pattern observed:** ${obs.pattern}\n\n`;
           output += `**Suggestion:** ${obs.suggestion}\n\n`;
+          if (obs.confidence) {
+            output += `**Confidence:** ${obs.confidence}\n\n`;
+          }
           output += `**Why this matters:** ${obs.reasoning}\n\n`;
           output += `**Reference:** ${obs.reference}\n\n`;
           output += `---\n\n`;

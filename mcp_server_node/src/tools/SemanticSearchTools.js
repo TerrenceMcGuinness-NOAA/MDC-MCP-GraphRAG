@@ -169,6 +169,25 @@ export class SemanticSearchTools {
     );
 
     console.error('[OK] Registered 6 Semantic Search tools');
+
+    // Phase 43: Knowledge Base Integrity Monitor
+    server.registerTool(
+      'check_knowledge_integrity',
+      'Check knowledge base integrity: path consistency, orphaned nodes, stale embeddings, coverage gaps. Reports health of the global-workflow knowledge base.',
+      {
+        type: 'object',
+        properties: {
+          sample_size: {
+            type: 'number',
+            description: 'Number of documents to sample for stale embedding check (default: 50)',
+            default: 50
+          }
+        }
+      },
+      this.checkKnowledgeIntegrity.bind(this)
+    );
+
+    console.error('[OK] Registered check_knowledge_integrity tool (Phase 43)');
   }
 
   async searchDocumentation(args) {
@@ -677,6 +696,180 @@ export class SemanticSearchTools {
         isError: true
       };
     }
+  }
+
+  /**
+   * Phase 43: Check knowledge base integrity
+   * Runs 4 checks against the global-workflow knowledge base
+   */
+  async checkKnowledgeIntegrity(args = {}) {
+    await this.ensureInitialized();
+
+    if (this.initializationError) {
+      return {
+        content: [{
+          type: 'text',
+          text: `[ERROR] Cannot check integrity: ${this.initializationError.message}`
+        }]
+      };
+    }
+
+    const { sample_size = 50 } = args;
+    let md = '# Knowledge Base Integrity Report\n\n';
+    const checks = [];
+
+    // Check 1: Path consistency — no checkout-specific prefixes in ChromaDB
+    try {
+      const collections = await this.dataAccess.vectorDB.listCollections();
+      let badPathCount = 0;
+      let totalDocs = 0;
+
+      for (const col of collections) {
+        try {
+          const collection = await this.dataAccess.vectorDB.client.getCollection({ name: col.name || col });
+          const peek = await collection.peek({ limit: 100 });
+          totalDocs += (peek.ids?.length || 0);
+          if (peek.metadatas) {
+            for (const meta of peek.metadatas) {
+              const fp = meta?.file_path || meta?.source_path || '';
+              if (fp.startsWith('/') || fp.includes('/home/') || fp.includes('/scratch/')) {
+                badPathCount++;
+              }
+            }
+          }
+        } catch {
+          // Skip inaccessible collections
+        }
+      }
+
+      checks.push({
+        name: 'Path Consistency',
+        passed: badPathCount === 0,
+        details: badPathCount === 0
+          ? `[OK] 0/${totalDocs} sampled docs have checkout-specific prefix`
+          : `[WARN] ${badPathCount}/${totalDocs} sampled docs have checkout-specific prefix`
+      });
+    } catch (error) {
+      checks.push({ name: 'Path Consistency', passed: false, details: `[ERROR] ${error.message}` });
+    }
+
+    // Check 2: Orphaned graph nodes — File nodes with no ChromaDB match
+    try {
+      if (this.dataAccess.graphDb) {
+        const result = await this.dataAccess.graphDb.runQuery(
+          'MATCH (f:File) RETURN count(f) AS total'
+        );
+        const totalFiles = result?.[0]?.total || 0;
+
+        // Sample some file nodes and check if they have paths that make sense
+        const sampleResult = await this.dataAccess.graphDb.runQuery(
+          'MATCH (f:File) RETURN f.name AS name, f.absolutePath AS path LIMIT 20'
+        );
+        const orphaned = sampleResult?.filter(r => !r.path && !r.name) || [];
+
+        checks.push({
+          name: 'Orphaned Graph Nodes',
+          passed: orphaned.length === 0,
+          details: orphaned.length === 0
+            ? `[OK] ${totalFiles} File nodes in graph, 0/20 sampled lack identity`
+            : `[WARN] ${orphaned.length}/20 sampled File nodes lack name or path`
+        });
+      } else {
+        checks.push({ name: 'Orphaned Graph Nodes', passed: true, details: '[SKIP] Neo4j not available' });
+      }
+    } catch (error) {
+      checks.push({ name: 'Orphaned Graph Nodes', passed: false, details: `[ERROR] ${error.message}` });
+    }
+
+    // Check 3: Stale embeddings — sample docs and check for metadata staleness
+    try {
+      const collections = await this.dataAccess.vectorDB.listCollections();
+      let checkedCount = 0;
+      let staleCount = 0;
+      const now = Date.now();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+
+      for (const col of collections) {
+        if (checkedCount >= sample_size) break;
+        try {
+          const collection = await this.dataAccess.vectorDB.client.getCollection({ name: col.name || col });
+          const peek = await collection.peek({ limit: Math.min(sample_size - checkedCount, 50) });
+          if (peek.metadatas) {
+            for (const meta of peek.metadatas) {
+              checkedCount++;
+              const lastMod = meta?.lastModified || meta?.ingested_at || meta?.timestamp;
+              if (lastMod) {
+                const modTime = new Date(lastMod).getTime();
+                if (!isNaN(modTime) && (now - modTime) > thirtyDaysMs) {
+                  staleCount++;
+                }
+              }
+            }
+          }
+        } catch {
+          // Skip
+        }
+      }
+
+      checks.push({
+        name: 'Stale Embeddings',
+        passed: staleCount === 0 || staleCount / Math.max(checkedCount, 1) < 0.25,
+        details: staleCount === 0
+          ? `[OK] ${checkedCount}/${checkedCount} sampled docs appear current`
+          : `[WARN] ${staleCount}/${checkedCount} sampled docs have metadata older than 30 days`
+      });
+    } catch (error) {
+      checks.push({ name: 'Stale Embeddings', passed: false, details: `[ERROR] ${error.message}` });
+    }
+
+    // Check 4: Coverage gap — Fortran files on disk vs in graph
+    try {
+      if (this.dataAccess.graphDb) {
+        const graphResult = await this.dataAccess.graphDb.runQuery(
+          'MATCH (n) WHERE n:FortranSubroutine OR n:FortranModule OR n:FortranFunction RETURN count(n) AS total'
+        );
+        const graphFortranCount = graphResult?.[0]?.total || 0;
+
+        // Count Fortran files in supported_repos
+        const repoBase = path.join(__dirname, '..', '..', '..', 'supported_repos', 'global-workflow');
+        let diskFortranCount = 0;
+        try {
+          const { execSync } = await import('child_process');
+          const countStr = execSync(`find "${repoBase}" -name '*.f90' -o -name '*.F90' -o -name '*.f' -o -name '*.F' 2>/dev/null | wc -l`, { encoding: 'utf-8' }).trim();
+          diskFortranCount = parseInt(countStr, 10) || 0;
+        } catch {
+          diskFortranCount = 0;
+        }
+
+        const coveragePct = diskFortranCount > 0 ? ((graphFortranCount / diskFortranCount) * 100).toFixed(1) : 'N/A';
+
+        checks.push({
+          name: 'Coverage Gap',
+          passed: diskFortranCount === 0 || graphFortranCount / diskFortranCount > 0.20,
+          details: diskFortranCount > 0
+            ? `${graphFortranCount} Fortran symbols in graph, ${diskFortranCount} files on disk (${coveragePct}% coverage)`
+            : `[SKIP] No Fortran files found in supported_repos/global-workflow`
+        });
+      } else {
+        checks.push({ name: 'Coverage Gap', passed: true, details: '[SKIP] Neo4j not available' });
+      }
+    } catch (error) {
+      checks.push({ name: 'Coverage Gap', passed: false, details: `[ERROR] ${error.message}` });
+    }
+
+    // Format report
+    const allPassed = checks.every(c => c.passed);
+    md += allPassed ? '**Overall**: All checks passed\n\n' : '**Overall**: Issues detected\n\n';
+
+    md += '| Check | Status | Details |\n';
+    md += '|-------|--------|--------|\n';
+    for (const c of checks) {
+      const icon = c.passed ? '[OK]' : '[WARN]';
+      md += `| ${c.name} | ${icon} | ${c.details} |\n`;
+    }
+    md += '\n';
+
+    return { content: [{ type: 'text', text: md }] };
   }
 
   async ensureInitialized() {

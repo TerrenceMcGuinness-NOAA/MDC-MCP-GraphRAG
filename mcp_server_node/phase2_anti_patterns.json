@@ -1,70 +1,89 @@
 {
-  "version": "6.0.0",
+  "version": "6.1.0",
   "phase": 2,
   "generated": "2025-11-19T22:41:09.597Z",
+  "phase43_enhanced": "2026-03-11",
   "source_collection": "ee2-standards-v6-0-0-corrected",
   "total_documents": 23,
   "anti_patterns": {
     "error_handling": [
       {
-        "name": "unknown",
+        "name": "set_eu_false_positive",
         "directive": "mcp:sme_correction",
         "severity": "critical",
         "context": "operational_scripts",
         "false_positive_rate": "~80% (affects almost all scripts)",
         "sme_justification": "",
         "evidence": [],
-        "description": "**AI-Generated Recommendation (INCORRECT)**:\n   ❌ \"Missing ``set -eu`` in scripts\"\n\n**SME Correction**:\n   - ❌ ``set -eu`` is **NOT in EE2 standards**\n   - ✅ ``set -e`` is **NOT required** in operatio..."
+        "description": "**AI-Generated Recommendation (INCORRECT)**:\n   ❌ \"Missing ``set -eu`` in scripts\"\n\n**SME Correction**:\n   - ❌ ``set -eu`` is **NOT in EE2 standards**\n   - ✅ ``set -e`` is **NOT required** in operatio...",
+        "suggested_fix": "Do NOT add set -eu. Use 'source \"${USHgfs}/preamble.sh\"' after shebang for err_chk/err_exit utilities.",
+        "confidence": "HIGH",
+        "ee2_reference": "EE2 §4.2.1 Error Handling"
       },
       {
-        "name": "unknown",
+        "name": "set_e_not_required",
         "directive": "mcp:anti_pattern",
         "severity": "must_not",
         "context": "operational_scripts",
         "false_positive_rate": null,
         "sme_justification": "Not present in EE2 standards or examples",
         "evidence": [],
-        "description": "Do **NOT** recommend adding these to operational scripts:\n\n.. code-block:: bash\n\n   set -e   # ❌ NOT required by EE2\n   set -eu  # ❌ NOT required by EE2 (adds non-standard -u)\n   set -euo pipefail  # ..."
+        "description": "Do **NOT** recommend adding these to operational scripts:\n\n.. code-block:: bash\n\n   set -e   # ❌ NOT required by EE2\n   set -eu  # ❌ NOT required by EE2 (adds non-standard -u)\n   set -euo pipefail  # ...",
+        "suggested_fix": "Remove set -e/set -eu/set -euo pipefail. Use err_chk after critical operations instead.",
+        "confidence": "HIGH",
+        "ee2_reference": "EE2 §4.2.1 Error Handling"
       },
       {
-        "name": "unknown",
+        "name": "forced_exit_prohibited",
         "directive": "mcp:sme_correction",
         "severity": "critical",
         "context": "operational_scripts",
         "false_positive_rate": "~60% (many scripts flagged incorrectly)",
         "sme_justification": "",
         "evidence": [],
-        "description": "**AI-Generated Recommendation (INCORRECT)**:\n   ❌ \"Add ``exit 0`` and ``exit 1`` statements throughout scripts\"\n\n**SME Correction**:\n   - ❌ Forced exits (``exit 0``, ``exit 1``) are **explicitly prohi..."
+        "description": "**AI-Generated Recommendation (INCORRECT)**:\n   ❌ \"Add ``exit 0`` and ``exit 1`` statements throughout scripts\"\n\n**SME Correction**:\n   - ❌ Forced exits (``exit 0``, ``exit 1``) are **explicitly prohi...",
+        "suggested_fix": "Remove explicit exit 0/exit 1 statements. Use 'export err=$?; err_chk' pattern after critical operations. Let the script flow terminate naturally.",
+        "confidence": "HIGH",
+        "ee2_reference": "EE2 §4.2.2 Script Termination"
       },
       {
-        "name": "unknown",
+        "name": "exit_status_pattern_prohibited",
         "directive": "mcp:anti_pattern",
         "severity": "must_not",
         "context": "operational_job",
         "false_positive_rate": null,
         "sme_justification": "NCO SPA guidance - explicitly prohibited",
         "evidence": [],
-        "description": "**INCORRECT - Do NOT recommend these patterns**:\n\n.. code-block:: bash\n\n   # ❌ WRONG - NCO SPAs prohibit this\n   if [ $status -ne 0 ]; then\n       exit 1\n   fi\n   \n   # ❌ WRONG - NCO SPAs prohibit thi..."
+        "description": "**INCORRECT - Do NOT recommend these patterns**:\n\n.. code-block:: bash\n\n   # ❌ WRONG - NCO SPAs prohibit this\n   if [ $status -ne 0 ]; then\n       exit 1\n   fi\n   \n   # ❌ WRONG - NCO SPAs prohibit thi...",
+        "suggested_fix": "Replace 'if [ $status -ne 0 ]; then exit 1; fi' with 'export err=$?; err_chk' after the operation.",
+        "confidence": "HIGH",
+        "ee2_reference": "EE2 §4.2.2 Script Termination"
       },
       {
-        "name": "unknown",
+        "name": "set_x_debug_only",
         "directive": "mcp:anti_pattern",
         "severity": "must_not",
         "context": "all_scripts",
         "false_positive_rate": null,
         "sme_justification": "Not required by EE2; err_chk/err_exit provide error handling",
         "evidence": [],
-        "description": "Original EE2 Text:\n   \n   * Enable debug logging at the top of *each* shell script:\n       .. code-block:: bash\n   \n          set -x\n   \n       and add timing info to the execution trace by including ..."
+        "description": "Original EE2 Text:\n   \n   * Enable debug logging at the top of *each* shell script:\n       .. code-block:: bash\n   \n          set -x\n   \n       and add timing info to the execution trace by including ...",
+        "suggested_fix": "Use 'set -x' for debug logging only (EE2 recommended). Do not conflate set -x with set -e for error handling.",
+        "confidence": "MEDIUM",
+        "ee2_reference": "EE2 §3.1 Debug Logging"
       },
       {
-        "name": "unknown",
+        "name": "missing_err_chk_after_file_ops",
         "directive": "mcp:anti_pattern",
         "severity": "must_fix",
         "context": "operational_scripts",
         "false_positive_rate": null,
         "sme_justification": "File operations (cp, mv, ln) can fail silently due to disk space, permissions, network issues. Without err_chk, script continues with missing/incomplete data causing downstream failures that are hard to diagnose.",
         "evidence": [],
-        "description": "**Anti-Pattern Description:**\n   File operations (``cp``, ``mv``, ``ln``) executed without subsequent \n   ``err_chk`` call, allowing silent failures to propagate.\n\n**Non-Compliant Example (evs_href_pr..."
+        "description": "**Anti-Pattern Description:**\n   File operations (``cp``, ``mv``, ``ln``) executed without subsequent \n   ``err_chk`` call, allowing silent failures to propagate.\n\n**Non-Compliant Example (evs_href_pr...",
+        "suggested_fix": "Add 'export err=$?; err_chk' immediately after every cp, mv, ln, or other file operation. See scripts/exglobal_forecast.sh for a compliant example.",
+        "confidence": "HIGH",
+        "ee2_reference": "EE2 §4.2.3 File Operations"
       }
     ],
     "environment_variables": [],

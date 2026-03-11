@@ -3,7 +3,7 @@ applyWhen: hasActiveMCPServer("eib-mcp-rag-full") || hasActiveMCPServer("eib-mcp
 ---
 
 <!-- Regenerate tool tables with: cd mcp_server_node && node scripts/generate-tool-docs.js -->
-# EIB MCP Tool Usage Instructions (49 tools / 9 modules, v7.27.0)
+# EIB MCP Tool Usage Instructions (51 tools / 9 modules, v7.28.0)
 
 ## MCP-First Policy
 
@@ -23,7 +23,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 
 **Best practice**: MCP tools for discovery, then `read_file` for specific line-level details.
 
-## Tool Modules (49 tools / 9 modules)
+## Tool Modules (51 tools / 9 modules)
 
 ### 1. Workflow Info (3 tools — Filesystem)
 
@@ -44,7 +44,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 | `trace_full_execution_chain` | `start` | `direction`, `max_depth`, `languages` | Trace complete execution chain across Shell, Python, and Fortran language boundaries |
 | `find_env_dependencies` | `variable_name` | `show_exports`, `limit`, `token_budget` | Find all scripts that depend on or export a specific environment variable |
 
-### 3. Semantic Search (6 tools — ChromaDB + Neo4j)
+### 3. Semantic Search (7 tools — ChromaDB + Neo4j)
 
 | Tool | Required | Optional | Description |
 |------|----------|----------|-------------|
@@ -54,6 +54,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 | `get_knowledge_base_status` | — | `include_graph`, `include_vector` | Get comprehensive knowledge base statistics |
 | `list_ingested_urls` | — | `format`, `source_filter` | List all URLs that have been ingested into the RAG knowledge base |
 | `get_ingested_urls_array` | — | `include_failed` | Get a structured array of all ingested URLs for programmatic access |
+| `check_knowledge_integrity` | — | `sample_size` | Check knowledge base integrity: path consistency, orphaned nodes, stale embeddings, coverage gaps |
 
 ### 4. EE2 Compliance (5 tools — ChromaDB)
 
@@ -117,12 +118,13 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 
 **State persistence**: Active session in `sdd_framework/execution_state/active_session.json` (survives server restarts). All events append to `sdd_framework/execution_state/history.jsonl` for audit trail. Use `get_sdd_session` to resume an in-progress session in a new conversation.
 
-### 9. Utility (3 tools — Built-in)
+### 9. Utility (4 tools — Built-in)
 
 | Tool | Required | Optional | Description |
 |------|----------|----------|-------------|
 | `get_server_info` | — | `include_capabilities` | Get information about the MCP server and available tools |
 | `mcp_health_check` | — | `detailed`, `deep`, `functional` | Check the health status of all MCP server components |
+| `get_health_trend` | — | `limit` | Get health trend data from persisted snapshots with anomaly detection |
 | `get_quality_metrics` | — | `category`, `compare` | Get RAG quality benchmark metrics with optional regression comparison |
 
 ## RAG Knowledge Base Tiers
@@ -149,6 +151,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 - `search_documentation({ query })` — semantic search across ingested docs
 - `explain_with_context({ topic })` — RAG-powered explanations with citations
 - `find_related_files({ file_path })` — vector similarity for related code/docs
+- `check_knowledge_integrity()` — knowledge base integrity: path consistency, orphaned nodes, stale embeddings, coverage gaps
 - `get_knowledge_base_status()` — DB health and collection stats
 - `list_ingested_urls()` — documentation sources ingested into RAG
 - `get_ingested_urls_array()` — structured URL array for programmatic access
@@ -206,7 +209,9 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 - `analyze_workflow_dependencies({ component })` — cross-repo dependency analysis
 
 ### Health & Diagnostics
-- `mcp_health_check()` — full server + database health
+- `mcp_health_check()` — full server + database health (deep mode persists snapshots)
+- `get_health_trend()` — health trending over time with anomaly detection
+- `check_knowledge_integrity()` — knowledge base integrity monitoring
 - `get_server_info()` — server version and tool count
 - `get_quality_metrics()` — RAG quality benchmark results and regression detection
 
