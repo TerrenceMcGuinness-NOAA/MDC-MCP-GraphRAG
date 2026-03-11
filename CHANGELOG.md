@@ -1,5 +1,19 @@
 # MCP Server Changelog
 
+## [7.34.1] - EE2 Collection Path Normalization (March 11, 2026)
+
+### Data Maintenance
+- Added utility script `mcp_server_node/scripts/normalize_ee2_collection_paths.py` to normalize checkout-specific absolute metadata paths in ChromaDB collections.
+- Applied normalization to `ee2-standards-v5-0-0-enhanced` (34/34 docs updated) to convert metadata path fields (`file_path`, `source_path`, `source_file`, `source`) to repository-relative paths.
+
+### Validation
+- `check_knowledge_integrity(sample_size=200)` now passes all checks:
+  - Path Consistency: `0/834` sampled docs with checkout-specific prefix
+  - Orphaned Graph Nodes: `[OK]`
+  - Stale Embeddings: `[OK]`
+  - Coverage Gap: `[OK]`
+- `mcp_health_check({ deep: true, functional: true })` now reports Functional Status `PASS (6/6 tests passed)`.
+
 ## [7.34.0] - SDD Phase 43a: Knowledge Integrity Check Improvements (March 11, 2026)
 
 ### Improvements
