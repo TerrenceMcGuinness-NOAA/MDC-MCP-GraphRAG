@@ -1,0 +1,487 @@
+<?xml version="1.0"?>
+<!DOCTYPE workflow
+[
+	<!--
+	PROGRAM
+		Main workflow manager for Global Forecast System
+
+	NOTES:
+		This workflow was automatically generated at 2026-03-11 01:10:11.889750
+	-->
+	<!ENTITY PSLOT "C48_gsienkf_atmDA_250b0130-10380">
+	<!ENTITY ROTDIR "/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380">
+	<!ENTITY MAXTRIES "2">
+]>
+
+<workflow realtime="F" scheduler="slurm" cyclethrottle="3" taskthrottle="25">
+
+	<log verbosity="10"><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H.log</cyclestr></log>
+
+	<!-- Define the cycles -->
+	<cycledef group="gdas_half">202402231800 202402231800 06:00:00</cycledef>
+	<cycledef group="gdas">202402240000 202402240600 06:00:00</cycledef>
+
+<task name="gdas_prep" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/prep.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_gdas_prep_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>00:30:00</walltime>
+	<cores>14</cores>
+	<native>--export=NONE --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/gdas_prep.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<metataskdep metatask="enkfgdas_epmn" cycle_offset="-06:00:00"/>
+		<datadep><cyclestr>/gpfs/f6/drsa-precip3/world-shared/role.glopara/dump/gdas.@Y@m@d/@H/atmos/gdas.t@Hz.updated.status.tm00.bufr_d</cyclestr></datadep>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_fetchatmanlbias" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/fetch.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_gdas_fetchatmanlbias_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>hpss</queue>
+	<partition>dtn_f5_f6</partition>
+	<walltime>06:00:00</walltime>
+	<cores>1</cores>
+	<native>--export=NONE --clusters=es</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/gdas_fetchatmanlbias.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<metataskdep metatask="enkfgdas_epmn" cycle_offset="-06:00:00"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_prepatmanlbias" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/prepatmanlbias.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_gdas_prepatmanlbias_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>00:30:00</walltime>
+	<cores>1</cores>
+	<native>--export=NONE --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/gdas_prepatmanlbias.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_fetchatmanlbias"/>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_stage_ic" cycledefs="gdas_half" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/stage_ic.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_stage_ic_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>00:15:00</walltime>
+	<cores>1</cores>
+	<native>--export=NONE --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_stage_ic.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+</task>
+
+<task name="enkfgdas_eobs" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/eobs.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_eobs_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>00:15:00</walltime>
+	<nodes>1:ppn=96:tpp=2</nodes>
+	<native>--exclusive --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_eobs.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_prep"/>
+		<metataskdep metatask="enkfgdas_epmn" cycle_offset="-06:00:00"/>
+		<taskdep task="gdas_prepatmanlbias"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_eupd" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/eupd.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_eupd_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>00:45:00</walltime>
+	<nodes>1:ppn=96:tpp=2</nodes>
+	<native>--exclusive --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_eupd.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="enkfgdas_ediag"/>
+	</dependency>
+
+</task>
+
+<metatask name="enkfgdas_ecmn" mode="parallel">
+
+	<var name="grp">000</var>
+	<var name="dep">f006</var>
+	<var name="lst">f006</var>
+
+	<task name="enkfgdas_ecen#grp#" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+		<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/ecen.sh</command>
+
+		<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_ecen#grp#_@H</cyclestr></jobname>
+		<account>drsa-precip4</account>
+		<queue>normal</queue>
+		<partition>batch</partition>
+		<walltime>00:20:00</walltime>
+		<nodes>1:ppn=96:tpp=2</nodes>
+		<native>--exclusive --clusters=c6</native>
+
+		<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_ecen#grp#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>FHRGRP</name><value>#grp#</value></envar>
+		<envar><name>FHRLST</name><value>#lst#</value></envar>
+
+		<dependency>
+			<and>
+			<taskdep task="enkfgdas_eupd"/>
+			</and>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="enkfgdas_ediag" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/ediag.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_ediag_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>00:15:00</walltime>
+	<cores>192</cores>
+	<native>--export=NONE --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_ediag.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="enkfgdas_eobs"/>
+	</dependency>
+
+</task>
+
+<metatask name="enkfgdas_fcst" mode="parallel">
+
+	<var name="member">001 002</var>
+
+	<task name="enkfgdas_fcst_mem#member#" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+		<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/fcst.sh</command>
+
+		<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_fcst_mem#member#_@H</cyclestr></jobname>
+		<account>drsa-precip4</account>
+		<queue>normal</queue>
+		<partition>batch</partition>
+		<walltime>00:20:00</walltime>
+		<cores>192</cores>
+		<native>--exclusive --clusters=c6</native>
+
+		<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_fcst_mem#member#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>ENSMEM</name><value>#member#</value></envar>
+		<envar><name>MEMDIR</name><value>mem#member#</value></envar>
+
+		<dependency>
+			<or>
+			<and>
+			<metataskdep metatask="enkfgdas_ecmn"/>
+			<taskdep task="enkfgdas_esfc"/>
+			</and>
+			<taskdep task="enkfgdas_stage_ic"/>
+			</or>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<metatask name="enkfgdas_epmn" mode="parallel">
+
+	<var name="grp">000 001 002 003 004 005 006</var>
+	<var name="dep">f003 f004 f005 f006 f007 f008 f009</var>
+	<var name="lst">f003 f004 f005 f006 f007 f008 f009</var>
+
+	<task name="enkfgdas_epos#grp#" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+		<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/epos.sh</command>
+
+		<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_epos#grp#_@H</cyclestr></jobname>
+		<account>drsa-precip4</account>
+		<queue>normal</queue>
+		<partition>batch</partition>
+		<walltime>00:15:00</walltime>
+		<cores>192</cores>
+		<native>--exclusive --clusters=c6</native>
+
+		<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_epos#grp#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>FHRGRP</name><value>#grp#</value></envar>
+		<envar><name>FHRLST</name><value>#lst#</value></envar>
+
+		<dependency>
+			<metataskdep metatask="enkfgdas_fcst"/>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="enkfgdas_esfc" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/esfc.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_esfc_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>01:15:00</walltime>
+	<cores>96</cores>
+	<native>--export=NONE --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_esfc.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="enkfgdas_eupd"/>
+		</and>
+	</dependency>
+
+</task>
+
+<metatask name="enkfgdas_earc_tars" mode="parallel">
+
+	<var name="grp">00 01</var>
+
+	<task name="enkfgdas_earc_tars_#grp#" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+		<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/earc_tars.sh</command>
+
+		<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_earc_tars_#grp#_@H</cyclestr></jobname>
+		<account>drsa-precip4</account>
+		<queue>hpss</queue>
+		<partition>dtn_f5_f6</partition>
+		<walltime>06:00:00</walltime>
+		<cores>1</cores>
+		<native>--export=NONE --clusters=es</native>
+
+		<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_earc_tars_#grp#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>ENSGRP</name><value>#grp#</value></envar>
+
+		<dependency>
+			<and>
+			<metataskdep metatask="enkfgdas_epmn"/>
+			</and>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="enkfgdas_cleanup" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+	<command>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow/dev/job_cards/rocoto/cleanup.sh</command>
+
+	<jobname><cyclestr>C48_gsienkf_atmDA_250b0130-10380_enkfgdas_cleanup_@H</cyclestr></jobname>
+	<account>drsa-precip4</account>
+	<queue>normal</queue>
+	<partition>batch</partition>
+	<walltime>00:15:00</walltime>
+	<cores>1</cores>
+	<native>--export=NONE --clusters=c6</native>
+
+	<join><cyclestr>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT/C48_gsienkf_atmDA_250b0130-10380/logs/@Y@m@d@H/enkfgdas_cleanup.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/EXPDIR/C48_gsienkf_atmDA_250b0130-10380</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/gpfs/f6/drsa-precip3/world-shared/global/CI/GITLAB/nightly_0_250b0130_10380/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/gpfs/f6/drsa-precip4/world-shared/role.glopara/RUNDIRS/C48_gsienkf_atmDA_250b0130-10380/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<or>
+		<and>
+		<streq><left><cyclestr>@Y@m@d@H</cyclestr></left><right>2024022318</right></streq>
+		<metataskdep metatask="enkfgdas_epmn"/>
+		</and>
+		<and>
+		<metataskdep metatask="enkfgdas_earc_tars"/>
+		</and>
+		</or>
+		</and>
+	</dependency>
+
+</task>
+
+</workflow>
