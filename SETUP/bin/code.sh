@@ -21,7 +21,7 @@
 set -e
 
 # VS Code server directory - use env var or default to HOME
-VSCODE_DIR="${VSCODE_SERVER_DIR:-${HOME}}"
+VSCODE_DIR="${VSCODE_SERVER_DIR:-${PWD}}"
 
 # Set VS Code's native environment variables for alternate storage
 if [[ "${VSCODE_DIR}" != "${HOME}" ]]; then
