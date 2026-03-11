@@ -2,7 +2,7 @@
 
 **Description**: Establish a practical, repeatable validation framework to evaluate hybrid graph system effectiveness, MCP tool quality, and code changes. Provides empirical evidence for system improvements.
 
-**Status**: PLANNING  
+**Status**: Superseded by Phase 44 (RAG Quality Assurance & Regression Framework, v7.27.0)
 **Priority**: High  
 **Prerequisite**: Phase 4C ISD/USD Architecture (complete), Phase 9 Metrics (partial)  
 **Downstream Consumers**: [Phase 24 - Graph-Guided Speculative Retrieval](phase24_graph_guided_speculative_retrieval.md) (GGSR benchmarking)  
