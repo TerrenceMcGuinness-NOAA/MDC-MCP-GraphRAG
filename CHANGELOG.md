@@ -1,5 +1,19 @@
 # MCP Server Changelog
 
+## [7.35.0] - Provisioning System v4.2.0: KasmVNC Primary + NVIDIA Fix (March 12, 2026)
+
+### Provisioning (SETUP/provisioning/09-desktop-vnc.sh)
+- **KasmVNC is now primary VNC server** for Parallel Works desktop integration (TigerVNC retained as fallback)
+- **NVIDIA GPU crash fix (system-level)**: Provisioning now disables `libnvidia-egl-gbm.so.1` by renaming to `.disabled` — prevents `GlxExtensionInit` segfault in all VNC servers including PW's own `start-template-v3.sh`
+- **kasmvnc.yaml**: Updated template with PW-compatible defaults (`require_ssl: false`, `hw3d: false`, `1920x1080`, no idle timeout, no IPv6)
+- **xstartup**: Added `GDK_BACKEND=x11` and `LIBGL_ALWAYS_SOFTWARE=1` environment variables for Rocky 9 compatibility
+- **PW select-de.sh bypass**: Pre-applied during provisioning so PW's `start-template-v3.sh` detects MATE desktop correctly on first session
+- **vnc-start.sh helper**: Rewritten — KasmVNC-primary with `-disableBasicAuth -sslOnly 0 -extension GLX`, PW session detection/warning, proper `kasmvnc-cert` group handling
+- **user_config.sh**: Updated KasmVNC description from "legacy" to "primary VNC server for PW integration"
+
+### Documentation
+- Updated provisioning header with PW architecture notes (service_port → nginx → kasmvnc_port)
+
 ## [7.34.1] - EE2 Collection Path Normalization (March 11, 2026)
 
 ### Data Maintenance

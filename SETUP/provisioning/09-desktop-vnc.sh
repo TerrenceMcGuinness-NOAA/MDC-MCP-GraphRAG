@@ -1,22 +1,33 @@
 #!/bin/bash
 ################################################################################
-# 09-desktop-vnc.sh - TigerVNC/KasmVNC remote desktop setup
-# Part of modular provisioning system v4.1.0
+# 09-desktop-vnc.sh - KasmVNC/TigerVNC remote desktop setup
+# Part of modular provisioning system v4.2.0
 #
-# RE-ENABLED (2026-03-09): Updated for Rocky 9 + TigerVNC 1.15.0 on PW AWS
-# GPU instances. Parallel Works provides noVNC/websockify bridge; this script
-# ensures MATE desktop, TigerVNC, and the NVIDIA GLX workaround are in place.
+# UPDATED (2026-03-12): KasmVNC is now primary. PW start-template-v3.sh handles
+# KasmVNC natively (display selection, port allocation, nginx proxy, xstartup).
+# This script ensures: MATE desktop installed, NVIDIA GPU crash prevented,
+# kasmvnc-cert group membership, and user VNC config files in place.
 #
-# Supports both KasmVNC (legacy) and TigerVNC (current)
+# Supports KasmVNC (primary) and TigerVNC (fallback)
 #
-# Rocky 9 NVIDIA GPU workaround:
-#   TigerVNC 1.15.0 segfaults in GlxExtensionInit when libnvidia-egl-gbm.so.1
-#   is loaded but no render nodes exist (headless VNC). Fix: -extension GLX.
-#   PW's noVNC bridge does not send VNC auth, so: -SecurityTypes None.
+# Rocky 9 NVIDIA GPU workaround (TWO layers):
+#   1. System-level: Disable libnvidia-egl-gbm.so.1 (prevents GlxExtensionInit
+#      segfault in all VNC servers, including PW's own start-template-v3.sh)
+#   2. Per-session: -extension GLX flag (backup, applied in helper scripts)
+#   PW start-template-v3.sh uses -disableBasicAuth for auth-free desktop access.
+#
+# PW Integration:
+#   PW's start-template-v3.sh handles KasmVNC lifecycle:
+#     - Allocates display via port probing
+#     - Opens kasmvnc_port via `pw agent open-port`
+#     - Starts nginx wrapper on service_port proxying to kasmvnc_port
+#     - Creates kasm-xstartup with DE auto-detection
+#   This script pre-configures the system so PW's template works cleanly.
 #
 # Usage after provisioning:
-#   Start VNC:  ~/bin/vnc-start.sh
-#   Stop VNC:   vncserver -kill :N  (or kill the Xvnc process)
+#   PW Desktop: Start via PW portal (automatic)
+#   Manual:     ~/bin/vnc-start.sh
+#   Stop:       vncserver -kill :N
 ################################################################################
 
 set -euo pipefail
@@ -175,9 +186,12 @@ configure_user_vnc_files() {
     chmod 700 "${vnc_dir}"
 
     # Create VNC xstartup script for MATE
+    # PW's start-template-v3.sh generates its own kasm-xstartup with DE detection.
+    # This xstartup is used for manual/systemd VNC starts outside PW.
     cat > "${vnc_dir}/xstartup" << 'EOFVNC'
 #!/bin/bash
-# KasmVNC Desktop Startup Script - MATE Desktop
+# KasmVNC/VNC Desktop Startup Script - MATE Desktop
+# Used for manual/systemd VNC starts. PW uses its own kasm-xstartup.
 
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 unset SESSION_MANAGER
@@ -187,6 +201,8 @@ export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=MATE
 export XDG_SESSION_DESKTOP=mate
+export GDK_BACKEND=x11
+export LIBGL_ALWAYS_SOFTWARE=1
 
 eval $(/usr/bin/dbus-launch --sh-syntax --exit-with-session)
 export DBUS_SESSION_BUS_ADDRESS
@@ -204,25 +220,56 @@ EOFCONFIG
     chown "${username}:${user_group}" "${vnc_dir}/config"
     chmod 644 "${vnc_dir}/config"
 
-    # Create KasmVNC configuration (only used by KasmVNC builds)
-    # For prototype cohort access via SSH port forwarding, keep origin HTTP.
+    # Create KasmVNC configuration
+    # PW start-template-v3.sh overrides websocket_port and ssl at runtime,
+    # but this provides sane defaults for manual starts and systemd service.
+    # require_ssl: false — PW's nginx wrapper handles TLS termination.
+    # hw3d: false — prevents GPU acceleration issues on headless VNC contexts.
     cat > "${vnc_dir}/kasmvnc.yaml" << 'EOFKASM'
 # KasmVNC Configuration for MCP RAG Development Environment
+# PW start-template-v3.sh overrides ports/SSL at runtime via CLI flags.
+
+desktop:
+    resolution:
+        width: 1920
+        height: 1080
+    allow_resize: true
+    pixel_depth: 24
+    gpu:
+        hw3d: false
+
+network:
+    protocol: http
+    interface: 0.0.0.0
+    websocket_port: auto
+    use_ipv4: true
+    use_ipv6: false
+    udp:
+        public_ip: auto
+        port: auto
+        stun_server: auto
+    ssl:
+        require_ssl: false
+
+user_session:
+    new_session_disconnects_existing_exclusive_session: false
+    concurrent_connections_prompt: false
+    idle_timeout: never
+
+keyboard:
+    ignore_numlock: false
+    raw_keyboard: false
+
+pointer:
+    enabled: true
+
+runtime_configuration:
+    allow_client_to_override_kasm_server_settings: true
+    allow_override_standard_vnc_server_settings: true
 
 logging:
     log_writer_name: all
     log_dest: logfile
-    level: 30
-
-network:
-    ssl:
-        require_ssl: false
-
-desktop:
-    allow_resize: true
-
-pointer:
-    enabled: true
 EOFKASM
     chown "${username}:${user_group}" "${vnc_dir}/kasmvnc.yaml"
     chmod 644 "${vnc_dir}/kasmvnc.yaml"
@@ -511,6 +558,45 @@ dnf install -y mate-desktop mate-session-manager mate-panel mate-terminal caja \
 }
 
 ################################################################################
+# NVIDIA GPU Workaround (System-Level)
+#
+# Rocky 9 AWS GPU instances have libnvidia-egl-gbm.so.1 which causes a
+# segfault in GlxExtensionInit when any VNC server (KasmVNC or TigerVNC)
+# initializes GLX in a headless context. This affects:
+#   - PW's start-template-v3.sh (which we can't modify per-session)
+#   - Manual vncserver starts
+#   - Systemd-managed VNC services
+#
+# Fix: Disable the library system-wide by renaming it. This is safe because:
+#   - Headless VNC does not need EGL/GBM (software rendering via swrast)
+#   - The real GPU is not used for VNC desktop rendering
+#   - The symlink rename is trivially reversible
+################################################################################
+
+log_subsection "NVIDIA EGL/GBM Workaround"
+
+NVIDIA_EGL_LIB="/lib64/libnvidia-egl-gbm.so.1"
+NVIDIA_EGL_DISABLED="${NVIDIA_EGL_LIB}.disabled"
+
+if [[ -L "${NVIDIA_EGL_LIB}" ]] || [[ -f "${NVIDIA_EGL_LIB}" ]]; then
+    if [[ ! -e "${NVIDIA_EGL_DISABLED}" ]]; then
+        mv "${NVIDIA_EGL_LIB}" "${NVIDIA_EGL_DISABLED}"
+        log_success "Disabled ${NVIDIA_EGL_LIB} (renamed to .disabled) — prevents VNC GLX segfault"
+    else
+        log_info "NVIDIA EGL library already disabled (${NVIDIA_EGL_DISABLED} exists)"
+        # Clean up: if both exist (e.g., dnf reinstalled the package), remove the active one
+        if [[ -e "${NVIDIA_EGL_LIB}" ]]; then
+            rm -f "${NVIDIA_EGL_LIB}"
+            log_info "Removed re-created ${NVIDIA_EGL_LIB} (package may have restored it)"
+        fi
+    fi
+elif [[ -e "${NVIDIA_EGL_DISABLED}" ]]; then
+    log_info "NVIDIA EGL library already disabled — no action needed"
+else
+    log_info "No NVIDIA EGL library found — GPU workaround not needed"
+fi
+
+################################################################################
 # KasmVNC Configuration
 ################################################################################
 
@@ -518,6 +604,7 @@ if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
     log_subsection "Configuring KasmVNC"
 
         # Add all provisioned users to kasmvnc-cert group (if it exists)
+        # Required even with sslOnly=0: KasmVNC checks cert readability at startup
         if getent group kasmvnc-cert &>/dev/null; then
                 for username in "${USERS_TO_CONFIG[@]}"; do
                         if id "${username}" &>/dev/null; then
@@ -525,6 +612,17 @@ if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
                         fi
                 done
                 log_info "Added provisioned users to kasmvnc-cert group"
+        fi
+
+        # PW's start-template-v3.sh backs up select-de.sh and replaces it with
+        # `exit 0` to skip DE selection prompts. Pre-apply this so the backup
+        # (.bak) exists cleanly and PW's mv doesn't fail on repeated sessions.
+        local SELECT_DE="/usr/lib/kasmvncserver/select-de.sh"
+        if [[ -f "${SELECT_DE}" ]] && ! [[ -f "${SELECT_DE}.bak" ]]; then
+            cp "${SELECT_DE}" "${SELECT_DE}.bak"
+            printf '#!/bin/sh\nexit 0\n' > "${SELECT_DE}"
+            chmod +x "${SELECT_DE}"
+            log_info "Pre-applied select-de.sh bypass for PW compatibility"
         fi
 
         install_kasmvnc_systemd_template
@@ -714,14 +812,19 @@ cat > "${USER_HOME}/bin/vnc-start.sh" << 'EOFHELPER'
 #!/bin/bash
 ################################################################################
 # vnc-start.sh - Start VNC server with proper configuration
-# 
+# v4.2.0 - KasmVNC primary, TigerVNC fallback
+#
+# For PW (Parallel Works) desktop sessions, PW's start-template-v3.sh handles
+# KasmVNC lifecycle automatically. This script is for MANUAL VNC sessions
+# (SSH-only access, debugging, or when PW portal is not available).
+#
 # Usage: vnc-start.sh [display] [geometry]
 #   display:  VNC display number (default: 1)
 #   geometry: Screen resolution (default: 1920x1080)
 #
 # Examples:
-#   vnc-start.sh           # Start on :1 with 1920x1080
-#   vnc-start.sh 2         # Start on :2 with 1920x1080  
+#   vnc-start.sh              # Start on :1 with 1920x1080
+#   vnc-start.sh 2            # Start on :2 with 1920x1080
 #   vnc-start.sh 1 2560x1440  # Start on :1 with 2560x1440
 ################################################################################
 
@@ -729,20 +832,23 @@ DISPLAY_NUM="${1:-1}"
 GEOMETRY="${2:-1920x1080}"
 DEPTH=24
 
-# Check if PW noVNC bridge is running and auto-detect its target port
-PW_VNC_PORT=$(ps aux | grep -oP '(?<=--vnc )[^ ]+:\K\d+' | head -1 || true)
-if [[ -n "${PW_VNC_PORT}" ]]; then
-    DISPLAY_NUM=$((PW_VNC_PORT - 5900))
-    echo "Detected PW noVNC bridge targeting port ${PW_VNC_PORT} (display :${DISPLAY_NUM})"
+# Warn if PW session is active — PW manages its own VNC
+if pgrep -f 'start-template-v3' &>/dev/null; then
+    echo "[WARN] PW desktop session detected (start-template-v3.sh running)."
+    echo "[WARN] PW manages KasmVNC automatically. This starts an ADDITIONAL session."
+    echo ""
 fi
 
-# Detect VNC type
-if rpm -q kasmvncserver &>/dev/null || rpm -q kasmvnc &>/dev/null; then
+# Detect VNC type (KasmVNC preferred)
+if command -v kasmvncserver &>/dev/null || rpm -q kasmvncserver &>/dev/null; then
     VNC_TYPE="kasmvnc"
     PORT=$((8443 + DISPLAY_NUM))
-else
+elif command -v Xvnc &>/dev/null; then
     VNC_TYPE="tigervnc"
     PORT=$((5900 + DISPLAY_NUM))
+else
+    echo "[ERROR] No VNC server installed (kasmvncserver or Xvnc required)"
+    exit 1
 fi
 
 echo "Starting ${VNC_TYPE} on display :${DISPLAY_NUM} (port ${PORT})..."
@@ -754,32 +860,39 @@ if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
     vncserver -kill ":${DISPLAY_NUM}" 2>/dev/null || true
     sleep 1
 
-    # KasmVNC requires kasmvnc-cert group for SSL access
-    if groups | grep -q kasmvnc-cert; then
-        vncserver ":${DISPLAY_NUM}" -geometry "${GEOMETRY}" -depth "${DEPTH}"
+    # Build KasmVNC flags for manual (non-PW) usage
+    #   -disableBasicAuth : no username/password prompt
+    #   -sslOnly 0        : allow plain HTTP (PW nginx expects HTTP upstream)
+    #   -extension GLX    : backup NVIDIA crash prevention (system lib is disabled
+    #                        during provisioning, but belt-and-suspenders)
+    KASM_FLAGS="-geometry ${GEOMETRY} -depth ${DEPTH} -disableBasicAuth -sslOnly 0 -extension GLX"
+
+    # KasmVNC requires kasmvnc-cert group membership even with SSL off
+    if id -nG | grep -qw kasmvnc-cert; then
+        vncserver ":${DISPLAY_NUM}" ${KASM_FLAGS}
     else
-        echo "Running with kasmvnc-cert group..."
-        sg kasmvnc-cert -c "vncserver :${DISPLAY_NUM} -geometry ${GEOMETRY} -depth ${DEPTH}"
+        echo "[WARN] Not in kasmvnc-cert group. Trying sg wrapper..."
+        sg kasmvnc-cert -c "vncserver :${DISPLAY_NUM} ${KASM_FLAGS}"
     fi
-    
+
     echo ""
-    echo "VNC started successfully!"
+    echo "[OK] KasmVNC started successfully!"
     echo ""
-    echo "To access from your local machine:"
+    echo "Access via browser (no password needed):"
     echo "  1. SSH tunnel:  ssh -L ${PORT}:localhost:${PORT} \$(hostname) -N"
-    echo "  2. Browser:     https://localhost:${PORT}"
+    echo "  2. Browser:     http://localhost:${PORT}"
     echo ""
     echo "To stop:  vncserver -kill :${DISPLAY_NUM}"
 else
-    # TigerVNC with NVIDIA GLX workaround
+    # TigerVNC fallback with NVIDIA GLX workaround
     # Kill any existing Xvnc on this port
     kill $(lsof -ti :"${PORT}" 2>/dev/null) 2>/dev/null || true
     sleep 1
 
     # Start Xvnc directly (not via deprecated vncserver wrapper)
-    #   -extension GLX : prevent NVIDIA EGL segfault on GPU nodes
-    #   -SecurityTypes None : PW noVNC bridge doesn't send VNC passwords
-    #   -pn : skip broken X11 access control
+    #   -extension GLX    : prevent NVIDIA EGL segfault on GPU nodes
+    #   -SecurityTypes None : no VNC password required
+    #   -pn               : skip broken X11 access control
     Xvnc ":${DISPLAY_NUM}" -geometry "${GEOMETRY}" -depth "${DEPTH}" \
          -SecurityTypes None -extension GLX -pn &
     XVNC_PID=$!
@@ -790,26 +903,21 @@ else
         exit 1
     fi
 
-    # Launch MATE desktop
-    export DISPLAY=:${DISPLAY_NUM}
+    # Launch MATE desktop on this display
+    export DISPLAY=":${DISPLAY_NUM}"
+    export GDK_BACKEND=x11
+    export LIBGL_ALWAYS_SOFTWARE=1
     nohup mate-session &>/tmp/mate-vnc-${DISPLAY_NUM}.log &
     sleep 3
 
-    vncserver ":${DISPLAY_NUM}" -geometry "${GEOMETRY}" -depth "${DEPTH}"
-    
     echo ""
-    echo "VNC started successfully!"
-    echo ""
+    echo "[OK] TigerVNC started successfully!"
     echo "Xvnc PID: ${XVNC_PID}"
     echo "Display:  :${DISPLAY_NUM} (port ${PORT})"
     echo ""
-    if [[ -n "${PW_VNC_PORT:-}" ]]; then
-        echo "PW noVNC bridge should now connect automatically."
-    else
-        echo "To access from your local machine:"
-        echo "  1. SSH tunnel:  ssh -L ${PORT}:localhost:${PORT} \$(hostname) -N"
-        echo "  2. VNC client:  localhost:${PORT}"
-    fi
+    echo "To access from your local machine:"
+    echo "  1. SSH tunnel:  ssh -L ${PORT}:localhost:${PORT} \$(hostname) -N"
+    echo "  2. VNC client:  localhost:${PORT}"
     echo ""
     echo "To stop:  kill ${XVNC_PID}"
 fi
@@ -843,32 +951,23 @@ log_info "VNC Type: ${VNC_TYPE}"
 
 if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
     log_info ""
-    log_info "=== KasmVNC Quick Start ==="
+    log_info "=== KasmVNC (Primary) ==="
     log_info ""
-    log_info "Start VNC:"
-    log_info "  sg kasmvnc-cert -c \"vncserver :1 -geometry 1920x1080 -depth 24\""
-    log_info "  Or use: ~/bin/vnc-start.sh"
+    log_info "PW Desktop: Automatic via PW portal (start-template-v3.sh)"
     log_info ""
-    log_info "SSH Port Forward (from local machine):"
-    log_info "  ssh -L 8444:localhost:8444 user@host -N"
+    log_info "Manual start (SSH-only):"
+    log_info "  ~/bin/vnc-start.sh"
+    log_info "  Then SSH tunnel + browser: http://localhost:8444"
     log_info ""
-    log_info "Access in browser:"
-    log_info "  https://localhost:8444"
-    log_info ""
-    log_info "Stop VNC:"
-    log_info "  vncserver -kill :1"
+    log_info "NVIDIA GPU: libnvidia-egl-gbm.so.1 disabled (system-level)"
+    log_info "Stop VNC:   vncserver -kill :1"
     log_info ""
 else
     log_info ""
-    log_info "=== TigerVNC Quick Start ==="
+    log_info "=== TigerVNC (Fallback) ==="
     log_info ""
-    log_info "Start VNC:"
-    log_info "  vncserver :1 -geometry 1920x1080 -depth 24"
-    log_info ""
-    log_info "SSH Port Forward (from local machine):"
-    log_info "  ssh -L 5901:localhost:5901 user@host -N"
-    log_info ""
-    log_info "VNC Password: mcp2025vnc"
+    log_info "Start: ~/bin/vnc-start.sh"
+    log_info "       ssh -L 5901:localhost:5901 user@host -N"
     log_info ""
 fi
 
