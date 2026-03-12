@@ -1,40 +1,40 @@
 {
   "systems": {
     "baseline": {
-      "hitRate": "40.0%",
-      "hits": 20,
+      "hitRate": "38.0%",
+      "hits": 19,
       "total": 50,
       "errors": 0,
-      "p50LatencyMs": 46,
-      "p95LatencyMs": 72,
-      "avgLatencyMs": 46
+      "p50LatencyMs": 48,
+      "p95LatencyMs": 82,
+      "avgLatencyMs": 49
     },
     "ggsr": {
       "hitRate": "40.0%",
       "hits": 20,
       "total": 50,
       "errors": 0,
-      "p50LatencyMs": 70,
-      "p95LatencyMs": 114,
-      "avgLatencyMs": 59
+      "p50LatencyMs": 67,
+      "p95LatencyMs": 197,
+      "avgLatencyMs": 66
     },
     "ggsr_community": {
-      "hitRate": "48.0%",
-      "hits": 24,
+      "hitRate": "40.0%",
+      "hits": 20,
       "total": 50,
       "errors": 0,
-      "p50LatencyMs": 70,
-      "p95LatencyMs": 120,
-      "avgLatencyMs": 67
+      "p50LatencyMs": 72,
+      "p95LatencyMs": 201,
+      "avgLatencyMs": 82
     },
     "full": {
-      "hitRate": "60.0%",
-      "hits": 30,
+      "hitRate": "44.0%",
+      "hits": 22,
       "total": 50,
       "errors": 0,
-      "p50LatencyMs": 60,
-      "p95LatencyMs": 120,
-      "avgLatencyMs": 64
+      "p50LatencyMs": 71,
+      "p95LatencyMs": 118,
+      "avgLatencyMs": 73
     }
   },
   "perQuery": [
@@ -45,22 +45,22 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 60,
+          "latencyMs": 76,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 67,
+          "latencyMs": 73,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 139,
+          "latencyMs": 140,
           "resultCount": 15
         },
         "full": {
-          "hit": true,
-          "latencyMs": 140,
+          "hit": false,
+          "latencyMs": 149,
           "resultCount": 15
         }
       }
@@ -72,23 +72,23 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 24,
+          "latencyMs": 65,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 19,
+          "latencyMs": 51,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 23,
+          "latencyMs": 51,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 22,
-          "resultCount": 6
+          "latencyMs": 53,
+          "resultCount": 3
         }
       }
     },
@@ -99,23 +99,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 35,
+          "latencyMs": 46,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 61,
+          "latencyMs": 115,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 55,
+          "latencyMs": 106,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 63,
-          "resultCount": 12
+          "latencyMs": 96,
+          "resultCount": 15
         }
       }
     },
@@ -126,23 +126,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 51,
+          "latencyMs": 45,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 48,
+          "latencyMs": 47,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 46,
+          "latencyMs": 56,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 46,
-          "resultCount": 12
+          "latencyMs": 43,
+          "resultCount": 15
         }
       }
     },
@@ -153,22 +153,22 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 57,
+          "latencyMs": 63,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 69,
+          "latencyMs": 62,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 77,
+          "latencyMs": 51,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 59,
+          "latencyMs": 69,
           "resultCount": 15
         }
       }
@@ -180,7 +180,7 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 36,
+          "latencyMs": 51,
           "resultCount": 10
         },
         "ggsr": {
@@ -190,12 +190,12 @@
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 104,
+          "latencyMs": 77,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 112,
+          "latencyMs": 57,
           "resultCount": 15
         }
       }
@@ -207,22 +207,22 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 45,
+          "latencyMs": 54,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 96,
+          "latencyMs": 61,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 81,
+          "latencyMs": 63,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 73,
+          "latencyMs": 71,
           "resultCount": 15
         }
       }
@@ -234,23 +234,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 42,
+          "latencyMs": 56,
           "resultCount": 10
         },
         "ggsr": {
-          "hit": true,
-          "latencyMs": 70,
+          "hit": false,
+          "latencyMs": 68,
           "resultCount": 15
         },
         "ggsr_community": {
-          "hit": true,
-          "latencyMs": 49,
+          "hit": false,
+          "latencyMs": 88,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 74,
-          "resultCount": 15
+          "latencyMs": 68,
+          "resultCount": 1
         }
       }
     },
@@ -261,23 +261,23 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 59,
+          "latencyMs": 71,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 93,
-          "resultCount": 13
+          "latencyMs": 215,
+          "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 94,
-          "resultCount": 13
+          "latencyMs": 233,
+          "resultCount": 15
         },
         "full": {
-          "hit": true,
-          "latencyMs": 72,
-          "resultCount": 15
+          "hit": false,
+          "latencyMs": 108,
+          "resultCount": 1
         }
       }
     },
@@ -288,23 +288,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 51,
+          "latencyMs": 40,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 71,
+          "latencyMs": 167,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 77,
+          "latencyMs": 179,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 60,
-          "resultCount": 15
+          "latencyMs": 65,
+          "resultCount": 1
         }
       }
     },
@@ -315,7 +315,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 57,
+          "latencyMs": 42,
           "resultCount": 10
         },
         "ggsr": {
@@ -325,12 +325,12 @@
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 56,
+          "latencyMs": 172,
           "resultCount": 3
         },
         "full": {
           "hit": false,
-          "latencyMs": 59,
+          "latencyMs": 171,
           "resultCount": 3
         }
       }
@@ -342,7 +342,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 36,
+          "latencyMs": 98,
           "resultCount": 10
         },
         "ggsr": {
@@ -352,12 +352,12 @@
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 37,
+          "latencyMs": 98,
           "resultCount": 3
         },
         "full": {
           "hit": false,
-          "latencyMs": 39,
+          "latencyMs": 98,
           "resultCount": 3
         }
       }
@@ -369,7 +369,7 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 39,
+          "latencyMs": 77,
           "resultCount": 10
         },
         "ggsr": {
@@ -378,13 +378,13 @@
           "resultCount": 0
         },
         "ggsr_community": {
-          "hit": true,
-          "latencyMs": 40,
+          "hit": false,
+          "latencyMs": 100,
           "resultCount": 3
         },
         "full": {
-          "hit": true,
-          "latencyMs": 40,
+          "hit": false,
+          "latencyMs": 99,
           "resultCount": 3
         }
       }
@@ -396,7 +396,7 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 34,
+          "latencyMs": 38,
           "resultCount": 10
         },
         "ggsr": {
@@ -406,12 +406,12 @@
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 34,
+          "latencyMs": 60,
           "resultCount": 3
         },
         "full": {
           "hit": false,
-          "latencyMs": 35,
+          "latencyMs": 59,
           "resultCount": 3
         }
       }
@@ -423,7 +423,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 36,
+          "latencyMs": 32,
           "resultCount": 10
         },
         "ggsr": {
@@ -432,13 +432,13 @@
           "resultCount": 0
         },
         "ggsr_community": {
-          "hit": true,
-          "latencyMs": 36,
+          "hit": false,
+          "latencyMs": 43,
           "resultCount": 3
         },
         "full": {
-          "hit": true,
-          "latencyMs": 37,
+          "hit": false,
+          "latencyMs": 44,
           "resultCount": 3
         }
       }
@@ -450,7 +450,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 35,
+          "latencyMs": 39,
           "resultCount": 10
         },
         "ggsr": {
@@ -460,7 +460,7 @@
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 36,
+          "latencyMs": 33,
           "resultCount": 3
         },
         "full": {
@@ -477,7 +477,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 38,
+          "latencyMs": 36,
           "resultCount": 10
         },
         "ggsr": {
@@ -486,13 +486,13 @@
           "resultCount": 0
         },
         "ggsr_community": {
-          "hit": true,
-          "latencyMs": 39,
+          "hit": false,
+          "latencyMs": 52,
           "resultCount": 3
         },
         "full": {
-          "hit": true,
-          "latencyMs": 39,
+          "hit": false,
+          "latencyMs": 52,
           "resultCount": 3
         }
       }
@@ -504,7 +504,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 15,
+          "latencyMs": 32,
           "resultCount": 10
         },
         "ggsr": {
@@ -531,7 +531,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 15,
+          "latencyMs": 39,
           "resultCount": 10
         },
         "ggsr": {
@@ -541,7 +541,7 @@
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 1,
+          "latencyMs": 0,
           "resultCount": 0
         },
         "full": {
@@ -558,7 +558,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 52,
+          "latencyMs": 92,
           "resultCount": 10
         },
         "ggsr": {
@@ -567,13 +567,13 @@
           "resultCount": 0
         },
         "ggsr_community": {
-          "hit": true,
-          "latencyMs": 52,
+          "hit": false,
+          "latencyMs": 93,
           "resultCount": 3
         },
         "full": {
-          "hit": true,
-          "latencyMs": 53,
+          "hit": false,
+          "latencyMs": 93,
           "resultCount": 3
         }
       }
@@ -585,23 +585,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 20,
+          "latencyMs": 30,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 17,
+          "latencyMs": 25,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 19,
+          "latencyMs": 27,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 21,
-          "resultCount": 6
+          "latencyMs": 84,
+          "resultCount": 3
         }
       }
     },
@@ -612,22 +612,22 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 34,
+          "latencyMs": 47,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 67,
+          "latencyMs": 63,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 62,
+          "latencyMs": 61,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 75,
+          "latencyMs": 97,
           "resultCount": 15
         }
       }
@@ -639,23 +639,23 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 42,
+          "latencyMs": 22,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 76,
-          "resultCount": 13
+          "latencyMs": 208,
+          "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 58,
-          "resultCount": 13
+          "latencyMs": 208,
+          "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 78,
-          "resultCount": 15
+          "latencyMs": 112,
+          "resultCount": 1
         }
       }
     },
@@ -666,23 +666,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 46,
+          "latencyMs": 57,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 88,
+          "latencyMs": 76,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 107,
+          "latencyMs": 67,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 144,
-          "resultCount": 12
+          "latencyMs": 54,
+          "resultCount": 15
         }
       }
     },
@@ -693,7 +693,7 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 82,
+          "latencyMs": 39,
           "resultCount": 10
         },
         "ggsr": {
@@ -703,12 +703,12 @@
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 84,
+          "latencyMs": 73,
           "resultCount": 15
         },
         "full": {
-          "hit": true,
-          "latencyMs": 90,
+          "hit": false,
+          "latencyMs": 69,
           "resultCount": 15
         }
       }
@@ -720,23 +720,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 35,
+          "latencyMs": 29,
           "resultCount": 10
         },
         "ggsr": {
-          "hit": true,
-          "latencyMs": 82,
+          "hit": false,
+          "latencyMs": 74,
           "resultCount": 15
         },
         "ggsr_community": {
-          "hit": true,
-          "latencyMs": 74,
+          "hit": false,
+          "latencyMs": 62,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 75,
-          "resultCount": 15
+          "latencyMs": 76,
+          "resultCount": 1
         }
       }
     },
@@ -747,23 +747,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 28,
+          "latencyMs": 25,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 49,
+          "latencyMs": 59,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 47,
+          "latencyMs": 57,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 55,
-          "resultCount": 12
+          "latencyMs": 54,
+          "resultCount": 15
         }
       }
     },
@@ -774,22 +774,22 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 46,
+          "latencyMs": 55,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 50,
+          "latencyMs": 56,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 56,
+          "latencyMs": 52,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 50,
+          "latencyMs": 48,
           "resultCount": 15
         }
       }
@@ -801,23 +801,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 46,
+          "latencyMs": 63,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 76,
+          "latencyMs": 197,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 70,
+          "latencyMs": 201,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 47,
-          "resultCount": 15
+          "latencyMs": 51,
+          "resultCount": 1
         }
       }
     },
@@ -828,12 +828,12 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 52,
+          "latencyMs": 36,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 70,
+          "latencyMs": 96,
           "resultCount": 15
         },
         "ggsr_community": {
@@ -843,7 +843,7 @@
         },
         "full": {
           "hit": false,
-          "latencyMs": 76,
+          "latencyMs": 60,
           "resultCount": 15
         }
       }
@@ -854,24 +854,24 @@
       "query": "What Fortran executables does exglobal_atmos_analysis.sh run?",
       "results": {
         "baseline": {
-          "hit": true,
-          "latencyMs": 77,
+          "hit": false,
+          "latencyMs": 43,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 119,
+          "latencyMs": 86,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 123,
+          "latencyMs": 88,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 111,
-          "resultCount": 15
+          "latencyMs": 103,
+          "resultCount": 8
         }
       }
     },
@@ -882,23 +882,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 62,
+          "latencyMs": 76,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 93,
+          "latencyMs": 108,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 77,
+          "latencyMs": 114,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 99,
-          "resultCount": 15
+          "latencyMs": 118,
+          "resultCount": 8
         }
       }
     },
@@ -909,23 +909,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 70,
+          "latencyMs": 38,
           "resultCount": 10
         },
         "ggsr": {
-          "hit": false,
-          "latencyMs": 101,
+          "hit": true,
+          "latencyMs": 76,
           "resultCount": 15
         },
         "ggsr_community": {
-          "hit": false,
-          "latencyMs": 102,
+          "hit": true,
+          "latencyMs": 76,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 70,
-          "resultCount": 9
+          "latencyMs": 80,
+          "resultCount": 15
         }
       }
     },
@@ -936,23 +936,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 53,
+          "latencyMs": 35,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 80,
+          "latencyMs": 54,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 88,
+          "latencyMs": 73,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 65,
-          "resultCount": 15
+          "latencyMs": 81,
+          "resultCount": 8
         }
       }
     },
@@ -963,23 +963,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 67,
+          "latencyMs": 58,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 74,
+          "latencyMs": 81,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 101,
+          "latencyMs": 65,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 93,
-          "resultCount": 15
+          "latencyMs": 97,
+          "resultCount": 8
         }
       }
     },
@@ -990,23 +990,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 55,
+          "latencyMs": 49,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 84,
+          "latencyMs": 75,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 84,
+          "latencyMs": 96,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 60,
-          "resultCount": 15
+          "latencyMs": 99,
+          "resultCount": 8
         }
       }
     },
@@ -1017,23 +1017,23 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 41,
+          "latencyMs": 31,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 110,
+          "latencyMs": 188,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 101,
+          "latencyMs": 193,
           "resultCount": 15
         },
         "full": {
-          "hit": true,
-          "latencyMs": 107,
-          "resultCount": 15
+          "hit": false,
+          "latencyMs": 80,
+          "resultCount": 6
         }
       }
     },
@@ -1044,23 +1044,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 29,
+          "latencyMs": 53,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 114,
+          "latencyMs": 72,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 120,
+          "latencyMs": 53,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 120,
-          "resultCount": 15
+          "latencyMs": 81,
+          "resultCount": 8
         }
       }
     },
@@ -1071,23 +1071,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 26,
+          "latencyMs": 46,
           "resultCount": 10
         },
         "ggsr": {
-          "hit": false,
-          "latencyMs": 75,
+          "hit": true,
+          "latencyMs": 71,
           "resultCount": 15
         },
         "ggsr_community": {
-          "hit": false,
-          "latencyMs": 86,
+          "hit": true,
+          "latencyMs": 97,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 81,
-          "resultCount": 9
+          "latencyMs": 94,
+          "resultCount": 15
         }
       }
     },
@@ -1098,23 +1098,23 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 36,
+          "latencyMs": 31,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 91,
+          "latencyMs": 88,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 87,
+          "latencyMs": 59,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 82,
-          "resultCount": 15
+          "latencyMs": 89,
+          "resultCount": 8
         }
       }
     },
@@ -1130,18 +1130,18 @@
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 16,
+          "latencyMs": 15,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 16,
+          "latencyMs": 15,
           "resultCount": 15
         },
         "full": {
           "hit": true,
           "latencyMs": 15,
-          "resultCount": 6
+          "resultCount": 3
         }
       }
     },
@@ -1157,18 +1157,18 @@
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 74,
+          "latencyMs": 67,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 79,
+          "latencyMs": 84,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 57,
-          "resultCount": 12
+          "latencyMs": 96,
+          "resultCount": 15
         }
       }
     },
@@ -1179,7 +1179,7 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 41,
+          "latencyMs": 59,
           "resultCount": 10
         },
         "ggsr": {
@@ -1189,12 +1189,12 @@
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 79,
+          "latencyMs": 72,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 38,
+          "latencyMs": 43,
           "resultCount": 11
         }
       }
@@ -1206,23 +1206,23 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 57,
+          "latencyMs": 48,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 56,
+          "latencyMs": 41,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 50,
+          "latencyMs": 61,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 50,
-          "resultCount": 12
+          "latencyMs": 57,
+          "resultCount": 15
         }
       }
     },
@@ -1233,22 +1233,22 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 72,
+          "latencyMs": 52,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 86,
+          "latencyMs": 63,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 63,
+          "latencyMs": 57,
           "resultCount": 15
         },
         "full": {
-          "hit": true,
-          "latencyMs": 89,
+          "hit": false,
+          "latencyMs": 63,
           "resultCount": 15
         }
       }
@@ -1260,22 +1260,22 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 62,
+          "latencyMs": 57,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 81,
+          "latencyMs": 47,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 68,
+          "latencyMs": 63,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 70,
+          "latencyMs": 63,
           "resultCount": 15
         }
       }
@@ -1287,23 +1287,23 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 49,
+          "latencyMs": 22,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 41,
+          "latencyMs": 14,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 42,
+          "latencyMs": 14,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 42,
-          "resultCount": 6
+          "latencyMs": 14,
+          "resultCount": 3
         }
       }
     },
@@ -1314,22 +1314,22 @@
       "results": {
         "baseline": {
           "hit": true,
-          "latencyMs": 69,
+          "latencyMs": 82,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 117,
+          "latencyMs": 71,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 101,
+          "latencyMs": 85,
           "resultCount": 15
         },
         "full": {
-          "hit": false,
-          "latencyMs": 63,
+          "hit": true,
+          "latencyMs": 91,
           "resultCount": 15
         }
       }
@@ -1341,22 +1341,22 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 46,
+          "latencyMs": 49,
           "resultCount": 10
         },
         "ggsr": {
           "hit": true,
-          "latencyMs": 54,
+          "latencyMs": 45,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": true,
-          "latencyMs": 54,
+          "latencyMs": 51,
           "resultCount": 15
         },
         "full": {
           "hit": true,
-          "latencyMs": 58,
+          "latencyMs": 62,
           "resultCount": 15
         }
       }
@@ -1368,28 +1368,28 @@
       "results": {
         "baseline": {
           "hit": false,
-          "latencyMs": 40,
+          "latencyMs": 58,
           "resultCount": 10
         },
         "ggsr": {
           "hit": false,
-          "latencyMs": 72,
+          "latencyMs": 100,
           "resultCount": 15
         },
         "ggsr_community": {
           "hit": false,
-          "latencyMs": 74,
+          "latencyMs": 85,
           "resultCount": 15
         },
         "full": {
           "hit": false,
-          "latencyMs": 47,
+          "latencyMs": 101,
           "resultCount": 15
         }
       }
     }
   ],
-  "timestamp": "2026-02-09T20:16:35.127Z",
+  "timestamp": "2026-03-11T21:03:18.057Z",
   "byCategory": {
     "local": {
       "baseline": {
@@ -1398,18 +1398,18 @@
         "total": 10
       },
       "ggsr": {
-        "hitRate": "50%",
-        "hits": 5,
+        "hitRate": "40%",
+        "hits": 4,
         "total": 10
       },
       "ggsr_community": {
-        "hitRate": "50%",
-        "hits": 5,
+        "hitRate": "40%",
+        "hits": 4,
         "total": 10
       },
       "full": {
-        "hitRate": "40%",
-        "hits": 4,
+        "hitRate": "20%",
+        "hits": 2,
         "total": 10
       }
     },
@@ -1425,13 +1425,13 @@
         "total": 10
       },
       "ggsr_community": {
-        "hitRate": "40%",
-        "hits": 4,
+        "hitRate": "0%",
+        "hits": 0,
         "total": 10
       },
       "full": {
-        "hitRate": "40%",
-        "hits": 4,
+        "hitRate": "0%",
+        "hits": 0,
         "total": 10
       }
     },
@@ -1442,40 +1442,40 @@
         "total": 10
       },
       "ggsr": {
-        "hitRate": "50%",
-        "hits": 5,
+        "hitRate": "40%",
+        "hits": 4,
         "total": 10
       },
       "ggsr_community": {
-        "hitRate": "50%",
-        "hits": 5,
+        "hitRate": "40%",
+        "hits": 4,
         "total": 10
       },
       "full": {
-        "hitRate": "60%",
-        "hits": 6,
+        "hitRate": "50%",
+        "hits": 5,
         "total": 10
       }
     },
     "cross_language": {
       "baseline": {
+        "hitRate": "20%",
+        "hits": 2,
+        "total": 10
+      },
+      "ggsr": {
         "hitRate": "30%",
         "hits": 3,
         "total": 10
       },
-      "ggsr": {
-        "hitRate": "10%",
-        "hits": 1,
-        "total": 10
-      },
       "ggsr_community": {
-        "hitRate": "10%",
-        "hits": 1,
+        "hitRate": "30%",
+        "hits": 3,
         "total": 10
       },
       "full": {
-        "hitRate": "100%",
-        "hits": 10,
+        "hitRate": "90%",
+        "hits": 9,
         "total": 10
       }
     },

@@ -9,13 +9,13 @@
 
 ## Executive Summary
 
-The EIB MCP knowledge base contains **~68,000+ ChromaDB documents** across 5 collections and **~600,000+ Neo4j relationships** covering Fortran, Python, Shell, config files, CI tests, Rocoto job DAGs, and documentation. Key gaps addressed by Phase 40:
+The EIB MCP knowledge base contains **~82,944 ChromaDB documents** across 6 collections and **~2,651,750 Neo4j relationships** covering Fortran, Python, Shell, config files, CI tests, Rocoto job DAGs, and documentation. Key status:
 
-1. **Neo4j Fortran graph covers only 5 of 14 sorc/ submodules** — the entire `ufs_model.fd` tree (UFSATM, MOM6, CICE, CMEPS, WW3, etc.) has **zero** Fortran graph nodes despite having 3,503 Fortran files
-2. **ChromaDB vectors exist for all submodules** but with **inconsistent path prefixes** — 50.2% use `global-workflow/` (checkout-specific), 49.7% use `sorc/` (correct)
-3. **Neo4j File nodes use absolute paths** from an old checkout (`/mcp_rag_eib/global-workflow_MCP_node.js-RAG/`)
-4. ~~**149 config files**, **78 CI YAML files**, and **155 parm files** are not ingested into any collection~~ **RESOLVED (Phase 40)** — 187 config files, 37 Jinja2 templates, 74 CI test cases, 464 Rocoto tasks, 1,297 EXPDIR configs all ingested into ChromaDB + Neo4j
-5. **External library documentation** is partially covered (NCEPLIBS docs ingested) but the **ESMF/NUOPC framework** — the coupling backbone — has no dedicated documentation ingestion
+1. ~~**Neo4j Fortran graph covers only 5 of 14 sorc/ submodules**~~ **RESOLVED (Phase 39)** — fparser2 with CPP pipeline now covers 81.4% of UFS Fortran, yielding 13,320 subroutines, 2,186 modules
+2. ~~**ChromaDB vectors with inconsistent path prefixes**~~ **RESOLVED (Phase 38)** — 100% paths now correct
+3. ~~**Neo4j File nodes use absolute paths**~~ **RESOLVED (Phase 38)** — All 2,744 File nodes use correct relative paths
+4. ~~**149 config files, 78 CI YAML files not ingested**~~ **RESOLVED (Phase 40)** — 187 config files, 37 Jinja2 templates, 74 CI test cases, 595 Rocoto tasks, 1,297 EXPDIR configs all ingested
+5. ~~**External library documentation partially covered**~~ **PARTIALLY RESOLVED (Phase 41)** — ESMF/NUOPC/WW3/FV3 docs ingested; 6 ReadTheDocs sources rate-limited, pending retry (Phase 46)
 
 ---
 
@@ -25,12 +25,13 @@ The EIB MCP knowledge base contains **~68,000+ ChromaDB documents** across 5 col
 
 | Collection | Documents | Content |
 |-----------|-----------|---------|
-| `code-with-context-v8-0-0` | 58,761 | Code chunks (Fortran/Python/Shell) with MPNet 768-dim embeddings |
+| `code-with-context-v8-0-0` | 60,282 | Code chunks (Fortran/Python/Shell/Config) with MPNet 768-dim embeddings |
 | `jjobs-v8-0-0` | 700 | J-Job scripts (dev/jobs/) |
-| `community-summaries` | 1,648 | GraphRAG hierarchical community summaries |
-| `global-workflow-docs-v8-0-0` | 5,409 | External documentation (24 sources, 623 unique URLs) |
+| `community-summaries` | 2,113 | GraphRAG hierarchical community summaries (Phase 42 refresh) |
+| `global-workflow-docs-v8-0-0` | 19,741 | External documentation (35+ sources, 1,050+ URLs) |
+| `ci-test-cases-v1-0-0` | 74 | CI test case documentation (Phase 40) |
 | `ee2-standards-v5-0-0-enhanced` | 34 | EE2/NCO production standards |
-| **TOTAL** | **66,552** | |
+| **TOTAL** | **82,944** | |
 
 ### 1.2 Neo4j Graph Nodes
 
@@ -325,25 +326,25 @@ SUBMODULE_PATHS = [
 
 ## 7. Prioritized Remediation Plan
 
-### Phase A: Fix Data Quality (No new ingestion needed)
+### Phase A: Fix Data Quality (No new ingestion needed) — ✅ DONE (Phase 38)
 
-| Task | Impact | Effort |
+| Task | Impact | Status |
 |------|--------|--------|
-| **A1.** Normalize ChromaDB paths — strip `global-workflow/` prefix from 29,495 docs | Fixes 50% of path mismatches | Script |
-| **A2.** Update Neo4j File nodes — replace old absolute paths with repo-relative | Fixes 178 stale nodes | Script |
-| **A3.** Purge spurious ShellScript nodes (~60 garbage entries) | Cleaner graph queries | Cypher DELETE |
-| **A4.** Add missing ex-scripts to graph (42 of 82 missing) | Better orchestration tracing | Re-run shell ingestion |
+| **A1.** Normalize ChromaDB paths | Fixes 50% of path mismatches | ✅ Done — `fix_chromadb_paths.py`, 100% correct |
+| **A2.** Update Neo4j File nodes | Fixes 178 stale nodes | ✅ Done — 0 stale nodes remain |
+| **A3.** Purge spurious ShellScript nodes | Cleaner graph queries | ✅ Done — 42 spurious nodes purged |
+| **A4.** Add missing ex-scripts to graph | Better orchestration tracing | ✅ Partial — shell ex-scripts covered; Python ex-scripts need INVOKES edges (Phase 46) |
 
-### Phase B: Close Neo4j Fortran Graph Gap (~3,500 Fortran files)
+### Phase B: Close Neo4j Fortran Graph Gap — ✅ DONE (Phase 39)
 
-| Task | Impact | Effort |
+| Task | Impact | Status |
 |------|--------|--------|
-| **B1.** Fix `ingest_fortran_graph.py` SUBMODULE_PATHS (wrong names: `gsi.fd` → `gsi_enkf.fd`, `gdas.fd` → `gdas.cd`) | Config fix | Trivial |
-| **B2.** Handle C preprocessor directives in fparser2 pipeline — run `cpp -traditional-cpp` before parsing | Unblocks UFS/MOM6/CMEPS Fortran parsing | Medium |
-| **B3.** Ingest `sorc/ufs_model.fd/` Fortran into Neo4j graph | +3,503 files, UFSATM/MOM6/CICE/CMEPS/WW3 call graphs | Large |
-| **B4.** Ingest `sorc/ufs_utils.fd/` Fortran into Neo4j graph | +506 files, chgres_cube and utility call graphs | Medium |
-| **B5.** Ingest `sorc/nexus.fd/` Fortran into Neo4j graph | +86 files, AQM/emissions | Small |
-| **B6.** Re-run community detection after new Fortran nodes added | Updated L0-L3 community summaries | Medium |
+| **B1.** Fix SUBMODULE_PATHS names | Config fix | ✅ Done — corrected to `gsi_enkf.fd`, `gdas.cd` |
+| **B2.** CPP preprocessing pipeline | Unblocks UFS parsing | ✅ Done — `cpp -traditional-cpp` added |
+| **B3.** Ingest `ufs_model.fd/` Fortran | +3,503 files | ✅ Done — 13,320 subs, 2,186 modules |
+| **B4.** Ingest `ufs_utils.fd/` Fortran | +506 files | ✅ Done — 1,810 subs, 398 modules |
+| **B5.** Ingest `nexus.fd/` Fortran | +86 files | ✅ Done — 661 subs, 74 modules |
+| **B6.** Re-run community detection | Updated communities | ✅ Done — 2,418 nodes, 2,113 summaries (Phase 42) |
 
 ### Phase C: Ingest Missing File Types — ✅ DONE (Phase 40)
 
@@ -366,13 +367,13 @@ SUBMODULE_PATHS = [
 | **D5.** Add CCPP tech docs | Physics parameterization framework | ⚠️ Rate-limited — configured, retry needed |
 | **D6.** Add UPP and METplus docs | Post-processing and verification | ⚠️ Rate-limited — configured, retry needed |
 
-### Phase E: Deep Submodule Coverage (JEDI/GDAS ecosystem)
+### Phase E: Deep Submodule Coverage (JEDI/GDAS ecosystem) — ✅ DONE (Phase 42)
 
-| Task | Impact | Effort |
+| Task | Impact | Status |
 |------|--------|--------|
-| **E1.** Ingest sorc/gdas.cd sub-submodules (fv3-jedi, soca, ioda, oops, saber, ufo, vader) | JEDI DA system call graphs | Large |
-| **E2.** Ingest CRTM Fortran (sorc/gdas.cd/sorc/crtm) — 90+ modules used in GSI | Radiative transfer call graph | Medium |
-| **E3.** Review sorc/nexus.fd/HEMCO (GEOS-Chem emissions) | Chemical emissions | Small |
+| **E1.** Ingest JEDI sub-submodules (fv3-jedi, soca, ioda, oops, saber, ufo, vader) | JEDI DA system call graphs | ✅ Done — 8,990 JEDI Fortran nodes, 188 Python modules |
+| **E2.** Ingest CRTM Fortran (gdas.cd/sorc/crtm) | Radiative transfer call graph | ✅ Done — 109+ modules |
+| **E3.** Review nexus.fd/HEMCO | Chemical emissions | ✅ Done — 81 HEMCO Fortran files covered by Phase 39 |
 
 ---
 
