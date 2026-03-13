@@ -37,9 +37,9 @@ EMBEDDING_DIMENSIONS = 768
 class DocumentationIngesterV8(DocumentationIngesterV7):
     """V8 Documentation ingester with explicit MPNet embeddings"""
     
-    def __init__(self):
+    def __init__(self, delay: float = 1.0):
         # Override collection name
-        super().__init__(COLLECTION_NAME)
+        super().__init__(COLLECTION_NAME, delay=delay)
         
         # Update collection metadata for v8
         self.collection.modify(metadata={
@@ -67,6 +67,8 @@ def main():
                        help=f'Tiers to ingest (default: all). Valid: {", ".join(valid_tiers)}')
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be ingested without actually ingesting')
+    parser.add_argument('--delay', type=float, default=1.0,
+                       help='Seconds between page fetches (default: 1.0, use 5+ for rate-limited sites)')
     
     args = parser.parse_args()
     
@@ -75,6 +77,7 @@ def main():
     print("=" * 70)
     print(f"Collection: {COLLECTION_NAME}")
     print(f"Embedding:  {EMBEDDING_MODEL} ({EMBEDDING_DIMENSIONS} dimensions)")
+    print(f"Delay:      {args.delay}s between fetches")
     print("=" * 70)
     
     if args.dry_run:
@@ -86,7 +89,7 @@ def main():
                     print(f"  - {s['name']}: {s['url']}")
         return
     
-    ingester = DocumentationIngesterV8()
+    ingester = DocumentationIngesterV8(delay=args.delay)
     ingester.ingest_all_tiers(args.tiers)
     
     # Final verification

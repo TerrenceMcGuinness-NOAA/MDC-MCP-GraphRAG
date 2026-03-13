@@ -252,6 +252,33 @@ DOCUMENTATION_SOURCES = {
             'description': 'GEOS-Chem / GOCART - aerosol transport model',
             'max_pages': 100,
             'enabled': True
+        },
+        {
+            'name': 'pyioda',
+            'url': 'https://jointcenterforsatellitedataassimilation-jedi-docs.readthedocs-hosted.com/en/latest/inside/jedi-components/ioda/index.html',
+            'type': 'readthedocs',
+            'priority': 4,
+            'description': 'JEDI IODA - observation data access for DA (pyioda/ioda-converters)',
+            'max_pages': 50,
+            'enabled': True
+        },
+        {
+            'name': 'fms',
+            'url': 'https://github.com/NOAA-GFDL/FMS/wiki',
+            'type': 'github-wiki',
+            'priority': 4,
+            'description': 'GFDL FMS/MPP - Flexible Modeling System infrastructure library',
+            'max_pages': 50,
+            'enabled': True
+        },
+        {
+            'name': 'cmaq',
+            'url': 'https://github.com/USEPA/CMAQ/wiki',
+            'type': 'github-wiki',
+            'priority': 4,
+            'description': 'EPA CMAQ - Community Multiscale Air Quality Model',
+            'max_pages': 50,
+            'enabled': True
         }
     ],
 

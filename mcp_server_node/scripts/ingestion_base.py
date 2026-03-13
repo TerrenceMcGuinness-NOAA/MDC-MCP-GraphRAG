@@ -500,24 +500,43 @@ class URLCrawler:
             print(f"[WARN] Sitemap fetch failed: {e}")
             return []
     
-    def fetch_page(self, url: str) -> Optional[Tuple[str, BeautifulSoup]]:
-        """Fetch single page and return title + parsed content"""
-        try:
-            headers = {'User-Agent': self.user_agent}
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.content, 'lxml')
-            
-            # Get title
-            title = soup.find('title')
-            title_text = title.text if title else url.split('/')[-1]
-            
-            return title_text, soup
-            
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch {url}: {e}")
-            return None
+    def fetch_page(self, url: str, max_retries: int = 3) -> Optional[Tuple[str, BeautifulSoup]]:
+        """Fetch single page with retry/backoff for 429 rate-limiting."""
+        for attempt in range(max_retries):
+            try:
+                headers = {'User-Agent': self.user_agent}
+                response = requests.get(url, headers=headers, timeout=30)
+
+                if response.status_code == 429:
+                    retry_after = int(response.headers.get('Retry-After', 2 ** (attempt + 1)))
+                    wait = min(retry_after, 60)
+                    print(f"[WARN] 429 rate-limited on {url}, retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait)
+                    continue
+
+                response.raise_for_status()
+
+                soup = BeautifulSoup(response.content, 'lxml')
+
+                # Get title
+                title = soup.find('title')
+                title_text = title.text if title else url.split('/')[-1]
+
+                return title_text, soup
+
+            except requests.exceptions.HTTPError as e:
+                if attempt < max_retries - 1 and getattr(e.response, 'status_code', 0) >= 500:
+                    wait = 2 ** (attempt + 1)
+                    print(f"[WARN] Server error on {url}, retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(wait)
+                    continue
+                print(f"[ERROR] Failed to fetch {url}: {e}")
+                return None
+            except Exception as e:
+                print(f"[ERROR] Failed to fetch {url}: {e}")
+                return None
+        print(f"[ERROR] Exhausted {max_retries} retries for {url}")
+        return None
     
     def crawl_recursive(self, base_url: str, max_pages: int = 100) -> List[Tuple[str, str, BeautifulSoup]]:
         """

@@ -459,6 +459,35 @@ def create_invokes_edges(session, edges, dry_run=False):
     return created
 
 
+def create_jjob_invokes_edges(session, edges, dry_run=False):
+    """Phase 46: Create INVOKES edges from ShellScript (J-Job) to PythonModule."""
+    created = 0
+    for edge in edges:
+        if dry_run:
+            print(f"  [DRY-RUN] INVOKES: {edge['script']} → {edge['module']} "
+                  f"(py={edge['py_script']}, L{edge['line']})")
+            created += 1
+            continue
+
+        result = session.run('''
+            MATCH (s:ShellScript {name: $jjob_name})
+            MATCH (m:PythonModule {file_path: $module_path})
+            MERGE (s)-[r:INVOKES]->(m)
+            ON CREATE SET r.script = $py_script, r.line = $line,
+                          r.source = 'phase46_jjob_scan'
+            RETURN count(r) as c
+        ''',
+            jjob_name=edge['script'],
+            module_path=edge['module_path'],
+            py_script=edge['py_script'],
+            line=edge['line']
+        )
+        if result.single()['c'] > 0:
+            created += 1
+
+    return created
+
+
 def run_ingestion(dry_run=False, verbose=False):
     """Main ingestion: parse shell scripts, match targets, create edges."""
     print(f"[OK] Cross-Language Bridge Ingestion v{VERSION}")
@@ -675,6 +704,56 @@ def run_ingestion(dry_run=False, verbose=False):
         exec_bridges, inv_bridges = create_shellscript_bridges(session, dry_run)
         print(f"  ShellScript EXECUTES bridges (incl. ush/): {exec_bridges}")
         print(f"  ShellScript INVOKES bridges (incl. ush/): {inv_bridges}")
+
+    # Phase 46: Scan J-Job files in dev/jobs/ for Python ex-script invocations
+    jobs_dir = Path(WORKFLOW_ROOT) / 'dev' / 'jobs'
+    if not jobs_dir.exists():
+        jobs_dir = Path(WORKFLOW_ROOT) / 'jobs'
+    if jobs_dir.exists() and session:
+        jjob_files = sorted([f for f in jobs_dir.iterdir() if f.is_file() and f.name.startswith('J')])
+        jjob_invokes = []
+        print(f"\n[OK] === Phase 46: J-Job Python Ex-Script Scanning ===")
+        print(f"[OK] Found {len(jjob_files)} J-Job files to parse")
+
+        jjob_stats = defaultdict(int)
+        for script_path in jjob_files:
+            parsed = parse_shell_script(script_path)
+            basename = script_path.name
+            neo4j_path = file_index.get(basename)
+
+            for py in parsed['python_scripts']:
+                py_name = py['name']
+                jjob_stats['py_refs'] += 1
+                match = python_index.get(py_name.lower())
+                if match:
+                    jjob_stats['py_matched'] += 1
+                    jjob_invokes.append({
+                        'script': basename,
+                        'script_path': neo4j_path,
+                        'module': match['name'],
+                        'module_path': match['file_path'],
+                        'py_script': py_name,
+                        'line': py['line']
+                    })
+                    if verbose:
+                        print(f"    [OK] {basename} → {py_name} → {match['name']}")
+                else:
+                    jjob_stats['py_unmatched'] += 1
+                    if verbose:
+                        print(f"    [MISS] {basename}: {py_name} — no PythonModule match")
+
+        print(f"  J-Job Python refs: {jjob_stats['py_refs']} "
+              f"(matched: {jjob_stats['py_matched']}, unmatched: {jjob_stats['py_unmatched']})")
+
+        if jjob_invokes:
+            created = create_jjob_invokes_edges(session, jjob_invokes, dry_run)
+            print(f"  INVOKES edges from J-Jobs: {created}")
+
+        # Re-run bridge unification to create ShellScript→PythonModule bridges from J-Job edges
+        print(f"\n[OK] === Phase 46: J-Job ShellScript Bridge Unification ===")
+        exec_bridges, inv_bridges = create_shellscript_bridges(session, dry_run)
+        print(f"  ShellScript EXECUTES bridges (final): {exec_bridges}")
+        print(f"  ShellScript INVOKES bridges (final): {inv_bridges}")
 
     if session:
         session.close()
