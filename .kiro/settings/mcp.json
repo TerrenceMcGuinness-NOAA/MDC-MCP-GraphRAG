@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "eib-mcp-gateway": {
+      "type": "http",
+      "url": "https://qp20b20k-18888.use.devtunnels.ms/mcp",
+      "headers": {
+        "Authorization": "Bearer eib-mcp-gateway-token-2025"
+      },
+      "autoApprove": [
+        "find_env_dependencies",
+        "get_code_context",
+        "mcp_health_check",
+        "get_server_info",
+        "get_knowledge_base_status",
+        "search_documentation",
+        "explain_with_context",
+        "search_documentation",
+        "get_job_details",
+        "list_job_scripts",
+        "get_sdd_session",
+        "list_sdd_workflows",
+        "get_sdd_framework_status",
+        "get_sdd_execution_history"
+      ]
+    }
+  }
+}
