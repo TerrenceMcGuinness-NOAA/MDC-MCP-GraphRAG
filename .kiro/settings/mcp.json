@@ -22,6 +22,15 @@
         "get_sdd_framework_status",
         "get_sdd_execution_history"
       ]
+    },
+    "iam-policy-autopilot-mcp": {
+      "command": "uvx",
+      "args": ["iam-policy-autopilot@latest", "mcp-server"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
