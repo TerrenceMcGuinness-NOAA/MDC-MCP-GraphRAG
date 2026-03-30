@@ -17,11 +17,13 @@
 
 import { GraphDatabase } from './GraphDatabase.js';
 import { VectorDatabase } from './VectorDatabase.js';
+import { selectDatabaseBackend } from './adapters/backend-selector.js';
 
 export class UnifiedDataAccess {
   constructor(config = {}) {
-    this.graphDB = new GraphDatabase(config.neo4j || {});
-    this.vectorDB = new VectorDatabase(config.chromadb || {});
+    const { graphDB, vectorDB } = selectDatabaseBackend(config);
+    this.graphDB = graphDB;
+    this.vectorDB = vectorDB;
     this.connected = false;
     
     this.metrics = {
