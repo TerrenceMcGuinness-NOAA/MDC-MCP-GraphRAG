@@ -1,5 +1,38 @@
 # MCP Server Changelog
 
+## [7.36.0] - SDD Phase 47: Rocoto Dryrun PR #124 Reconciliation Implementation (March 27, 2026)
+
+### Rocoto Dryrun Hardening (`supported_repos/rocoto/lib/workflowmgr/`)
+- **Proxy rescue guards (C1–C3)**: `bqsproxy.rb`, `dbproxy.rb`, `workflowioproxy.rb` — rescue `stop!` calls now gated with `&& !WorkflowMgr.dryrun_mode?` and `respond_to?(:stop!)` fallback to prevent `NoMethodError` on in-process objects.
+- **Engine submission classification (C4–C6)**: `workflowengine.rb` — restructured boot and regular submission harvest paths to check dryrun **before** `output.nil?`, fixing mis-classification of dryrun `[nil, "This is a dryrun"]` as submission failure. Added dryrun guard to pending status check path.
+- **WorkflowReport DRb guards (C7)**: `workflowreport.rb` — guarded `__drburi`, `stop!`, `add_bqservers`, `delete_bqservers` and BQServer management loop with dryrun checks across ensure block, initialization, and harvest paths.
+- **Slurm dryrun return (S1)**: `slurmbatchsystem.rb` — replaced `output="This is a dryrun"` with immediate `return nil,"This is a dryrun"` to prevent fall-through into regex parsing and false failure warnings.
+- All 6 files pass `ruby -c` syntax validation.
+
+### SDD Workflow Execution
+- Executed `phase47_rocoto_dryrun_pr124_reconciliation` (8/8 steps): research → implement × 5 → validate → document.
+
+## [7.35.1] - SDD Phase 47: Rocoto Dryrun PR #124 Reconciliation Spec (March 27, 2026)
+
+### SDD Workflow Planning
+- Added `sdd_framework/workflows/phase47_rocoto_dryrun_pr124_reconciliation.md`.
+- Captures full validity analysis of all PR #124 dryrun review suggestions (7 inline + 1 suppressed low-confidence).
+- Defines implementation scope, acceptance criteria, validation strategy, and ISD-compatible execution steps for dryrun hardening in `supported_repos/rocoto`.
+
+## [7.35.0] - Provisioning System v4.2.0: KasmVNC Primary + NVIDIA Fix (March 12, 2026)
+
+### Provisioning (SETUP/provisioning/09-desktop-vnc.sh)
+- **KasmVNC is now primary VNC server** for Parallel Works desktop integration (TigerVNC retained as fallback)
+- **NVIDIA GPU crash fix (system-level)**: Provisioning now disables `libnvidia-egl-gbm.so.1` by renaming to `.disabled` — prevents `GlxExtensionInit` segfault in all VNC servers including PW's own `start-template-v3.sh`
+- **kasmvnc.yaml**: Updated template with PW-compatible defaults (`require_ssl: false`, `hw3d: false`, `1920x1080`, no idle timeout, no IPv6)
+- **xstartup**: Added `GDK_BACKEND=x11` and `LIBGL_ALWAYS_SOFTWARE=1` environment variables for Rocky 9 compatibility
+- **PW select-de.sh bypass**: Pre-applied during provisioning so PW's `start-template-v3.sh` detects MATE desktop correctly on first session
+- **vnc-start.sh helper**: Rewritten — KasmVNC-primary with `-disableBasicAuth -sslOnly 0 -extension GLX`, PW session detection/warning, proper `kasmvnc-cert` group handling
+- **user_config.sh**: Updated KasmVNC description from "legacy" to "primary VNC server for PW integration"
+
+### Documentation
+- Updated provisioning header with PW architecture notes (service_port → nginx → kasmvnc_port)
+
 ## [7.34.1] - EE2 Collection Path Normalization (March 11, 2026)
 
 ### Data Maintenance

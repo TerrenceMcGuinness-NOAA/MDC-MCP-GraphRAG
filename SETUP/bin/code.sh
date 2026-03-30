@@ -16,7 +16,7 @@
 #
 # Prerequisites: VS Code with tunnel support (code --version >= 1.80)
 #   - System install: /usr/bin/code (preferred)
-#   - Or standalone CLI: https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64
+#   - Or auto-downloaded standalone CLI to ~/bin/code
 ################################################################################
 set -e
 
@@ -65,13 +65,24 @@ find_code() {
     return 1
 }
 
-# Find or fail
+# Detect architecture for CLI download URL
+case "$(uname -m)" in
+    x86_64|amd64)  CLI_OS="cli-alpine-x64" ;;
+    aarch64|arm64) CLI_OS="cli-alpine-arm64" ;;
+    *)             CLI_OS="cli-alpine-x64" ;;
+esac
+
+# Find or download
 CODE_CLI=$(find_code) || {
-    echo "[ERROR] VS Code CLI not found. Install via:" >&2
-    echo "  sudo dnf install code  # RHEL/Rocky" >&2
-    echo "  # Or download standalone CLI:" >&2
-    echo "  curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' | tar xz -C ~/bin" >&2
-    exit 1
+    echo "[INFO] VS Code CLI not found, downloading for $(uname -m)..." >&2
+    mkdir -p "${HOME}/bin"
+    curl -Lk "https://code.visualstudio.com/sha/download?build=stable&os=${CLI_OS}" | tar xz -C "${HOME}/bin" || {
+        echo "[ERROR] Failed to download VS Code CLI" >&2
+        exit 1
+    }
+    CODE_CLI="${HOME}/bin/code"
+    [[ -x "${CODE_CLI}" ]] || { echo "[ERROR] Downloaded binary not executable" >&2; exit 1; }
+    echo "[OK] Installed VS Code CLI to ${CODE_CLI}" >&2
 }
 
 # Check for existing running tunnel

@@ -21,6 +21,7 @@ Date: December 4, 2025
 
 import os
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
 
@@ -65,10 +66,11 @@ CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
 class DocumentationIngesterV7(BaseIngester):
     """V7 Documentation ingester with consolidated collection naming"""
     
-    def __init__(self, collection_name: str = COLLECTION_NAME):
+    def __init__(self, collection_name: str = COLLECTION_NAME, delay: float = 1.0):
         super().__init__(collection_name, VERSION)
         self.enricher = MetadataEnricher()
-        self.crawler = URLCrawler(delay=1.0)
+        self.page_delay = delay
+        self.crawler = URLCrawler(delay=delay)
         self.seen_ids = set()
         self.stats = {
             'sources_processed': 0,
@@ -141,7 +143,7 @@ class DocumentationIngesterV7(BaseIngester):
         
         try:
             # Create fresh crawler with exclusion patterns
-            crawler = URLCrawler(delay=1.0, exclude_url_patterns=exclude_patterns)
+            crawler = URLCrawler(delay=self.page_delay, exclude_url_patterns=exclude_patterns)
             
             pages = []
             
@@ -155,12 +157,13 @@ class DocumentationIngesterV7(BaseIngester):
                     filtered_urls = [u for u in sitemap_urls if u.startswith(base_path)][:max_pages]
                     print(f"    [INFO] Found {len(sitemap_urls)} URLs in sitemap, {len(filtered_urls)} matching base path")
                     
-                    # Fetch each URL from sitemap
+                    # Fetch each URL from sitemap (with delay between requests)
                     for page_url in filtered_urls:
                         result = crawler.fetch_page(page_url)
                         if result:
                             title, soup = result
                             pages.append((page_url, title, soup))
+                        time.sleep(self.page_delay)
                 else:
                     print(f"    [WARN] Sitemap fetch failed, falling back to recursive crawl")
                     pages = crawler.crawl_recursive(url, max_pages=max_pages)
@@ -259,6 +262,8 @@ def main():
                        help=f'Tiers to ingest (default: all). Valid: {", ".join(valid_tiers)}')
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be ingested without actually ingesting')
+    parser.add_argument('--delay', type=float, default=1.0,
+                       help='Seconds between page fetches (default: 1.0, use 5+ for rate-limited sites)')
     
     args = parser.parse_args()
     
@@ -271,7 +276,7 @@ def main():
                     print(f"  - {s['name']}: {s['url']}")
         return
     
-    ingester = DocumentationIngesterV7(args.collection)
+    ingester = DocumentationIngesterV7(args.collection, delay=args.delay)
     ingester.ingest_all_tiers(args.tiers)
 
 
