@@ -61,6 +61,31 @@ until the AWS instance is fully self-hosting.
 - `ec2-user/` — Home directory on this EC2 instance
 - `powers/` — Kiro powers configuration
 
+## Adapter Pattern (Phase 48, Steps 6/8/10/11 — COMPLETED)
+
+The data access layer now uses an adapter pattern for backend-agnostic database access:
+
+```
+UnifiedDataAccess (src/data/)
+  ├── selectDatabaseBackend() → reads DB_BACKEND env var
+  │     ├── 'legacy' → ChromaDBLegacyAdapter + Neo4jLegacyAdapter (current default)
+  │     └── 'aws'    → OpenSearchAdapter + NeptuneAdapter (not yet implemented)
+  │
+  ├── src/data/adapters/VectorDatabaseAdapter.js    (base class, 16 methods)
+  ├── src/data/adapters/GraphDatabaseAdapter.js      (base class, 34 methods)
+  ├── src/data/adapters/ChromaDBLegacyAdapter.js     (passthrough to VectorDatabase.js)
+  ├── src/data/adapters/Neo4jLegacyAdapter.js        (passthrough to GraphDatabase.js)
+  ├── src/data/adapters/backend-selector.js          (routing logic)
+  └── src/data/adapters/index.js                     (barrel export)
+```
+
+**Critical**: `UnifiedDataAccess.js` was modified (3 lines) to use `selectDatabaseBackend()`.
+The `this.graphDB` and `this.vectorDB` properties are still exposed — two tool modules
+(`CodeAnalysisTools`, `GraphRAGTools`) access `this.dataAccess.graphDB` directly for GGSR.
+Do NOT change this property exposure pattern.
+
+**Zero tool module files were modified.** All 51 tools work identically in legacy mode.
+
 ## Key Directories
 
 | Path | Purpose |
