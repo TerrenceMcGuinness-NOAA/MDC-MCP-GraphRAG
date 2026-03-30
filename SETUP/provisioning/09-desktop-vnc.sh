@@ -617,7 +617,7 @@ if [[ "${VNC_TYPE}" == "kasmvnc" ]]; then
         # PW's start-template-v3.sh backs up select-de.sh and replaces it with
         # `exit 0` to skip DE selection prompts. Pre-apply this so the backup
         # (.bak) exists cleanly and PW's mv doesn't fail on repeated sessions.
-        local SELECT_DE="/usr/lib/kasmvncserver/select-de.sh"
+        SELECT_DE="/usr/lib/kasmvncserver/select-de.sh"
         if [[ -f "${SELECT_DE}" ]] && ! [[ -f "${SELECT_DE}.bak" ]]; then
             cp "${SELECT_DE}" "${SELECT_DE}.bak"
             printf '#!/bin/sh\nexit 0\n' > "${SELECT_DE}"
