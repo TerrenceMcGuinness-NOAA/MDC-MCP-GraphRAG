@@ -96,6 +96,11 @@ P11 Secret Non-Exposure, P12 Configuration Caching, P13 Retry Exponential Backof
 - None — all 51 tools work identically in `DB_BACKEND=legacy` mode (default)
 - `DB_BACKEND=aws` requires `OPENSEARCH_ENDPOINT` + `NEPTUNE_ENDPOINT`
 
+## [7.36.1] - SDD Phase 49: Rocoto Dryrun Thread Pool Guard (March 31, 2026)
+
+### Rocoto Dryrun Behavior (`supported_repos/rocoto/lib/workflowmgr/`)
+- **BQS dryrun short-circuit**: `bqs.rb` now records dryrun submit status without creating thread pool workers, preventing deadlocks when `BatchQueueServer=false` while preserving job card output.
+
 ## [7.36.0] - SDD Phase 47: Rocoto Dryrun PR #124 Reconciliation Implementation (March 27, 2026)
 
 ### Rocoto Dryrun Hardening (`supported_repos/rocoto/lib/workflowmgr/`)
