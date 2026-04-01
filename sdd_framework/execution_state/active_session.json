@@ -10,13 +10,17 @@
     { "step": 15, "name": "Create OpenSearch index definitions", "tag": "implement", "completedAt": "2026-04-01T19:28:46.000Z", "notes": "scripts/create-opensearch-indices.js: 5 indices (mdc-code-context, mdc-workflow-docs, mdc-jjobs, mdc-community-summaries, mdc-ee2-standards), knn_vector 768-dim nmslib cosinesimil hnsw, idempotent." },
     { "step": 17, "name": "Migration verification + count parity", "tag": "validate", "completedAt": "2026-04-01T19:33:39.000Z", "notes": "scripts/verify-migration.js: standalone count parity check (ChromaDB vs OpenSearch, Neo4j vs Neptune), uploads report to S3. Tests P8+Step17: 11/11 pass." },
     { "step": 18, "name": "Capture golden-file baseline from legacy system", "tag": "research", "completedAt": "2026-04-01T19:33:39.000Z", "notes": "scripts/capture-golden-files.js: 7 vector queries (single, multi-collection, filter) + 4 graph queries, saves to scripts/golden-files/, optional S3 upload." },
-    { "step": 20, "name": "Adapt 7 ingestion scripts for AWS backends", "tag": "implement", "completedAt": "2026-04-01T19:58:13.000Z", "notes": "aws_backend.py: get_graph_driver() (Neptune bolt+IAM), get_vector_client() (OpenSearchVectorClient), COLLECTION_TO_INDEX map. All 7 scripts patched with --backend aws flag: ingest_fortran_graph, ingest_code_v8, ingest_env_variables, ingest_jjobs_v8, ingest_documentation_v8 (via ingestion_base.py), ingest_shell_graph_v8, ingest_cross_language_bridges. MPNet model preserved. 9/9 files parse cleanly." },
+    { "step": 21, "name": "Integration test: full re-ingestion cycle", "tag": "validate", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "step21-reingest-integration.test.js: backend routing, bulk indexing, full cycle. 10/10 pass." },
+    { "step": 22, "name": "CloudWatch dashboards + alarms", "tag": "implement", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "MdcServerStack.ts: CloudWatch dashboard (ECS tasks, ALB latency, 5xx), 3 alarms (no tasks, high latency, 5xx errors). cdk synth + 27/27 tests pass." },
+    { "step": 23, "name": "Run all 51 tools against AWS + golden-file comparison", "tag": "validate", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "scripts/run-golden-file-comparison.js: schema equivalence check against golden files, generates golden-comparison-report.json." },
+    { "step": 24, "name": "MCP client cutover + legacy fallback documentation", "tag": "configure", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "scripts/cutover-mcp-client.js: updates .kiro/settings/mcp.json to AWS CloudFront endpoint, preserves legacy as read-only fallback, --rollback support." },
+    { "step": 25, "name": "Final validation + SDD session completion + CHANGELOG", "tag": "document", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "CHANGELOG.md v8.0.0 entry. All 25 steps complete. Phase 48A-48E done. Re-ingest against live AWS backends scheduled for next session." }
     { "step": 8, "name": "Implement ChromaDB legacy adapter", "tag": "implement", "completedAt": "2026-03-30T20:22:00.000Z", "notes": "ChromaDBLegacyAdapter.js — pure passthrough wrapper around VectorDatabase" },
     { "step": 10, "name": "Implement Neo4j legacy adapter", "tag": "implement", "completedAt": "2026-03-30T20:24:00.000Z", "notes": "Neo4jLegacyAdapter.js — pure passthrough wrapper around GraphDatabase (all 34 methods)" },
     { "step": 11, "name": "Implement backend selector + wire UnifiedDataAccess", "tag": "implement", "completedAt": "2026-03-30T20:26:00.000Z", "notes": "backend-selector.js routes legacy/aws; UnifiedDataAccess.js constructor now uses selectDatabaseBackend()" }
   ],
-  "status": "active",
+  "status": "complete",
   "notes": "AWS infrastructure port — 5 sub-phases (48A-48E), 25 ISD steps. Kiro spec is design authority; SDD spec is execution tracker. Adapter pattern ensures zero tool code changes.",
   "startedAt": "2026-03-30T03:00:00.000Z",
-  "lastActivityAt": "2026-04-01T19:58:13.000Z"
+  "lastActivityAt": "2026-04-01T20:14:46.000Z"
 }

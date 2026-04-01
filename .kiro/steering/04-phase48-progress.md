@@ -6,9 +6,65 @@ inclusion: auto
 
 ## Current State (2026-04-01)
 
-**SDD Session**: `session_2026-03-30_phase48` — 8/25 steps complete
+**SDD Session**: `session_2026-03-30_phase48` — **25/25 steps COMPLETE**
 **Branch**: `develop_aws`
-**Last Commit**: `4831b6a` — "Phase 48 Steps 6,8,10,11: Adapter pattern + SDD spec for AWS port"
+**Status**: Phase 48A–48E complete. Re-ingest against live AWS backends scheduled next session.
+
+## Completed Steps — ALL DONE
+
+| Step | Tag | What Was Built |
+|------|-----|----------------|
+| 0 | implement | `SETUP_AWS/` — bootstrap.sh, mcp-env-aws.sh, 00–08 provisioning scripts |
+| 1–4 | implement/validate | CDK stacks (VPC, Security, Data) + cdk synth + 27 unit tests |
+| 5 | implement | `aws-config.js` resolveConfig() + P11/P12 property tests |
+| 6 | design | Adapter interfaces (VectorDatabaseAdapter, GraphDatabaseAdapter) |
+| 7 | implement | OpenSearchAdapter — k-NN, SigV4, score normalization |
+| 8 | implement | ChromaDBLegacyAdapter — passthrough wrapper |
+| 9 | implement | NeptuneAdapter + apoc-transform.js (5 APOC replacements) |
+| 10 | implement | Neo4jLegacyAdapter — passthrough wrapper |
+| 11 | implement | backend-selector.js + UnifiedDataAccess wiring |
+| 12 | validate | Property tests P1–P3, P7 (26/26 pass) |
+| 13 | implement | MdcServerStack — ECS Fargate, ALB, API Gateway, CloudFront + WAF |
+| 14 | implement | HealthChecker — checkDatabases, withRetry (5s/10s/20s/60s), P9/P10/P13 |
+| 15 | implement | create-opensearch-indices.js — 5 indices, knn_vector 768-dim |
+| 16 | implement | migrate-to-aws.js — 5-phase migration, S3 staging, watermarks |
+| 17 | validate | verify-migration.js — count parity, P4/P5/P6/P8 tests |
+| 18 | research | capture-golden-files.js — legacy baseline capture |
+| 19 | validate | validate-search-relevance.js — 5% tolerance, overlapAtK |
+| 20 | implement | aws_backend.py + 7 ingestion scripts patched with --backend aws |
+| 21 | validate | step21-reingest-integration.test.js — 10/10 pass |
+| 22 | implement | CloudWatch dashboard + 3 alarms in MdcServerStack |
+| 23 | validate | run-golden-file-comparison.js — schema equivalence |
+| 24 | configure | cutover-mcp-client.js — .kiro/settings/mcp.json update + rollback |
+| 25 | document | CHANGELOG.md v8.0.0 + session complete |
+
+## Next Session: Live Re-ingest
+
+```bash
+# 1. Deploy CDK stacks
+cd infrastructure/cdk && cdk deploy --all
+
+# 2. Create OpenSearch indices
+OPENSEARCH_ENDPOINT=https://... node scripts/create-opensearch-indices.js
+
+# 3. Run migration (ChromaDB→OpenSearch, Neo4j→Neptune)
+node scripts/migrate-to-aws.js
+
+# 4. Verify parity
+node scripts/verify-migration.js
+
+# 5. If needed, re-ingest directly
+DB_BACKEND=aws python scripts/ingest_fortran_graph.py
+DB_BACKEND=aws python scripts/ingest_code_v8.py
+# ... etc
+
+# 6. Capture golden files and compare
+node scripts/capture-golden-files.js --upload
+node scripts/run-golden-file-comparison.js
+
+# 7. Cutover
+node scripts/cutover-mcp-client.js --endpoint https://<cf-domain>/mcp --token <bearer>
+```
 
 ## Completed Steps — DO NOT REDO
 

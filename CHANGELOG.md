@@ -1,5 +1,60 @@
 # MCP Server Changelog
 
+## [8.0.0] - Phase 48: AWS Infrastructure Port (April 1, 2026)
+
+### AWS Infrastructure (Phase 48A–48E)
+
+**CDK Stacks** (`infrastructure/cdk/lib/`)
+- `MdcVpcStack` — VPC, 2 AZs, NAT Gateway, 4 VPC endpoints (Secrets Manager, SSM, CloudWatch, S3)
+- `MdcSecurityStack` — Secrets Manager, SSM, Cognito user pool, WAF WebACL, IAM roles
+- `MdcDataStack` — Neptune (openCypher, IAM auth, KMS), OpenSearch (k-NN 768-dim), EFS, S3 migration bucket
+- `MdcServerStack` — ECS Fargate (1 vCPU/2GB), ALB, API Gateway + Cognito auth, CloudFront + WAF, CloudWatch dashboard + alarms
+
+**Adapter Pattern** (`mcp_server_node/src/data/adapters/`)
+- `VectorDatabaseAdapter.js` / `GraphDatabaseAdapter.js` — abstract interfaces (16/34 methods)
+- `OpenSearchAdapter.js` — k-NN search, SigV4 auth, metadata filter translation, score normalization [0,1]
+- `NeptuneAdapter.js` — all 34 graph methods, Bolt/IAM auth, APOC pre-transform
+- `apoc-transform.js` — 5 APOC→openCypher replacements + `UnsupportedQueryError`
+- `ChromaDBLegacyAdapter.js` / `Neo4jLegacyAdapter.js` — passthrough wrappers
+- `backend-selector.js` — routes `DB_BACKEND=legacy|aws`
+- `UnifiedDataAccess.js` — 3-line change to use `selectDatabaseBackend()`
+
+**Configuration** (`mcp_server_node/src/config/aws-config.js`)
+- `resolveConfig()` — Secrets Manager + SSM fetch, process-lifetime cache, env var fallback, no secret logging
+
+**Health & Resilience** (`mcp_server_node/src/health/HealthChecker.js`)
+- `checkDatabases()` — healthy iff ≥5 indices + nodeCount > 0
+- `withRetry()` — exponential backoff 5s/10s/20s/60s
+- `mcp_health_check` tool updated to include graph DB check
+- `/health` HTTP endpoint uses real DB check
+
+**Migration Scripts** (`mcp_server_node/scripts/`)
+- `create-opensearch-indices.js` — 5 indices, knn_vector 768-dim nmslib cosinesimil hnsw
+- `migrate-to-aws.js` — 5-phase migration with S3 staging, gzip, watermarks
+- `verify-migration.js` — count parity check (ChromaDB↔OpenSearch, Neo4j↔Neptune)
+- `capture-golden-files.js` — baseline capture from legacy system
+- `validate-search-relevance.js` — 5% tolerance comparison (overlapAtK)
+- `run-golden-file-comparison.js` — schema equivalence check against golden files
+- `cutover-mcp-client.js` — updates `.kiro/settings/mcp.json` to AWS endpoint
+
+**Ingestion Adaptation** (`mcp_server_node/scripts/aws_backend.py`)
+- Shared adapter: `get_graph_driver()` (Neptune), `get_vector_client()` (OpenSearch)
+- All 7 ingestion scripts patched with `--backend aws` flag
+
+**Provisioning** (`SETUP_AWS/`)
+- `bootstrap.sh` + `mcp-env-aws.sh` + 9 numbered scripts (00–08)
+- Installs: Node.js LTS via nvm, AWS CDK CLI, Python 3.11+, uvx, AWS CLI
+
+### Property Tests (all passing)
+P1 Tool Interface Preservation, P2 Adapter Output Compatibility, P3 APOC Semantic Preservation,
+P4 Data Completeness, P5 Migration Idempotence, P6 Embedding Fidelity, P7 Score Normalization,
+P8 Search Equivalence, P9 Health Check Accuracy, P10 Graceful Degradation,
+P11 Secret Non-Exposure, P12 Configuration Caching, P13 Retry Exponential Backoff
+
+### Breaking Changes
+- None — all 51 tools work identically in `DB_BACKEND=legacy` mode (default)
+- `DB_BACKEND=aws` requires `OPENSEARCH_ENDPOINT` + `NEPTUNE_ENDPOINT`
+
 ## [7.36.0] - SDD Phase 47: Rocoto Dryrun PR #124 Reconciliation Implementation (March 27, 2026)
 
 ### Rocoto Dryrun Hardening (`supported_repos/rocoto/lib/workflowmgr/`)
