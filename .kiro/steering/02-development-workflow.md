@@ -15,6 +15,7 @@ tasks.md but conflicts with SDD Phase 46 "Knowledge Base Gap Closure" which is a
 
 | SDD Step | Kiro Task | Sub-Phase | Name |
 |----------|-----------|-----------|------|
+| 0 | 0.1–0.3 | 48A | AWS EC2 provisioning scripts (SETUP_AWS/) |
 | 1 | 1.1 | 48A | Scaffold CDK project and VPC stack |
 | 2 | 1.2 | 48A | Define Security stack |
 | 3 | 1.3 | 48A | Define Data stack (Neptune, OpenSearch, EFS, S3) |

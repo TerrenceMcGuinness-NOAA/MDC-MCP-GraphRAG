@@ -228,3 +228,23 @@ This document defines the requirements for porting the MDC MCP RAG Server from i
 1. THE OpenSearch domain SHALL define 5 indices: `mdc-code-context`, `mdc-workflow-docs`, `mdc-jjobs`, `mdc-community-summaries`, and `mdc-ee2-standards`
 2. WHEN an index is created, THE index mapping SHALL include fields for `embedding` (knn_vector, 768-dim), `content` (text), `metadata` (object), `source_file` (keyword), `chunk_id` (keyword), and `collection_name` (keyword)
 3. THE OpenSearch domain SHALL have the k-NN plugin enabled with `nmslib` engine for HNSW-based approximate nearest neighbor search
+
+
+### Requirement 18: AWS Provisioning Scripts
+
+**User Story:** As a DevOps engineer, I want a repeatable set of provisioning scripts for the AWS EC2 development environment, so that the instance can be reprovisioned from scratch without manual steps — mirroring the legacy `SETUP/` pattern for Docker-based infrastructure.
+
+#### Acceptance Criteria
+
+1. THE project SHALL contain an `SETUP_AWS/` directory at the repository root, separate from the legacy `SETUP/` directory
+2. THE `SETUP_AWS/` directory SHALL include a `bootstrap.sh` entry point that orchestrates all provisioning steps
+3. THE `SETUP_AWS/` directory SHALL include a `provisioning/` subdirectory with numbered modular scripts following the legacy pattern (e.g., `00-users.sh`, `01-directories.sh`, etc.)
+4. THE provisioning scripts SHALL install Node.js (LTS), npm, and AWS CDK CLI (`aws-cdk`)
+5. THE provisioning scripts SHALL install Python 3.11+, pip, and `uvx` (for MCP server tooling)
+6. THE provisioning scripts SHALL configure the persistent data root at `/mdc-mcp-rag` with correct ownership and permissions
+7. THE provisioning scripts SHALL install and configure the Kiro CLI shell integration without the `kiro-cli init` eval hooks that cause exit code -1 in agent bash tools
+8. THE provisioning scripts SHALL configure AWS CLI default region and output format
+9. THE provisioning scripts SHALL include a `mcp-env-aws.sh` centralized environment configuration file replacing the legacy `mcp-env.sh`
+10. THE provisioning scripts SHALL include a verification script that validates all installed components and reports status
+11. THE provisioning scripts SHALL be idempotent — running them multiple times produces the same result without errors
+12. THE provisioning scripts SHALL NOT install Docker, Spack, VNC, or other legacy-only components

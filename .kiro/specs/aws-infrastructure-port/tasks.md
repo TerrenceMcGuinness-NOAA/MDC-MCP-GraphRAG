@@ -6,6 +6,30 @@ Port the MDC MCP RAG Server from Docker-based Parallel Works VMs to AWS-native s
 
 ## Tasks
 
+- [ ] 0. Phase 46A — AWS EC2 Development Environment Provisioning
+  - [ ] 0.1 Create `SETUP_AWS/` directory structure and bootstrap entry point
+    - Create `SETUP_AWS/bootstrap.sh` as the main provisioning entry point
+    - Create `SETUP_AWS/mcp-env-aws.sh` centralized environment configuration (replaces legacy `mcp-env.sh`)
+    - Create `SETUP_AWS/provisioning/` subdirectory with `common.sh` shared functions and `provision.sh` orchestrator
+    - _Requirements: 18.1, 18.2, 18.3, 18.9_
+
+  - [ ] 0.2 Implement numbered provisioning scripts
+    - `00-users.sh` — Validate ec2-user, set up SSH keys
+    - `01-directories.sh` — Create `/mdc-mcp-rag` persistent root with correct ownership
+    - `02-system-deps.sh` — Install system packages (git, jq, curl, build tools)
+    - `03-nodejs.sh` — Install Node.js LTS via nvm, npm, and AWS CDK CLI globally
+    - `04-python.sh` — Install Python 3.11+, pip, uvx (for MCP tooling like iam-policy-autopilot)
+    - `05-aws-cli-config.sh` — Configure AWS CLI defaults (region, output format)
+    - `06-kiro-cli-fix.sh` — Fix Kiro CLI shell integration (disable `kiro-cli init` eval hooks that cause exit code -1)
+    - `07-mcp-server-deps.sh` — Run `npm install` in `mcp_server_node/`, validate server starts
+    - `08-verification.sh` — Validate all components installed, report status table
+    - _Requirements: 18.4, 18.5, 18.6, 18.7, 18.8, 18.10, 18.11, 18.12_
+
+  - [ ] 0.3 Test provisioning scripts are idempotent
+    - Run `bootstrap.sh` twice and verify no errors on second run
+    - Verify all verification checks pass after both runs
+    - _Requirements: 18.11_
+
 - [ ] 1. Phase 46A — Foundation: CDK Project and VPC Stack
   - [ ] 1.1 Scaffold CDK project and define `MdcVpcStack`
     - Create `infrastructure/cdk/` directory with CDK TypeScript project (`cdk init app --language typescript`)

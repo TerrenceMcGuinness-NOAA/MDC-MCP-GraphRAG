@@ -4,9 +4,9 @@ inclusion: auto
 
 # Phase 48 Progress — AWS Infrastructure Port
 
-## Current State (2026-03-30)
+## Current State (2026-04-01)
 
-**SDD Session**: `session_2026-03-30_phase48` — 4/25 steps complete
+**SDD Session**: `session_2026-03-30_phase48` — 8/25 steps complete
 **Branch**: `develop_aws`
 **Last Commit**: `4831b6a` — "Phase 48 Steps 6,8,10,11: Adapter pattern + SDD spec for AWS port"
 
@@ -14,6 +14,10 @@ inclusion: auto
 
 | Step | Tag | What Was Built | Commit |
 |------|-----|----------------|--------|
+| 0 | implement | `SETUP_AWS/bootstrap.sh`, `mcp-env-aws.sh`, `provisioning/` (00–08 + common + provision) | HEAD |
+| 1 | implement | `infrastructure/cdk/` — `MdcVpcStack`, `MdcSecurityStack`, `MdcDataStack` (TypeScript + compiled JS) | HEAD |
+| 2 | validate | `cdk synth` succeeded — 3 templates in `cdk.out/`; 20/20 CDK unit tests pass | HEAD |
+| 3 | implement | `mcp_server_node/src/config/aws-config.js` — `resolveConfig()` with caching + env fallback; property tests P11+P12 | HEAD |
 | 6 | design | `VectorDatabaseAdapter.js` (16 methods), `GraphDatabaseAdapter.js` (34 methods) | 4831b6a |
 | 8 | implement | `ChromaDBLegacyAdapter.js` — passthrough wrapper around VectorDatabase | 4831b6a |
 | 10 | implement | `Neo4jLegacyAdapter.js` — passthrough wrapper around GraphDatabase | 4831b6a |
@@ -24,35 +28,11 @@ All adapter files are in `mcp_server_node/src/data/adapters/`.
 
 ## Next Steps — Ready to Execute
 
-### Phase 48A: CDK Infrastructure (Steps 1–5)
+### Phase 48A: COMPLETE (Steps 0–5) — completed 2026-04-01
 
-**Step 1** — Scaffold CDK project and VPC stack:
-- `cdk init app --language typescript` in `infrastructure/cdk/`
-- `MdcVpcStack`: VPC, 2 AZs, public/private subnets, NAT Gateway
-- 4 VPC endpoints: Secrets Manager, SSM, CloudWatch, S3
+All Phase 48A steps are done. Steps 0–3 built in this session; steps 4 (CDK tests) and 5 (resolveConfig) are folded into steps 2 and 3 respectively.
 
-**Step 2** — Security stack (`MdcSecurityStack`):
-- Secrets Manager: `mdc-mcp-rag/neptune/credentials`, `mdc-mcp-rag/github/token`
-- SSM: `/mdc-mcp-rag/neptune/endpoint`, `/mdc-mcp-rag/opensearch/endpoint`
-- Cognito user pool, WAF web ACL, IAM roles for ECS
-- No secrets in CloudFormation outputs
-
-**Step 3** — Data stack (`MdcDataStack`):
-- Neptune cluster (openCypher, IAM auth, private subnets, KMS)
-- OpenSearch domain (k-NN plugin, nmslib, HNSW, 768-dim)
-- EFS filesystem (`/mdc-mcp-rag`)
-- S3 bucket `mdc-mcp-rag-migration`
-- Security groups: ECS→Neptune (8182), ECS→OpenSearch (443)
-
-**Step 4** — Validate: `cdk synth` must succeed for all 3 stacks
-
-**Step 5** — `resolveConfig()` in `mcp_server_node/src/config/aws-config.js`:
-- Fetch from Secrets Manager + SSM Parameter Store
-- Cache for process lifetime
-- Fall back to env vars with warning log
-- Never log secret values
-
-### Phase 48B: Remaining Adapter + Server Work (Steps 7, 9, 12–14)
+### Phase 48B: Remaining Adapter + Server Work (Steps 7, 9, 12–14) — NEXT
 
 **Step 7** — OpenSearch adapter (`OpenSearchAdapter.js`):
 - k-NN search with 768-dim embeddings

@@ -15,4 +15,5 @@ export { VectorDatabaseAdapter } from './VectorDatabaseAdapter.js';
 export { GraphDatabaseAdapter } from './GraphDatabaseAdapter.js';
 export { ChromaDBLegacyAdapter } from './ChromaDBLegacyAdapter.js';
 export { Neo4jLegacyAdapter } from './Neo4jLegacyAdapter.js';
+export { OpenSearchAdapter } from './OpenSearchAdapter.js';
 export { selectDatabaseBackend } from './backend-selector.js';

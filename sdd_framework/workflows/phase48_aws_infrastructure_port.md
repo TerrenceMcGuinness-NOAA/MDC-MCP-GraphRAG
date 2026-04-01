@@ -274,6 +274,7 @@ The Kiro spec assumes scripts are modified to target AWS. A safer approach for v
 
 | Step | Name | Sub-Phase | Tag | Kiro Task |
 |------|------|-----------|-----|-----------|
+| 0 | AWS EC2 provisioning scripts (SETUP_AWS/) | 48A | implement | 0.1–0.3 |
 | 1 | Scaffold CDK project and VPC stack | 48A | implement | 1.1 |
 | 2 | Define Security stack (Secrets Manager, Cognito, WAF, IAM) | 48A | implement | 1.2 |
 | 3 | Define Data stack (Neptune, OpenSearch, EFS, S3) | 48A | implement | 1.3 |
@@ -300,7 +301,7 @@ The Kiro spec assumes scripts are modified to target AWS. A safer approach for v
 | 24 | MCP client cutover + legacy fallback documentation | 48E | configure | 16.2 |
 | 25 | Final validation + SDD session completion + CHANGELOG | 48E | document | 17 |
 
-**Total steps**: 25
+**Total steps**: 26
 **Tags used**: research, design, implement, validate, configure, document
 
 ---

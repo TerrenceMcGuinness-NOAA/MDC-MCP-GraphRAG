@@ -11,6 +11,7 @@
 
 import { ChromaDBLegacyAdapter } from './ChromaDBLegacyAdapter.js';
 import { Neo4jLegacyAdapter } from './Neo4jLegacyAdapter.js';
+import { OpenSearchAdapter } from './OpenSearchAdapter.js';
 
 /**
  * Select and instantiate database adapters based on configuration.
@@ -33,8 +34,13 @@ export function selectDatabaseBackend(config = {}) {
       };
     }
 
-    case 'aws':
-      throw new Error('AWS backend not yet implemented — Phase 48B Steps 7,9');
+    case 'aws': {
+      console.log(`[OK] Database backend: aws (OpenSearch + Neptune)`);
+      const opensearchEndpoint = config.opensearch?.endpoint || process.env.OPENSEARCH_ENDPOINT || '';
+      const vectorDB = new OpenSearchAdapter({ endpoint: opensearchEndpoint });
+      // NeptuneAdapter added in Step 9 — throw until then
+      throw new Error('AWS backend: NeptuneAdapter not yet implemented — Phase 48B Step 9 pending');
+    }
 
     default:
       throw new Error(`Unknown DB_BACKEND: ${backend}`);
