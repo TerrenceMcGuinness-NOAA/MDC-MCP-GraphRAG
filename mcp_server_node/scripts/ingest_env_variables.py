@@ -49,6 +49,19 @@ NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "gfsworkflow2025")
 
+# Phase 48D: AWS backend support
+import sys as _sys
+if "--backend" in _sys.argv:
+    _bidx = _sys.argv.index("--backend")
+    if _bidx + 1 < len(_sys.argv):
+        os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_graph_driver as _get_graph_driver, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
+
 WORKFLOW_ROOT = os.environ.get(
     "MCP_WORKFLOW_ROOT",
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
@@ -422,7 +435,8 @@ def main():
     args = parser.parse_args()
 
     # Connect to Neo4j
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    driver = (_get_graph_driver() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+              else GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD)))
     
     try:
         driver.verify_connectivity()

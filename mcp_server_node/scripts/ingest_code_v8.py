@@ -55,6 +55,19 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
+# Phase 48D: AWS backend support
+import sys as _sys
+if "--backend" in _sys.argv:
+    _bidx = _sys.argv.index("--backend")
+    if _bidx + 1 < len(_sys.argv):
+        os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_graph_driver as _get_graph_driver, get_vector_client as _get_vector_client, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
+
 # Embedding model - MUST match jjobs-v8-0-0 and documentation
 EMBEDDING_MODEL = "all-mpnet-base-v2"
 EMBEDDING_DIMENSIONS = 768
@@ -365,11 +378,9 @@ class GraphDatabaseClient:
     
     def __init__(self):
         try:
-            self.driver = GraphDatabase.driver(
-                NEO4J_URI,
-                auth=(NEO4J_USER, NEO4J_PASSWORD),
-                max_connection_lifetime=3600
-            )
+            self.driver = (_get_graph_driver() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+                           else GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD),
+                                                     max_connection_lifetime=3600))
             # Test connection
             with self.driver.session() as session:
                 session.run("RETURN 1")
@@ -464,7 +475,8 @@ class CodeIngesterV8:
         self.graph = GraphDatabaseClient()
         
         # Initialize ChromaDB with MPNet embedding function
-        self.chroma = chromadb.HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT)
+        self.chroma = (_get_vector_client() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+                       else chromadb.HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT))
         
         # Create embedding function
         print(f"[OK] Loading embedding model: {EMBEDDING_MODEL}")

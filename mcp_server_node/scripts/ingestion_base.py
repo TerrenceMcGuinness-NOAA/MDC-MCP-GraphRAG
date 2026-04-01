@@ -383,7 +383,20 @@ class ChromaDBClient:
         self.embedding_function = None
         
     def connect(self):
-        """Connect to ChromaDB"""
+        """Connect to ChromaDB or OpenSearch (DB_BACKEND=aws)"""
+        import sys as _sys
+        if "--backend" in _sys.argv:
+            _bidx = _sys.argv.index("--backend")
+            if _bidx + 1 < len(_sys.argv):
+                os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+        _backend = os.environ.get("DB_BACKEND", "legacy")
+        if _backend == "aws":
+            try:
+                from aws_backend import get_vector_client
+                self.client = get_vector_client()
+                return self.client
+            except ImportError:
+                pass
         self.client = chromadb.HttpClient(
             host=self.host,
             port=self.port,

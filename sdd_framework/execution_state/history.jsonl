@@ -293,3 +293,9 @@
 {"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":12,"name":"Adapter property tests (P1, P2, P3, P7)","tag":"validate","timestamp":"2026-04-01T18:46:29.000Z"}
 {"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":13,"name":"ECS Fargate + API Gateway + CloudFront CDK stack","tag":"implement","timestamp":"2026-04-01T18:53:10.000Z"}
 {"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":14,"name":"Health check + error handling + resilience","tag":"implement","timestamp":"2026-04-01T19:13:13.000Z"}
+{"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":15,"name":"Create OpenSearch index definitions","tag":"implement","timestamp":"2026-04-01T19:28:46.000Z"}
+{"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":16,"name":"Implement data migration script","tag":"implement","timestamp":"2026-04-01T19:28:46.000Z"}
+{"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":17,"name":"Migration verification + count parity","tag":"validate","timestamp":"2026-04-01T19:33:39.000Z"}
+{"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":18,"name":"Capture golden-file baseline from legacy system","tag":"research","timestamp":"2026-04-01T19:33:39.000Z"}
+{"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":19,"name":"Search relevance validation (5% tolerance)","tag":"validate","timestamp":"2026-04-01T19:33:39.000Z"}
+{"event":"step_completed","sessionId":"session_2026-03-30_phase48","step":20,"name":"Adapt 7 ingestion scripts for AWS backends","tag":"implement","timestamp":"2026-04-01T19:58:13.000Z"}

@@ -83,6 +83,19 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
+# Phase 48D: AWS backend support — set DB_BACKEND=aws to write to Neptune
+import sys as _sys
+if "--backend" in _sys.argv:
+    _bidx = _sys.argv.index("--backend")
+    if _bidx + 1 < len(_sys.argv):
+        os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_graph_driver as _get_graph_driver, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
+
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
 
@@ -495,7 +508,8 @@ class Neo4jIngester:
         
         if not dry_run and GraphDatabase:
             try:
-                self.driver = GraphDatabase.driver(uri, auth=(user, password))
+                self.driver = (_get_graph_driver() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+                               else GraphDatabase.driver(uri, auth=(user, password)))
                 # Test connection
                 with self.driver.session() as session:
                     session.run("RETURN 1")

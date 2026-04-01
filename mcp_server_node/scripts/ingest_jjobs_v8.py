@@ -54,6 +54,19 @@ COLLECTION_NAME = os.getenv("JJOB_COLLECTION", "jjobs-v8-0-0")
 CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
 
+# Phase 48D: AWS backend support
+import sys as _sys
+if "--backend" in _sys.argv:
+    _bidx = _sys.argv.index("--backend")
+    if _bidx + 1 < len(_sys.argv):
+        os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_vector_client as _get_vector_client, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
+
 # Source paths
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
@@ -409,7 +422,8 @@ class JJobIngester:
     
     def __init__(self, host: str = CHROMADB_HOST, port: int = CHROMADB_PORT, 
                  workflow_root: str = WORKFLOW_ROOT):
-        self.client = chromadb.HttpClient(host=host, port=port)
+        self.client = (_get_vector_client() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+                       else chromadb.HttpClient(host=host, port=port))
         self.workflow_root = workflow_root
         self.extractor = JJobMetadataExtractor(self.workflow_root)
         self.stats = defaultdict(int)
