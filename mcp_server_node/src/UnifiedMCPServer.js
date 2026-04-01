@@ -393,32 +393,39 @@ class UnifiedMCPServer {
       details: '4 graph-based tools available'
     });
 
-    // Semantic search tools check WITH DATA VALIDATION
+    // Semantic search + graph DB check WITH DATA VALIDATION (Requirements 11.1, 11.2)
     if (this.options.enableRAG && this.semanticSearchTools) {
       try {
         if (this.semanticSearchTools.isInitialized && this.semanticSearchTools.dataAccess) {
-          // Run empirical validation on vector database
-          const vectorHealth = await this.semanticSearchTools.dataAccess.vectorDB.healthCheck({
-            deep: deep,
-            minCollections: 1,
-            minDocuments: 100
+          const { checkDatabases } = await import('./health/HealthChecker.js');
+          const da = this.semanticSearchTools.dataAccess;
+          const dbHealth = await checkDatabases(da.vectorDB, da.graphDB, { minIndices: 5 });
+
+          dataValidation = dbHealth;
+
+          checks.push({
+            component: 'Vector Database',
+            status: dbHealth.vector.ok ? 'healthy' : 'degraded',
+            details: dbHealth.vector.ok
+              ? `${dbHealth.vector.indexCount} indices available`
+              : (dbHealth.vector.reason || 'unavailable'),
           });
-          
-          dataValidation = vectorHealth;
-          
-          // Status based on actual data validation, not just connectivity
-          let ragStatus = vectorHealth.status;
-          let ragDetails = vectorHealth.statusReason;
-          
-          if (vectorHealth.status === 'healthy') {
-            ragDetails = `${vectorHealth.totalDocuments} docs in ${vectorHealth.collections?.length || 0} collections`;
-          }
-          
+
+          checks.push({
+            component: 'Graph Database',
+            status: dbHealth.graph.ok ? 'healthy' : 'degraded',
+            details: dbHealth.graph.ok
+              ? `${dbHealth.graph.nodeCount} nodes`
+              : (dbHealth.graph.reason || 'unavailable'),
+          });
+
+          // Semantic search tools status follows vector DB
           checks.push({
             component: 'Semantic Search Tools',
-            status: ragStatus,
-            details: ragDetails,
-            validation: vectorHealth.validation
+            status: dbHealth.vector.ok ? 'healthy' : 'degraded',
+            details: dbHealth.vector.ok
+              ? `${dbHealth.vector.indexCount} indices ready`
+              : `degraded — ${dbHealth.vector.reason}`,
           });
         } else if (this.semanticSearchTools.isInitialized) {
           checks.push({

@@ -3,6 +3,7 @@ import { Template, Match } from 'aws-cdk-lib/assertions';
 import { MdcVpcStack } from '../lib/mdc-vpc-stack';
 import { MdcSecurityStack } from '../lib/mdc-security-stack';
 import { MdcDataStack } from '../lib/mdc-data-stack';
+import { MdcServerStack } from '../lib/mdc-server-stack';
 
 const env = { account: '903050880929', region: 'us-east-1' };
 
@@ -15,7 +16,13 @@ function buildStacks() {
     vpc: vpcStack.vpc,
     ecsSecurityGroup: securityStack.ecsSecurityGroup,
   });
-  return { vpcStack, securityStack, dataStack };
+  const serverStack = new MdcServerStack(app, 'MdcServerStack', {
+    env,
+    vpc: vpcStack.vpc,
+    userPool: securityStack.userPool,
+    webAcl: securityStack.webAcl,
+  });
+  return { vpcStack, securityStack, dataStack, serverStack };
 }
 
 describe('MdcVpcStack', () => {
@@ -175,5 +182,73 @@ describe('MdcDataStack', () => {
       ToPort: 443,
       IpProtocol: 'tcp',
     });
+  });
+});
+
+describe('MdcServerStack', () => {
+  const { serverStack } = buildStacks();
+  const template = Template.fromStack(serverStack);
+
+  test('ECS Fargate task definition has 1 vCPU and 2GB memory', () => {
+    template.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      Cpu: '1024',
+      Memory: '2048',
+      RequiresCompatibilities: ['FARGATE'],
+    });
+  });
+
+  test('ECS task role has Secrets Manager access scoped to mdc-mcp-rag/*', () => {
+    template.hasResourceProperties('AWS::IAM::Policy', {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: 'secretsmanager:GetSecretValue',
+            Resource: Match.stringLikeRegexp('mdc-mcp-rag'),
+          }),
+        ]),
+      },
+    });
+  });
+
+  test('ALB health check is configured on /health path', () => {
+    template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
+      HealthCheckPath: '/health',
+      HealthCheckIntervalSeconds: 30,
+      HealthyThresholdCount: 2,
+    });
+  });
+
+  test('CloudFront distribution exists with HTTPS-only viewer protocol', () => {
+    template.hasResourceProperties('AWS::CloudFront::Distribution', {
+      DistributionConfig: Match.objectLike({
+        DefaultCacheBehavior: Match.objectLike({
+          ViewerProtocolPolicy: 'https-only',
+        }),
+        HttpVersion: 'http2',
+      }),
+    });
+  });
+
+  test('CloudFront WAF WebACL has rate limiting and geo-restriction rules', () => {
+    template.hasResourceProperties('AWS::WAFv2::WebACL', {
+      Name: 'mdc-mcp-rag-cf-waf',
+      Scope: 'CLOUDFRONT',
+      Rules: Match.arrayWith([
+        Match.objectLike({ Name: 'RateLimit' }),
+        Match.objectLike({ Name: 'GeoBlock' }),
+      ]),
+    });
+  });
+
+  test('API Gateway REST API exists', () => {
+    template.resourceCountIs('AWS::ApiGateway::RestApi', 1);
+  });
+
+  test('No secret values in MdcServerStack CloudFormation outputs', () => {
+    const outputs = template.findOutputs('*');
+    for (const key of Object.keys(outputs)) {
+      const val = JSON.stringify(outputs[key]);
+      expect(val).not.toMatch(/password|token|secret/i);
+    }
   });
 });

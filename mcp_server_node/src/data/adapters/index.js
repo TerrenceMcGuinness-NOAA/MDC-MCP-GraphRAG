@@ -16,4 +16,6 @@ export { GraphDatabaseAdapter } from './GraphDatabaseAdapter.js';
 export { ChromaDBLegacyAdapter } from './ChromaDBLegacyAdapter.js';
 export { Neo4jLegacyAdapter } from './Neo4jLegacyAdapter.js';
 export { OpenSearchAdapter } from './OpenSearchAdapter.js';
+export { NeptuneAdapter } from './NeptuneAdapter.js';
+export { transformApoc, UnsupportedQueryError } from './apoc-transform.js';
 export { selectDatabaseBackend } from './backend-selector.js';

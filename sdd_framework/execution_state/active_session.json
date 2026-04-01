@@ -7,7 +7,7 @@
     { "step": 1, "name": "Scaffold CDK project and define MdcVpcStack, MdcSecurityStack, MdcDataStack", "tag": "implement", "completedAt": "2026-04-01T17:51:49.000Z", "notes": "infrastructure/cdk/ scaffolded with all 3 stacks. VPC (2 AZs, NAT, 4 endpoints), Security (Secrets Manager, SSM, Cognito, WAF, IAM roles), Data (Neptune, OpenSearch, EFS, S3)." },
     { "step": 2, "name": "cdk synth validation", "tag": "validate", "completedAt": "2026-04-01T17:51:49.000Z", "notes": "cdk synth succeeded — MdcVpcStack.template.json, MdcSecurityStack.template.json, MdcDataStack.template.json generated. 20/20 CDK unit tests pass." },
     { "step": 3, "name": "Implement resolveConfig() in aws-config.js", "tag": "implement", "completedAt": "2026-04-01T17:51:49.000Z", "notes": "mcp_server_node/src/config/aws-config.js: Secrets Manager + SSM fetch, process-lifetime cache, env var fallback, no secret logging. Property tests P11+P12 written." },
-    { "step": 7, "name": "Implement OpenSearchAdapter", "tag": "implement", "completedAt": "2026-04-01T18:07:17.000Z", "notes": "OpenSearchAdapter.js: k-NN search, SigV4 auth, metadata filter translation, score normalization [0,1], ChromaDB-compatible output. Property tests P7+P2a: 6/6 pass." },
+    { "step": 14, "name": "Health check + error handling + resilience", "tag": "implement", "completedAt": "2026-04-01T19:13:13.000Z", "notes": "src/health/HealthChecker.js: checkDatabases (healthy iff ≥5 indices + nodeCount>0), withRetry (5s/10s/20s/60s backoff), isDegraded. UnifiedMCPServer.js: graph DB check added to mcp_health_check. RestApiWrapper.js: /health uses real DB check. NeptuneAdapter.js: connect() uses withRetry. Tests P9+P10+P13: 14/14 pass." },
     { "step": 8, "name": "Implement ChromaDB legacy adapter", "tag": "implement", "completedAt": "2026-03-30T20:22:00.000Z", "notes": "ChromaDBLegacyAdapter.js — pure passthrough wrapper around VectorDatabase" },
     { "step": 10, "name": "Implement Neo4j legacy adapter", "tag": "implement", "completedAt": "2026-03-30T20:24:00.000Z", "notes": "Neo4jLegacyAdapter.js — pure passthrough wrapper around GraphDatabase (all 34 methods)" },
     { "step": 11, "name": "Implement backend selector + wire UnifiedDataAccess", "tag": "implement", "completedAt": "2026-03-30T20:26:00.000Z", "notes": "backend-selector.js routes legacy/aws; UnifiedDataAccess.js constructor now uses selectDatabaseBackend()" }
@@ -15,5 +15,5 @@
   "status": "active",
   "notes": "AWS infrastructure port — 5 sub-phases (48A-48E), 25 ISD steps. Kiro spec is design authority; SDD spec is execution tracker. Adapter pattern ensures zero tool code changes.",
   "startedAt": "2026-03-30T03:00:00.000Z",
-  "lastActivityAt": "2026-04-01T18:07:17.000Z"
+  "lastActivityAt": "2026-04-01T19:13:13.000Z"
 }
