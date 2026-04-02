@@ -162,6 +162,22 @@ export class VectorDatabaseAdapter {
   async close() {
     throw new Error('Not implemented: close');
   }
+
+  /**
+   * Comparative query across multiple vector spaces (model profiles).
+   * Execute a single query text against multiple model-aware collections.
+   *
+   * @param {string} queryText - Query text
+   * @param {Array<string>} modelProfiles - Model profile short names (e.g., ['mpnet768', 'titan1024'])
+   * @param {object} options - Query options
+   * @param {string} options.baseDomain - Base collection domain (e.g., 'code-with-context')
+   * @param {string} options.version - Collection version (e.g., 'v8-0-0')
+   * @param {number} [options.nResults=10] - Number of results per model
+   * @returns {Promise<object>} Results grouped by model profile
+   */
+  async comparativeQuery(queryText, modelProfiles, options = {}) {
+    throw new Error('Not implemented: comparativeQuery');
+  }
 }
 
 export default VectorDatabaseAdapter;

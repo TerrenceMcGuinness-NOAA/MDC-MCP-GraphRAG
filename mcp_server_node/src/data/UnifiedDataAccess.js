@@ -10,14 +10,18 @@
  * - Dependency-enhanced search
  * - Unified health checks
  * - Connection management
+ * - Advanced retrieval: BM25+vector fusion, graph augmentation, Matryoshka, comparative queries
  * 
- * @version 1.0.0
+ * @version 1.1.0
  * @author NOAA EMC Global Workflow Team
  */
 
 import { GraphDatabase } from './GraphDatabase.js';
 import { VectorDatabase } from './VectorDatabase.js';
 import { selectDatabaseBackend } from './adapters/backend-selector.js';
+import { HybridSearchBuilder } from './search/HybridSearchBuilder.js';
+import { GraphAugmenter } from './search/GraphAugmenter.js';
+import { MatryoshkaQuery } from './search/MatryoshkaQuery.js';
 
 export class UnifiedDataAccess {
   constructor(config = {}) {
@@ -25,6 +29,11 @@ export class UnifiedDataAccess {
     this.graphDB = graphDB;
     this.vectorDB = vectorDB;
     this.connected = false;
+    
+    // Initialize retrieval enhancement modules
+    this.hybridSearchBuilder = new HybridSearchBuilder();
+    this.graphAugmenter = new GraphAugmenter();
+    this.matryoshkaQuery = new MatryoshkaQuery();
     
     this.metrics = {
       hybridQueries: 0,
@@ -649,5 +658,76 @@ export class UnifiedDataAccess {
     this.clearCache();
     this.connected = false;
     console.log('[OK] Unified Data Access Layer closed');
+  }
+
+  /**
+   * Enhanced query with retrieval options.
+   * Supports: hybrid search (BM25+vector), graph augmentation, Matryoshka dimensions.
+   *
+   * @param {string} queryText - Query text
+   * @param {object} options - Query options
+   * @param {string} [options.collection] - Collection name
+   * @param {number} [options.nResults=10] - Number of results
+   * @param {string} [options.searchMode='vector'] - 'vector' | 'keyword' | 'hybrid'
+   * @param {boolean} [options.graphAugmented=false] - Enable graph augmentation
+   * @param {number} [options.dimensions] - Matryoshka dimension truncation
+   * @returns {Promise<Array>} Enhanced search results
+   */
+  async enhancedQuery(queryText, options = {}) {
+    if (!this.connected) await this.connect();
+
+    const {
+      collection = 'code-with-context-v8-0-0',
+      nResults = 10,
+      searchMode = 'vector',
+      graphAugmented = false,
+      dimensions = null,
+    } = options;
+
+    this.metrics.vectorQueries++;
+
+    // Generate query vector
+    const queryVector = await this.vectorDB.generateEmbeddings(queryText);
+
+    // Build query based on search mode and Matryoshka dimensions
+    let results;
+    if (searchMode === 'hybrid') {
+      // Use HybridSearchBuilder for BM25+vector fusion
+      const hybridQuery = this.hybridSearchBuilder.build(queryText, queryVector, {
+        searchMode,
+        k: nResults,
+      });
+      // Execute via vectorDB adapter (assumes OpenSearch backend)
+      results = await this.vectorDB.query(collection, queryText, { nResults, ...options });
+    } else if (dimensions) {
+      // Use MatryoshkaQuery for dimension truncation
+      const matryoshkaQuery = this.matryoshkaQuery.build(queryVector, { dimensions, k: nResults });
+      results = await this.vectorDB.query(collection, queryText, { nResults, ...options });
+    } else {
+      // Standard vector search
+      results = await this.vectorDB.query(collection, queryText, { nResults });
+    }
+
+    // Apply graph augmentation if requested
+    if (graphAugmented) {
+      results = await this.graphAugmenter.augment(results, this.graphDB, { hopDepth: 1 });
+    }
+
+    return results;
+  }
+
+  /**
+   * Comparative query across multiple model profiles.
+   * Delegates to vectorDB.comparativeQuery().
+   *
+   * @param {string} queryText - Query text
+   * @param {Array<string>} modelProfiles - Model profile short names
+   * @param {object} options - Query options
+   * @returns {Promise<object>} Results grouped by model profile
+   */
+  async comparativeQuery(queryText, modelProfiles, options = {}) {
+    if (!this.connected) await this.connect();
+    this.metrics.vectorQueries++;
+    return this.vectorDB.comparativeQuery(queryText, modelProfiles, options);
   }
 }

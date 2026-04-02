@@ -252,6 +252,44 @@ export class OpenSearchAdapter extends VectorDatabaseAdapter {
     console.error('[OK] OpenSearchAdapter closed');
   }
 
+  /**
+   * Comparative query across multiple vector spaces (model profiles).
+   * Execute a single query text against multiple model-aware collections.
+   *
+   * @param {string} queryText - Query text
+   * @param {Array<string>} modelProfiles - Model profile short names (e.g., ['mpnet768', 'titan1024'])
+   * @param {object} options - Query options
+   * @param {string} options.baseDomain - Base collection domain (e.g., 'code-with-context')
+   * @param {string} options.version - Collection version (e.g., 'v8-0-0')
+   * @param {number} [options.nResults=10] - Number of results per model
+   * @returns {Promise<object>} Results grouped by model profile
+   */
+  async comparativeQuery(queryText, modelProfiles, options = {}) {
+    if (!this.connected) await this.connect();
+
+    const { baseDomain, version, nResults = 10 } = options;
+    if (!baseDomain || !version) {
+      throw new Error('comparativeQuery requires baseDomain and version in options');
+    }
+
+    const results = {};
+
+    // Query each model-aware collection in parallel
+    const promises = modelProfiles.map(async (modelProfile) => {
+      const collectionName = `${baseDomain}-${version}-${modelProfile}`;
+      try {
+        const modelResults = await this.query(collectionName, queryText, { nResults });
+        results[modelProfile] = modelResults;
+      } catch (err) {
+        console.error(`[WARN] comparativeQuery: failed for ${modelProfile} — ${err.message}`);
+        results[modelProfile] = [];
+      }
+    });
+
+    await Promise.all(promises);
+    return results;
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
