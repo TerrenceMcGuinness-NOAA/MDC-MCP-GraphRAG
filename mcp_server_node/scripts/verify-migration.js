@@ -1,8 +1,10 @@
 /**
- * verify-migration.js — Step 17: Migration Verification + Count Parity
+ * verify-migration.js — Step 17: Migration Verification + Count Parity (multi-model)
  *
- * Standalone verification: compares counts between legacy (ChromaDB/Neo4j)
- * and AWS (OpenSearch/Neptune), generates a parity report.
+ * Checks count parity for every model-aware index in OpenSearch.
+ * Reports per-model, per-collection counts.
+ * Uploads parity report to S3 with timestamp.
+ * Exits non-zero on any model-specific count mismatch.
  *
  * Usage:
  *   node scripts/verify-migration.js [--fail-fast]
@@ -11,6 +13,8 @@
  *   CHROMADB_URL, NEO4J_URI, NEO4J_PASSWORD  — legacy source
  *   OPENSEARCH_ENDPOINT, NEPTUNE_ENDPOINT    — AWS target
  *   AWS_REGION, MIGRATION_BUCKET
+ *
+ * Requirements: 17.1, 17.2, 17.3, 17.4
  */
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -29,6 +33,7 @@ const OS_ENDPOINT = process.env.OPENSEARCH_ENDPOINT || '';
 const NEPTUNE_EP  = process.env.NEPTUNE_ENDPOINT    || '';
 const FAIL_FAST   = process.argv.includes('--fail-fast');
 
+// Legacy collection → base index mapping (preserved for backward compat)
 const COLLECTION_TO_INDEX = {
   'code-with-context-v8-0-0':      'mdc-code-context',
   'global-workflow-docs-v8-0-0':   'mdc-workflow-docs',
@@ -37,6 +42,11 @@ const COLLECTION_TO_INDEX = {
   'ee2-standards-v5-0-0-enhanced': 'mdc-ee2-standards',
 };
 
+// Known model suffixes (mirrors embedding_registry.py)
+const KNOWN_MODEL_SUFFIXES = ['mpnet768', 'titan1024', 'nova256', 'nova512', 'nova1024', 'nova3072'];
+
+// ── Data source helpers ───────────────────────────────────────────────────────
+
 async function getChromaCounts() {
   const chroma = new ChromaClient({ path: `${CHROMA_URL}/api/v2` });
   const cols = await chroma.listCollections();
@@ -44,7 +54,13 @@ async function getChromaCounts() {
   for (const c of cols) {
     if (COLLECTION_TO_INDEX[c.name]) {
       const col = await chroma.getCollection({ name: c.name });
-      counts[c.name] = await col.count();
+      const meta = col.metadata || {};
+      // Determine model suffix from metadata
+      let modelSuffix = 'mpnet768';
+      if (meta.model_profile) modelSuffix = meta.model_profile;
+      else if (meta.embedding_model?.includes('titan')) modelSuffix = 'titan1024';
+      const key = `${c.name}:${modelSuffix}`;
+      counts[key] = await col.count();
     }
   }
   return counts;
@@ -69,11 +85,16 @@ async function getOpenSearchCounts() {
     node: OS_ENDPOINT,
   });
   const counts = {};
-  for (const index of Object.values(COLLECTION_TO_INDEX)) {
-    try {
-      const r = await os.count({ index });
-      counts[index] = r.body.count;
-    } catch { counts[index] = null; }
+  // Check all model-aware indices
+  for (const [col, baseIndex] of Object.entries(COLLECTION_TO_INDEX)) {
+    for (const suffix of KNOWN_MODEL_SUFFIXES) {
+      const index = `${baseIndex}-${suffix}`;
+      const key = `${col}:${suffix}`;
+      try {
+        const r = await os.count({ index });
+        counts[key] = r.body.count;
+      } catch { counts[key] = null; }
+    }
   }
   return counts;
 }
@@ -92,22 +113,35 @@ async function getNeptuneCounts() {
   } finally { await session.close(); await driver.close(); }
 }
 
-async function main() {
-  console.log('[START] Migration Verification\n');
-  const report = { timestamp: new Date().toISOString(), vectors: {}, graph: {}, passed: true };
+// ── Main ──────────────────────────────────────────────────────────────────────
 
-  // ── Vector parity ──────────────────────────────────────────────────────────
-  console.log('Vector counts:');
+async function main() {
+  console.log('[START] Migration Verification (multi-model)\n');
+  const report = {
+    timestamp: new Date().toISOString(),
+    vectors: {},
+    graph: {},
+    passed: true,
+  };
+
+  // ── Vector parity (per model, per collection) ──────────────────────────────
+  console.log('Vector counts (per model):');
   const [chromaCounts, osCounts] = await Promise.all([getChromaCounts(), getOpenSearchCounts()]);
 
-  for (const [col, index] of Object.entries(COLLECTION_TO_INDEX)) {
-    const legacy = chromaCounts[col] ?? 'N/A';
-    const aws    = osCounts[index]   ?? 'N/A';
+  // Report on all collection+model combinations that exist in either source
+  const allKeys = new Set([...Object.keys(chromaCounts), ...Object.keys(osCounts)]);
+  for (const key of [...allKeys].sort()) {
+    const legacy = chromaCounts[key] ?? 'N/A';
+    const aws    = osCounts[key]     ?? 'N/A';
     const match  = legacy !== 'N/A' && aws !== 'N/A' && legacy === aws;
-    report.vectors[col] = { legacy, aws, match };
-    if (!match) report.passed = false;
-    console.log(`  ${match ? '[OK]  ' : '[FAIL]'} ${col}: legacy=${legacy}, aws=${aws}`);
-    if (!match && FAIL_FAST) { console.error('\n[ABORT] --fail-fast'); process.exit(1); }
+    report.vectors[key] = { legacy, aws, match };
+    if (!match && legacy !== 'N/A') report.passed = false;  // only fail if legacy has data
+    const status = match ? '[OK]  ' : (legacy === 'N/A' ? '[INFO]' : '[FAIL]');
+    console.log(`  ${status} ${key}: legacy=${legacy}, aws=${aws}`);
+    if (!match && legacy !== 'N/A' && FAIL_FAST) {
+      console.error('\n[ABORT] --fail-fast');
+      process.exit(1);
+    }
   }
 
   // ── Graph parity ───────────────────────────────────────────────────────────
@@ -129,12 +163,14 @@ async function main() {
 
   // ── Upload report ──────────────────────────────────────────────────────────
   const s3 = new S3Client({ region: REGION });
+  const reportKey = `reports/verification-${Date.now()}.json`;
   await s3.send(new PutObjectCommand({
     Bucket: BUCKET,
-    Key: `reports/verification-${Date.now()}.json`,
+    Key: reportKey,
     Body: JSON.stringify(report, null, 2),
     ContentType: 'application/json',
   }));
+  console.log(`\n[INFO]  Report uploaded: s3://${BUCKET}/${reportKey}`);
 
   console.log(`\n${report.passed ? '[OK]    All counts match' : '[FAIL]  Count parity FAILED'}`);
   process.exit(report.passed ? 0 : 1);

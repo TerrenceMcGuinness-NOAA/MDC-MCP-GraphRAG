@@ -3,11 +3,12 @@
  *
  * Exports legacy data to S3, then loads into AWS backends.
  * Watermarks track progress for idempotent re-execution on failure.
+ * Model-aware: reads model metadata from ChromaDB, uses model-aware S3 keys and indices.
  *
  * Phases:
- *   1. export-vectors  — ChromaDB collections → S3 (mdc-mcp-rag-migration/vectors/)
+ *   1. export-vectors  — ChromaDB collections → S3 (vectors/{collection}-{model}.json.gz)
  *   2. export-graph    — Neo4j dump → S3 (mdc-mcp-rag-migration/graph/)
- *   3. load-vectors    — S3 → OpenSearch bulk index (embeddings transferred bitwise)
+ *   3. load-vectors    — S3 → OpenSearch model-aware indices
  *   4. load-graph      — S3 → Neptune bulk loader
  *   5. verify          — count parity check + report
  *
@@ -24,6 +25,8 @@
  *   NEPTUNE_ENDPOINT    — required for load-graph / verify
  *   AWS_REGION          — default: us-east-1
  *   MIGRATION_BUCKET    — default: mdc-mcp-rag-migration
+ *
+ * Requirements: 14.1-14.6, 16.1-16.4, 18.1-18.7, 19.1-19.5
  */
 
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
@@ -49,6 +52,7 @@ const NEO4J_PASS = process.env.NEO4J_PASSWORD || 'gfsworkflow2025';
 const OS_ENDPOINT = process.env.OPENSEARCH_ENDPOINT || '';
 const NEPTUNE_EP  = process.env.NEPTUNE_ENDPOINT    || '';
 
+// Legacy collection → base OpenSearch index (preserved for backward compat, Req 14.5)
 const COLLECTION_TO_INDEX = {
   'code-with-context-v8-0-0':      'mdc-code-context',
   'global-workflow-docs-v8-0-0':   'mdc-workflow-docs',
@@ -56,6 +60,9 @@ const COLLECTION_TO_INDEX = {
   'community-summaries':           'mdc-community-summaries',
   'ee2-standards-v5-0-0-enhanced': 'mdc-ee2-standards',
 };
+
+// Known model suffixes (mirrors embedding_registry.py)
+const KNOWN_MODEL_SUFFIXES = ['mpnet768', 'titan1024', 'nova256', 'nova512', 'nova1024', 'nova3072'];
 
 const WATERMARK_KEY = 'watermarks/migration-state.json';
 const BATCH_SIZE = 500;
@@ -101,23 +108,75 @@ async function saveWatermarks(wm) {
   }));
 }
 
-// ── Phase 1: Export ChromaDB → S3 ────────────────────────────────────────────
+// ── Model-aware helpers ───────────────────────────────────────────────────────
+
+/**
+ * Extract model short name from ChromaDB collection metadata.
+ * Falls back to 'mpnet768' for legacy collections without model metadata.
+ * Requirements: 14.1, 14.2
+ */
+function extractModelFromMetadata(metadata) {
+  if (!metadata) return 'mpnet768';
+  // Check explicit model_profile field
+  if (metadata.model_profile) return metadata.model_profile;
+  // Check embedding_model field (legacy format)
+  if (metadata.embedding_model) {
+    if (metadata.embedding_model.includes('mpnet')) return 'mpnet768';
+    if (metadata.embedding_model.includes('titan')) return 'titan1024';
+  }
+  return 'mpnet768';
+}
+
+/**
+ * Map collection name + model to an OpenSearch index name.
+ * Model-aware: {base-index}-{model-suffix}
+ * Legacy fallback: COLLECTION_TO_INDEX mapping
+ * Requirements: 14.3, 14.5
+ */
+function collectionToModelIndex(collectionName, modelSuffix) {
+  const baseIndex = COLLECTION_TO_INDEX[collectionName];
+  if (!baseIndex) return `${collectionName}-${modelSuffix}`;
+  return `${baseIndex}-${modelSuffix}`;
+}
+
+/**
+ * Build S3 key for a collection+model export.
+ * Requirements: 14.2, 18.1
+ */
+function vectorS3Key(collectionName, modelSuffix) {
+  return `vectors/${collectionName}-${modelSuffix}.json.gz`;
+}
+
+/**
+ * Build watermark key for a collection+model combination.
+ * Requirements: 18.5, 18.6
+ */
+function wmKey(phase, collectionName, modelSuffix) {
+  return `${phase}:${collectionName}:${modelSuffix}`;
+}
+
+// ── Phase 1: Export ChromaDB → S3 (model-aware) ───────────────────────────────
 
 async function exportVectors(wm) {
-  console.log('\n[PHASE 1] Export ChromaDB → S3');
+  console.log('\n[PHASE 1] Export ChromaDB → S3 (model-aware)');
   const chroma = new ChromaClient({ path: `${CHROMA_URL}/api/v2` });
   const collections = await chroma.listCollections();
   const names = collections.map(c => c.name).filter(n => COLLECTION_TO_INDEX[n]);
 
   for (const name of names) {
-    const s3Key = `vectors/${name}.json.gz`;
-    if (wm[`export:${name}`] === 'done') {
-      console.log(`[SKIP]  ${name} — already exported`);
+    // Get collection metadata to determine model
+    const col = await chroma.getCollection({ name });
+    const colMeta = col.metadata || {};
+    const modelSuffix = extractModelFromMetadata(colMeta);
+    const s3Key = vectorS3Key(name, modelSuffix);
+    const wk = wmKey('export', name, modelSuffix);
+
+    if (wm[wk] === 'done') {
+      console.log(`[SKIP]  ${name} (${modelSuffix}) — already exported`);
       continue;
     }
 
-    console.log(`[INFO]  Exporting ${name}...`);
-    const col = await chroma.getCollection({ name });
+    console.log(`[INFO]  Exporting ${name} (model=${modelSuffix})...`);
     const total = await col.count();
 
     // Fetch all documents in batches
@@ -130,10 +189,11 @@ async function exportVectors(wm) {
       });
       for (let i = 0; i < batch.ids.length; i++) {
         docs.push({
-          id:        batch.ids[i],
-          content:   batch.documents[i],
-          metadata:  batch.metadatas[i] || {},
-          embedding: batch.embeddings[i],  // 768-dim, transferred bitwise
+          id:           batch.ids[i],
+          content:      batch.documents[i],
+          metadata:     { ...batch.metadatas[i] || {}, model_profile: modelSuffix },
+          embedding:    batch.embeddings[i],
+          model_profile: modelSuffix,
         });
       }
       offset += BATCH_SIZE;
@@ -141,8 +201,7 @@ async function exportVectors(wm) {
 
     if (!DRY_RUN) {
       const json = JSON.stringify(docs);
-      // Gzip and upload
-      const tmpFile = join(tmpdir(), `${name}.json.gz`);
+      const tmpFile = join(tmpdir(), `${name}-${modelSuffix}.json.gz`);
       await new Promise((res, rej) => {
         const gz = createGzip();
         const out = createWriteStream(tmpFile);
@@ -157,10 +216,11 @@ async function exportVectors(wm) {
       await unlink(tmpFile);
     }
 
-    wm[`export:${name}`] = 'done';
-    wm[`export:${name}:count`] = docs.length;
+    wm[wk] = 'done';
+    wm[`${wk}:count`] = docs.length;
+    wm[`${wk}:model`] = modelSuffix;
     await saveWatermarks(wm);
-    console.log(`[OK]    ${name} — ${docs.length} docs → s3://${BUCKET}/${s3Key}`);
+    console.log(`[OK]    ${name} (${modelSuffix}) — ${docs.length} docs → s3://${BUCKET}/${s3Key}`);
   }
 }
 
@@ -221,28 +281,49 @@ async function exportGraph(wm) {
   }
 }
 
-// ── Phase 3: Load S3 → OpenSearch ────────────────────────────────────────────
+// ── Phase 3: Load S3 → OpenSearch (model-aware) ──────────────────────────────
 
 async function loadVectors(wm) {
-  console.log('\n[PHASE 3] Load S3 → OpenSearch');
+  console.log('\n[PHASE 3] Load S3 → OpenSearch (model-aware)');
   const os = makeOsClient();
 
-  for (const [collection, index] of Object.entries(COLLECTION_TO_INDEX)) {
-    const s3Key = `vectors/${collection}.json.gz`;
-    if (wm[`load:${collection}`] === 'done') {
-      console.log(`[SKIP]  ${collection} → ${index} — already loaded`);
+  // Find all exported collection+model combinations from watermarks
+  const exportKeys = Object.keys(wm).filter(k => k.startsWith('export:') && wm[k] === 'done' && !k.includes(':count') && !k.includes(':model') && k !== 'export:graph');
+
+  if (exportKeys.length === 0) {
+    // Fallback: try legacy collection names with default model
+    for (const collection of Object.keys(COLLECTION_TO_INDEX)) {
+      exportKeys.push(`export:${collection}:mpnet768`);
+    }
+  }
+
+  for (const wk of exportKeys) {
+    // Parse watermark key: "export:{collection}:{model}"
+    const parts = wk.split(':');
+    if (parts.length < 3) continue;
+    const modelSuffix = parts[parts.length - 1];
+    const collectionName = parts.slice(1, -1).join(':');
+
+    if (!KNOWN_MODEL_SUFFIXES.includes(modelSuffix)) continue;
+
+    const s3Key = vectorS3Key(collectionName, modelSuffix);
+    const targetIndex = collectionToModelIndex(collectionName, modelSuffix);
+    const loadWk = wmKey('load', collectionName, modelSuffix);
+
+    if (wm[loadWk] === 'done') {
+      console.log(`[SKIP]  ${collectionName} (${modelSuffix}) → ${targetIndex} — already loaded`);
       continue;
     }
 
-    // Check export exists
+    // Check export exists in S3
     try {
       await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: s3Key }));
     } catch {
-      console.log(`[SKIP]  ${collection} — no export found at s3://${BUCKET}/${s3Key}`);
+      console.log(`[SKIP]  ${collectionName} (${modelSuffix}) — no export at s3://${BUCKET}/${s3Key}`);
       continue;
     }
 
-    console.log(`[INFO]  Loading ${collection} → ${index}...`);
+    console.log(`[INFO]  Loading ${collectionName} (${modelSuffix}) → ${targetIndex}...`);
 
     // Download and decompress
     const resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }));
@@ -253,34 +334,34 @@ async function loadVectors(wm) {
     const docs = JSON.parse(Buffer.concat(chunks).toString());
 
     if (!DRY_RUN) {
-      // Bulk index in batches
       let indexed = 0;
       for (let i = 0; i < docs.length; i += BATCH_SIZE) {
         const batch = docs.slice(i, i + BATCH_SIZE);
         const body = batch.flatMap(doc => [
-          { index: { _index: index, _id: doc.id } },
+          { index: { _index: targetIndex, _id: doc.id } },
           {
             content:         doc.content,
-            embedding:       doc.embedding,   // bitwise transfer — no re-generation
+            embedding:       doc.embedding,
             metadata:        doc.metadata,
             source_file:     doc.metadata?.source_file || doc.metadata?.filePath || '',
             chunk_id:        doc.id,
-            collection_name: collection,
+            collection_name: collectionName,
+            model_profile:   modelSuffix,
           },
         ]);
         const result = await os.bulk({ body });
         if (result.body.errors) {
           const failed = result.body.items.filter(i => i.index?.error).length;
-          console.error(`[WARN]  ${failed} docs failed in batch ${i / BATCH_SIZE + 1}`);
+          console.error(`[WARN]  ${failed} docs failed in batch ${Math.floor(i / BATCH_SIZE) + 1}`);
         }
         indexed += batch.length;
       }
     }
 
-    wm[`load:${collection}`] = 'done';
-    wm[`load:${collection}:count`] = docs.length;
+    wm[loadWk] = 'done';
+    wm[`${loadWk}:count`] = docs.length;
     await saveWatermarks(wm);
-    console.log(`[OK]    ${collection} → ${index}: ${docs.length} docs`);
+    console.log(`[OK]    ${collectionName} (${modelSuffix}) → ${targetIndex}: ${docs.length} docs`);
   }
 }
 
@@ -357,26 +438,39 @@ async function loadGraph(wm) {
   console.log(`[OK]    Graph loaded: ${dump.nodes.length} nodes, ${dump.relationships.length} rels`);
 }
 
-// ── Phase 5: Verify count parity ─────────────────────────────────────────────
+// ── Phase 5: Verify count parity (model-aware) ───────────────────────────────
 
 async function verify(wm) {
-  console.log('\n[PHASE 5] Verification — count parity');
+  console.log('\n[PHASE 5] Verification — count parity (model-aware)');
   const report = { timestamp: new Date().toISOString(), vectors: {}, graph: {}, passed: true };
 
-  // Vector parity
+  // Vector parity — check each collection+model combination
   if (OS_ENDPOINT) {
     const os = makeOsClient();
-    for (const [collection, index] of Object.entries(COLLECTION_TO_INDEX)) {
-      const exported = wm[`export:${collection}:count`] ?? null;
+    const exportKeys = Object.keys(wm).filter(k =>
+      k.startsWith('export:') && wm[k] === 'done' &&
+      !k.includes(':count') && !k.includes(':model') && k !== 'export:graph'
+    );
+
+    for (const wk of exportKeys) {
+      const parts = wk.split(':');
+      if (parts.length < 3) continue;
+      const modelSuffix = parts[parts.length - 1];
+      const collectionName = parts.slice(1, -1).join(':');
+      if (!KNOWN_MODEL_SUFFIXES.includes(modelSuffix)) continue;
+
+      const targetIndex = collectionToModelIndex(collectionName, modelSuffix);
+      const exported = wm[`${wk}:count`] ?? null;
       let indexed = null;
       try {
-        const r = await os.count({ index });
+        const r = await os.count({ index: targetIndex });
         indexed = r.body.count;
       } catch { /* index may not exist yet */ }
       const match = exported !== null && indexed !== null && exported === indexed;
-      report.vectors[collection] = { exported, indexed, match };
+      const key = `${collectionName}:${modelSuffix}`;
+      report.vectors[key] = { exported, indexed, index: targetIndex, match };
       if (!match) report.passed = false;
-      console.log(`  ${match ? '[OK]' : '[FAIL]'} ${collection}: exported=${exported}, indexed=${indexed}`);
+      console.log(`  ${match ? '[OK]' : '[FAIL]'} ${key} → ${targetIndex}: exported=${exported}, indexed=${indexed}`);
     }
   }
 
