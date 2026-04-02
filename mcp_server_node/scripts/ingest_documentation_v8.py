@@ -17,8 +17,30 @@ import os
 import sys
 from datetime import datetime
 
+# Phase 49: Registry-driven model selection
+try:
+    import sys as _sys
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from collection_namer import CollectionNamer as _CN
+    _args_model = "mpnet768"
+    for _i, _a in enumerate(_sys.argv):
+        if _a == "--model" and _i + 1 < len(_sys.argv):
+            _args_model = _sys.argv[_i + 1]
+    _profile = _Reg().get_profile(_args_model)
+    _namer = _CN(_profile)
+    EMBEDDING_MODEL = _profile.model_id
+    EMBEDDING_DIMENSIONS = _profile.dimensions
+    _REGISTRY_COLLECTION = _namer.get_name("global-workflow-docs", "v8-0-0")
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    EMBEDDING_MODEL = "all-mpnet-base-v2"
+    EMBEDDING_DIMENSIONS = 768
+    _REGISTRY_COLLECTION = None
+
 # Set v8 collection name before importing v7 module
-os.environ['DOCS_COLLECTION'] = 'global-workflow-docs-v8-0-0'
+_col = _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
+os.environ['DOCS_COLLECTION'] = _col
 
 # Import the v7 ingestion logic (uses ingestion_base with MPNet)
 from ingest_documentation_v7 import (
@@ -29,9 +51,8 @@ from ingest_documentation_v7 import (
 
 # V8 Configuration
 VERSION_V8 = "8.0.0"
-COLLECTION_NAME = "global-workflow-docs-v8-0-0"
-EMBEDDING_MODEL = "all-mpnet-base-v2"
-EMBEDDING_DIMENSIONS = 768
+COLLECTION_NAME = _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
+# EMBEDDING_MODEL and EMBEDDING_DIMENSIONS set by registry block above
 
 
 class DocumentationIngesterV8(DocumentationIngesterV7):

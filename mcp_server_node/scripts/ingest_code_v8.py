@@ -56,11 +56,28 @@ NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
 # Phase 48D: AWS backend support
+# Phase 49: Registry-driven model selection (replaces hardcoded EMBEDDING_MODEL)
 import sys as _sys
-if "--backend" in _sys.argv:
-    _bidx = _sys.argv.index("--backend")
-    if _bidx + 1 < len(_sys.argv):
-        os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from ingestion_base import BaseIngester as _BaseIngester
+    _bi = _BaseIngester.__new__(_BaseIngester)
+    _bi.args = _BaseIngester._parse_common_args(_bi)
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from embedding_provider import create_provider as _cp
+    from collection_namer import CollectionNamer as _CN
+    _profile = _Reg().get_profile(_bi.args.model)
+    _provider = _cp(_profile)
+    _namer = _CN(_profile)
+    EMBEDDING_MODEL = _profile.model_id
+    EMBEDDING_DIMENSIONS = _profile.dimensions
+    COLLECTION_NAME = _namer.get_name("code-with-context", "v8-0-0")
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    if "--backend" in _sys.argv:
+        _bidx = _sys.argv.index("--backend")
+        if _bidx + 1 < len(_sys.argv):
+            os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
 try:
     from aws_backend import get_graph_driver as _get_graph_driver, get_vector_client as _get_vector_client, BACKEND as _BACKEND
     _AWS_BACKEND_AVAILABLE = True
@@ -68,9 +85,9 @@ except ImportError:
     _AWS_BACKEND_AVAILABLE = False
     _BACKEND = "legacy"
 
-# Embedding model - MUST match jjobs-v8-0-0 and documentation
-EMBEDDING_MODEL = "all-mpnet-base-v2"
-EMBEDDING_DIMENSIONS = 768
+if not _REGISTRY_AVAILABLE:
+    EMBEDDING_MODEL = "all-mpnet-base-v2"
+    EMBEDDING_DIMENSIONS = 768
 
 # Source paths (use submodule)
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 

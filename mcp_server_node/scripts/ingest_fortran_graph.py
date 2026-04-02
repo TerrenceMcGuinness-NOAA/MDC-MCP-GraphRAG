@@ -84,11 +84,23 @@ NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
 # Phase 48D: AWS backend support — set DB_BACKEND=aws to write to Neptune
+# Phase 49: Registry-driven model selection
 import sys as _sys
-if "--backend" in _sys.argv:
-    _bidx = _sys.argv.index("--backend")
-    if _bidx + 1 < len(_sys.argv):
-        os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from ingestion_base import BaseIngester as _BaseIngester
+    _bi = _BaseIngester.__new__(_BaseIngester)
+    _bi.args = _BaseIngester._parse_common_args(_bi)
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from collection_namer import CollectionNamer as _CN
+    _profile = _Reg().get_profile(_bi.args.model)
+    _namer = _CN(_profile)
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    if "--backend" in _sys.argv:
+        _bidx = _sys.argv.index("--backend")
+        if _bidx + 1 < len(_sys.argv):
+            os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
 try:
     from aws_backend import get_graph_driver as _get_graph_driver, BACKEND as _BACKEND
     _AWS_BACKEND_AVAILABLE = True
