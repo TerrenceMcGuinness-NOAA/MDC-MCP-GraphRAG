@@ -33,11 +33,15 @@
 ### Dead Code Archival
 - `mcp_server_python/` moved to `archive/mcp_server_python/` (unused prototype)
 
-### Self-Improving Feedback Loop (Phase 49D)
+### Self-Improving Feedback Loop (Phase 49D-49E)
 - `FeedbackLogger.js` — anonymized query-result pair logging to S3 (JSON Lines), opt-in via FEEDBACK_LOGGING=true, no PII
 - `sagemaker_launcher.py` — submit ingestion scripts as SageMaker Processing Jobs, cost estimation, job status polling, GPU instance support
 - `Dockerfile.sagemaker` — ECR container for SageMaker (Python 3.11, sentence-transformers, boto3, neo4j, chromadb, opensearch-py, fparser), CPU/GPU variants via build arg
 - `requirements-sagemaker.txt` — SageMaker container dependencies
+- `drift_detector.py` — sample N docs, re-embed, compute cosine similarity, detect drift (threshold 0.95), check stale documents, upload reports to S3
+- `benchmark_runner.py` — compute precision@k, recall@k, MRR, nDCG per model/dimension/search_mode, ground-truth evaluation, markdown reports
+- `fine_tuning_pipeline.py` — generate training pairs (same-section positives + hard negatives), submit SageMaker Training Jobs, register fine-tuned models
+- `hard_negative_miner.py` — graph-powered training triples (1-hop apart, different communities), Sentence Transformers TripletLoss format
 
 ### Property Tests (all passing)
 P1-P2 Registry invariants, P3 Embedding dimension consistency, P4-P5 Collection naming determinism,
