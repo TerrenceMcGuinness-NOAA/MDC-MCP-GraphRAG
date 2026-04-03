@@ -1,0 +1,86 @@
+CDK BOOTSTRAP REQUEST — Account 903050880929
+=============================================
+
+Date:       April 3, 2026
+Requestor:  Terry McGuinness (terry.mcguinness@noaa.gov)
+Account:    903050880929
+Region:     us-east-1
+Project:    MDC MCP RAG Server — AWS Infrastructure Port
+
+
+REQUEST
+-------
+
+Please run the AWS CDK bootstrap command for account 903050880929 in
+us-east-1. This is a one-time setup that creates the resources CDK
+needs to deploy CloudFormation stacks.
+
+
+STEP 1 — Delete failed stack (required)
+
+A previous bootstrap attempt left a CDKToolkit stack in
+ROLLBACK_COMPLETE state. Please delete it first:
+
+    aws cloudformation delete-stack --stack-name CDKToolkit --region us-east-1
+
+
+STEP 2 — Run bootstrap
+
+    cdk bootstrap aws://903050880929/us-east-1
+
+If CDK CLI is not installed, it can be run via npx:
+
+    npx aws-cdk bootstrap aws://903050880929/us-east-1
+
+
+WHY THIS REQUIRES ADMIN
+-----------------------
+
+CDK bootstrap creates 4 IAM roles at the account root path. The
+PowerUser group policy does not allow iam:CreateRole outside of
+service-role/* and aws-service-role/* paths.
+
+Roles CDK needs to create:
+
+  1. cdk-hnb659fds-cfn-exec-role-903050880929-us-east-1
+     Purpose: CloudFormation execution role
+
+  2. cdk-hnb659fds-lookup-role-903050880929-us-east-1
+     Purpose: Cross-account resource lookups
+
+  3. cdk-hnb659fds-image-publishing-role-903050880929-us-east-1
+     Purpose: ECR image publishing
+
+  4. cdk-hnb659fds-file-publishing-role-903050880929-us-east-1
+     Purpose: S3 asset publishing
+
+It also creates an S3 bucket for CloudFormation template staging:
+  cdk-hnb659fds-assets-903050880929-us-east-1
+
+
+WHAT THIS ENABLES
+-----------------
+
+Once bootstrapped, the PowerUser account can deploy CDK stacks for:
+  - Amazon Neptune (graph database)
+  - Amazon OpenSearch (vector search)
+  - Amazon ECS Fargate (MCP server hosting)
+  - Amazon S3 (data migration staging)
+  - Amazon EFS (persistent storage)
+  - API Gateway + CloudFront (internet-facing MCP endpoint)
+
+
+IMPACT
+------
+
+  - One-time operation, no recurring maintenance
+  - No changes to existing resources
+  - No impact on other users or workloads in the account
+  - Estimated cost: ~$0.03/month (S3 bucket for CDK assets)
+
+
+CONTACT
+-------
+
+Terry McGuinness — terry.mcguinness@noaa.gov
+Project: NOAA NWS POCAI Software Engineering — MDC MCP RAG Server

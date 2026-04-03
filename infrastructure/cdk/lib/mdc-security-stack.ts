@@ -8,7 +8,7 @@ import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import { Construct } from 'constructs';
 
 interface MdcSecurityStackProps extends cdk.StackProps {
-  vpc: ec2.Vpc;
+  vpc: ec2.IVpc;
 }
 
 export class MdcSecurityStack extends cdk.Stack {

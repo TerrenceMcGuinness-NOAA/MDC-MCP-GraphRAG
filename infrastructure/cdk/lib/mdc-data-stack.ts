@@ -8,7 +8,7 @@ import * as kms from 'aws-cdk-lib/aws-kms';
 import { Construct } from 'constructs';
 
 interface MdcDataStackProps extends cdk.StackProps {
-  vpc: ec2.Vpc;
+  vpc: ec2.IVpc;
   ecsSecurityGroup: ec2.SecurityGroup;
 }
 
@@ -17,7 +17,7 @@ export class MdcDataStack extends cdk.Stack {
     super(scope, id, props);
 
     const { vpc, ecsSecurityGroup } = props;
-    const privateSubnets = vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS });
+    const privateSubnets = vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED });
 
     // --- KMS key for encryption at rest ---
     const encryptionKey = new kms.Key(this, 'MdcEncryptionKey', {
@@ -81,7 +81,7 @@ export class MdcDataStack extends cdk.Stack {
       nodeToNodeEncryption: true,
       enforceHttps: true,
       vpc,
-      vpcSubnets: [{ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }],
+      vpcSubnets: [{ subnetType: ec2.SubnetType.PRIVATE_ISOLATED }],
       securityGroups: [opensearchSg],
       zoneAwareness: { enabled: true, availabilityZoneCount: 2 },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
