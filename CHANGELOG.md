@@ -1,5 +1,21 @@
 # MCP Server Changelog
 
+## [7.37.0] - Rocoto Dryrun PR #124: Post-Reconciliation Hardening & Smoke Tests (April 3, 2026)
+
+### Rocoto Dryrun Hardening (`supported_repos/rocoto/`)
+- **LSF early returns**: `lsfbatchsystem.rb`, `lsfcraybatchsystem.rb` — dryrun branch now returns early with `return nil,"This is a dryrun"` and logs `"Dryrun: would submit ..."` instead of falling through to misleading `"Submitted ..."` messages.
+- **harvest_pending_jobids early returns**: `workflowengine.rb` — added `return if dryrun_mode?` at top of `harvest_pending_jobids` to skip all DRb interactions and DB mutations in dryrun (PR #124 comment). `workflowreport.rb` — BQServer iteration already guarded with `unless dryrun_mode?`.
+- **Side-effect-free dryrun** (`37a8d6f`): Made dryrun truly side-effect-free across engine, report, and proxy paths per PR #124 review feedback.
+- **Arg parsing restored** (`444f1ac`): Restored `--dryrun`/`-n` CLI option parsing in `WorkflowOption`, `ReportOption`, and subset option classes.
+- **Dryrun option state hardening** (`e989b70`): Additional PR suggestions for hardening dryrun option state propagation.
+- **BQS thread pool guard** (`6c95a22`): Avoid thread pool in BQS `submit()` during dryrun mode.
+- **BQServer DRYRUN constant fix** (`206fb09`): Fixed BQServer's `DRYRUN` constant definition so non-dryrun submit still works correctly.
+- **Smoke test runner** (`738c28a`–`5d93bf8`): Added `test/run_smoke.sh` with named test cases (`dryrun`, `real`, `status`, `full`), auto-detected Slurm partition/account, and structured PASS/FAIL reporting.
+
+### Validation
+- Smoke tests pass: `dryrun` (PASS), `status` (PASS) on `feature/dryrun_nodaemon_final` branch (Ruby 3.0.7, Rocoto 1.3.7, Slurm).
+- PR #124 review comments (all 7 inline + 1 suppressed) confirmed addressed; reply acknowledgments posted on discussion feed.
+
 ## [7.36.0] - SDD Phase 47: Rocoto Dryrun PR #124 Reconciliation Implementation (March 27, 2026)
 
 ### Rocoto Dryrun Hardening (`supported_repos/rocoto/lib/workflowmgr/`)
