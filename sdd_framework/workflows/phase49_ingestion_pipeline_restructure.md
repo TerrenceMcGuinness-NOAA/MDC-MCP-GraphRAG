@@ -48,8 +48,23 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
 ## Dependencies
 
 - Phase 48 (AWS Infrastructure Port) — COMPLETE
-- VPC Endpoints — PENDING admin approval (see `docs/vpc-endpoint-request.md`)
-- CDK deploy — BLOCKED on VPC endpoints
+- VPC Endpoints — COMPLETE (10/10 provisioned)
+- CDK Bootstrap — PENDING admin ticket
+- CDK Deploy — BLOCKED on bootstrap
+
+## Parallel Works Export Instructions
+
+See `docs/parallel-works-export-runbook.md` for the full step-by-step.
+
+Summary: PW VM uses your AWS credentials (same access key) to write to the
+S3 bucket created by CDK on the AWS EC2 side. No CDK needed on PW.
+
+1. Pull `develop_aws` on PW
+2. `npm install` (gets @aws-sdk/client-s3)
+3. Configure AWS credentials (env vars or aws configure)
+4. `node scripts/migrate-to-aws.js --phase export-vectors`
+5. `node scripts/migrate-to-aws.js --phase export-graph`
+6. Verify with `aws s3 ls s3://mdc-mcp-rag-migration/`
 
 ## Branch
 
