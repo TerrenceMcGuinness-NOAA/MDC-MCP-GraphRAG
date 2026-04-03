@@ -6,8 +6,8 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
 
 ## Tasks
 
-- [ ] 1. Embedding Model Registry and Provider Abstraction
-  - [ ] 1.1 Create `embedding_registry.py` with `ModelProfile` dataclass and `EmbeddingModelRegistry` class
+- [x] 1. Embedding Model Registry and Provider Abstraction
+  - [x] 1.1 Create `embedding_registry.py` with `ModelProfile` dataclass and `EmbeddingModelRegistry` class
     - Define `ModelProfile` frozen dataclass with fields: `short_name`, `provider`, `model_id`, `dimensions`, `supports_matryoshka`, `supports_multimodal`, `provider_params`
     - Implement `EmbeddingModelRegistry` with `get_profile()`, `get_default()`, `list_profiles()`, `register()` methods
     - Register built-in profiles: `mpnet768`, `titan1024`, `nova256`, `nova512`, `nova1024`, `nova3072`
@@ -15,12 +15,12 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/embedding_registry.py`
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 24.1, 24.5_
 
-  - [ ]* 1.2 Write property test: registry profile invariants
+  - [x]* 1.2 Write property test: registry profile invariants
     - **Property P1: For any registered ModelProfile, `get_profile(short_name)` returns a profile with `dimensions > 0` and `provider` in `{"local", "bedrock"}`**
     - **Property P2: For any short_name not in the registry, `get_profile()` raises `KeyError` listing available profiles**
     - **Validates: Requirements 1.1, 1.4, 8.4**
 
-  - [ ] 1.3 Create `embedding_provider.py` with `EmbeddingProvider` ABC, `LocalProvider`, and `BedrockProvider`
+  - [x] 1.3 Create `embedding_provider.py` with `EmbeddingProvider` ABC, `LocalProvider`, and `BedrockProvider`
     - `EmbeddingProvider` ABC with `embed(texts)`, `embed_image(image_bytes)`, `dimensions` property
     - `LocalProvider`: uses `sentence-transformers`, auto-detects CUDA, downloads to `$CACHE_ROOT/huggingface`
     - `BedrockProvider`: uses `boto3` bedrock-runtime client, passes `outputEmbeddingLength` for Nova models, logs errors with model_id and input length
@@ -28,27 +28,27 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/embedding_provider.py`
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 12.1, 12.2, 12.3, 24.2, 24.3_
 
-  - [ ]* 1.4 Write property test: embedding dimension consistency
+  - [x]* 1.4 Write property test: embedding dimension consistency
     - **Property P3: For any ModelProfile and any non-empty text input, `provider.embed([text])` returns a vector of length equal to `profile.dimensions`**
     - **Validates: Requirements 2.1, 24.3**
 
-  - [ ] 1.5 Create `collection_namer.py` with `CollectionNamer` class
+  - [x] 1.5 Create `collection_namer.py` with `CollectionNamer` class
     - `get_name(domain, version)` → `"{domain}-{version}-{profile.short_name}"`
     - `is_legacy_name(name)` → True if name lacks any known model suffix
     - `get_legacy_name(domain, version)` → `"{domain}-{version}"` for backward compat
     - File: `mcp_server_node/scripts/collection_namer.py`
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-  - [ ]* 1.6 Write property test: collection naming determinism and model encoding
+  - [x]* 1.6 Write property test: collection naming determinism and model encoding
     - **Property P4: For any (domain, version, profile) triple, `get_name()` always returns the same string, and that string ends with `-{profile.short_name}`**
     - **Property P5: For any legacy collection name (without model suffix), `is_legacy_name()` returns True**
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.5**
 
-- [ ] 2. Checkpoint — Ensure all tests pass
+- [x] 2. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 3. Refactor `ingestion_base.py` — Centralized BaseIngester
-  - [ ] 3.1 Implement `BaseIngester` class in `ingestion_base.py`
+- [x] 3. Refactor `ingestion_base.py` — Centralized BaseIngester
+  - [x] 3.1 Implement `BaseIngester` class in `ingestion_base.py`
     - `_parse_common_args()`: parse `--model`, `--backend`, `--collections`, `--dry-run` centrally
     - `get_clients()`: unified backend routing replacing inline `--backend` parsing and `ChromaDBClient.connect()` boilerplate
     - `deterministic_id(content, source, chunk_index)`: SHA-256 hash of `content|source|chunk_index|profile.short_name`, truncated to 32 hex chars
@@ -62,17 +62,17 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/ingestion_base.py`
     - _Requirements: 6.1, 6.2, 6.4, 6.5, 7.1, 7.2, 7.4, 7.5, 8.1, 8.2, 8.3, 8.5, 13.1, 13.2, 13.3, 13.4_
 
-  - [ ]* 3.2 Write property test: deterministic ID idempotence
+  - [x]* 3.2 Write property test: deterministic ID idempotence
     - **Property P6: For any (content, source, chunk_index, model) tuple, `deterministic_id()` called twice returns the same value**
     - **Property P7: For any two distinct (content, source, chunk_index, model) tuples, `deterministic_id()` returns different values (collision resistance)**
     - **Validates: Requirements 7.1, 7.2, 7.6**
 
-  - [ ]* 3.3 Write property test: backend routing completeness
+  - [x]* 3.3 Write property test: backend routing completeness
     - **Property P8: For backend value "legacy", `get_clients()` returns ChromaDB + Neo4j clients; for "aws", returns OpenSearch + Neptune clients; for any other value, raises an error**
     - **Validates: Requirements 6.1, 6.2, 6.4, 6.5**
 
-- [ ] 4. Refactor ingestion scripts to subclass BaseIngester
-  - [ ] 4.1 Refactor `ingest_code_v8.py` to subclass `BaseIngester`
+- [x] 4. Refactor ingestion scripts to subclass BaseIngester
+  - [x] 4.1 Refactor `ingest_code_v8.py` to subclass `BaseIngester`
     - Remove inline `--backend` parsing boilerplate
     - Implement `extract_content()` returning `ContentChunk` objects
     - Use `self.provider.embed()` instead of hardcoded MPNet
@@ -81,54 +81,54 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - Use `self.upsert_document()` and `self.merge_graph_node()` / `self.merge_graph_relationship()`
     - _Requirements: 6.3, 7.1, 7.4, 7.5, 8.1, 13.2_
 
-  - [ ] 4.2 Refactor `ingest_documentation_v8.py` to subclass `BaseIngester`
+  - [x] 4.2 Refactor `ingest_documentation_v8.py` to subclass `BaseIngester`
     - Same pattern as 4.1
     - _Requirements: 6.3, 7.1, 7.4, 8.1, 13.2_
 
-  - [ ] 4.3 Refactor `ingest_fortran_graph.py` to subclass `BaseIngester`
+  - [x] 4.3 Refactor `ingest_fortran_graph.py` to subclass `BaseIngester`
     - Same pattern as 4.1
     - _Requirements: 6.3, 7.1, 7.5, 8.1, 13.2_
 
-  - [ ] 4.4 Refactor `ingest_shell_graph_v8.py` to subclass `BaseIngester`
+  - [x] 4.4 Refactor `ingest_shell_graph_v8.py` to subclass `BaseIngester`
     - Same pattern as 4.1
     - _Requirements: 6.3, 7.1, 7.5, 8.1, 13.2_
 
-  - [ ] 4.5 Refactor `ingest_jjobs_v8.py` to subclass `BaseIngester`
+  - [x] 4.5 Refactor `ingest_jjobs_v8.py` to subclass `BaseIngester`
     - Same pattern as 4.1
     - _Requirements: 6.3, 7.1, 7.4, 8.1, 13.2_
 
-  - [ ] 4.6 Refactor `ingest_cross_language_bridges.py` to subclass `BaseIngester`
+  - [x] 4.6 Refactor `ingest_cross_language_bridges.py` to subclass `BaseIngester`
     - Same pattern as 4.1
     - _Requirements: 6.3, 7.1, 7.5, 8.1, 13.2_
 
-  - [ ] 4.7 Refactor `ingest_env_variables.py` to subclass `BaseIngester`
+  - [x] 4.7 Refactor `ingest_env_variables.py` to subclass `BaseIngester`
     - Same pattern as 4.1
     - _Requirements: 6.3, 7.1, 7.4, 8.1, 13.2_
 
-- [ ] 5. Checkpoint — Ensure all refactored scripts work
+- [x] 5. Checkpoint — Ensure all refactored scripts work
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Update `aws_backend.py` for model-aware index routing
-  - [ ] 6.1 Extend `COLLECTION_TO_INDEX` mapping to support model-aware names
+- [x] 6. Update `aws_backend.py` for model-aware index routing
+  - [x] 6.1 Extend `COLLECTION_TO_INDEX` mapping to support model-aware names
     - Preserve existing legacy mapping for backward compatibility
     - Add dynamic resolution: if collection name ends with a known model suffix, map to `{base-index}-{model-suffix}`
     - Update `OpenSearchVectorClient.get_or_create_collection()` to use model-aware index names
     - File: `mcp_server_node/scripts/aws_backend.py`
     - _Requirements: 3.4, 10.1, 10.2, 11.2_
 
-  - [ ]* 6.2 Write property test: model-aware index name mapping
+  - [x]* 6.2 Write property test: model-aware index name mapping
     - **Property P9: For any legacy collection name (without model suffix), `_toIndex()` returns the same index as the existing `COLLECTION_TO_INDEX` mapping**
     - **Property P10: For any model-aware collection name, `_toIndex()` returns an index name that includes the model suffix**
     - **Validates: Requirements 3.4, 11.2, 11.3_
 
-- [ ] 7. Dead code archival
-  - [ ] 7.1 Move `mcp_server_python/` to `archive/mcp_server_python/`
+- [x] 7. Dead code archival
+  - [x] 7.1 Move `mcp_server_python/` to `archive/mcp_server_python/`
     - Verify no active script or config imports from `mcp_server_python/`
     - Update `.gitmodules` if it references `mcp_server_python/`
     - _Requirements: 9.1, 9.2, 9.3_
 
-- [ ] 8. Model-aware OpenSearch index creation
-  - [ ] 8.1 Update `create-opensearch-indices.js` for multi-model support
+- [x] 8. Model-aware OpenSearch index creation
+  - [x] 8.1 Update `create-opensearch-indices.js` for multi-model support
     - Accept `--model` argument (specific model short name or `all`)
     - Read model profiles from a shared JSON config (or inline registry matching Python registry)
     - Set `knn_vector` dimension dynamically per model profile
@@ -140,12 +140,12 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/create-opensearch-indices.js`
     - _Requirements: 10.1, 10.2, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 26.1_
 
-  - [ ]* 8.2 Write property test: index creation idempotence
+  - [x]* 8.2 Write property test: index creation idempotence
     - **Property P11: For any model profile, running `create-opensearch-indices` twice produces the same set of indices with the same mappings**
     - **Validates: Requirements 15.6**
 
-- [ ] 9. Model-aware migration updates
-  - [ ] 9.1 Update `migrate-to-aws.js` for model-aware export/load
+- [x] 9. Model-aware migration updates
+  - [x] 9.1 Update `migrate-to-aws.js` for model-aware export/load
     - Read model metadata from ChromaDB collection metadata
     - Include model short name in S3 export keys (e.g., `vectors/code-with-context-v8-0-0-mpnet768.json.gz`)
     - Target model-aware OpenSearch indices during load
@@ -155,7 +155,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/migrate-to-aws.js`
     - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 16.1, 16.2, 16.3, 16.4, 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7, 19.1, 19.2, 19.3, 19.4, 19.5_
 
-  - [ ] 9.2 Update `verify-migration.js` for multi-model verification
+  - [x] 9.2 Update `verify-migration.js` for multi-model verification
     - Check count parity for every model-aware index in OpenSearch
     - Report per-model, per-collection counts
     - Upload parity report to S3 with timestamp
@@ -163,11 +163,11 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/verify-migration.js`
     - _Requirements: 17.1, 17.2, 17.3, 17.4_
 
-- [ ] 10. Checkpoint — Ensure migration and index scripts work
+- [x] 10. Checkpoint — Ensure migration and index scripts work
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Hybrid Search — BM25 + Vector + RRF
-  - [ ] 11.1 Create `HybridSearchBuilder.js`
+- [x] 11. Hybrid Search — BM25 + Vector + RRF
+  - [x] 11.1 Create `HybridSearchBuilder.js`
     - `build(queryText, queryVector, options)` → OpenSearch hybrid query body
     - `_containsCodeIdentifiers(queryText)` → detect camelCase, snake_case, dot.notation, file paths
     - Support `search_mode`: `vector` (default), `keyword`, `hybrid`
@@ -181,14 +181,14 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - **Property P13: For any plain English sentence without code patterns, `_containsCodeIdentifiers()` returns false**
     - **Validates: Requirements 26.3**
 
-  - [ ] 11.3 Update `OpenSearchAdapter.js` to support hybrid search mode
+  - [x] 11.3 Update `OpenSearchAdapter.js` to support hybrid search mode
     - Add `hybridQuery(collectionName, queryText, options)` method that uses `HybridSearchBuilder`
     - Preserve existing `query()` method unchanged for backward compatibility
     - File: `mcp_server_node/src/data/adapters/OpenSearchAdapter.js`
     - _Requirements: 26.2, 26.4_
 
-- [ ] 12. Graph-Augmented Vector Retrieval
-  - [ ] 12.1 Create `GraphAugmenter.js`
+- [x] 12. Graph-Augmented Vector Retrieval
+  - [x] 12.1 Create `GraphAugmenter.js`
     - `augment(vectorResults, graphDB, options)` → results with `graph_context` field
     - Query Neptune for 1-hop relationships: CALLS, USES, IMPORTS, CONTAINS
     - Configurable `hopDepth` (default: 1, max: 2)
@@ -200,8 +200,8 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - **Property P14: For any vector result set, when graph augmentation is disabled, the output is identical to the input**
     - **Validates: Requirements 28.4**
 
-- [ ] 13. Matryoshka Adaptive Dimension Retrieval
-  - [ ] 13.1 Create `MatryoshkaQuery.js`
+- [x] 13. Matryoshka Adaptive Dimension Retrieval
+  - [x] 13.1 Create `MatryoshkaQuery.js`
     - Support `--dimensions` query parameter for prefix truncation
     - Truncate stored embeddings to specified prefix length at query time
     - Use `script_score` or k-NN query with truncated prefix for lower-dimension searches
@@ -212,8 +212,8 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - **Property P15: For any embedding of dimension D and truncation target T < D, the truncated vector equals the first T elements of the original**
     - **Validates: Requirements 25.2**
 
-- [ ] 14. Comparative Query Support
-  - [ ] 14.1 Extend `VectorDatabaseAdapter.js` with `comparativeQuery()` method
+- [x] 14. Comparative Query Support
+  - [x] 14.1 Extend `VectorDatabaseAdapter.js` with `comparativeQuery()` method
     - Execute a single query text against multiple vector spaces
     - Embed query using each target vector space's model profile
     - Return results grouped by model profile
@@ -221,21 +221,21 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/src/data/adapters/VectorDatabaseAdapter.js`
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-  - [ ] 14.2 Implement `comparativeQuery()` in `OpenSearchAdapter.js`
+  - [x] 14.2 Implement `comparativeQuery()` in `OpenSearchAdapter.js`
     - Query multiple model-aware indices in parallel
     - Group results by model profile
     - File: `mcp_server_node/src/data/adapters/OpenSearchAdapter.js`
     - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 15. Wire retrieval enhancements into UnifiedDataAccess
-  - [ ] 15.1 Update `UnifiedDataAccess.js` to expose hybrid, graph-augmented, and comparative query modes
+- [x] 15. Wire retrieval enhancements into UnifiedDataAccess
+  - [x] 15.1 Update `UnifiedDataAccess.js` to expose hybrid, graph-augmented, and comparative query modes
     - Import and wire `HybridSearchBuilder`, `GraphAugmenter`, `MatryoshkaQuery`
     - Add `search_mode`, `graph_augmented`, `dimensions` options to query methods
     - Preserve all existing 51 MCP tool interfaces unchanged
     - File: `mcp_server_node/src/data/UnifiedDataAccess.js`
     - _Requirements: 5.4, 11.1, 11.3, 11.4, 26.4, 28.4_
 
-- [ ] 16. Checkpoint — Ensure all Node.js retrieval enhancements work
+- [x] 16. Checkpoint — Ensure all Node.js retrieval enhancements work
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 17. Feedback Logger

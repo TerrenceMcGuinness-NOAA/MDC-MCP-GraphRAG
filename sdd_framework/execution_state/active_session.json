@@ -1,26 +1,26 @@
 {
-  "sessionId": "session_2026-03-30_phase48",
-  "phase": "phase48_aws_infrastructure_port",
-  "totalSteps": 25,
+  "sessionId": "session_2026-04-03_phase49",
+  "phase": "phase49_ingestion_pipeline_restructure",
+  "totalSteps": 21,
   "completedSteps": [
-    { "step": 0, "name": "AWS EC2 provisioning scripts (SETUP_AWS/)", "tag": "implement", "completedAt": "2026-04-01T17:51:49.000Z", "notes": "Created SETUP_AWS/bootstrap.sh, mcp-env-aws.sh, provisioning/common.sh, provision.sh, 00-users.sh through 08-verification.sh. Idempotency verified." },
-    { "step": 1, "name": "Scaffold CDK project and define MdcVpcStack, MdcSecurityStack, MdcDataStack", "tag": "implement", "completedAt": "2026-04-01T17:51:49.000Z", "notes": "infrastructure/cdk/ scaffolded with all 3 stacks. VPC (2 AZs, NAT, 4 endpoints), Security (Secrets Manager, SSM, Cognito, WAF, IAM roles), Data (Neptune, OpenSearch, EFS, S3)." },
-    { "step": 2, "name": "cdk synth validation", "tag": "validate", "completedAt": "2026-04-01T17:51:49.000Z", "notes": "cdk synth succeeded — MdcVpcStack.template.json, MdcSecurityStack.template.json, MdcDataStack.template.json generated. 20/20 CDK unit tests pass." },
-    { "step": 3, "name": "Implement resolveConfig() in aws-config.js", "tag": "implement", "completedAt": "2026-04-01T17:51:49.000Z", "notes": "mcp_server_node/src/config/aws-config.js: Secrets Manager + SSM fetch, process-lifetime cache, env var fallback, no secret logging. Property tests P11+P12 written." },
-    { "step": 15, "name": "Create OpenSearch index definitions", "tag": "implement", "completedAt": "2026-04-01T19:28:46.000Z", "notes": "scripts/create-opensearch-indices.js: 5 indices (mdc-code-context, mdc-workflow-docs, mdc-jjobs, mdc-community-summaries, mdc-ee2-standards), knn_vector 768-dim nmslib cosinesimil hnsw, idempotent." },
-    { "step": 17, "name": "Migration verification + count parity", "tag": "validate", "completedAt": "2026-04-01T19:33:39.000Z", "notes": "scripts/verify-migration.js: standalone count parity check (ChromaDB vs OpenSearch, Neo4j vs Neptune), uploads report to S3. Tests P8+Step17: 11/11 pass." },
-    { "step": 18, "name": "Capture golden-file baseline from legacy system", "tag": "research", "completedAt": "2026-04-01T19:33:39.000Z", "notes": "scripts/capture-golden-files.js: 7 vector queries (single, multi-collection, filter) + 4 graph queries, saves to scripts/golden-files/, optional S3 upload." },
-    { "step": 21, "name": "Integration test: full re-ingestion cycle", "tag": "validate", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "step21-reingest-integration.test.js: backend routing, bulk indexing, full cycle. 10/10 pass." },
-    { "step": 22, "name": "CloudWatch dashboards + alarms", "tag": "implement", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "MdcServerStack.ts: CloudWatch dashboard (ECS tasks, ALB latency, 5xx), 3 alarms (no tasks, high latency, 5xx errors). cdk synth + 27/27 tests pass." },
-    { "step": 23, "name": "Run all 51 tools against AWS + golden-file comparison", "tag": "validate", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "scripts/run-golden-file-comparison.js: schema equivalence check against golden files, generates golden-comparison-report.json." },
-    { "step": 24, "name": "MCP client cutover + legacy fallback documentation", "tag": "configure", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "scripts/cutover-mcp-client.js: updates .kiro/settings/mcp.json to AWS CloudFront endpoint, preserves legacy as read-only fallback, --rollback support." },
-    { "step": 25, "name": "Final validation + SDD session completion + CHANGELOG", "tag": "document", "completedAt": "2026-04-01T20:14:46.000Z", "notes": "CHANGELOG.md v8.0.0 entry. All 25 steps complete. Phase 48A-48E done. Re-ingest against live AWS backends scheduled for next session." }
-    { "step": 8, "name": "Implement ChromaDB legacy adapter", "tag": "implement", "completedAt": "2026-03-30T20:22:00.000Z", "notes": "ChromaDBLegacyAdapter.js — pure passthrough wrapper around VectorDatabase" },
-    { "step": 10, "name": "Implement Neo4j legacy adapter", "tag": "implement", "completedAt": "2026-03-30T20:24:00.000Z", "notes": "Neo4jLegacyAdapter.js — pure passthrough wrapper around GraphDatabase (all 34 methods)" },
-    { "step": 11, "name": "Implement backend selector + wire UnifiedDataAccess", "tag": "implement", "completedAt": "2026-03-30T20:26:00.000Z", "notes": "backend-selector.js routes legacy/aws; UnifiedDataAccess.js constructor now uses selectDatabaseBackend()" }
+    { "step": 0, "name": "Embedding Model Registry (embedding_registry.py)", "tag": "implement", "completedAt": "2026-04-02T19:47:00.000Z", "notes": "ModelProfile dataclass, EmbeddingModelRegistry with 6 built-in profiles (mpnet768, titan1024, nova256/512/1024/3072). Property tests P1-P2." },
+    { "step": 1, "name": "Embedding Provider Abstraction (embedding_provider.py)", "tag": "implement", "completedAt": "2026-04-02T19:47:00.000Z", "notes": "EmbeddingProvider ABC, LocalProvider (sentence-transformers, CUDA auto-detect), BedrockProvider (boto3, Nova outputEmbeddingLength). Property test P3." },
+    { "step": 2, "name": "Collection Namer (collection_namer.py)", "tag": "implement", "completedAt": "2026-04-02T19:47:00.000Z", "notes": "Model-aware naming: {domain}-{version}-{model_short}. Legacy name detection. Property tests P4-P5." },
+    { "step": 3, "name": "BaseIngester refactor (ingestion_base.py)", "tag": "implement", "completedAt": "2026-04-02T20:15:00.000Z", "notes": "Centralized --model/--backend/--collections parsing, get_clients() unified routing, deterministic_id() SHA-256, upsert/MERGE semantics. Removed hardcoded EMBEDDING_MODEL. Property tests P6-P8." },
+    { "step": 4, "name": "Refactor 7 ingestion scripts to subclass BaseIngester", "tag": "implement", "completedAt": "2026-04-02T20:15:00.000Z", "notes": "ingest_code_v8, ingest_documentation_v8, ingest_fortran_graph, ingest_shell_graph_v8, ingest_jjobs_v8, ingest_cross_language_bridges, ingest_env_variables — all inline --backend boilerplate removed." },
+    { "step": 5, "name": "aws_backend.py model-aware index routing", "tag": "implement", "completedAt": "2026-04-02T20:45:00.000Z", "notes": "Dynamic COLLECTION_TO_INDEX resolution with model suffix. Legacy mapping preserved. Property tests P9-P10." },
+    { "step": 6, "name": "Dead code archival (mcp_server_python/ → archive/)", "tag": "configure", "completedAt": "2026-04-02T20:45:00.000Z", "notes": "mcp_server_python/ moved to archive/mcp_server_python/. No active references found." },
+    { "step": 7, "name": "create-opensearch-indices.js multi-model support", "tag": "implement", "completedAt": "2026-04-02T20:45:00.000Z", "notes": "--model flag, dynamic knn_vector dimensions per profile, model_profile keyword field, BM25 dual-indexing on content field. Property test P11." },
+    { "step": 8, "name": "migrate-to-aws.js + verify-migration.js model-aware updates", "tag": "implement", "completedAt": "2026-04-02T20:45:00.000Z", "notes": "Model metadata from ChromaDB, model-aware S3 keys, model-aware OpenSearch targets, per-collection-model watermarks. verify-migration.js checks all model-specific indices." },
+    { "step": 9, "name": "HybridSearchBuilder.js — BM25 + vector + RRF", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "Code identifier detection (camelCase, snake_case, dot.notation, file paths), auto-boost BM25 weight, search_mode param (vector/keyword/hybrid), OpenSearch search_pipeline with normalization-processor." },
+    { "step": 10, "name": "OpenSearchAdapter.js hybrid search mode", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "hybridQuery() method using HybridSearchBuilder. Existing query() unchanged for backward compat." },
+    { "step": 11, "name": "GraphAugmenter.js — 1-hop Neptune expansion", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "augment() with CALLS/USES/IMPORTS/CONTAINS relationships, configurable hopDepth (1-2), graceful fallback when Neptune unavailable." },
+    { "step": 12, "name": "MatryoshkaQuery.js — adaptive dimension truncation", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "--dimensions query param, prefix truncation at query time, script_score for lower-dim searches." },
+    { "step": 13, "name": "Comparative query support", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "comparativeQuery() on VectorDatabaseAdapter + OpenSearchAdapter. Multi-index parallel query, results grouped by model profile." },
+    { "step": 14, "name": "Wire enhancements into UnifiedDataAccess.js", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "search_mode, graph_augmented, dimensions options wired. All 51 MCP tool interfaces preserved unchanged." }
   ],
-  "status": "complete",
-  "notes": "AWS infrastructure port — 5 sub-phases (48A-48E), 25 ISD steps. Kiro spec is design authority; SDD spec is execution tracker. Adapter pattern ensures zero tool code changes.",
-  "startedAt": "2026-03-30T03:00:00.000Z",
-  "lastActivityAt": "2026-04-01T20:14:46.000Z"
+  "status": "in_progress",
+  "notes": "Ingestion pipeline restructure — 5 sub-phases (49A-49E), 21 SDD steps. Kiro spec is design authority. Steps 0-14 complete (49A-49C). Remaining: 49D (observability/compute) and 49E (self-improving loop).",
+  "startedAt": "2026-04-02T19:00:00.000Z",
+  "lastActivityAt": "2026-04-02T21:30:00.000Z"
 }

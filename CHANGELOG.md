@@ -1,5 +1,46 @@
 # MCP Server Changelog
 
+## [8.1.0] - Phase 49: Ingestion Pipeline Restructure (April 2-3, 2026)
+
+### Multi-Model Embedding Infrastructure (`mcp_server_node/scripts/`)
+- `embedding_registry.py` — ModelProfile dataclass, EmbeddingModelRegistry with 6 built-in profiles (mpnet768, titan1024, nova256/512/1024/3072)
+- `embedding_provider.py` — EmbeddingProvider ABC, LocalProvider (sentence-transformers, CUDA auto-detect), BedrockProvider (boto3, Nova outputEmbeddingLength)
+- `collection_namer.py` — Model-aware naming: `{domain}-{version}-{model_short}`, legacy name detection
+
+### Centralized BaseIngester Refactor (`mcp_server_node/scripts/ingestion_base.py`)
+- Centralized `--model`, `--backend`, `--collections`, `--dry-run` CLI parsing
+- `get_clients()` — unified backend routing replacing inline boilerplate in 7 scripts
+- `deterministic_id()` — SHA-256 hash of content+source+chunk_index+model for idempotent upserts
+- `upsert_document()` / `merge_graph_node()` / `merge_graph_relationship()` — upsert/MERGE semantics
+- Removed hardcoded `EMBEDDING_MODEL = "all-mpnet-base-v2"`, replaced with registry resolution
+
+### Ingestion Script Refactoring
+- `ingest_code_v8.py`, `ingest_documentation_v8.py`, `ingest_fortran_graph.py`, `ingest_shell_graph_v8.py`, `ingest_jjobs_v8.py`, `ingest_cross_language_bridges.py`, `ingest_env_variables.py` — all refactored to subclass BaseIngester, inline `--backend` boilerplate removed
+
+### Model-Aware AWS Integration
+- `aws_backend.py` — dynamic COLLECTION_TO_INDEX resolution with model suffix, legacy mapping preserved
+- `create-opensearch-indices.js` — `--model` flag, dynamic knn_vector dimensions per profile, `model_profile` keyword field, BM25 dual-indexing on content field
+- `migrate-to-aws.js` — model metadata from ChromaDB, model-aware S3 keys, per-collection-model watermarks
+- `verify-migration.js` — multi-model count parity across all model-specific indices
+
+### Retrieval Enhancements (`mcp_server_node/src/data/search/`)
+- `HybridSearchBuilder.js` — BM25 + vector + RRF fusion, code identifier detection (camelCase, snake_case, dot.notation, file paths), auto-boost BM25 for code queries
+- `GraphAugmenter.js` — 1-hop Neptune expansion (CALLS, USES, IMPORTS, CONTAINS), configurable hopDepth, graceful fallback
+- `MatryoshkaQuery.js` — adaptive dimension truncation at query time for Nova Multimodal embeddings
+- `comparativeQuery()` on VectorDatabaseAdapter + OpenSearchAdapter — multi-model parallel query, results grouped by profile
+- `UnifiedDataAccess.js` — wired with `search_mode`, `graph_augmented`, `dimensions` options; all 51 MCP tools unchanged
+
+### Dead Code Archival
+- `mcp_server_python/` moved to `archive/mcp_server_python/` (unused prototype)
+
+### Property Tests (all passing)
+P1-P2 Registry invariants, P3 Embedding dimension consistency, P4-P5 Collection naming determinism,
+P6-P7 Deterministic ID idempotence/collision resistance, P8 Backend routing completeness,
+P9-P10 Model-aware index mapping, P11 Index creation idempotence
+
+### Documentation
+- `docs/vpc-endpoint-request.md` — formal VPC endpoint provisioning request (9 endpoints, 3 priorities)
+
 ## [8.0.0] - Phase 48: AWS Infrastructure Port (April 1, 2026)
 
 ### AWS Infrastructure (Phase 48A–48E)

@@ -2,148 +2,63 @@
 inclusion: auto
 ---
 
-# Phase 48 Progress — AWS Infrastructure Port
+# Phase 48 & 49 Progress — AWS Infrastructure Port + Ingestion Pipeline Restructure
 
-## Current State (2026-04-01)
+## Phase 48: AWS Infrastructure Port — COMPLETE
 
-**SDD Session**: `session_2026-03-30_phase48` — **25/25 steps COMPLETE**
+**SDD Session**: `session_2026-03-30_phase48` — **26/26 steps COMPLETE**
 **Branch**: `develop_aws`
-**Status**: Phase 48A–48E complete. Re-ingest against live AWS backends scheduled next session.
+**Commits**: `ee4a86e` → `337c9fe` (4 commits, Phase 48A-48E)
 
-## Completed Steps — ALL DONE
+All CDK stacks, adapters, migration scripts, and validation tooling built. Pending: VPC endpoint provisioning → `cdk deploy` → Parallel Works S3 export.
 
-| Step | Tag | What Was Built |
-|------|-----|----------------|
-| 0 | implement | `SETUP_AWS/` — bootstrap.sh, mcp-env-aws.sh, 00–08 provisioning scripts |
-| 1–4 | implement/validate | CDK stacks (VPC, Security, Data) + cdk synth + 27 unit tests |
-| 5 | implement | `aws-config.js` resolveConfig() + P11/P12 property tests |
-| 6 | design | Adapter interfaces (VectorDatabaseAdapter, GraphDatabaseAdapter) |
-| 7 | implement | OpenSearchAdapter — k-NN, SigV4, score normalization |
-| 8 | implement | ChromaDBLegacyAdapter — passthrough wrapper |
-| 9 | implement | NeptuneAdapter + apoc-transform.js (5 APOC replacements) |
-| 10 | implement | Neo4jLegacyAdapter — passthrough wrapper |
-| 11 | implement | backend-selector.js + UnifiedDataAccess wiring |
-| 12 | validate | Property tests P1–P3, P7 (26/26 pass) |
-| 13 | implement | MdcServerStack — ECS Fargate, ALB, API Gateway, CloudFront + WAF |
-| 14 | implement | HealthChecker — checkDatabases, withRetry (5s/10s/20s/60s), P9/P10/P13 |
-| 15 | implement | create-opensearch-indices.js — 5 indices, knn_vector 768-dim |
-| 16 | implement | migrate-to-aws.js — 5-phase migration, S3 staging, watermarks |
-| 17 | validate | verify-migration.js — count parity, P4/P5/P6/P8 tests |
-| 18 | research | capture-golden-files.js — legacy baseline capture |
-| 19 | validate | validate-search-relevance.js — 5% tolerance, overlapAtK |
-| 20 | implement | aws_backend.py + 7 ingestion scripts patched with --backend aws |
-| 21 | validate | step21-reingest-integration.test.js — 10/10 pass |
-| 22 | implement | CloudWatch dashboard + 3 alarms in MdcServerStack |
-| 23 | validate | run-golden-file-comparison.js — schema equivalence |
-| 24 | configure | cutover-mcp-client.js — .kiro/settings/mcp.json update + rollback |
-| 25 | document | CHANGELOG.md v8.0.0 + session complete |
+## Phase 49: Ingestion Pipeline Restructure — IN PROGRESS
 
-## Next Session: Live Re-ingest
+**SDD Session**: `session_2026-04-03_phase49` — **15/21 steps complete**
+**Branch**: `develop_aws`
+**Kiro Spec**: `.kiro/specs/ingestion-pipeline-restructure/` (32 requirements, 23 tasks)
+**Commits**: `43f2625` → `81536d7` (4 commits, Phase 49A-49C)
 
-```bash
-# 1. Deploy CDK stacks
-cd infrastructure/cdk && cdk deploy --all
+### Completed (Steps 0-14)
 
-# 2. Create OpenSearch indices
-OPENSEARCH_ENDPOINT=https://... node scripts/create-opensearch-indices.js
+| Step | Sub-Phase | What Was Built | Commit |
+|------|-----------|----------------|--------|
+| 0-2 | 49A | `embedding_registry.py`, `embedding_provider.py`, `collection_namer.py` + P1-P5 | `43f2625` |
+| 3-4 | 49A | BaseIngester refactor + 7 ingestion scripts registry-driven + P6-P8 | `daeab02` |
+| 5-8 | 49B | aws_backend model-aware, dead code archival, index/migration updates + P9-P11 | `8d0037f` |
+| 9-14 | 49C | HybridSearchBuilder, GraphAugmenter, MatryoshkaQuery, comparative queries, UnifiedDataAccess wiring | `81536d7` |
 
-# 3. Run migration (ChromaDB→OpenSearch, Neo4j→Neptune)
-node scripts/migrate-to-aws.js
+### Remaining (Steps 15-20)
 
-# 4. Verify parity
-node scripts/verify-migration.js
+| Step | Sub-Phase | What to Build |
+|------|-----------|---------------|
+| 15 | 49D | FeedbackLogger.js — anonymized query-result pair logging |
+| 16 | 49D | SageMaker launcher + ECR Dockerfile |
+| 17 | 49D | Drift detection (`drift_detector.py`) |
+| 18 | 49E | Retrieval quality benchmarking (`benchmark_runner.py`) |
+| 19 | 49E | Domain-adaptive fine-tuning (`fine_tuning_pipeline.py`) |
+| 20 | 49E | Graph-powered hard negative mining (`hard_negative_miner.py`) |
 
-# 5. If needed, re-ingest directly
-DB_BACKEND=aws python scripts/ingest_fortran_graph.py
-DB_BACKEND=aws python scripts/ingest_code_v8.py
-# ... etc
+### Blockers
 
-# 6. Capture golden files and compare
-node scripts/capture-golden-files.js --upload
-node scripts/run-golden-file-comparison.js
+- **VPC Endpoints**: Request submitted (`docs/vpc-endpoint-request.md`), awaiting admin
+- **CDK Deploy**: Blocked on VPC endpoints
+- **Parallel Works S3 Export**: Blocked on CDK deploy
 
-# 7. Cutover
-node scripts/cutover-mcp-client.js --endpoint https://<cf-domain>/mcp --token <bearer>
-```
+### Key Architecture Decisions
 
-## Completed Steps — DO NOT REDO
-
-| Step | Tag | What Was Built | Commit |
-|------|-----|----------------|--------|
-| 0 | implement | `SETUP_AWS/bootstrap.sh`, `mcp-env-aws.sh`, `provisioning/` (00–08 + common + provision) | HEAD |
-| 1 | implement | `infrastructure/cdk/` — `MdcVpcStack`, `MdcSecurityStack`, `MdcDataStack` (TypeScript + compiled JS) | HEAD |
-| 2 | validate | `cdk synth` succeeded — 3 templates in `cdk.out/`; 20/20 CDK unit tests pass | HEAD |
-| 3 | implement | `mcp_server_node/src/config/aws-config.js` — `resolveConfig()` with caching + env fallback; property tests P11+P12 | HEAD |
-| 6 | design | `VectorDatabaseAdapter.js` (16 methods), `GraphDatabaseAdapter.js` (34 methods) | 4831b6a |
-| 8 | implement | `ChromaDBLegacyAdapter.js` — passthrough wrapper around VectorDatabase | 4831b6a |
-| 10 | implement | `Neo4jLegacyAdapter.js` — passthrough wrapper around GraphDatabase | 4831b6a |
-| 11 | implement | `backend-selector.js` + 3-line change to `UnifiedDataAccess.js` | 4831b6a |
-
-All adapter files are in `mcp_server_node/src/data/adapters/`.
-`UnifiedDataAccess.js` now calls `selectDatabaseBackend()` in its constructor.
-
-## Next Steps — Ready to Execute
-
-### Phase 48A: COMPLETE (Steps 0–5) — completed 2026-04-01
-
-All Phase 48A steps are done. Steps 0–3 built in this session; steps 4 (CDK tests) and 5 (resolveConfig) are folded into steps 2 and 3 respectively.
-
-### Phase 48B: Remaining Adapter + Server Work (Steps 7, 9, 12–14) — NEXT
-
-**Step 7** — OpenSearch adapter (`OpenSearchAdapter.js`):
-- k-NN search with 768-dim embeddings
-- AWS SigV4 auth
-- Metadata filter → OpenSearch bool query
-- Score normalization to [0,1]
-
-**Step 9** — Neptune adapter (`NeptuneAdapter.js`) + APOC transform:
-- openCypher queries via Neptune bolt endpoint
-- `apoc-transform.js`: 5 APOC procedure replacements
-- `apoc.algo.dijkstra` is HIGHEST RISK — needs Gremlin fallback
-- Throw `UnsupportedQueryError` for unknown APOC
-
-**Step 12** — Property tests (P1–P3, P7) for adapter output compatibility
-
-**Step 13** — `MdcServerStack`: ECS Fargate (1 vCPU, 2GB), ALB, API Gateway, CloudFront + WAF
-
-**Step 14** — Health check (healthy/degraded), graceful degradation, exponential backoff retry
-
-## Merge Strategy (CRITICAL — lesson from Phase 47)
-
-Phase 47 Rocoto work lost code when `develop` was merged into a feature branch,
-silently reverting prior work. For `develop_aws`:
-
-- **NEVER merge `develop` into `develop_aws`** without reviewing the diff for removals
-- Push completed phases from `develop_aws` → `develop` as finished units
-- AWS-specific code lives exclusively on `develop_aws` until cutover
-
-## Data Migration Overview (Phase 48C, Steps 15–19)
-
-Migration uses S3 as a staging area:
-```
-Legacy (PW VM)                    AWS
-ChromaDB → export → S3 bucket → OpenSearch bulk API
-Neo4j    → export → S3 bucket → Neptune bulk loader
-```
-
-5 ChromaDB collections (~85K docs, ~380MB):
-| Collection | OpenSearch Index | Docs |
-|------------|-----------------|------|
-| `code-with-context-v8-0-0` | `mdc-code-context` | ~58,761 |
-| `global-workflow-docs-v8-0-0` | `mdc-workflow-docs` | ~3,514 |
-| `jjobs-v8-0-0` | `mdc-jjobs` | ~700 |
-| `community-summaries` | `mdc-community-summaries` | ~828 |
-| `ee2-standards-v5-0-0-enhanced` | `mdc-ee2-standards` | ~34 |
-
-Embeddings transfer bitwise (768-dim MPNet) — no re-generation needed.
+- **CONE mnemonic**: ChromaDB→OpenSearch (vectors), Neo4j→Neptune (graphs), Embeddings stay same
+- **Model-aware naming**: `{domain}-{version}-{model-short}` (e.g., `code-with-context-v8-0-0-mpnet768`)
+- **No IGW/NAT needed**: API Gateway + VPC Link + Internal ALB for internet exposure
+- **Self-improving loop**: Feedback → Hard negatives from graph → Fine-tune on SageMaker → Re-ingest
 
 ## Reference Files
 
 | File | Purpose |
 |------|---------|
-| `sdd_framework/workflows/phase48_aws_infrastructure_port.md` | Full SDD spec (25 steps) |
-| `.kiro/specs/aws-infrastructure-port/requirements.md` | 17 requirements (design authority) |
-| `.kiro/specs/aws-infrastructure-port/design.md` | AWS topology + component mapping |
-| `.kiro/specs/aws-infrastructure-port/tasks.md` | Kiro task breakdown (uses "Phase 46" numbering) |
+| `sdd_framework/workflows/phase49_ingestion_pipeline_restructure.md` | SDD spec (21 steps) |
+| `.kiro/specs/ingestion-pipeline-restructure/requirements.md` | 32 requirements |
+| `.kiro/specs/ingestion-pipeline-restructure/design.md` | Full architecture + interfaces |
+| `.kiro/specs/ingestion-pipeline-restructure/tasks.md` | 23 Kiro tasks (16/23 complete) |
+| `docs/vpc-endpoint-request.md` | VPC endpoint request for admin |
 | `sdd_framework/execution_state/active_session.json` | Live session state |
-| `sdd_framework/execution_state/history.jsonl` | Audit trail |
