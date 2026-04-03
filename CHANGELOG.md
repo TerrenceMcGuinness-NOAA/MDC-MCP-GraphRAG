@@ -33,10 +33,19 @@
 ### Dead Code Archival
 - `mcp_server_python/` moved to `archive/mcp_server_python/` (unused prototype)
 
+### Self-Improving Feedback Loop (Phase 49D)
+- `FeedbackLogger.js` — anonymized query-result pair logging to S3 (JSON Lines), opt-in via FEEDBACK_LOGGING=true, no PII
+- `sagemaker_launcher.py` — submit ingestion scripts as SageMaker Processing Jobs, cost estimation, job status polling, GPU instance support
+- `Dockerfile.sagemaker` — ECR container for SageMaker (Python 3.11, sentence-transformers, boto3, neo4j, chromadb, opensearch-py, fparser), CPU/GPU variants via build arg
+- `requirements-sagemaker.txt` — SageMaker container dependencies
+
 ### Property Tests (all passing)
 P1-P2 Registry invariants, P3 Embedding dimension consistency, P4-P5 Collection naming determinism,
 P6-P7 Deterministic ID idempotence/collision resistance, P8 Backend routing completeness,
 P9-P10 Model-aware index mapping, P11 Index creation idempotence
+
+### Bug Fixes
+- `quiet-console.js` — fixed hardcoded legacy path `/mcp_rag_eib` → `/mdc-mcp-rag`
 
 ### Documentation
 - `docs/vpc-endpoint-request.md` — formal VPC endpoint provisioning request (9 endpoints, 3 priorities)

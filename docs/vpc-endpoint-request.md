@@ -83,8 +83,8 @@ Internal ALB (private subnets)
 ECS Fargate Tasks (private subnets)
        ↓
 ┌──────────────┬──────────────┐
-│  OpenSearch   │   Neptune    │  ← deployed in same VPC
-│  (vectors)    │   (graph)    │
+│  OpenSearch  │   Neptune    │  ← deployed in same VPC
+│  (vectors)   │   (graph)    │
 └──────────────┴──────────────┘
 ```
 
