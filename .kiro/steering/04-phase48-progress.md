@@ -12,12 +12,12 @@ inclusion: auto
 
 All CDK stacks, adapters, migration scripts, and validation tooling built. Pending: VPC endpoint provisioning → `cdk deploy` → Parallel Works S3 export.
 
-## Phase 49: Ingestion Pipeline Restructure — IN PROGRESS
+## Phase 49: Ingestion Pipeline Restructure — COMPLETE
 
-**SDD Session**: `session_2026-04-03_phase49` — **15/21 steps complete**
+**SDD Session**: `session_2026-04-03_phase49` — **21/21 steps COMPLETE**
 **Branch**: `develop_aws`
-**Kiro Spec**: `.kiro/specs/ingestion-pipeline-restructure/` (32 requirements, 23 tasks)
-**Commits**: `43f2625` → `81536d7` (4 commits, Phase 49A-49C)
+**Kiro Spec**: `.kiro/specs/ingestion-pipeline-restructure/` (32 requirements, 23 tasks — ALL DONE)
+**Commits**: `43f2625` → `e807b70` (6 commits, Phase 49A-49E)
 
 ### Completed (Steps 0-14)
 

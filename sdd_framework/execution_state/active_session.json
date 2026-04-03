@@ -17,10 +17,16 @@
     { "step": 11, "name": "GraphAugmenter.js — 1-hop Neptune expansion", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "augment() with CALLS/USES/IMPORTS/CONTAINS relationships, configurable hopDepth (1-2), graceful fallback when Neptune unavailable." },
     { "step": 12, "name": "MatryoshkaQuery.js — adaptive dimension truncation", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "--dimensions query param, prefix truncation at query time, script_score for lower-dim searches." },
     { "step": 13, "name": "Comparative query support", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "comparativeQuery() on VectorDatabaseAdapter + OpenSearchAdapter. Multi-index parallel query, results grouped by model profile." },
-    { "step": 14, "name": "Wire enhancements into UnifiedDataAccess.js", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "search_mode, graph_augmented, dimensions options wired. All 51 MCP tool interfaces preserved unchanged." }
+    { "step": 14, "name": "Wire enhancements into UnifiedDataAccess.js", "tag": "implement", "completedAt": "2026-04-02T21:30:00.000Z", "notes": "search_mode, graph_augmented, dimensions options wired. All 51 MCP tool interfaces preserved unchanged." },
+    { "step": 15, "name": "FeedbackLogger.js — anonymized query-result pair logging", "tag": "implement", "completedAt": "2026-04-03T17:38:00.000Z", "notes": "S3 JSON Lines logging, opt-in via FEEDBACK_LOGGING env var, no PII." },
+    { "step": 16, "name": "SageMaker launcher + ECR Dockerfile", "tag": "implement", "completedAt": "2026-04-03T17:39:00.000Z", "notes": "sagemaker_launcher.py (submit, estimate_cost, get_job_status), Dockerfile.sagemaker (CPU/GPU variants), requirements-sagemaker.txt." },
+    { "step": 17, "name": "Drift detection (drift_detector.py)", "tag": "implement", "completedAt": "2026-04-03T18:15:00.000Z", "notes": "Cosine similarity sampling, stale document detection, configurable threshold (0.95), S3 drift reports, optional SageMaker re-ingestion trigger." },
+    { "step": 18, "name": "Retrieval quality benchmarking (benchmark_runner.py)", "tag": "validate", "completedAt": "2026-04-03T18:20:00.000Z", "notes": "precision@k, recall@k, MRR, nDCG per model/dimension/search_mode. Ground-truth file, S3 upload, SageMaker-compatible." },
+    { "step": 19, "name": "Domain-adaptive fine-tuning (fine_tuning_pipeline.py)", "tag": "implement", "completedAt": "2026-04-03T18:25:00.000Z", "notes": "Auto-generate training pairs, SageMaker Training Job, model registration in EmbeddingModelRegistry, feedback log integration." },
+    { "step": 20, "name": "Graph-powered hard negative mining (hard_negative_miner.py)", "tag": "implement", "completedAt": "2026-04-03T18:30:00.000Z", "notes": "Neptune graph distance as difficulty signal, 1-hop pairs with different labels/communities, TripletLoss-compatible output." }
   ],
-  "status": "in_progress",
-  "notes": "Ingestion pipeline restructure — 5 sub-phases (49A-49E), 21 SDD steps. Kiro spec is design authority. Steps 0-14 complete (49A-49C). Remaining: 49D (observability/compute) and 49E (self-improving loop).",
+  "status": "complete",
+  "notes": "Ingestion pipeline restructure — 5 sub-phases (49A-49E), 21 SDD steps. All complete. Multi-model embedding registry, centralized BaseIngester, model-aware migration, hybrid search, graph augmentation, Matryoshka queries, SageMaker offloading, drift detection, benchmarking, fine-tuning pipeline, hard negative mining.",
   "startedAt": "2026-04-02T19:00:00.000Z",
-  "lastActivityAt": "2026-04-02T21:30:00.000Z"
+  "lastActivityAt": "2026-04-03T18:30:00.000Z"
 }

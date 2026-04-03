@@ -238,8 +238,8 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
 - [x] 16. Checkpoint — Ensure all Node.js retrieval enhancements work
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 17. Feedback Logger
-  - [ ] 17.1 Create `FeedbackLogger.js`
+- [x] 17. Feedback Logger
+  - [x] 17.1 Create `FeedbackLogger.js`
     - Log anonymized query-result pairs to S3 (JSON Lines format)
     - Capture: query text, result doc IDs, scores, collection, model profile, tool name
     - Opt-in via `FEEDBACK_LOGGING=true` env var, disabled by default
@@ -251,8 +251,8 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - **Property P16: For any logged feedback entry, the entry contains only query_text, result_ids, result_scores, collection, model_profile, tool_name, and timestamp — no raw user prompts or PII fields**
     - **Validates: Requirements 31.5**
 
-- [ ] 18. SageMaker Processing Jobs
-  - [ ] 18.1 Create `sagemaker_launcher.py`
+- [x] 18. SageMaker Processing Jobs
+  - [x] 18.1 Create `sagemaker_launcher.py`
     - `submit(script, instance_type, model, backend, collections, dry_run)` → submit SageMaker Processing Job
     - `estimate_cost(instance_type, estimated_minutes)` → cost estimate for `--dry-run`
     - `get_job_status(job_name)` → poll status, return counts and errors
@@ -264,7 +264,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/sagemaker_launcher.py`
     - _Requirements: 20.1, 20.2, 20.3, 20.4, 20.5, 21.1, 21.2, 21.3, 21.4, 22.1, 22.2, 22.3, 22.4, 22.5_
 
-  - [ ] 18.2 Create `Dockerfile.sagemaker` for ECR container
+  - [x] 18.2 Create `Dockerfile.sagemaker` for ECR container
     - Python 3.11+ base, sentence-transformers, boto3, neo4j, chromadb, opensearch-py, fparser
     - Include embedding registry and all ingestion scripts
     - Support CPU and GPU base images via build argument
@@ -272,11 +272,11 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/Dockerfile.sagemaker`
     - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5_
 
-- [ ] 19. Checkpoint — Ensure SageMaker launcher and container build work
+- [x] 19. Checkpoint — Ensure SageMaker launcher and container build work
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 20. Drift Detection
-  - [ ] 20.1 Create `drift_detector.py`
+- [x] 20. Drift Detection
+  - [x] 20.1 Create `drift_detector.py`
     - `detect(collection_name)` → sample N docs, re-embed, compute cosine similarity, return `DriftReport`
     - `check_stale_documents(collection_name)` → find docs whose source files modified/deleted
     - Configurable threshold (default: 0.95) and sample size (default: 100)
@@ -290,8 +290,8 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - **Property P17: For any collection where all stored embeddings are identical to freshly generated embeddings, `detect()` reports `drifted=False` with `mean_similarity >= threshold`**
     - **Validates: Requirements 29.1, 29.2**
 
-- [ ] 21. Retrieval Quality Benchmarking Framework
-  - [ ] 21.1 Create `benchmark_runner.py`
+- [x] 21. Retrieval Quality Benchmarking Framework
+  - [x] 21.1 Create `benchmark_runner.py`
     - `run(ground_truth_file, vector_spaces, search_modes)` → `BenchmarkReport`
     - Compute precision@k, recall@k, MRR, nDCG per model/dimension/search_mode
     - Accept ground-truth file mapping queries to expected relevant documents
@@ -301,8 +301,8 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/benchmark_runner.py`
     - _Requirements: 27.1, 27.2, 27.3, 27.4, 27.5_
 
-- [ ] 22. Domain-Adaptive Fine-Tuning Pipeline
-  - [ ] 22.1 Create `fine_tuning_pipeline.py`
+- [x] 22. Domain-Adaptive Fine-Tuning Pipeline
+  - [x] 22.1 Create `fine_tuning_pipeline.py`
     - `generate_training_pairs(collection_name)` → auto-generate positive pairs (same-section) and hard negatives
     - `train(base_model, training_data, output_s3_path, instance_type)` → submit SageMaker Training Job, return model S3 path
     - `register_model(model_s3_path, short_name)` → register fine-tuned model in `EmbeddingModelRegistry`
@@ -311,7 +311,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/fine_tuning_pipeline.py`
     - _Requirements: 30.1, 30.2, 30.3, 30.4, 30.5, 31.3_
 
-  - [ ] 22.2 Create `hard_negative_miner.py`
+  - [x] 22.2 Create `hard_negative_miner.py`
     - `mine(graph_driver, collection_name)` → list of (anchor, positive, hard_negative) triples
     - Use Neptune graph distance as difficulty signal: 1-hop apart but different labels/communities
     - Output triples compatible with Sentence Transformers `TripletLoss` or `MultipleNegativesRankingLoss`
@@ -319,7 +319,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/hard_negative_miner.py`
     - _Requirements: 32.1, 32.2, 32.3, 32.4_
 
-- [ ] 23. Final checkpoint — Ensure all tests pass
+- [x] 23. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
