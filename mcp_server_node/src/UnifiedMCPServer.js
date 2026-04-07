@@ -401,7 +401,10 @@ class UnifiedMCPServer {
           const da = this.semanticSearchTools.dataAccess;
           const dbHealth = await checkDatabases(da.vectorDB, da.graphDB, { minIndices: 5 });
 
-          dataValidation = dbHealth;
+          // Use vectorDB.healthCheck() for dataValidation — it returns { validation: {...} }
+          // which the Data Validation formatting section requires.
+          // checkDatabases() only returns { status, vector, graph } (no .validation property).
+          dataValidation = await da.vectorDB.healthCheck({ deep, minCollections: 5, minDocuments: 100 });
 
           checks.push({
             component: 'Vector Database',
