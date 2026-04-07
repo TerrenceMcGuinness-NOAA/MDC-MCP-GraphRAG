@@ -35,8 +35,10 @@ All must be complete before starting:
 
 ### Step 1: Configure AWS credentials
 - Tag: configure
-- Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION=us-east-1`
+- `aws configure --profile noaa-aws` (preserves PW default credentials)
+- `export AWS_PROFILE=noaa-aws`
 - Verify: `aws s3 ls s3://mdc-mcp-rag-migration/`
+- When done: `unset AWS_PROFILE` to restore PW defaults
 
 ### Step 2: Verify legacy databases are running
 - Tag: validate

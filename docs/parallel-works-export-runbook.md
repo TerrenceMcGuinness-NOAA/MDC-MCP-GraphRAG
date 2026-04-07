@@ -46,23 +46,32 @@ npm install
 Your AWS credentials from the EC2 side work here too. Set them up:
 
 ```bash
-# Option A: Environment variables
+# Option A: Named profile (RECOMMENDED — preserves PW default credentials)
+aws configure --profile noaa-aws
+# Access Key ID: (your 903050880929 key)
+# Secret Access Key: (your 903050880929 secret)
+# Default region: us-east-1
+# Output format: json
+
+# Then set the profile for the session
+export AWS_PROFILE=noaa-aws
+
+# Option B: Environment variables (temporary, session only)
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_REGION="us-east-1"
-
-# Option B: AWS config file (if aws cli is installed)
-aws configure
-# Access Key ID: (your key)
-# Secret Access Key: (your secret)
-# Default region: us-east-1
-# Output format: json
 ```
 
 Verify credentials work and can reach the bucket:
 
 ```bash
 aws s3 ls s3://mdc-mcp-rag-migration/ 2>&1
+```
+
+When done with the export, restore PW default credentials:
+
+```bash
+unset AWS_PROFILE
 ```
 
 If you see "NoSuchBucket" — the CDK deploy hasn't happened yet. Wait for Step 2 in the
