@@ -49,8 +49,12 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
 
 - Phase 48 (AWS Infrastructure Port) — COMPLETE
 - VPC Endpoints — COMPLETE (10/10 provisioned)
-- CDK Bootstrap — PENDING admin ticket
-- CDK Deploy — BLOCKED on bootstrap
+- CDK Bootstrap — COMPLETE
+- CDK Deploy — COMPLETE (MdcVpcStack, MdcSecurityStack, MdcDataStack)
+  - Neptune: mdc-mcp-rag-neptune.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com
+  - OpenSearch: vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com
+  - S3: mdc-mcp-rag-migration
+  - EFS: fs-08493eb474752f811
 
 ## Parallel Works Export Instructions
 

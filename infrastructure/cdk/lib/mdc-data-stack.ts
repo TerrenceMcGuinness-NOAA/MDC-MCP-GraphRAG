@@ -17,7 +17,7 @@ export class MdcDataStack extends cdk.Stack {
     super(scope, id, props);
 
     const { vpc, ecsSecurityGroup } = props;
-    const privateSubnets = vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED });
+    const privateSubnets = vpc.selectSubnets({ subnetGroupName: 'Private' });
 
     // --- KMS key for encryption at rest ---
     const encryptionKey = new kms.Key(this, 'MdcEncryptionKey', {
@@ -30,10 +30,10 @@ export class MdcDataStack extends cdk.Stack {
     const neptuneSg = new ec2.SecurityGroup(this, 'NeptuneSg', {
       vpc,
       securityGroupName: 'mdc-mcp-rag-neptune-sg',
-      description: 'Neptune cluster — allow ECS on 8182',
+      description: 'Neptune cluster - allow ECS on 8182',
       allowAllOutbound: false,
     });
-    neptuneSg.addIngressRule(ecsSecurityGroup, ec2.Port.tcp(8182), 'ECS -> Neptune');
+    neptuneSg.addIngressRule(ecsSecurityGroup, ec2.Port.tcp(8182), 'ECS to Neptune');
 
     // --- Neptune cluster (openCypher, IAM auth) ---
     const neptuneSubnetGroup = new neptune.CfnDBSubnetGroup(this, 'NeptuneSubnetGroup', {
@@ -50,7 +50,7 @@ export class MdcDataStack extends cdk.Stack {
       iamAuthEnabled: true,
       storageEncrypted: true,
       kmsKeyId: encryptionKey.keyArn,
-      deletionProtection: true,
+      deletionProtection: false,  // dev phase — enable for production
     });
 
     new neptune.CfnDBInstance(this, 'NeptuneInstance', {
@@ -63,10 +63,16 @@ export class MdcDataStack extends cdk.Stack {
     const opensearchSg = new ec2.SecurityGroup(this, 'OpenSearchSg', {
       vpc,
       securityGroupName: 'mdc-mcp-rag-opensearch-sg',
-      description: 'OpenSearch domain — allow ECS on 443',
+      description: 'OpenSearch domain - allow ECS on 443',
       allowAllOutbound: false,
     });
-    opensearchSg.addIngressRule(ecsSecurityGroup, ec2.Port.tcp(443), 'ECS -> OpenSearch');
+    opensearchSg.addIngressRule(ecsSecurityGroup, ec2.Port.tcp(443), 'ECS to OpenSearch');
+
+    // Select only 2 subnets for OpenSearch zone awareness (requires exactly 2)
+    const twoSubnets = vpc.selectSubnets({
+      subnetGroupName: 'Private',
+      availabilityZones: ['us-east-1a', 'us-east-1b'],
+    });
 
     // --- OpenSearch domain (k-NN, 768-dim) ---
     new opensearch.Domain(this, 'OpenSearchDomain', {
@@ -75,13 +81,14 @@ export class MdcDataStack extends cdk.Stack {
       capacity: {
         dataNodes: 2,
         dataNodeInstanceType: 'r6g.large.search',
+        multiAzWithStandbyEnabled: false,
       },
       ebs: { volumeSize: 100, volumeType: ec2.EbsDeviceVolumeType.GP3 },
       encryptionAtRest: { enabled: true, kmsKey: encryptionKey },
       nodeToNodeEncryption: true,
       enforceHttps: true,
       vpc,
-      vpcSubnets: [{ subnetType: ec2.SubnetType.PRIVATE_ISOLATED }],
+      vpcSubnets: [{ availabilityZones: ['us-east-1a', 'us-east-1b'], subnetGroupName: 'Private' }],
       securityGroups: [opensearchSg],
       zoneAwareness: { enabled: true, availabilityZoneCount: 2 },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -96,7 +103,7 @@ export class MdcDataStack extends cdk.Stack {
       lifecyclePolicy: efs.LifecyclePolicy.AFTER_30_DAYS,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
-    fileSystem.connections.allowFrom(ecsSecurityGroup, ec2.Port.tcp(2049), 'ECS -> EFS');
+    fileSystem.connections.allowFrom(ecsSecurityGroup, ec2.Port.tcp(2049), 'ECS to EFS');
 
     // --- S3 migration staging bucket ---
     new s3.Bucket(this, 'MigrationBucket', {

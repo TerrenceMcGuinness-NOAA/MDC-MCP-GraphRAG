@@ -1,7 +1,7 @@
 CDK BOOTSTRAP REQUEST — Account 903050880929
 =============================================
 
-Date:       April 3, 2026
+Date:       April 7, 2026 (updated — removed internet-facing components)
 Requestor:  Terry McGuinness (terry.mcguinness@noaa.gov)
 Account:    903050880929
 Region:     us-east-1
@@ -12,8 +12,9 @@ REQUEST
 -------
 
 Please run the AWS CDK bootstrap command for account 903050880929 in
-us-east-1. This is a one-time setup that creates the resources CDK
-needs to deploy CloudFormation stacks.
+us-east-1. This is a one-time setup that creates the IAM roles and S3
+bucket that CDK needs to deploy CloudFormation stacks. It does NOT
+create any services, endpoints, or internet-facing resources.
 
 
 STEP 1 — Delete failed stack (required)
@@ -46,7 +47,7 @@ Roles CDK needs to create:
      Purpose: CloudFormation execution role
 
   2. cdk-hnb659fds-lookup-role-903050880929-us-east-1
-     Purpose: Cross-account resource lookups
+     Purpose: Resource lookups during synthesis
 
   3. cdk-hnb659fds-image-publishing-role-903050880929-us-east-1
      Purpose: ECR image publishing
@@ -54,28 +55,41 @@ Roles CDK needs to create:
   4. cdk-hnb659fds-file-publishing-role-903050880929-us-east-1
      Purpose: S3 asset publishing
 
-It also creates an S3 bucket for CloudFormation template staging:
+It also creates one S3 bucket for CloudFormation template staging:
   cdk-hnb659fds-assets-903050880929-us-east-1
 
 
-WHAT THIS ENABLES
------------------
+WHAT THIS ENABLES (internal only — no internet-facing resources)
+----------------------------------------------------------------
 
-Once bootstrapped, the PowerUser account can deploy CDK stacks for:
-  - Amazon Neptune (graph database)
-  - Amazon OpenSearch (vector search)
-  - Amazon ECS Fargate (MCP server hosting)
-  - Amazon S3 (data migration staging)
+Once bootstrapped, the PowerUser account can deploy internal-only
+CDK stacks within the existing VPC for:
+
+  - Amazon Neptune (graph database, private subnets only)
+  - Amazon OpenSearch (vector search, private subnets only)
+  - Amazon S3 (data migration staging bucket)
   - Amazon EFS (persistent storage)
-  - API Gateway + CloudFront (internet-facing MCP endpoint)
+
+NOTE: No API Gateway, CloudFront, ALB, or internet-facing endpoints
+are included in this phase. Those require a separate escalation and
+will be requested later.
+
+
+WHAT THIS DOES NOT DO
+---------------------
+
+  - Does NOT create any internet-facing endpoints
+  - Does NOT create any VPC, subnet, or gateway resources
+  - Does NOT modify existing network configuration
+  - Does NOT expose any services to the internet
+  - Does NOT affect other users or workloads in the account
 
 
 IMPACT
 ------
 
   - One-time operation, no recurring maintenance
-  - No changes to existing resources
-  - No impact on other users or workloads in the account
+  - Creates 4 IAM roles + 1 S3 bucket (CDK internal use only)
   - Estimated cost: ~$0.03/month (S3 bucket for CDK assets)
 
 

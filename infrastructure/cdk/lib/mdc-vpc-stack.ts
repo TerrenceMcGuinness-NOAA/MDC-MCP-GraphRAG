@@ -26,7 +26,7 @@ export class MdcVpcStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'VpcId', { value: this.vpc.vpcId });
     new cdk.CfnOutput(this, 'VpcCidr', {
-      value: 'Imported VPC — see AWS console for CIDR details',
+      value: 'Imported VPC - see AWS console for CIDR details',
     });
   }
 }

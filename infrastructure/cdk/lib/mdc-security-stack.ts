@@ -12,8 +12,8 @@ interface MdcSecurityStackProps extends cdk.StackProps {
 }
 
 export class MdcSecurityStack extends cdk.Stack {
-  public readonly ecsTaskRole: iam.Role;
-  public readonly ecsExecutionRole: iam.Role;
+  public readonly ecsTaskRole: iam.IRole;
+  public readonly ecsExecutionRole: iam.IRole;
   public readonly ecsSecurityGroup: ec2.SecurityGroup;
   public readonly userPool: cognito.UserPool;
   public readonly webAcl: wafv2.CfnWebACL;
@@ -68,35 +68,12 @@ export class MdcSecurityStack extends cdk.Stack {
     // Allow Neptune out
     this.ecsSecurityGroup.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(8182), 'Neptune egress');
 
-    // --- IAM Roles ---
-    this.ecsExecutionRole = new iam.Role(this, 'EcsExecutionRole', {
-      roleName: 'mdc-mcp-rag-ecs-execution-role',
-      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
-      ],
-    });
+    // --- IAM Roles (pre-created by admin — import by ARN) ---
+    this.ecsExecutionRole = iam.Role.fromRoleName(this, 'EcsExecutionRole',
+      'mdc-mcp-rag-ecs-execution-role');
 
-    this.ecsTaskRole = new iam.Role(this, 'EcsTaskRole', {
-      roleName: 'mdc-mcp-rag-ecs-task-role',
-      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-    });
-    this.ecsTaskRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['secretsmanager:GetSecretValue'],
-      resources: [`arn:aws:secretsmanager:${this.region}:${this.account}:secret:mdc-mcp-rag/*`],
-    }));
-    this.ecsTaskRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['ssm:GetParameter', 'ssm:GetParameters'],
-      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/mdc-mcp-rag/*`],
-    }));
-    this.ecsTaskRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['neptune-db:connect'],
-      resources: [`arn:aws:neptune-db:${this.region}:${this.account}:*/*`],
-    }));
-    this.ecsTaskRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['es:ESHttpGet', 'es:ESHttpPost', 'es:ESHttpPut'],
-      resources: [`arn:aws:es:${this.region}:${this.account}:domain/mdc-mcp-rag-search/*`],
-    }));
+    this.ecsTaskRole = iam.Role.fromRoleName(this, 'EcsTaskRole',
+      'mdc-mcp-rag-ecs-task-role');
 
     // --- Cognito User Pool ---
     this.userPool = new cognito.UserPool(this, 'MdcUserPool', {
