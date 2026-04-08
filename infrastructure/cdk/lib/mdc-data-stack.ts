@@ -5,6 +5,7 @@ import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as kms from 'aws-cdk-lib/aws-kms';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
 interface MdcDataStackProps extends cdk.StackProps {
@@ -58,6 +59,24 @@ export class MdcDataStack extends cdk.Stack {
       dbClusterIdentifier: neptuneCluster.ref,
       dbInstanceIdentifier: 'mdc-mcp-rag-neptune-instance',
     });
+
+    // --- Neptune bulk loader IAM role (S3 read access for /loader API) ---
+    const neptuneBulkLoaderRole = new iam.Role(this, 'NeptuneBulkLoaderRole', {
+      roleName: 'mdc-mcp-rag-neptune-s3-loader',
+      assumedBy: new iam.ServicePrincipal('rds.amazonaws.com'),
+      description: 'Allows Neptune bulk loader to read from S3 migration bucket',
+    });
+    neptuneBulkLoaderRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:GetObject', 's3:ListBucket'],
+      resources: [
+        `arn:aws:s3:::mdc-mcp-rag-migration`,
+        `arn:aws:s3:::mdc-mcp-rag-migration/*`,
+      ],
+    }));
+
+    neptuneCluster.addPropertyOverride('AssociatedRoles', [{
+      RoleArn: neptuneBulkLoaderRole.roleArn,
+    }]);
 
     // --- OpenSearch security group ---
     const opensearchSg = new ec2.SecurityGroup(this, 'OpenSearchSg', {
@@ -119,6 +138,10 @@ export class MdcDataStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'NeptuneClusterEndpoint', {
       value: neptuneCluster.attrEndpoint,
       description: 'Neptune cluster endpoint',
+    });
+    new cdk.CfnOutput(this, 'NeptuneBulkLoaderRoleArn', {
+      value: neptuneBulkLoaderRole.roleArn,
+      description: 'IAM role ARN for Neptune bulk loader S3 access',
     });
     new cdk.CfnOutput(this, 'EfsFileSystemId', {
       value: fileSystem.fileSystemId,
