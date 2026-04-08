@@ -65,13 +65,13 @@
     // Port forward: ssh -L 18888:localhost:18888 remote-host
     // Token: Set MCP_GATEWAY_AUTH_TOKEN env var for static token, otherwise dynamic
     // Verify tools: docker mcp tools ls
-    // "eib-mcp-gateway": {
-    //   "type": "http",
-    //   "url": "https://27gs01wv-18888.use.devtunnels.ms/.use.devtunnels.ms/mcp",
-    //   "headers": {
-    //     "Authorization": "Bearer eib-mcp-gateway-token-2025"
-    //   }
-    // },
+    "eib-mcp-gateway": {
+      "type": "http",
+      "url": "https://27gs01wv-18888.use.devtunnels.ms/.use.devtunnels.ms/mcp",
+      "headers": {
+        "Authorization": "Bearer eib-mcp-gateway-token-2025"
+      }
+    },
 
     // CORE MODE: 16 tools - Code analysis only (NO RAG, NO EE2, NO GitHub)
     // Use when: Fast code structure analysis with source code on disk

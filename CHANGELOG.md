@@ -1,5 +1,26 @@
 # MCP Server Changelog
 
+## [8.2.0] - Phase 50: Parallel Works S3 Migration Export (April 7, 2026)
+
+### S3 Data Export (`mcp_server_node/scripts/migrate-to-aws.js`)
+- Exported ChromaDB vector store (5 collections, 85,921 documents, ~339 MiB) to `s3://mdc-mcp-rag-migration/vectors/`
+  - code-with-context-v8-0-0: 60,576 docs (234.4 MiB)
+  - global-workflow-docs-v8-0-0: 22,498 docs (94.6 MiB)
+  - community-summaries: 2,113 docs (7.6 MiB)
+  - jjobs-v8-0-0: 700 docs (2.7 MiB)
+  - ee2-standards-v5-0-0-enhanced: 34 docs (160.1 KiB)
+- Exported Neo4j graph database (98,813 nodes, 2,653,565 relationships, 12.4 MiB) to `s3://mdc-mcp-rag-migration/graph/`
+- Watermarks saved to `s3://mdc-mcp-rag-migration/watermarks/` for idempotent re-execution
+
+### Bug Fixes
+- `migrate-to-aws.js` — fixed `JSON.stringify()` string length limit on large collections by switching to streaming NDJSON (one JSON object per line through gzip)
+
+### Configuration
+- `.vscode/mcp.json` — enabled Docker MCP Gateway endpoint (Streamable HTTP on port 18888 via dev tunnel)
+
+### SDD
+- Phase 50 session completed: 7/7 steps, ~7 minutes (`session_2026-04-07_8yca4n`)
+
 ## [8.1.0] - Phase 49: Ingestion Pipeline Restructure (April 2-3, 2026)
 
 ### Multi-Model Embedding Infrastructure (`mcp_server_node/scripts/`)

@@ -200,14 +200,19 @@ async function exportVectors(wm) {
     }
 
     if (!DRY_RUN) {
-      const json = JSON.stringify(docs);
+      // Stream NDJSON (one JSON object per line) through gzip to avoid
+      // hitting Node.js string length limits on large collections.
       const tmpFile = join(tmpdir(), `${name}-${modelSuffix}.json.gz`);
       await new Promise((res, rej) => {
         const gz = createGzip();
         const out = createWriteStream(tmpFile);
         gz.on('error', rej); out.on('error', rej); out.on('finish', res);
         gz.pipe(out);
-        gz.end(json);
+        for (let i = 0; i < docs.length; i++) {
+          const line = JSON.stringify(docs[i]);
+          gz.write(i === 0 ? line : '\n' + line);
+        }
+        gz.end();
       });
       const body = await readFile(tmpFile);
       await s3.send(new PutObjectCommand({
