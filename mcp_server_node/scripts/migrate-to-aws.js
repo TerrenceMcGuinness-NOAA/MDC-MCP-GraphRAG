@@ -549,6 +549,9 @@ async function loadGraph(wm) {
     await pool.init();
 
     try {
+      let failedNodeBatches = 0;
+      let failedRelBatches = 0;
+
       // ── Load nodes ──
       const nodeStart = wm['load:graph:nodeProgress'] || 0;
       console.log(`[INFO]  Loading nodes: ${dump.nodes.length} total, resuming from ${nodeStart} (batch=${NEPTUNE_BATCH}, writers=${PARALLELISM})`);
@@ -572,10 +575,15 @@ async function loadGraph(wm) {
 
           workerTasks.push((async () => {
             for (const [label, props] of Object.entries(byLabel)) {
-              await runWithRetry(pool.sessionFn(w),
-                `UNWIND $props AS p MERGE (n:\`${label}\` {_mergeId: p._mergeId}) ON CREATE SET n += p ON MATCH SET n += p`,
-                { props }
-              ).catch(err => console.error(`[ERROR] Nodes batch ${batchStart} label=${label}: ${err.message.substring(0, 100)}`));
+              try {
+                await runWithRetry(pool.sessionFn(w),
+                  `UNWIND $props AS p MERGE (n:\`${label}\` {_mergeId: p._mergeId}) ON CREATE SET n += p ON MATCH SET n += p`,
+                  { props }
+                );
+              } catch (err) {
+                failedNodeBatches++;
+                console.error(`[ERROR] Nodes batch ${batchStart} label=${label}: ${err.message.substring(0, 100)}`);
+              }
             }
           })());
         }
@@ -617,13 +625,18 @@ async function loadGraph(wm) {
           workerTasks.push((async () => {
             for (const [relType, rels] of Object.entries(byType)) {
               const sanitized = rels.map(r => ({ fromId: r.fromId, toId: r.toId, props: sanitizeProps(r.props) }));
-              await runWithRetry(pool.sessionFn(w),
-                `UNWIND $rels AS r
-                 MATCH (a {_mergeId: r.fromId}), (b {_mergeId: r.toId})
-                 MERGE (a)-[rel:\`${relType}\`]->(b)
-                 ON CREATE SET rel += r.props`,
-                { rels: sanitized }
-              ).catch(err => console.error(`[ERROR] Rels batch ${batchStart} type=${relType}: ${err.message.substring(0, 100)}`));
+              try {
+                await runWithRetry(pool.sessionFn(w),
+                  `UNWIND $rels AS r
+                   MATCH (a {_mergeId: r.fromId}), (b {_mergeId: r.toId})
+                   MERGE (a)-[rel:\`${relType}\`]->(b)
+                   ON CREATE SET rel += r.props`,
+                  { rels: sanitized }
+                );
+              } catch (err) {
+                failedRelBatches++;
+                console.error(`[ERROR] Rels batch ${batchStart} type=${relType}: ${err.message.substring(0, 100)}`);
+              }
             }
           })());
         }
@@ -641,17 +654,30 @@ async function loadGraph(wm) {
       }
       console.log(`[OK]    All ${validRels.length} rels loaded (${skippedRels} skipped)`);
 
+      // ── Summary and conditional watermark ──
+      const nodeSucceeded = Math.ceil(dump.nodes.length / NEPTUNE_BATCH) - failedNodeBatches;
+      const relBatchTotal = Math.ceil(validRels.length / NEPTUNE_BATCH);
+      const relSucceeded = relBatchTotal - failedRelBatches;
+      console.log(`[RESULT] Nodes: ${nodeSucceeded} batches succeeded, ${failedNodeBatches} failed. Rels: ${relSucceeded} batches succeeded, ${failedRelBatches} failed.`);
+
+      if (failedNodeBatches === 0 && failedRelBatches === 0) {
+        wm['load:graph'] = 'done';
+        wm['load:graph:nodes'] = dump.nodes.length;
+        wm['load:graph:rels'] = dump.relationships.length;
+        wm['load:graph:relsLoaded'] = dump.relationships.length - skippedRels;
+        await saveWatermarks(wm);
+        console.log(`[OK]    Graph loaded: ${dump.nodes.length} nodes, ${dump.relationships.length} rels`);
+      } else {
+        wm['load:graph:failedNodeBatches'] = failedNodeBatches;
+        wm['load:graph:failedRelBatches'] = failedRelBatches;
+        await saveWatermarks(wm);
+        console.log(`[WARN]  load:graph NOT marked done — ${failedNodeBatches + failedRelBatches} batch failures. Re-run to retry.`);
+      }
+
     } finally {
       await pool.closeAll();
     }
   }
-
-  wm['load:graph'] = 'done';
-  wm['load:graph:nodes'] = dump.nodes.length;
-  wm['load:graph:rels'] = dump.relationships.length;
-  wm['load:graph:relsLoaded'] = dump.relationships.length - skippedRels;
-  await saveWatermarks(wm);
-  console.log(`[OK]    Graph loaded: ${dump.nodes.length} nodes, ${dump.relationships.length} rels`);
 }
 
 // ── Phase 5: Verify count parity (model-aware) ───────────────────────────────

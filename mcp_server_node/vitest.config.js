@@ -54,7 +54,7 @@ export default {
     reporters: ['verbose'],
     
     // Test file patterns
-    include: ['src/**/*.test.js', 'src/**/__tests__/**/*.js'],
+    include: ['src/**/*.test.js', 'src/**/__tests__/**/*.js', 'test/**/*.test.js'],
     exclude: ['node_modules', 'dist']
   }
 };

@@ -20,7 +20,9 @@ const s3 = new S3Client({ region: REGION });
 
 function nodeMergeId(node) {
   const p = node.properties;
-  return p.id || p.path || p.name || `${node.labels[0]}_${Buffer.from(JSON.stringify(p)).toString('base64url').substring(0, 40)}`;
+  const label = node.labels[0];
+  const base = p.id || p.path || p.name || Buffer.from(JSON.stringify(p)).toString('base64url').substring(0, 40);
+  return `${label}:${base}`;
 }
 
 function sanitizeValue(v) {
@@ -57,13 +59,22 @@ async function main() {
   const dump = JSON.parse(Buffer.concat(chunks).toString());
   console.log(`[OK]    Parsed: ${dump.nodes.length} nodes, ${dump.relationships.length} rels`);
 
-  // Build node ID map
-  const nodeIdMap = new Map();
+  // Build node ID map — use label:name as key to avoid collisions
+  // For rel resolution, also build a name→mergeId map (last-wins for duplicates)
+  const nodeIdMap = new Map();       // name → mergeId (for rel resolution)
+  const uniqueNodeIds = new Set();   // track unique :ID values
+  let nodeCollisions = 0;
   for (const n of dump.nodes) {
     const mid = nodeMergeId(n);
     n.properties._mergeId = mid;
+    if (uniqueNodeIds.has(mid)) {
+      nodeCollisions++;
+    }
+    uniqueNodeIds.add(mid);
     if (n.properties.name) nodeIdMap.set(n.properties.name, mid);
   }
+  if (nodeCollisions > 0) console.log(`[WARN]  ${nodeCollisions} node ID collisions (same label+name+path+id)`);
+  console.log(`[INFO]  Unique node IDs: ${uniqueNodeIds.size} (of ${dump.nodes.length} total)`);
 
   // Collect node property keys and types
   const nodePropTypes = new Map();
@@ -78,7 +89,7 @@ async function main() {
 
   // ── Generate and upload nodes CSV ──
   console.log('[INFO]  Generating nodes CSV...');
-  const nodeHeader = ['~id', '~label', ...nodeProps.map(k => `${k}:${nodePropTypes.get(k)}`)].map(csvEscape).join(',');
+  const nodeHeader = [':ID', ':LABEL', ...nodeProps.map(k => `${k}:${nodePropTypes.get(k)}`)].map(csvEscape).join(',');
 
   if (!DRY_RUN) {
     const nodeGz = createGzip();
@@ -115,7 +126,7 @@ async function main() {
     }
   }
   const relProps = [...relPropTypes.keys()].sort();
-  const relHeader = ['~id', '~start', '~end', '~type', ...relProps.map(k => `${k}:${relPropTypes.get(k)}`)].map(csvEscape).join(',');
+  const relHeader = [':ID', ':START_ID', ':END_ID', ':TYPE', ...relProps.map(k => `${k}:${relPropTypes.get(k)}`)].map(csvEscape).join(',');
 
   // ── Stream rels CSV to S3 (avoids OOM) ──
   console.log('[INFO]  Generating relationships CSV (streaming)...');

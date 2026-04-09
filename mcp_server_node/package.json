@@ -23,6 +23,7 @@
     "@aws-sdk/client-secrets-manager": "^3.967.0",
     "@aws-sdk/client-ssm": "^3.967.0",
     "@aws-sdk/credential-provider-node": "^3.967.0",
+    "@aws-sdk/lib-storage": "^3.967.0",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "@octokit/rest": "^22.0.1",
     "@opensearch-project/opensearch": "^3.5.1",

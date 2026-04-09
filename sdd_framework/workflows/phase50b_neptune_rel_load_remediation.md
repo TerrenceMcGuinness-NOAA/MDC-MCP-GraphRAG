@@ -128,10 +128,15 @@ After evaluating both Bolt-based retry (Fix 2) and Neptune's native bulk loader 
 |-----------|--------|-------|
 | S3 Exports | ✅ Complete | 5 vector collections + 1 graph dump |
 | OpenSearch Load | ✅ Complete | 85,921 docs across 5 indices (verified) |
-| Neptune Nodes | ⚠️ Inflated | 107,418 (98,813 good + 45,296 orphans) |
-| Neptune Rels | ❌ Zero | 0 / 2,633,374 expected |
-| IAM Role | ⚠️ Exists but not attached | Admin request submitted |
-| Verification | ❌ Failed | Vectors pass, graph fails |
+| Neptune Nodes | ✅ Loaded | 59,759 (deduplicated from 98,813) |
+| Neptune Rels | ✅ Loaded | 2,633,374 (exact match, 0 errors) |
+| IAM Role | ✅ Attached and ACTIVE | Admin completed |
+| S3 VPC Endpoint | ✅ Fixed | Route table added for Neptune subnets |
+| Neptune SG Egress | ✅ Fixed | HTTPS to S3 prefix list added |
+| Bulk Loader | ✅ Complete | Nodes ~30s, Rels ~8 min, 0 errors |
+| Watermarks | ✅ Updated | method=neptune-bulk-loader |
+| Verification | ⏳ Pending | Cross-env verify deferred to next session |
+| Bolt Error Fix | ⏳ Deferred | Bulk loader bypasses Bolt — fix for future incremental updates |
 
 ## Environment Variables
 

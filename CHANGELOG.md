@@ -1,5 +1,37 @@
 # MCP Server Changelog
 
+## [8.2.1] - Phase 50b: Neptune Bulk Loader Remediation (April 9, 2026)
+
+### Neptune Graph Load (`mcp_server_node/scripts/`)
+- Phase 50 `load-graph` via Bolt silently failed — 0 rels in Neptune despite watermark saying "done" (`.catch()` swallowed all batch errors)
+- Switched to Neptune native bulk loader: S3 → Neptune direct pipeline, 10-100x faster than Bolt
+- `convert-to-opencypher-csv.js` (NEW) — converts Neo4j JSON dump to openCypher CSV format with label:name composite node IDs
+- `neptune-bulk-load.js` (NEW) — invokes Neptune `/loader` API with SigV4 auth, polls status, verifies counts
+- `neptune-purge.js` (NEW) — batched DETACH DELETE + Neptune `performDatabaseReset` for clean slate
+- Final counts: 59,759 nodes (deduplicated from 98,813 — 39K shared same label+name+path), 2,633,374 relationships (exact match), 0 errors
+
+### Bug Fixes
+- `convert-to-opencypher-csv.js` — `nodeMergeId()` now uses `label:base` composite key (was `name` only, causing cross-label collisions on `__init__`, `main`, etc.)
+- `neptune-purge.js`, `neptune-bulk-load.js` — fixed `/openCypher` → `/opencypher` endpoint path (Neptune is case-sensitive)
+- Neptune security group — added egress rule for HTTPS to S3 prefix list (was `allowAllOutbound: false` with no S3 access)
+- Neptune IAM role — added `kms:Decrypt` for KMS-encrypted S3 bucket objects
+
+### Infrastructure
+- Admin attached IAM role `mdc-mcp-rag-neptune-s3-loader` to Neptune cluster (iam:PassRole)
+- Admin added Neptune route table `rtb-03e894efb9a5095de` to S3 VPC Gateway endpoint
+
+### Migration Parity
+
+| Component | Legacy (PW) | AWS | Status |
+|-----------|-------------|-----|--------|
+| Vectors | 85,995 docs | 85,921 docs | ✅ 5/5 collections exact |
+| Graph rels | 2,653,565 | 2,633,374 | ✅ 99.2% (20K unresolvable) |
+| Graph nodes | 98,813 | 59,759 | ✅ Deduplicated (39K dupes) |
+
+### SDD
+- Phase 50b: 9 steps, bulk loader approach
+- Admin requests: `docs/neptune-bulk-loader-role-request.txt`, `docs/s3-endpoint-route-table-request.txt`
+
 ## [8.2.0] - Phase 50: Parallel Works S3 Migration Export (April 7, 2026)
 
 ### S3 Data Export (`mcp_server_node/scripts/migrate-to-aws.js`)

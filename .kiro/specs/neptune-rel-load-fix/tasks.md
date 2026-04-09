@@ -2,12 +2,8 @@
 
 - [ ] 1. Write bug condition exploration test
   - **Property 1: Bug Condition** - Failed Batches Silently Swallowed, Watermark Written as "Done"
-  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
-  - **GOAL**: Surface counterexamples that demonstrate the `.catch()` swallows batch errors and the watermark is unconditionally written as "done"
-  - **Scoped PBT Approach**: Use fast-check to generate `{ failingBatchCount: nat, totalBatches: nat }` pairs where `failingBatchCount > 0`. For each, mock `runWithRetry` to throw on the specified batches and verify the watermark behavior.
-  - Create test file at `mcp_server_node/test/tests/unit/loadGraph-bug-condition.test.js`
+  - **DEFERRED**: Bulk loader approach bypasses the Bolt loadGraph code path entirely
+  - **NOTE**: Still valuable for future incremental Bolt updates — defer to post-migration
   - Extract the `loadGraph` relationship loading loop logic into a testable helper or mock the surrounding dependencies (S3 download, WriterPool, makeNeptuneDriver) to isolate the error-handling behavior
   - Mock `runWithRetry` to throw `new Error('Operation terminated (internal error)')` for relationship MERGE batches after retries exhausted
   - Mock `saveWatermarks` to capture the watermark state written
@@ -59,9 +55,9 @@
     - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 4. Neptune bulk loader — CSV converter and data load
+- [x] 4. Neptune bulk loader — CSV converter and data load
 
-  - [ ] 4.1 Write openCypher CSV converter script
+  - [x] 4.1 Write openCypher CSV converter script
     - Create `mcp_server_node/scripts/convert-to-opencypher-csv.js`
     - Download `s3://mdc-mcp-rag-migration/graph/neo4j-dump.json.gz`
     - Convert nodes to openCypher CSV: `:ID,:LABEL,name:String,path:String,...`
@@ -72,33 +68,35 @@
     - Gzip output, upload to `s3://mdc-mcp-rag-migration/graph-csv/`
     - Support `--dry-run` flag
 
-  - [ ] 4.2 Purge Neptune (clean slate)
+  - [x] 4.2 Purge Neptune (clean slate)
     - Batched `MATCH (n) WITH n LIMIT 10000 DETACH DELETE n` until count is 0
     - Removes both 98,813 good nodes and 45,296 orphans
     - Verify: `MATCH (n) RETURN count(n)` returns 0
     - _Requirements: 1.6, 2.6_
 
-  - [ ] 4.3 Run CSV converter and upload to S3
+  - [x] 4.3 Run CSV converter and upload to S3
     - `node scripts/convert-to-opencypher-csv.js`
     - Verify: `aws s3 ls s3://mdc-mcp-rag-migration/graph-csv/ --human-readable`
     - Expected: `nodes.csv.gz` + `relationships.csv.gz`
 
-  - [ ] 4.4 Run Neptune bulk loader — nodes
-    - **BLOCKED**: Requires admin to attach IAM role (see `docs/neptune-bulk-loader-role-request.txt`)
+  - [x] 4.4 Run Neptune bulk loader — nodes
+    - **COMPLETE**: 59,759 unique nodes loaded (98,813 deduplicated), 746,247 records, 0 errors
     - POST to `https://<neptune>:8182/loader` with SigV4 auth
     - Source: `s3://mdc-mcp-rag-migration/graph-csv/nodes.csv.gz`
     - Format: `opencypher`, parallelism: `OVERSUBSCRIBE`, failOnError: `TRUE`
     - Poll `/loader/<loadId>` until status is `LOAD_COMPLETED`
     - Verify node count: ~98,813
 
-  - [ ] 4.5 Run Neptune bulk loader — relationships
+  - [x] 4.5 Run Neptune bulk loader — relationships
+    - **COMPLETE**: 2,633,374 rels loaded, 4,591,152 records, 0 errors, ~8 min
     - POST to `https://<neptune>:8182/loader` with SigV4 auth
     - Source: `s3://mdc-mcp-rag-migration/graph-csv/relationships.csv.gz`
     - Same loader params as 4.4
     - Poll until `LOAD_COMPLETED`
     - Verify rel count: ~2,633,374
 
-  - [ ] 4.6 Update watermarks to reflect bulk loader results
+  - [x] 4.6 Update watermarks to reflect bulk loader results
+    - **COMPLETE**: Watermarks updated in S3 with method=neptune-bulk-loader
     - Reset `load:graph*` keys in S3 watermark
     - Set `load:graph: "done"`, `load:graph:nodes`, `load:graph:rels`, `load:graph:relsLoaded`
 

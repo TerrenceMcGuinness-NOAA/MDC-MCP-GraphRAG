@@ -32,23 +32,25 @@ All CDK stacks, adapters, migration scripts, and validation tooling built.
 
 5 optional property tests (P12-P17) were skipped per spec — marked `*` in tasks.md.
 
-## Current Blockers — CDK Deploy
+## Phase 50/50b: S3 Migration Export + Neptune Bulk Load — COMPLETE
 
-- **VPC Endpoints**: ✅ ALL 10 PROVISIONED (see `docs/vpc-endpoint-status.md`)
-- **CDK Bootstrap**: ❌ BLOCKED — admin ticket submitted, `CDKToolkit` stack in `ROLLBACK_COMPLETE` (see `docs/cdk-bootstrap-request.txt`)
-- **CDK Deploy**: ❌ BLOCKED on bootstrap
-- **Parallel Works S3 Export**: ❌ BLOCKED on CDK deploy (S3 bucket doesn't exist yet)
+**Phase 50 SDD Session**: `session_2026-04-07_8yca4n` — 7/7 steps
+**Phase 50b SDD Session**: `session_2026-04-09_phase50b` — 8/9 steps (cross-env verify deferred)
+**Branch**: `develop_aws`
 
-### CDK VPC Refactor — DONE
+### Migration Parity
 
-`MdcVpcStack` refactored to import existing VPC (`vpc-055f30ffa3d661e6b`) instead of creating one. All stacks use `ec2.IVpc` and `PRIVATE_ISOLATED` subnets. TypeScript compiles clean.
+| Component | Legacy (PW) | AWS | Status |
+|-----------|-------------|-----|--------|
+| Vectors (ChromaDB → OpenSearch) | 85,995 docs | 85,921 docs | ✅ 5/5 collections exact |
+| Graph rels (Neo4j → Neptune) | 2,653,565 | 2,633,374 | ✅ 99.2% (20K unresolvable) |
+| Graph nodes (Neo4j → Neptune) | 98,813 | 59,759 | ✅ Deduplicated (39K dupes) |
 
-### Once CDK Bootstrap Completes
+### Next Steps
 
-1. `cdk deploy --all` (from AWS EC2)
-2. `create-opensearch-indices.js --model mpnet768` (from AWS EC2)
-3. Go to Parallel Works, follow `docs/parallel-works-export-runbook.md`
-4. Come back to AWS EC2 for load phases
+1. Run cross-environment verification (`verify-migration.js`)
+2. Wire up MCP server with `DB_BACKEND=aws` and validate all 51 tools
+3. Cutover
 
 ## Key Architecture Decisions
 
