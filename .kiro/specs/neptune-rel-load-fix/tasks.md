@@ -23,79 +23,97 @@
   - **IMPORTANT**: Follow observation-first methodology
   - Create test file at `mcp_server_node/test/tests/unit/loadGraph-preservation.test.js`
   - Observe on UNFIXED code: when all batches succeed (zero failures), `wm['load:graph']` is set to `'done'` and `wm['load:graph:rels']` equals `dump.relationships.length`
-  - Observe on UNFIXED code: node loading with parallel WriterPool and `_mergeId`-based MERGE produces correct progress watermarks
   - Observe on UNFIXED code: relationships with unresolvable endpoints (fromName/toName not in nodeIdMap) are filtered and `skippedRels` count is logged
   - Observe on UNFIXED code: `--dry-run` skips all Neptune writes and watermark updates
-  - Write property-based tests with fast-check:
-    - Generate random graph dumps: `fc.record({ nodeCount: fc.nat({max: 200}), relCount: fc.nat({max: 500}), unresolvableRelCount: fc.nat({max: 50}) })`
-    - For all generated dumps where all batches succeed: assert `wm['load:graph'] === 'done'` AND `wm['load:graph:nodes'] === nodeCount` AND `wm['load:graph:rels'] === totalRelCount`
-    - For all generated dumps: assert unresolvable rels are filtered (validRels.length === relCount - unresolvableRelCount)
-    - For dry-run mode: assert no watermark writes occur for Neptune operations
+  - Write property-based tests with fast-check
   - Verify all preservation tests PASS on UNFIXED code
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 3. Fix loadGraph error handling in migrate-to-aws.js
+- [ ] 3. Fix loadGraph Bolt error handling (defense in depth)
 
-  - [ ] 3.1 Implement orphan node purge at start of loadGraph
-    - Add a batched DELETE step before relationship loading: `MATCH (n) WHERE n._mergeId IS NULL WITH n LIMIT 10000 DETACH DELETE n RETURN count(n) AS deleted`
-    - Repeat in a loop until `deleted === 0`
-    - Use `runWithRetry` for each batch to handle transient Neptune errors
-    - Log the total count of purged orphan nodes
-    - _Bug_Condition: isBugCondition(input) where orphan nodes without _mergeId inflate scan time, contributing to batch timeouts_
-    - _Expected_Behavior: Orphan nodes are removed before rel loading begins, reducing node count from ~107K to ~62K_
-    - _Preservation: Node loading, dry-run, and phase filtering behavior unchanged_
-    - _Requirements: 1.6, 2.6_
-
-  - [ ] 3.2 Replace .catch() with error accumulation in relationship loading loop
+  - [ ] 3.1 Replace .catch() with error accumulation in relationship loading loop
     - Remove `.catch(err => console.error(...))` from the `runWithRetry` call in the rel loading worker tasks
     - Wrap each batch in try/catch that increments a `failedRelBatches` counter
     - Log each failure with batch index, rel type, and truncated error message (existing format preserved)
-    - _Bug_Condition: isBugCondition(input) where batchResult = FAILURE_AFTER_RETRIES AND errorHandling = CATCH_AND_SWALLOW_
-    - _Expected_Behavior: Failed batches increment failedRelBatches counter; errors are logged but not swallowed_
-    - _Preservation: Successful batches continue to execute identically; logging format unchanged_
     - _Requirements: 1.1, 2.1_
 
-  - [ ] 3.3 Replace .catch() with error accumulation in node loading loop
-    - Apply the same pattern as 3.2 to the node loading worker tasks
+  - [ ] 3.2 Replace .catch() with error accumulation in node loading loop
+    - Apply the same pattern as 3.1 to the node loading worker tasks
     - Add a `failedNodeBatches` counter
-    - Log each failure with batch index, label, and truncated error message
-    - _Bug_Condition: isBugCondition(input) where node batch fails and error is swallowed by .catch()_
-    - _Expected_Behavior: Failed node batches increment failedNodeBatches counter_
-    - _Preservation: Successful node batches continue to execute identically_
     - _Requirements: 1.4, 2.4_
 
-  - [ ] 3.4 Add conditional watermark write based on failure counts
-    - After both node and rel loading loops complete, check `failedNodeBatches` and `failedRelBatches`
-    - Only write `wm['load:graph'] = 'done'` if BOTH counters are zero
-    - Log a summary: `[RESULT] Nodes: X batches succeeded, Y failed. Rels: A batches succeeded, B failed.`
-    - If failures > 0, log: `[WARN] load:graph NOT marked done — N batch failures. Re-run to retry.`
-    - Write `wm['load:graph:relsLoaded']` with the actual count of successfully processed rels (not the pre-filter total)
-    - _Bug_Condition: isBugCondition(input) where watermarkWrittenAs('done') = true AND actualRelsCreated = 0_
-    - _Expected_Behavior: wm['load:graph'] !== 'done' when failedRelBatches > 0 OR failedNodeBatches > 0_
-    - _Preservation: When all batches succeed (failedRelBatches === 0 AND failedNodeBatches === 0), watermark is written as 'done' — identical to original happy path_
+  - [ ] 3.3 Add conditional watermark write based on failure counts
+    - Only write `wm['load:graph'] = 'done'` if BOTH `failedNodeBatches === 0` AND `failedRelBatches === 0`
+    - Log summary: `[RESULT] Nodes: X succeeded, Y failed. Rels: A succeeded, B failed.`
+    - If failures > 0: `[WARN] load:graph NOT marked done — N batch failures. Re-run to retry.`
     - _Requirements: 1.2, 1.3, 2.2, 2.3, 2.5, 3.1_
 
-  - [ ] 3.5 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Failed Batches Prevent "Done" Watermark
-    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
-    - The test from task 1 encodes the expected behavior: for all inputs where batches fail, `wm['load:graph']` is NOT `'done'`
-    - When this test passes, it confirms the expected behavior is satisfied
-    - Run `npx vitest run test/tests/unit/loadGraph-bug-condition.test.js`
+  - [ ] 3.4 Verify bug condition exploration test now passes
+    - Re-run the SAME test from task 1 on FIXED code
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
     - _Requirements: 2.1, 2.2, 2.3, 2.5_
 
-  - [ ] 3.6 Verify preservation tests still pass
-    - **Property 2: Preservation** - Successful Runs Write "Done" Watermark with Correct Counts
-    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
-    - Run `npx vitest run test/tests/unit/loadGraph-preservation.test.js`
+  - [ ] 3.5 Verify preservation tests still pass
+    - Re-run the SAME tests from task 2 on FIXED code
     - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-    - Confirm all preservation properties still hold after the fix: happy-path watermark, node loading, unresolvable rel filtering, dry-run behavior
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 4. Checkpoint — Ensure all tests pass
-  - Run full test suite: `npx vitest run test/tests/unit/loadGraph-bug-condition.test.js test/tests/unit/loadGraph-preservation.test.js`
-  - Verify Property 1 (Bug Condition) test PASSES on fixed code
-  - Verify Property 2 (Preservation) tests PASS on fixed code
-  - Ensure no regressions in existing test suite
-  - Ask the user if questions arise
+- [ ] 4. Neptune bulk loader — CSV converter and data load
+
+  - [ ] 4.1 Write openCypher CSV converter script
+    - Create `mcp_server_node/scripts/convert-to-opencypher-csv.js`
+    - Download `s3://mdc-mcp-rag-migration/graph/neo4j-dump.json.gz`
+    - Convert nodes to openCypher CSV: `:ID,:LABEL,name:String,path:String,...`
+    - Convert relationships to openCypher CSV: `:START_ID,:END_ID,:TYPE,weight:Float,...`
+    - Node `:ID` = `nodeMergeId()` (composite key: `id || path || name || hash`)
+    - Rel `:START_ID`/`:END_ID` resolved via nodeIdMap (skip unresolvable, log count)
+    - `sanitizeProps()` for Neptune property type compliance
+    - Gzip output, upload to `s3://mdc-mcp-rag-migration/graph-csv/`
+    - Support `--dry-run` flag
+
+  - [ ] 4.2 Purge Neptune (clean slate)
+    - Batched `MATCH (n) WITH n LIMIT 10000 DETACH DELETE n` until count is 0
+    - Removes both 98,813 good nodes and 45,296 orphans
+    - Verify: `MATCH (n) RETURN count(n)` returns 0
+    - _Requirements: 1.6, 2.6_
+
+  - [ ] 4.3 Run CSV converter and upload to S3
+    - `node scripts/convert-to-opencypher-csv.js`
+    - Verify: `aws s3 ls s3://mdc-mcp-rag-migration/graph-csv/ --human-readable`
+    - Expected: `nodes.csv.gz` + `relationships.csv.gz`
+
+  - [ ] 4.4 Run Neptune bulk loader — nodes
+    - **BLOCKED**: Requires admin to attach IAM role (see `docs/neptune-bulk-loader-role-request.txt`)
+    - POST to `https://<neptune>:8182/loader` with SigV4 auth
+    - Source: `s3://mdc-mcp-rag-migration/graph-csv/nodes.csv.gz`
+    - Format: `opencypher`, parallelism: `OVERSUBSCRIBE`, failOnError: `TRUE`
+    - Poll `/loader/<loadId>` until status is `LOAD_COMPLETED`
+    - Verify node count: ~98,813
+
+  - [ ] 4.5 Run Neptune bulk loader — relationships
+    - POST to `https://<neptune>:8182/loader` with SigV4 auth
+    - Source: `s3://mdc-mcp-rag-migration/graph-csv/relationships.csv.gz`
+    - Same loader params as 4.4
+    - Poll until `LOAD_COMPLETED`
+    - Verify rel count: ~2,633,374
+
+  - [ ] 4.6 Update watermarks to reflect bulk loader results
+    - Reset `load:graph*` keys in S3 watermark
+    - Set `load:graph: "done"`, `load:graph:nodes`, `load:graph:rels`, `load:graph:relsLoaded`
+
+- [ ] 5. Verify migration parity
+
+  - [ ] 5.1 Run verify phase
+    - `OPENSEARCH_ENDPOINT=... NEPTUNE_ENDPOINT=... node scripts/migrate-to-aws.js --phase verify`
+    - All 5 vector collections: exact count match
+    - Graph nodes: within 1% of 98,813
+    - Graph rels: within 1% of 2,633,374
+
+  - [ ] 5.2 Run cross-environment verification
+    - `node scripts/verify-migration.js`
+    - Compare legacy (ChromaDB + Neo4j) vs AWS (OpenSearch + Neptune)
+
+  - [ ] 5.3 Spot-check graph queries
+    - Query a known node and verify it has relationships
+    - Test `trace_full_execution_chain` or similar graph traversal against Neptune

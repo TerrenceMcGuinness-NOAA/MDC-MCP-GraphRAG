@@ -4,7 +4,11 @@
 
 The `loadGraph` function in `migrate-to-aws.js` silently swallows every relationship MERGE batch failure via `.catch()`, advances the watermark loop, and unconditionally writes `load:graph: "done"` — resulting in zero relationships in Neptune despite reporting 2,633,374 loaded. Additionally, 45,296 orphan nodes from a crashed first run (no `_mergeId` property) inflate the node count from 98,813 to 107,418, degrading MATCH performance and contributing to batch timeouts.
 
-The fix has four parts: (1) purge orphan nodes, (2) replace `.catch()` with error accumulation and conditional watermark writing, (3) reset S3 watermarks for the rel phase, and (4) re-run relationship loading with the fixed code.
+The fix has two tracks:
+
+**Track A — Neptune Bulk Loader (primary, for this migration):** Purge Neptune clean, convert JSON dump to openCypher CSV, upload to S3, use Neptune's native `/loader` API to load nodes and relationships directly from S3 with internal parallelism. This is 10-100x faster than Bolt and avoids all SigV4 token expiry and MERGE scan issues. Requires IAM role attached to Neptune cluster (admin request submitted).
+
+**Track B — Bolt error handling fix (defense in depth, for future incremental updates):** Replace `.catch()` with error accumulation and conditional watermark writing so that the Bolt-based `loadGraph` function properly reports failures and does not write false "done" watermarks.
 
 ## Glossary
 
