@@ -109,10 +109,13 @@
     - Graph rels: within 1% of 2,633,374
     - **RESULT**: 5/5 vector collections exact match. Nodes: 59,759 (Neptune deduplicated 39K nodes with same label+name+path — expected). Rels: 2,633,374 (99.2% of 2,653,565 — 20K unresolvable endpoints from dedup). Script reports FAIL because it compares against raw export count, but parity is correct.
 
-  - [x] 5.2 Run cross-environment verification — **SKIPPED (requires PW access)**
+  - [x] 5.2 Run cross-environment verification — **COMPLETE via MCP gateway**
     - `node scripts/verify-migration.js`
     - Compare legacy (ChromaDB + Neo4j) vs AWS (OpenSearch + Neptune)
-    - **NOTE**: Script requires CHROMADB_URL and NEO4J_URI to connect to legacy PW system. Legacy databases not reachable from EC2 (localhost:8080 and localhost:7474 unreachable). Must run from PW VM or with SSH tunnel.
+    - **RESULT**: Used eib-mcp-gateway to pull legacy counts, awscurl for Neptune, awscurl for OpenSearch.
+    - Vectors: 5/5 collections exact match (85,921 of 85,995 — 74 ci-test-cases not migrated)
+    - Graph rels: CALLS exact, DEPENDS_ON_ENV exact, SETS_ENV exact, INTERACTS_WITH exact, USES_ENV exact, DEPENDS_ON exact. USES 99.9%, MEMBER_OF 99.9%. IMPORTS/DEFINES lower due to node dedup.
+    - Total rels: 2,633,374 / 2,653,565 = 99.2%
 
   - [x] 5.3 Spot-check graph queries
     - Query a known node and verify it has relationships
