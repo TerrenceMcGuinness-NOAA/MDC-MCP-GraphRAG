@@ -1,5 +1,26 @@
 # MCP Server Changelog
 
+## [8.3.0] - Phase 48 Validation: AWS MCP Server (April 10, 2026)
+
+### Adapter Fixes (`mcp_server_node/src/data/adapters/`)
+- `NeptuneAdapter.js` — replaced `neo4j.auth.none()` with SigV4 IAM auth using `@smithy/signature-v4` + `@aws-crypto/sha256-js` (Neptune has `iamAuthEnabled: true`)
+- `OpenSearchAdapter.js` — fixed `COLLECTION_TO_INDEX` mapping to include `-mpnet768` suffix matching actual index names
+
+### Server Init Fix (`mcp_server_node/src/UnifiedMCPServer.js`)
+- Share single `dataAccess` instance across all tool modules (was creating 3 separate instances)
+- Server startup: 70+ seconds → 706ms (eliminated duplicate connections and Neptune auth retry storms)
+- Guard `dataValidation.validation` access in `mcp_health_check` for OpenSearch compatibility
+
+### Validation (`mcp_server_node/scripts/validate-aws-mcp.js`)
+- NEW: Tool-by-tool validation script — tests all 51 tools against live AWS backends
+- 45/45 non-GitHub tools pass with `DB_BACKEND=aws`
+- Error handling: 9/9 edge-case scenarios handled gracefully
+- Graceful degradation: server starts with bad Neptune endpoint, vector queries still work
+- Performance: P50=7ms, P95=9155ms, avg=686ms, startup=706ms
+
+### Report (`docs/aws-mcp-validation-report.md`)
+- Comprehensive validation report with adapter fixes, per-module results, error handling, resilience, performance benchmarks, and data counts
+
 ## [8.2.1] - Phase 50b: Neptune Bulk Loader Remediation (April 9, 2026)
 
 ### Neptune Graph Load (`mcp_server_node/scripts/`)
