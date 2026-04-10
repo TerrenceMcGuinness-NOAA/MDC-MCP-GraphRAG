@@ -1210,46 +1210,50 @@ class UnifiedMCPServer {
   async start() {
     console.error('[MCP] Starting Unified MCP Server (Week 2 architecture)...');
     
-    // Connect shared data access layer ONCE (all tool modules share this instance)
+    // Start MCP transport FIRST so Kiro can connect immediately
+    await this.server.start();
+    console.error('[MCP] Unified MCP Server ready (Week 2 consolidation complete)');
+
+    // Connect shared data access layer AFTER transport is up (non-blocking)
     if (this.options.enableRAG) {
-      console.error('[MCP] Connecting shared data access layer...');
-      try {
-        await this.dataAccess.connect();
+      console.error('[MCP] Connecting shared data access layer (background)...');
+      this.dataAccess.connect().then(async () => {
         console.error('[MCP] [OK] Shared data access layer connected');
 
         // Initialize GGSR for graph-dependent tools
         if (this.dataAccess.graphDB) {
-          const { GGSRTraversalPrototypes } = await import('./graphrag/GGSRTraversalPrototypes.js');
-          const { GraphGuidedRetrieval } = await import('./graphrag/GraphGuidedRetrieval.js');
-          const ggsr = new GGSRTraversalPrototypes(this.dataAccess.graphDB);
-          const retrieval = new GraphGuidedRetrieval({
-            dataAccess: this.dataAccess,
-            ggsr,
-            vectorDB: this.dataAccess.vectorDB || null,
-          });
-          if (this.codeAnalysisTools) {
-            this.codeAnalysisTools.ggsr = ggsr;
-            this.codeAnalysisTools.retrieval = retrieval;
-            this.codeAnalysisTools.isInitialized = true;
-          }
-          if (this.graphRAGTools) {
-            this.graphRAGTools.ggsr = ggsr;
-            this.graphRAGTools.retrieval = retrieval;
-            this.graphRAGTools.isInitialized = true;
+          try {
+            const { GGSRTraversalPrototypes } = await import('./graphrag/GGSRTraversalPrototypes.js');
+            const { GraphGuidedRetrieval } = await import('./graphrag/GraphGuidedRetrieval.js');
+            const ggsr = new GGSRTraversalPrototypes(this.dataAccess.graphDB);
+            const retrieval = new GraphGuidedRetrieval({
+              dataAccess: this.dataAccess,
+              ggsr,
+              vectorDB: this.dataAccess.vectorDB || null,
+            });
+            if (this.codeAnalysisTools) {
+              this.codeAnalysisTools.ggsr = ggsr;
+              this.codeAnalysisTools.retrieval = retrieval;
+              this.codeAnalysisTools.isInitialized = true;
+            }
+            if (this.graphRAGTools) {
+              this.graphRAGTools.ggsr = ggsr;
+              this.graphRAGTools.retrieval = retrieval;
+              this.graphRAGTools.isInitialized = true;
+            }
+          } catch (err) {
+            console.error(`[WARN] GGSR initialization failed: ${err.message}`);
           }
         }
 
-        // Mark tool modules as initialized (they already have the shared dataAccess)
+        // Mark tool modules as initialized
         if (this.semanticSearchTools) this.semanticSearchTools.isInitialized = true;
         if (this.operationalTools) this.operationalTools.isInitialized = true;
-      } catch (error) {
+      }).catch(error => {
         console.error(`[ERROR] Shared data access connection failed: ${error.message}`);
         console.error('[WARN] RAG tools will be unavailable');
-      }
+      });
     }
-
-    await this.server.start();
-    console.error('[MCP] Unified MCP Server ready (Week 2 consolidation complete)');
   }
 
   /**

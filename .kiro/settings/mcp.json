@@ -14,7 +14,6 @@
         "get_knowledge_base_status",
         "search_documentation",
         "explain_with_context",
-        "search_documentation",
         "get_job_details",
         "list_job_scripts",
         "get_sdd_session",
@@ -23,7 +22,16 @@
         "get_sdd_execution_history"
       ]
     },
-    "iam-policy-autopilot-mcp": {
+    "mdc-mcp-rag-aws": {
+      "command": "node",
+      "args": ["/mdc-mcp-rag/eib-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js", "full"],
+      "env": {
+        "DB_BACKEND": "aws",
+        "OPENSEARCH_ENDPOINT": "https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com",
+        "NEPTUNE_ENDPOINT": "wss://mdc-mcp-rag-neptune.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182",
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": true,
       "command": "uvx",
       "args": ["iam-policy-autopilot@latest", "mcp-server"],
       "env": {

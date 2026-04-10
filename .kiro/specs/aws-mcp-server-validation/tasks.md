@@ -1,130 +1,165 @@
-# Implementation Plan
+# Implementation Plan: AWS MCP Server Validation
 
-- [ ] 1. Fix adapter import and connection issues
-  - [ ] 1.1 Verify NeptuneAdapter import path fix
-    - Confirm `../../health/HealthChecker.js` import resolves correctly
-    - Start MCP server with `DB_BACKEND=aws` and check for import errors in stderr
-    - _Requirements: 1.1, 1.3_
-  - [ ] 1.2 Verify OpenSearchAdapter dependencies
-    - Confirm `@opensearch-project/opensearch` and `@aws-sdk/credential-provider-node` resolve
-    - Check SigV4 signer initialization with EC2 IAM role credentials
-    - _Requirements: 1.4, 3.1_
-  - [ ] 1.3 Test Neptune connection with retry
-    - Run `MATCH (n) RETURN count(n) LIMIT 1` via NeptuneAdapter
-    - Verify node count > 50,000 (expect ~59,759)
-    - Verify Bolt+s connection with IAM auth
-    - _Requirements: 2.1, 2.3_
-  - [ ] 1.4 Test OpenSearch connection and index listing
-    - List indices, verify at least 5 matching `mdc-*` pattern
-    - Verify collection-to-index mapping resolves all 5 known collections
-    - _Requirements: 3.2, 3.3_
-  - [ ] 1.5 Fix any remaining adapter errors found during 1.1-1.4
-    - Document each fix with file path, error, and resolution
-    - _Requirements: 1.5_
+## Overview
 
-- [ ] 2. Run health check and knowledge base status
-  - [ ] 2.1 Invoke `mcp_health_check` on AWS MCP server
-    - Verify status healthy for vector and graph components
-    - Verify index count >= 5, node count > 50,000
-    - _Requirements: 4.1, 4.2, 4.3_
-  - [ ] 2.2 Invoke `get_knowledge_base_status` on AWS MCP server
-    - Verify ~85,921 total vector docs, ~59,759 graph nodes
-    - _Requirements: 4.4_
+Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running with `DB_BACKEND=aws`. The implementation creates a validation script that programmatically invokes all 51 tools against OpenSearch and Neptune backends, APOC transform property tests via vitest + fast-check, and a parity comparison against the legacy `eib-mcp-gateway`. All work is in JavaScript, executed from `mcp_server_node/`.
 
-- [ ] 3. Write APOC transform property tests
-  - [ ] 3.1 Create test file at `mcp_server_node/test/tests/unit/apoc-transform.test.js`
-    - Property 1: path.expand → variable-length path, no `apoc.` in output
-    - Property 2: merge.node → MERGE with ON CREATE/ON MATCH SET, no `apoc.` in output
-    - Property 3: non-APOC queries pass through unchanged (identity)
-    - Property 4: unsupported APOC procedures throw UnsupportedQueryError
-    - Use fast-check, minimum 100 iterations per property
-    - _Requirements: 13.1, 13.2, 13.3, 13.4_
-  - [ ] 3.2 Run APOC transform property tests
-    - `npx vitest run test/tests/unit/apoc-transform.test.js`
-    - All 4 properties must pass
-    - _Requirements: 13.5_
+## Tasks
 
-- [ ] 4. Write validation script
-  - [ ] 4.1 Create `mcp_server_node/scripts/validate-aws-mcp.js`
-    - Define test manifest: all 51 tools with representative args and validate functions
-    - Organize by module (WorkflowInfo, SemanticSearch, CodeAnalysis, GraphRAG, Operational, GitHub, SDD, EE2, Utility)
-    - Each tool call wrapped in try/catch with 30s timeout
-    - Record pass/fail/error with duration and details
-    - Support `--skip-legacy`, `--skip-github`, `--verbose`, `--timeout` flags
-    - _Requirements: 15.1, 15.2, 15.3, 15.4_
-  - [ ] 4.2 Add report generator to validation script
-    - Output markdown report to `docs/aws-mcp-validation-report.md`
-    - Summary table: total/passed/failed/error
-    - Per-module breakdown table
-    - Detailed error logs for failures
-    - Timestamp and environment info
-    - _Requirements: 15.5_
+- [ ] 1. Create validation script scaffold and test manifest
+  - [ ] 1.1 Create `mcp_server_node/scripts/validate-aws-mcp.js` with CLI argument parsing (`--skip-legacy`, `--skip-github`, `--verbose`, `--timeout`)
+    - Import `UnifiedMCPServer` and instantiate with `DB_BACKEND=aws`, `OPENSEARCH_ENDPOINT`, `NEPTUNE_ENDPOINT` from env
+    - Implement the `runValidation()` orchestrator that iterates the test manifest, invokes each tool via `server.server.callTool()`, wraps each call in try/catch with per-tool timeout, and collects `ToolValidationResult` objects
+    - Implement `classifyResult(toolName, response, validateFn)` that returns `{ status: 'pass'|'fail'|'error', details, durationMs }`
+    - _Requirements: 15.1, 15.2_
 
-- [ ] 5. Run validation script — all 51 tools
-  - [ ] 5.1 Run WorkflowInfoTools (3 tools)
-    - `get_workflow_structure`, `get_system_configs`, `describe_component`
-    - These are mostly static — should pass without backend issues
-    - _Requirements: 5.1, 5.2, 5.3_
-  - [ ] 5.2 Run SemanticSearchTools (7 tools)
-    - `search_documentation`, `explain_with_context`, `find_similar_code`, `search_ee2_standards`, `find_related_files`, `check_knowledge_integrity`
-    - These hit OpenSearch — verify results contain meaningful content
-    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
-  - [ ] 5.3 Run CodeAnalysisTools (5 tools)
-    - `analyze_code_structure`, `find_dependencies`, `find_callers_callees`, `trace_execution_path`, `trace_full_execution_chain`
-    - These hit Neptune — verify graph traversal returns results
-    - _Requirements: 7.1, 7.2, 7.3, 7.4, 8.5_
-  - [ ] 5.4 Run GraphRAGTools (9 tools)
-    - `get_code_context`, `search_architecture`, `get_change_impact`, `trace_data_flow`, `find_env_dependencies`, `mark_as_modified`, `get_session_context`, `checkpoint_state`, `restore_checkpoint`
-    - Graph + session tools — verify Neptune queries and session tracking
-    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.6_
-  - [ ] 5.5 Run OperationalTools (3 tools)
-    - `get_operational_guidance`, `explain_workflow_component`, `get_job_details`
-    - Hybrid tools — verify both vector and graph results
-    - _Requirements: 9.1, 9.2, 9.3_
-  - [ ] 5.6 Run GitHubTools (4 tools)
-    - `search_issues`, `get_pull_requests`, `list_job_scripts`, `get_job_details`
-    - External API — should work independently of backend
-    - _Requirements: 10.1, 10.2, 10.3, 10.4_
-  - [ ] 5.7 Run SDDWorkflowTools (9 tools)
-    - `list_sdd_workflows`, `get_sdd_framework_status`, `get_sdd_execution_history`, `get_sdd_session`, `get_sdd_workflow`, `start_sdd_session`, `record_sdd_step`, `complete_sdd_session`, `validate_sdd_compliance`
-    - File-based — should work independently of backend
-    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
-  - [ ] 5.8 Run EE2ComplianceTools (4 tools)
-    - `analyze_ee2_compliance`, `generate_compliance_report`, `scan_repository_compliance`, `extract_code_for_analysis`
-    - Hit OpenSearch for standards — verify results
-    - _Requirements: 12.1, 12.2, 12.3, 12.4_
-  - [ ] 5.9 Fix any failing tools discovered during 5.1-5.8
-    - Document each fix: file path, error, resolution
-    - Re-run failing tools after fix to confirm pass
-    - _Requirements: 1.5, 13.5_
+  - [ ] 1.2 Define the full test manifest array covering all 51 tools organized by module
+    - Each entry: `{ toolName, args, module, validate }` where `validate` is a function inspecting the response text
+    - WorkflowInfoTools (3): `get_workflow_structure`, `get_system_configs { platform: 'hera' }`, `describe_component { component: 'jobs' }`
+    - SemanticSearchTools (6): `search_documentation { query: 'data assimilation' }`, `explain_with_context { topic: 'forecast model' }`, `find_similar_code { code_or_symbol: 'setuprad' }`, `search_ee2_standards { query: 'error handling' }`, `find_related_files { file_path: 'scripts/exglobal_forecast.py' }`, `get_knowledge_base_status`
+    - CodeAnalysisTools (5): `analyze_code_structure { file_path: 'scripts/exglobal_forecast.py' }`, `find_dependencies { target: 'exglobal_forecast.py' }`, `find_callers_callees { function_name: 'setuprad' }`, `trace_execution_path { function_name: 'setuprad' }`, `find_env_dependencies { variable_name: 'HOMEgfs' }`
+    - GraphRAGTools (9): `get_code_context { symbol: 'setuprad' }`, `search_architecture { query: 'data assimilation' }`, `get_change_impact { symbol: 'setuprad' }`, `trace_data_flow { from_symbol: 'exglobal_atmos_analysis' }`, `trace_full_execution_chain { start: 'JGLOBAL_FORECAST' }`, `find_env_dependencies { variable_name: 'HOMEgfs' }`, `get_session_context`, `checkpoint_state { name: 'validation-test' }`, `mark_as_modified { file_path: 'test.txt' }`
+    - OperationalTools (3): `get_operational_guidance { operation: 'forecast' }`, `explain_workflow_component { component: 'JGLOBAL_FORECAST' }`, `list_job_scripts`
+    - GitHubTools (4): `search_issues { query: 'forecast' }`, `get_pull_requests`, `analyze_workflow_dependencies { component: 'forecast' }`, `analyze_repository_structure`
+    - SDDWorkflowTools (9): `list_sdd_workflows`, `get_sdd_workflow { workflow_name: 'data_ingestion_workflow' }`, `start_sdd_session / get_sdd_session / complete_sdd_session` cycle, `record_sdd_step`, `get_sdd_execution_history`, `validate_sdd_compliance`, `get_sdd_framework_status`
+    - EE2ComplianceTools (4): `analyze_ee2_compliance { content: '#!/bin/bash\nset -eu\n...' }`, `generate_compliance_report`, `scan_repository_compliance { files: [...] }`, `extract_code_for_analysis { content: '#!/bin/bash\n...' }`
+    - Utility (7): `get_server_info`, `mcp_health_check { detailed: true }`, `get_health_trend`, `get_quality_metrics`, `list_ingested_urls`, `get_ingested_urls_array`, `get_job_details { job_name: 'JGLOBAL_FORECAST' }`
+    - _Requirements: 5.1–5.3, 6.1–6.6, 7.1–7.4, 8.1–8.6, 9.1–9.3, 10.1–10.4, 11.1–11.5, 12.1–12.4, 15.1_
 
-- [ ] 6. Parity comparison — AWS vs Legacy
-  - [ ] 6.1 Compare `search_documentation` with "data assimilation"
-    - Run on both servers, check document ID overlap and score delta < 0.1
+- [ ] 2. Implement connection and health check validation
+  - [ ] 2.1 Add adapter import resolution checks at the top of the validation script
+    - Verify `backend-selector.js` instantiates `OpenSearchAdapter` and `NeptuneAdapter` without import errors when `DB_BACKEND=aws`
+    - Verify `NeptuneAdapter` resolves `apoc-transform.js` and `HealthChecker.js` imports
+    - Verify `OpenSearchAdapter` resolves `@opensearch-project/opensearch` and `@aws-sdk/credential-provider-node`
+    - Log any import failures to stderr with module path and error message
+    - _Requirements: 1.1–1.5_
+
+  - [ ] 2.2 Add Neptune connection validation logic
+    - Verify endpoint `wss://...` is converted to `bolt+s://` and connection succeeds
+    - Verify `MATCH (n) RETURN count(n) AS nodeCount LIMIT 1` returns nodeCount > 0
+    - Verify retry behavior (up to 4 attempts with exponential backoff)
+    - _Requirements: 2.1–2.4_
+
+  - [ ] 2.3 Add OpenSearch connection validation logic
+    - Verify SigV4 client creation with EC2 IAM role credentials
+    - Verify `Xenova/all-mpnet-base-v2` embedding model loads as singleton
+    - Verify `listCollections()` returns at least 5 indices: `mdc-code-context`, `mdc-workflow-docs`, `mdc-jjobs`, `mdc-community-summaries`, `mdc-ee2-standards`
+    - _Requirements: 3.1–3.4_
+
+  - [ ] 2.4 Add health check validation assertions
+    - Verify `mcp_health_check` returns `status: healthy` for vector and graph
+    - Verify OpenSearch cluster status is `green` or `yellow` with index count ≥ 5
+    - Verify Neptune node count > 50,000
+    - Verify `get_knowledge_base_status` returns ~85,921 vector docs and ~59,759 graph nodes
+    - _Requirements: 4.1–4.4_
+
+- [ ] 3. Checkpoint — Ensure connection validation passes
+  - Ensure all connection and health check tests pass, ask the user if questions arise.
+
+- [ ] 4. Implement APOC transform property tests
+  - [ ] 4.1 Create `mcp_server_node/scripts/test-apoc-transform-properties.js` as a vitest test file using fast-check
+    - Import `transformApoc` and `UnsupportedQueryError` from `../src/data/adapters/apoc-transform.js`
+    - Configure vitest `describe` block for APOC transform properties
+    - _Requirements: 13.1–13.4_
+
+  - [ ]* 4.2 Write property test: APOC path.expand transform produces valid variable-length path
+    - **Property 1: APOC path.expand transform**
+    - Generate arbitrary valid start node names (alphanumeric), min/max depth (non-negative integers where min ≤ max), and path variable names
+    - Construct `CALL apoc.path.expand(startNode, 'REL', 'Label', minDepth, maxDepth) YIELD path AS pathVar`
+    - Assert result contains `MATCH pathVar = (startNode)-[*minDepth..maxDepth]->()`
+    - Assert result does NOT contain `apoc.`
+    - **Validates: Requirements 13.1**
+
+  - [ ]* 4.3 Write property test: APOC merge.node transform produces valid MERGE statement
+    - **Property 2: APOC merge.node transform**
+    - Generate arbitrary label names, identity/onCreate/onMatch property objects, and alias names
+    - Construct `CALL apoc.merge.node(['Label'], {identProps}, {onCreateProps}, {onMatchProps}) YIELD node AS alias`
+    - Assert result contains `MERGE`, `ON CREATE SET`, and `ON MATCH SET` with the alias
+    - Assert result does NOT contain `apoc.`
+    - **Validates: Requirements 13.2**
+
+  - [ ]* 4.4 Write property test: Non-APOC query passthrough
+    - **Property 3: Non-APOC passthrough**
+    - Generate arbitrary strings that do NOT contain `apoc.`
+    - Assert `transformApoc(query) === query` (identity)
+    - **Validates: Requirements 13.3**
+
+  - [ ]* 4.5 Write property test: Unsupported APOC procedure error
+    - **Property 4: Unsupported APOC error**
+    - Generate arbitrary procedure names that are NOT one of the 5 supported (`path.expand`, `algo.dijkstra`, `periodic.iterate`, `create.node`, `merge.node`)
+    - Construct `CALL apoc.<procedure>(...) YIELD ...`
+    - Assert `transformApoc` throws `UnsupportedQueryError` with the procedure name
+    - **Validates: Requirements 13.4**
+
+  - [ ]* 4.6 Write property test: Report generation correctness
+    - **Property 5: Report generation correctness**
+    - Generate arbitrary arrays of `{ suite, status: 'pass'|'fail'|'error', name }` objects
+    - Pass to the report generator function (extracted from validate-aws-mcp.js)
+    - Assert `total === array.length`, `passed === count(status==='pass')`, `failed === count(status==='fail')`
+    - Assert every unique `suite` value appears as a section heading
+    - **Validates: Requirements 15.3, 15.4**
+
+- [ ] 5. Checkpoint — Ensure APOC property tests pass
+  - Ensure all property tests pass with `npx vitest run mcp_server_node/scripts/test-apoc-transform-properties.js`, ask the user if questions arise.
+
+- [ ] 6. Implement parity comparison module
+  - [ ] 6.1 Add parity comparison logic to the validation script
+    - Implement `runParityComparison(awsServer, legacyUrl, token)` that calls 5 key queries on both servers
+    - Query 1: `search_documentation` with "data assimilation" — compare document ID overlap and score deltas within 0.1
+    - Query 2: `get_code_context` with "setuprad" — compare graph neighborhood node names
+    - Query 3: `trace_full_execution_chain` with "JGLOBAL_FORECAST" — compare chain nodes and relationship types
+    - Query 4: `get_knowledge_base_status` — compare vector counts within 1% and graph counts (59,759 AWS vs 98,813 legacy dedup difference)
+    - Query 5: `find_env_dependencies` with "HOMEgfs" — compare dependent script name sets
+    - _Requirements: 14.1–14.5_
+
+  - [ ] 6.2 Implement legacy server HTTP caller
+    - POST to `https://27gs01wv-18888.use.devtunnels.ms/mcp` with `Authorization: Bearer eib-mcp-gateway-token-2025`
+    - Handle connection failures gracefully — skip parity if legacy unreachable
+    - Parse MCP JSON-RPC response to extract tool result
     - _Requirements: 14.1_
-  - [ ] 6.2 Compare `get_code_context` with "setuprad"
-    - Run on both servers, check graph neighborhood node overlap
-    - _Requirements: 14.2_
-  - [ ] 6.3 Compare `trace_full_execution_chain` with "JGLOBAL_FORECAST"
-    - Run on both servers, check execution chain node and rel type overlap
-    - _Requirements: 14.3_
-  - [ ] 6.4 Compare `get_knowledge_base_status`
-    - Run on both servers, check counts within tolerance (59,759 vs 98,813 nodes expected)
-    - _Requirements: 14.4_
-  - [ ] 6.5 Compare `find_env_dependencies` with "HOMEgfs"
-    - Run on both servers, check script name overlap
-    - _Requirements: 14.5_
 
-- [ ] 7. Documentation and wrap-up
-  - [ ] 7.1 Generate final validation report
-    - Run `node scripts/validate-aws-mcp.js` with all flags
-    - Output to `docs/aws-mcp-validation-report.md`
-    - _Requirements: 15.5_
-  - [ ] 7.2 Update CHANGELOG.md
-    - Add entry for AWS MCP server validation results and any fixes applied
+- [ ] 7. Implement report generator
+  - [ ] 7.1 Implement `generateReport(results, parityResults, environment)` function
+    - Produce markdown with summary table: total/passed/failed/error counts
+    - Group results by `module` with per-module breakdown table
+    - Include detailed error logs for each failure (error message + stack trace)
+    - Include parity comparison results section (or "skipped" note)
+    - Include timestamp and environment info (DB_BACKEND, endpoints, Node version)
+    - Write output to `docs/aws-mcp-validation-report.md`
+    - _Requirements: 15.3, 15.4, 15.5_
+
+  - [ ] 7.2 Export `generateReport` as a standalone function for property testing
+    - Extract the report generation logic into a testable pure function
+    - Accept `results[]` and return markdown string
+    - This enables Property 5 to test report correctness independently
+    - _Requirements: 15.3, 15.4_
+
+- [ ] 8. Checkpoint — Ensure validation script runs end-to-end
+  - Run `node mcp_server_node/scripts/validate-aws-mcp.js --skip-legacy --skip-github --timeout 60000` and ensure it completes without crashes, ask the user if questions arise.
+
+- [ ] 9. Wire everything together and update documentation
+  - [ ] 9.1 Add npm script entry for validation
+    - Add `"validate:aws"` script to `mcp_server_node/package.json` pointing to `node scripts/validate-aws-mcp.js`
+    - Add `"test:apoc-props"` script for `npx vitest run scripts/test-apoc-transform-properties.js`
+    - _Requirements: 15.1_
+
+  - [ ] 9.2 Update `CHANGELOG.md` with validation entry
+    - Add entry documenting the AWS MCP server validation script, APOC property tests, and parity comparison
+    - Document any adapter fixes applied during validation (file path, error, resolution)
     - _Requirements: 16.1, 16.2_
-  - [ ] 7.3 Update steering file
-    - Update `.kiro/steering/04-phase48-progress.md` with validation completion
+
+  - [ ] 9.3 Update Phase 48 progress steering file
+    - Update `.kiro/steering/04-phase48-progress.md` with validation completion status
     - _Requirements: 16.3_
-  - [ ] 7.4 Commit all changes
-    - Commit message: `validate(phase51): AWS MCP server validation — N/51 tools passing`
+
+- [ ] 10. Final checkpoint — Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation against live AWS backends
+- Property tests validate APOC transform correctness properties using fast-check
+- The validation script is designed to be re-runnable and produces a fresh report each time
+- Legacy parity comparison requires the dev tunnel to be active (`--skip-legacy` if unavailable)
