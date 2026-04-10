@@ -50,7 +50,7 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
       throw new Error('NeptuneAdapter: endpoint is required (set NEPTUNE_ENDPOINT or pass config.endpoint)');
     }
 
-    const { withRetry } = await import('./apoc-transform.js').then(() => import('../health/HealthChecker.js'));
+    const { withRetry } = await import('../../health/HealthChecker.js');
 
     const boltUri = this.endpoint.startsWith('wss://')
       ? this.endpoint.replace('wss://', 'bolt+s://')
