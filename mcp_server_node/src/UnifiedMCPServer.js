@@ -551,21 +551,31 @@ class UnifiedMCPServer {
       status += `## Data Validation\n\n`;
       const v = dataValidation.validation;
       
-      status += `| Check | Status | Details |\n`;
-      status += `|-------|--------|--------|\n`;
-      status += `| Heartbeat | ${v.heartbeat.passed ? '[OK]' : '[FAIL]'} | ${v.heartbeat.details} |\n`;
-      status += `| Collections | ${v.collections.passed ? '[OK]' : '[FAIL]'} | ${v.collections.count} found (min: ${v.collections.expected}) |\n`;
-      status += `| Documents | ${v.documents.passed ? '[OK]' : '[FAIL]'} | ${v.documents.count} total (min: ${v.documents.expected}) |\n`;
-      if (!v.sampleQuery.skipped) {
-        status += `| Sample Query | ${v.sampleQuery.passed ? '[OK]' : '[FAIL]'} | ${v.sampleQuery.details} |\n`;
-      }
-      status += '\n';
-      
-      if (v.documents.perCollection && detailed) {
-        status += `### Documents per Collection\n\n`;
-        for (const [name, count] of Object.entries(v.documents.perCollection)) {
-          status += `- **${name}**: ${count}\n`;
+      if (v) {
+        status += `| Check | Status | Details |\n`;
+        status += `|-------|--------|--------|\n`;
+        if (v.heartbeat) status += `| Heartbeat | ${v.heartbeat.passed ? '[OK]' : '[FAIL]'} | ${v.heartbeat.details} |\n`;
+        if (v.collections) status += `| Collections | ${v.collections.passed ? '[OK]' : '[FAIL]'} | ${v.collections.count} found (min: ${v.collections.expected}) |\n`;
+        if (v.documents) status += `| Documents | ${v.documents.passed ? '[OK]' : '[FAIL]'} | ${v.documents.count} total (min: ${v.documents.expected}) |\n`;
+        if (v.sampleQuery && !v.sampleQuery.skipped) {
+          status += `| Sample Query | ${v.sampleQuery.passed ? '[OK]' : '[FAIL]'} | ${v.sampleQuery.details} |\n`;
         }
+        status += '\n';
+        
+        if (v.documents?.perCollection && detailed) {
+          status += `### Documents per Collection\n\n`;
+          for (const [name, count] of Object.entries(v.documents.perCollection)) {
+            status += `- **${name}**: ${count}\n`;
+          }
+          status += '\n';
+        }
+      } else {
+        // AWS backend (OpenSearch) — show available info
+        status += `| Check | Status | Details |\n`;
+        status += `|-------|--------|--------|\n`;
+        status += `| Connection | ${dataValidation.connected ? '[OK]' : '[FAIL]'} | ${dataValidation.connected ? 'Connected' : 'Disconnected'} |\n`;
+        if (dataValidation.clusterStatus) status += `| Cluster | [OK] | Status: ${dataValidation.clusterStatus} |\n`;
+        if (dataValidation.indices) status += `| Indices | [OK] | ${dataValidation.indices.length} indices |\n`;
         status += '\n';
       }
     }
@@ -584,7 +594,7 @@ class UnifiedMCPServer {
       });
       
       // Add specific troubleshooting for data issues
-      if (dataValidation && dataValidation.status !== 'healthy') {
+      if (dataValidation && dataValidation.status !== 'healthy' && dataValidation.validation) {
         status += `\n### Troubleshooting Data Issues\n\n`;
         if (!dataValidation.validation.collections.passed) {
           status += `**Collections not found**: Check ChromaDB Docker mount path.\n`;
