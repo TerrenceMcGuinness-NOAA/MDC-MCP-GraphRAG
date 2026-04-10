@@ -30,12 +30,13 @@ const EMBEDDING_MODEL = 'Xenova/all-mpnet-base-v2';
 const EMBEDDING_DIM = 768;
 
 // ChromaDB collection → OpenSearch index name mapping
+// Index names use model-aware naming: mdc-{domain}-{model-short}
 const COLLECTION_TO_INDEX = {
-  'code-with-context-v8-0-0':       'mdc-code-context',
-  'global-workflow-docs-v8-0-0':    'mdc-workflow-docs',
-  'jjobs-v8-0-0':                   'mdc-jjobs',
-  'community-summaries':            'mdc-community-summaries',
-  'ee2-standards-v5-0-0-enhanced':  'mdc-ee2-standards',
+  'code-with-context-v8-0-0':       'mdc-code-context-mpnet768',
+  'global-workflow-docs-v8-0-0':    'mdc-workflow-docs-mpnet768',
+  'jjobs-v8-0-0':                   'mdc-jjobs-mpnet768',
+  'community-summaries':            'mdc-community-summaries-mpnet768',
+  'ee2-standards-v5-0-0-enhanced':  'mdc-ee2-standards-mpnet768',
 };
 
 export class OpenSearchAdapter extends VectorDatabaseAdapter {

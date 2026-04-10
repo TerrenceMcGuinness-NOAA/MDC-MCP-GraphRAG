@@ -18,8 +18,14 @@
  */
 
 import neo4j from 'neo4j-driver';
+import { HttpRequest } from '@smithy/protocol-http';
+import { SignatureV4 } from '@smithy/signature-v4';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import crypto from '@aws-crypto/sha256-js';
 import { GraphDatabaseAdapter } from './GraphDatabaseAdapter.js';
 import { transformApoc } from './apoc-transform.js';
+
+const { Sha256 } = crypto;
 
 export class NeptuneAdapter extends GraphDatabaseAdapter {
   /**
@@ -42,7 +48,49 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
     this.metrics   = { queriesExecuted: 0, queriesFailed: 0, avgQueryTime: 0, lastQueryTime: null };
   }
 
-  /** Connect to Neptune via Bolt with exponential backoff retry. */
+  /**
+   * Generate a SigV4-signed IAM auth token for Neptune Bolt.
+   * Per AWS docs: sign a GET to /opencypher, serialize headers as JSON password.
+   */
+  async _getAuthToken() {
+    // Extract host:port from endpoint (wss://host:port or bolt+s://host:port)
+    const url = new URL(this.endpoint.replace('bolt+s://', 'https://').replace('wss://', 'https://'));
+    const host = url.hostname;
+    const port = parseInt(url.port || '8182', 10);
+    const hostPort = `${host}:${port}`;
+
+    const req = new HttpRequest({
+      method: 'GET',
+      protocol: 'bolt',
+      hostname: host,
+      port,
+      path: '/opencypher',
+      headers: { host: hostPort },
+    });
+
+    const signer = new SignatureV4({
+      credentials: defaultProvider(),
+      region: this.region,
+      service: 'neptune-db',
+      sha256: Sha256,
+    });
+
+    const signed = await signer.sign(req, {
+      unsignableHeaders: new Set(['x-amz-content-sha256']),
+    });
+
+    const authInfo = {
+      Authorization: signed.headers['authorization'],
+      HttpMethod: signed.method,
+      'X-Amz-Date': signed.headers['x-amz-date'],
+      Host: signed.headers['host'],
+      'X-Amz-Security-Token': signed.headers['x-amz-security-token'],
+    };
+
+    return neo4j.auth.basic('username', JSON.stringify(authInfo));
+  }
+
+  /** Connect to Neptune via Bolt with SigV4 IAM auth and exponential backoff retry. */
   async connect() {
     if (this.connected) return;
 
@@ -57,9 +105,10 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
       : this.endpoint;
 
     await withRetry(async () => {
+      const authToken = await this._getAuthToken();
       this.driver = neo4j.driver(
         boltUri,
-        neo4j.auth.none(),
+        authToken,
         {
           maxConnectionPoolSize: this.config.maxConnectionPoolSize,
           connectionTimeout:     this.config.connectionTimeout,

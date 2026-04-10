@@ -72,13 +72,14 @@ class UnifiedMCPServer {
     this.dataAccess = new UnifiedDataAccess();
 
     // Initialize tool modules (Week 2 consolidated architecture)
+    // Pass shared dataAccess to all modules to avoid duplicate connections
     this.workflowInfoTools = new WorkflowInfoTools();
-    this.codeAnalysisTools = new CodeAnalysisTools();
+    this.codeAnalysisTools = new CodeAnalysisTools(this.dataAccess);
     
     if (this.options.enableRAG) {
-      this.semanticSearchTools = new SemanticSearchTools();
+      this.semanticSearchTools = new SemanticSearchTools(this.dataAccess);
       this.ee2ComplianceTools = new EE2ComplianceTools();
-      this.operationalTools = new OperationalTools();
+      this.operationalTools = new OperationalTools(this.dataAccess);
     }
     
     if (this.options.enableGitHub) {
@@ -94,7 +95,7 @@ class UnifiedMCPServer {
     );
 
     // Initialize GraphRAG Tools (Phase 24H: Agentic tool surface)
-    this.graphRAGTools = new GraphRAGTools(null, this.sessionManager);
+    this.graphRAGTools = new GraphRAGTools(this.dataAccess, this.sessionManager);
 
     this.registerAllTools();
   }
@@ -1199,28 +1200,41 @@ class UnifiedMCPServer {
   async start() {
     console.error('[MCP] Starting Unified MCP Server (Week 2 architecture)...');
     
-    // Initialize RAG components BEFORE starting server
+    // Connect shared data access layer ONCE (all tool modules share this instance)
     if (this.options.enableRAG) {
-      if (this.semanticSearchTools) {
-        console.error('[MCP] Initializing semantic search tools (blocking)...');
-        try {
-          await this.semanticSearchTools.initialize();
-          console.error('[MCP] [OK] Semantic search tools initialized');
-        } catch (error) {
-          console.error(`[ERROR] Semantic search initialization failed: ${error.message}`);
-          console.error('[WARN] Semantic search tools will be unavailable');
+      console.error('[MCP] Connecting shared data access layer...');
+      try {
+        await this.dataAccess.connect();
+        console.error('[MCP] [OK] Shared data access layer connected');
+
+        // Initialize GGSR for graph-dependent tools
+        if (this.dataAccess.graphDB) {
+          const { GGSRTraversalPrototypes } = await import('./graphrag/GGSRTraversalPrototypes.js');
+          const { GraphGuidedRetrieval } = await import('./graphrag/GraphGuidedRetrieval.js');
+          const ggsr = new GGSRTraversalPrototypes(this.dataAccess.graphDB);
+          const retrieval = new GraphGuidedRetrieval({
+            dataAccess: this.dataAccess,
+            ggsr,
+            vectorDB: this.dataAccess.vectorDB || null,
+          });
+          if (this.codeAnalysisTools) {
+            this.codeAnalysisTools.ggsr = ggsr;
+            this.codeAnalysisTools.retrieval = retrieval;
+            this.codeAnalysisTools.isInitialized = true;
+          }
+          if (this.graphRAGTools) {
+            this.graphRAGTools.ggsr = ggsr;
+            this.graphRAGTools.retrieval = retrieval;
+            this.graphRAGTools.isInitialized = true;
+          }
         }
-      }
-      
-      if (this.operationalTools) {
-        console.error('[MCP] Initializing operational tools (blocking)...');
-        try {
-          await this.operationalTools.initialize();
-          console.error('[MCP] [OK] Operational tools initialized');
-        } catch (error) {
-          console.error(`[ERROR] Operational tools initialization failed: ${error.message}`);
-          console.error('[WARN] Operational tools will be unavailable');
-        }
+
+        // Mark tool modules as initialized (they already have the shared dataAccess)
+        if (this.semanticSearchTools) this.semanticSearchTools.isInitialized = true;
+        if (this.operationalTools) this.operationalTools.isInitialized = true;
+      } catch (error) {
+        console.error(`[ERROR] Shared data access connection failed: ${error.message}`);
+        console.error('[WARN] RAG tools will be unavailable');
       }
     }
 
