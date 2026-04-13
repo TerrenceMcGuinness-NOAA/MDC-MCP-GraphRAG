@@ -23,14 +23,8 @@
       ]
     },
     "mdc-mcp-rag-aws": {
-      "command": "node",
-      "args": ["/mdc-mcp-rag/eib-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js", "full"],
-      "env": {
-        "DB_BACKEND": "aws",
-        "OPENSEARCH_ENDPOINT": "https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com",
-        "NEPTUNE_ENDPOINT": "wss://mdc-mcp-rag-neptune.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182",
-        "AWS_REGION": "us-east-1"
-      },
+      "type": "http",
+      "url": "http://localhost:3000/mcp",
       "disabled": true,
       "autoApprove": []
     }
