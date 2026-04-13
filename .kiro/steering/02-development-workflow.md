@@ -77,12 +77,14 @@ These tools reflect the **legacy system's data** — the same data we are portin
 
 ## AWS-Specific Considerations
 
+- **IaC First**: All infrastructure changes via CDK or AgentCore CLI — no manual console changes
+- **AgentCore for MCP**: Deploy MCP server via `agentcore launch` (not manual node processes)
 - No Docker on this system — do not reference `docker compose`, `docker build`, etc. for runtime
 - Docker configs in the repo are legacy reference only
 - The persistent data root is `/mdc-mcp-rag` (not `/mcp_rag_eib`)
 - Use AWS-native services where possible (see architecture context steering file)
-- Node.js MCP server runs natively via `npm start` from `mcp_server_node/`
-- ChromaDB and Neo4j need AWS-native deployment (ECS, managed services, or native install)
+- Node.js MCP server runs natively via `npm start` from `mcp_server_node/` (dev only)
+- For production: wrap with BedrockAgentCoreApp and deploy via `agentcore launch`
 
 ## Build & Test (on this AWS instance)
 

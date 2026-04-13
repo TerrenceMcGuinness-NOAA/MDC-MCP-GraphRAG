@@ -4,6 +4,16 @@ inclusion: auto
 
 # MDC MCP RAG — AWS Porting Architecture Context
 
+## Infrastructure as Code (IaC) — Primary Principle
+
+All AWS infrastructure MUST be defined and deployed via Infrastructure as Code:
+- **CDK** for VPC, Neptune, OpenSearch, EFS, S3, IAM roles (existing `infrastructure/cdk/`)
+- **AWS Bedrock AgentCore** for MCP server deployment (Runtime, Gateway, Memory)
+- **CloudFormation** as the underlying deployment mechanism
+- **No manual AWS console changes** — all config via code, CLI, or CDK
+- Hand-rolled scripts (HTTP wrappers, manual port forwarding) are acceptable ONLY as
+  temporary bridges during development. Production deployment uses managed AWS services.
+
 ## What This Project Is
 
 This workspace (`eib-mcp-rag-server`) contains the source code for the **MDC MCP RAG Server**

@@ -182,6 +182,19 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
     - [ ] 11.7 Check if Kiro's stdio spawner sets a connection timeout shorter than the SSH RTT
   - **Config**: `.kiro/settings/mcp.json` — currently `"disabled": true` to prevent crash loops
   - **Acceptance**: `mdc-mcp-rag-aws` shows `Connected (51 tools)` in Kiro MCP panel and stays connected for >60 seconds
+  - **RESOLVED**: Stateless HTTP transport via mcp-http-server.js works. Root cause was SSH double-hop latency killing stdio handshake. Production fix: deploy via AgentCore Runtime (Phase 51b).
+
+- [ ] 12. Deploy MCP server via AWS Bedrock AgentCore Runtime
+  - **PRIORITY**: Replace mcp-http-server.js development bridge with managed AWS deployment
+  - See SDD: `sdd_framework/workflows/phase51b_agentcore_mcp_deployment.md`
+  - [ ] 12.1 Install AgentCore toolkit: `pip install bedrock-agentcore-starter-toolkit`
+  - [ ] 12.2 Wrap UnifiedMCPServer with BedrockAgentCoreApp entrypoint
+  - [ ] 12.3 Configure: `agentcore configure --entrypoint agentcore-entrypoint --non-interactive`
+  - [ ] 12.4 Test locally: `agentcore dev` + `agentcore invoke --dev`
+  - [ ] 12.5 Deploy: `agentcore launch`
+  - [ ] 12.6 Update Kiro mcp.json with AgentCore endpoint URL
+  - [ ] 12.7 Configure AgentCore Gateway for multi-user auth
+  - [ ] 12.8 Remove development bridge (mcp-http-server.js, port 3000 SG rule)
 
 ## Notes
 

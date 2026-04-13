@@ -48,9 +48,9 @@ All CDK stacks, adapters, migration scripts, and validation tooling built.
 
 ### Next Steps
 
-1. Run cross-environment verification (`verify-migration.js`)
-2. Wire up MCP server with `DB_BACKEND=aws` and validate all 51 tools
-3. Cutover
+1. Deploy MCP server via AWS Bedrock AgentCore Runtime (replace mcp-http-server.js wrapper)
+2. Run Bedrock embedding re-ingestion (Phase 52)
+3. SageMaker fine-tuning pipeline execution
 
 ## Key Architecture Decisions
 
