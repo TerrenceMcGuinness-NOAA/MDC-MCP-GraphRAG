@@ -173,12 +173,13 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
     - Absolute path in mcp.json: `/mdc-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js` — fixed MODULE_NOT_FOUND but didn't fix the handshake crash
     - Removed IAM Policy Autopilot to eliminate resource contention — no effect
   - **Hypotheses to investigate:**
-    - [ ] 11.1 Check if the MCP SDK v1.26.0 StdioServerTransport has a known issue with Node.js v18.20.8 — try downgrading to SDK v1.24.3 or upgrading Node.js
-    - [ ] 11.2 Check if the `quiet-console.js` top-level await import is interfering with the stdio transport setup — the file uses `await import()` at module scope which may delay the event loop
-    - [ ] 11.3 Add a minimal MCP wrapper script that imports ONLY BaseServer with zero tools, test if that connects — isolate whether the issue is in tool registration or transport
-    - [ ] 11.4 Capture the exact bytes Kiro sends on stdin during the handshake — add a tee/logging layer to stdin before the StdioServerTransport reads it
-    - [ ] 11.5 Try HTTP/SSE transport instead of stdio — run the server with `express` on a local port, forward via SSH tunnel, configure Kiro with `"type": "http"` URL
-    - [ ] 11.6 Check if Kiro's stdio spawner sets a connection timeout shorter than our server's startup time (~700ms for module loading + EE2 config)
+    - [ ] 11.1 **SSH double-hop latency (MOST LIKELY)** — Kiro IDE connects via SSH through a jump box (laptop → SSH → jump box → SSH → EC2). The MCP stdio transport sends every byte through this double-hop tunnel. The handshake requires multiple rapid request/response exchanges — if any round-trip exceeds the SDK's internal timeout (~50ms?), the connection drops. This explains why: (a) manual stdin piping works (local to EC2), (b) CLI validation works (local to EC2), (c) the 48ms crash gap matches SSH RTT, (d) the IAM autopilot connects (tiny handshake). **Fix: use HTTP transport instead of stdio** — HTTP is designed for latency and works over the same SSH tunnel that the legacy eib-mcp-gateway uses successfully.
+    - [ ] 11.2 Check if the MCP SDK v1.26.0 StdioServerTransport has a known issue with Node.js v18.20.8 — try downgrading to SDK v1.24.3 or upgrading Node.js
+    - [ ] 11.3 Check if the `quiet-console.js` top-level await import is interfering with the stdio transport setup
+    - [ ] 11.4 Add a minimal MCP wrapper script that imports ONLY BaseServer with zero tools, test if that connects — isolate whether the issue is in tool registration or transport latency
+    - [ ] 11.5 **Implement HTTP/SSE transport (recommended workaround)** — run the server with `express` or the MCP SDK's `StreamableHTTPServerTransport` on a local port (e.g., 3000), forward via SSH tunnel (`-L 3000:localhost:3000`), configure Kiro with `"type": "http", "url": "http://localhost:3000/mcp"`. This matches how the legacy eib-mcp-gateway works and avoids the stdio latency problem entirely.
+    - [ ] 11.6 Capture the exact bytes Kiro sends on stdin during the handshake — add a tee/logging layer
+    - [ ] 11.7 Check if Kiro's stdio spawner sets a connection timeout shorter than the SSH RTT
   - **Config**: `.kiro/settings/mcp.json` — currently `"disabled": true` to prevent crash loops
   - **Acceptance**: `mdc-mcp-rag-aws` shows `Connected (51 tools)` in Kiro MCP panel and stays connected for >60 seconds
 
