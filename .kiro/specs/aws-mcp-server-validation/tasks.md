@@ -155,6 +155,33 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
 - [ ] 10. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
+- [ ] 11. Fix Kiro MCP stdio connection for mdc-mcp-rag-aws
+  - **FOCUSED DEBUGGING TASK** — The AWS MCP server works perfectly via CLI (45/45 tools pass) but crashes ~48ms after Kiro spawns it via stdio transport.
+  - **Findings from investigation (April 9-13, 2026):**
+    - The server loads modules, prints `[OK] EE2ComplianceTools: Loaded Phase 2 config` to stderr, then the process exits before the MCP handshake completes
+    - Manual MCP handshake via piped stdin works perfectly: `initialize` → `initialized` → `tools/list` returns all 51 tools
+    - The server stays alive indefinitely when run manually (`node src/UnifiedMCPServer.js full`)
+    - No uncaught exceptions or unhandled rejections detected with `--trace-uncaught`
+    - stdout is clean (0 bytes) — no protocol corruption from console output
+    - `quiet-console.js` correctly redirects all console.log to log file
+    - The EE2 config line uses `console.error` (stderr), not stdout
+    - Friday's "successful connection" was a false positive — Kiro attributed the IAM Policy Autopilot's startup message to our server
+    - The server has NEVER successfully completed a Kiro stdio connection
+  - **Attempted fixes that did NOT resolve the issue:**
+    - Transport-first startup: moved `this.server.start()` before `dataAccess.connect()` — still crashes
+    - setTimeout(2000) deferred connect: wrapped background connect in 2s delay — still crashes (process exits before timeout fires)
+    - Absolute path in mcp.json: `/mdc-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js` — fixed MODULE_NOT_FOUND but didn't fix the handshake crash
+    - Removed IAM Policy Autopilot to eliminate resource contention — no effect
+  - **Hypotheses to investigate:**
+    - [ ] 11.1 Check if the MCP SDK v1.26.0 StdioServerTransport has a known issue with Node.js v18.20.8 — try downgrading to SDK v1.24.3 or upgrading Node.js
+    - [ ] 11.2 Check if the `quiet-console.js` top-level await import is interfering with the stdio transport setup — the file uses `await import()` at module scope which may delay the event loop
+    - [ ] 11.3 Add a minimal MCP wrapper script that imports ONLY BaseServer with zero tools, test if that connects — isolate whether the issue is in tool registration or transport
+    - [ ] 11.4 Capture the exact bytes Kiro sends on stdin during the handshake — add a tee/logging layer to stdin before the StdioServerTransport reads it
+    - [ ] 11.5 Try HTTP/SSE transport instead of stdio — run the server with `express` on a local port, forward via SSH tunnel, configure Kiro with `"type": "http"` URL
+    - [ ] 11.6 Check if Kiro's stdio spawner sets a connection timeout shorter than our server's startup time (~700ms for module loading + EE2 config)
+  - **Config**: `.kiro/settings/mcp.json` — currently `"disabled": true` to prevent crash loops
+  - **Acceptance**: `mdc-mcp-rag-aws` shows `Connected (51 tools)` in Kiro MCP panel and stays connected for >60 seconds
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP
