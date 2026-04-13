@@ -94,7 +94,11 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
   - [x] 6.2 get_knowledge_base_status — DONE (legacy 85,995 docs / AWS 85,921 docs, 2,633,374 rels)
   - [x] 6.3 find_env_dependencies "HOMEgfs" — DONE (AWS returns 5 J-Jobs via Neptune, legacy uses GGSR path)
   - [x] 6.4 mcp_health_check — DONE (legacy 8/9, AWS 9/9 HEALTHY)
-  - [ ] 6.5 trace_full_execution_chain "JGLOBAL_FORECAST" — NOT YET TESTED
+  - [x] 6.5 trace_full_execution_chain "JGLOBAL_FORECAST" — TESTED
+    - Legacy: 28 nodes, 3 languages, 4 bridge crossings, 649ms ✅
+    - AWS: Neptune query syntax error (`Invalid input '>'`) — APOC transform gap
+    - get_code_context "setuprad": Legacy returns GGSR neighborhood, AWS fails (GGSR not injected in HTTP wrapper)
+    - **Action needed**: Fix APOC transform for directed path patterns + inject GGSR into HTTP wrapper per-request instances
   - _Note: Parity confirmed via live MCP tool calls April 13, 2026_
 
 - [x] 7. Implement report generator
