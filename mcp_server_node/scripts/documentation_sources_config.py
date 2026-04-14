@@ -408,6 +408,27 @@ DOCUMENTATION_SOURCES = {
             'description': 'CCPP Common Community Physics Package - physics parameterization framework',
             'max_pages': 100,
             'enabled': True
+        },
+
+        # --- HPC Performance Portability ---
+        # Added 2026-04-14 - Kokkos C++ performance portability for HPC
+        {
+            'name': 'kokkos-api',
+            'url': 'https://kokkos.org/kokkos-core-wiki/api-references.html',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'Kokkos API Reference - C++ performance portability for HPC (Views, parallel dispatch, memory spaces)',
+            'max_pages': 150,
+            'enabled': True
+        },
+        {
+            'name': 'kokkos-overview',
+            'url': 'https://kokkos.org/about/overview/',
+            'type': 'single_page',
+            'priority': 3,
+            'description': 'Kokkos Overview - HPC performance portability programming model (GPU/CPU abstraction)',
+            'max_pages': 10,
+            'enabled': True
         }
     ],
 

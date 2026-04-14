@@ -32,6 +32,7 @@ console.error(`[MCP-HTTP] Starting '${scenario}' on port ${PORT} (stateless mode
 // Shared data access — connect once, reuse across all requests
 let sharedDataAccess = null;
 let sharedGGSR = null;
+let sharedRetrieval = null;
 
 const httpServer = createServer(async (req, res) => {
   console.error(`[MCP-HTTP] ${req.method} ${req.url}`);
@@ -63,6 +64,12 @@ const httpServer = createServer(async (req, res) => {
         if (mcp.graphRAGTools) { mcp.graphRAGTools.dataAccess = sharedDataAccess; mcp.graphRAGTools.isInitialized = true; }
       }
 
+      // Inject shared GGSR into per-request tool modules
+      if (sharedGGSR) {
+        if (mcp.codeAnalysisTools) { mcp.codeAnalysisTools.ggsr = sharedGGSR; mcp.codeAnalysisTools.retrieval = sharedRetrieval; }
+        if (mcp.graphRAGTools) { mcp.graphRAGTools.ggsr = sharedGGSR; mcp.graphRAGTools.retrieval = sharedRetrieval; }
+      }
+
       // Stateless transport — no session ID generator
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       await mcp.server.server.connect(transport);
@@ -90,6 +97,11 @@ initMcp.dataAccess.connect().then(async () => {
     try {
       const { GGSRTraversalPrototypes } = await import('./graphrag/GGSRTraversalPrototypes.js');
       sharedGGSR = new GGSRTraversalPrototypes(sharedDataAccess.graphDB);
+      const { GraphGuidedRetrieval } = await import('./graphrag/GraphGuidedRetrieval.js');
+      sharedRetrieval = new GraphGuidedRetrieval({
+        dataAccess: sharedDataAccess, ggsr: sharedGGSR,
+        vectorDB: sharedDataAccess.vectorDB || null,
+      });
       console.error('[MCP-HTTP] [OK] GGSR initialized');
     } catch (err) {
       console.error(`[MCP-HTTP] [WARN] GGSR: ${err.message}`);

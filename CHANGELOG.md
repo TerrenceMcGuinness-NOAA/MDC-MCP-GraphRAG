@@ -1,5 +1,22 @@
 # MCP Server Changelog
 
+## [8.4.0] - Neptune GGSR Compatibility Bugfix (April 14, 2026)
+
+### Bug Fixes (`mcp_server_node/src/data/adapters/NeptuneAdapter.js`)
+- `traceCrossLanguageChain()` — rewrote from broken `->[:REL*1..N]->` syntax (arrows outside brackets) to decomposed multi-OPTIONAL-MATCH approach matching `GraphDatabase.traceCrossLanguageChain()`
+- `traceCrossLanguageChain()` — replaced `=~` regex (unsupported by Neptune) with `toLower(x) CONTAINS toLower(y)`
+- `findFortranCallers()` — replaced multi-label `|` syntax (`f:A|B|C`) with `WHERE f:A OR f:B OR f:C` for Neptune compatibility
+- `findCallers()`, `findScriptCallers()`, `findFortranCallers()`, `findUpstreamExecutors()`, `traceFortranCallChain()` — replaced `labels(n)[0]` with `head(labels(n))` for Neptune portability
+- Added `_labelToLanguage()` helper for cross-language chain assembly
+
+### Bug Fixes (`mcp_server_node/src/mcp-http-server.js`)
+- Inject `sharedGGSR` and `sharedRetrieval` into per-request `codeAnalysisTools` and `graphRAGTools` (was null, breaking `get_code_context` and GGSR-dependent tools via HTTP transport)
+- Create `sharedRetrieval` (`GraphGuidedRetrieval` instance) alongside `sharedGGSR` during initialization
+
+### Tests
+- NEW: `test/neptune-ggsr-bug-condition.test.js` — 11 property-based tests (C1: Neptune VLP syntax, C2: HTTP GGSR injection)
+- NEW: `test/neptune-ggsr-preservation.test.js` — 14 preservation tests (non-VLP queries, APOC transforms, stdio GGSR, health endpoint, labels() compatibility)
+
 ## [8.3.0] - Phase 48 Validation: AWS MCP Server (April 10, 2026)
 
 ### Adapter Fixes (`mcp_server_node/src/data/adapters/`)
