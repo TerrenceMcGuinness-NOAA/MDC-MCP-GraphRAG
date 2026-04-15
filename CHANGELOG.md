@@ -1,5 +1,38 @@
 # MCP Server Changelog
 
+## [8.5.0] - Phase 52: Bedrock Titan1024 Re-Ingestion (April 15, 2026)
+
+### Re-Ingestion Results
+- 5 titan1024 OpenSearch indices populated with Bedrock Titan Embed Text V2 (1024-dim)
+- code-context: 58,961 docs (97.3% of mpnet768 baseline)
+- workflow-docs: 5,494 docs (fresh crawl — many legacy URLs now 404)
+- jjobs: 751 docs (107.3% — source tree differences)
+- community-summaries: 2,113 docs (100% — re-embedded from mpnet768)
+- ee2-standards: 34 docs (100% — re-embedded from mpnet768)
+
+### Benchmark Results
+- titan1024-hybrid: P@5=0.267, P@10=0.196, MRR=0.511, nDCG=0.536
+- titan1024-vector: P@5=0.158, MRR=0.286 (hybrid significantly outperforms vector-only)
+- Hybrid search latency: p50=117ms across all indices
+
+### Nova Matryoshka Testing
+- Nova multimodal embeddings (amazon.nova-2-multimodal-embeddings-v1:0) validated
+- 150 docs ingested into mdc-workflow-docs-nova1024 test index
+- Native dimension generation at 256/384/1024/3072 confirmed
+- 100% result overlap between 256-dim and 1024-dim queries on test set
+
+### Drift Detection Baselines
+- All 5 titan1024 collections: mean_similarity=1.000, drifted=false
+
+### Code Changes (`mcp_server_node/scripts/`)
+- `aws_backend.py` — added `get()`, `modify()` stubs to `_OpenSearchCollection` for ChromaDB compat
+- `ingestion_base.py` — skip local embedding function for AWS backend in `ChromaDBClient.get_or_create_collection()`
+- `embedding_provider.py` — added Nova API format support (schemaVersion/taskType/singleEmbeddingParams)
+- `embedding_registry.py` — fixed Nova model ID to `amazon.nova-2-multimodal-embeddings-v1:0`
+- `benchmark_runner.py` — implemented real OpenSearch querying, added bm25 mode, latency tracking
+- `drift_detector.py` — implemented `_sample_from_opensearch()` with random sampling via function_score
+- `config/benchmark_ground_truth.json` — 24 queries across 5 domains (6 code, 5 docs, 5 jjobs, 4 community, 4 ee2)
+
 ## [8.4.0] - Neptune GGSR Compatibility Bugfix (April 14, 2026)
 
 ### Bug Fixes (`mcp_server_node/src/data/adapters/NeptuneAdapter.js`)

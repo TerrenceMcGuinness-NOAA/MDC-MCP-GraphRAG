@@ -575,7 +575,7 @@ Examples:
                             help='Show per-script detail')
     arg_parser.add_argument('--version', action='version',
                             version=f'%(prog)s {VERSION}')
-    args = arg_parser.parse_args()
+    args, _ = arg_parser.parse_known_args()
     
     print("=" * 70)
     print("Phase 27B: Shell Script Graph Ingestion for Neo4j")

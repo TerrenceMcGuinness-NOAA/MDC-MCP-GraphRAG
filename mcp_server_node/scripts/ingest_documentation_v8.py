@@ -91,7 +91,7 @@ def main():
     parser.add_argument('--delay', type=float, default=1.0,
                        help='Seconds between page fetches (default: 1.0, use 5+ for rate-limited sites)')
     
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     
     print("=" * 70)
     print("DOCUMENTATION INGESTION V8.0.0 - MPNet Embeddings")

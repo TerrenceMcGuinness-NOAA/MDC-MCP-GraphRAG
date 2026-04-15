@@ -446,7 +446,11 @@ class JJobIngester:
         self.stats = defaultdict(int)
         
         # Initialize embedding model
-        if HAS_SENTENCE_TRANSFORMERS:
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws" and _REGISTRY_AVAILABLE:
+            print(f"[OK] Loading embedding model: {EMBEDDING_MODEL} (via Bedrock auto-embed)")
+            self.model = None
+            self.embedding_fn = None
+        elif HAS_SENTENCE_TRANSFORMERS:
             print(f"[OK] Loading embedding model: {EMBEDDING_MODEL}")
             self.model = SentenceTransformer(EMBEDDING_MODEL)
             self.embedding_fn = None  # We'll compute manually
@@ -734,7 +738,7 @@ def main():
         help="Discover and parse but don't write to ChromaDB"
     )
     
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     
     # Use provided workflow root
     workflow_root = args.workflow_root

@@ -429,11 +429,15 @@ class ChromaDBClient:
         """Get existing collection or create new one"""
         if self.client is None:
             self.connect()
-        
+
+        # AWS backend: skip local embedding function (Bedrock handles embeddings)
+        _is_aws = os.environ.get("DB_BACKEND", "legacy") == "aws"
+        _ef = None if _is_aws else self.get_embedding_function()
+
         try:
             collection = self.client.get_collection(
                 name=name,
-                embedding_function=self.get_embedding_function()
+                embedding_function=_ef
             )
             print(f"[OK] Using existing collection: {name} ({collection.count()} documents)")
         except:
@@ -447,7 +451,7 @@ class ChromaDBClient:
             
             collection = self.client.create_collection(
                 name=name,
-                embedding_function=self.get_embedding_function(),
+                embedding_function=_ef,
                 metadata=metadata
             )
             print(f"[OK] Created new collection: {name}")

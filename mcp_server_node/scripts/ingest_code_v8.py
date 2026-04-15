@@ -495,11 +495,14 @@ class CodeIngesterV8:
         self.chroma = (_get_vector_client() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
                        else chromadb.HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT))
         
-        # Create embedding function
+        # Create embedding function (skip for aws backend — handled by auto-embed)
         print(f"[OK] Loading embedding model: {EMBEDDING_MODEL}")
-        self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=EMBEDDING_MODEL
-        )
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws" and _REGISTRY_AVAILABLE:
+            self.embedding_fn = None
+        else:
+            self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name=EMBEDDING_MODEL
+            )
         
         # Get or create collection with MPNet
         try:
@@ -744,7 +747,7 @@ def main():
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be processed without ingesting')
     
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     
     print("=" * 70)
     print("CODE INGESTION V8.0.0 - MPNet Embeddings")

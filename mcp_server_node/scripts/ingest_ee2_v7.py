@@ -38,10 +38,39 @@ except ImportError:
 # ============================================================================
 
 VERSION = "7.0.0"
-# EE2 ingests into the MAIN v7 collection (not a separate collection)
-COLLECTION_NAME = os.getenv("EE2_COLLECTION", "global-workflow-docs-v7-0-0")
 CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
+
+# Phase 49: Registry-driven model selection + AWS backend support
+import sys as _sys
+_REGISTRY_AVAILABLE = False
+_PROVIDER = None
+try:
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from embedding_provider import create_provider as _cp
+    from collection_namer import CollectionNamer as _CN
+    _args_model = "mpnet768"
+    for _i, _a in enumerate(_sys.argv):
+        if _a == "--model" and _i + 1 < len(_sys.argv):
+            _args_model = _sys.argv[_i + 1]
+    _profile = _Reg().get_profile(_args_model)
+    _PROVIDER = _cp(_profile)
+    _namer = _CN(_profile)
+    COLLECTION_NAME = _namer.get_name("ee2-standards", "v7-0-0")
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    COLLECTION_NAME = os.getenv("EE2_COLLECTION", "ee2-standards-v5-0-0-enhanced")
+
+if "--backend" in _sys.argv:
+    _bidx = _sys.argv.index("--backend")
+    if _bidx + 1 < len(_sys.argv):
+        os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_vector_client as _get_vector_client, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
 
 # EE2 Standards source (git submodule)
 EE2_ROOT = os.getenv("EE2_ROOT",
@@ -363,8 +392,12 @@ class EE2IngesterV7:
         self.collection_name = collection_name
         self.parser = RSTDirectiveParser()
         
-        # Initialize ChromaDB
-        self.chroma = chromadb.HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT)
+        # Initialize vector client (ChromaDB or OpenSearch)
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+            embed_fn = _PROVIDER.embed if _PROVIDER else None
+            self.chroma = _get_vector_client(embedding_function=embed_fn)
+        else:
+            self.chroma = chromadb.HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT)
         self.collection = self.chroma.get_or_create_collection(
             name=collection_name,
             metadata={"version": VERSION, "type": "ee2-standards"}
@@ -497,10 +530,14 @@ def main():
                        help=f'Collection name (default: {COLLECTION_NAME})')
     parser.add_argument('--root', default=EE2_ROOT,
                        help=f'EE2 standards root path (default: {EE2_ROOT})')
+    parser.add_argument('--model', default='mpnet768',
+                       help='Embedding model profile (default: mpnet768)')
+    parser.add_argument('--backend', default='legacy',
+                       help='Database backend: legacy or aws (default: legacy)')
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be processed without ingesting')
     
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     
     if args.dry_run:
         print("[DRY RUN] Would process the following:")

@@ -58,15 +58,18 @@ class DriftDetector:
         
         docs = self._sample_documents(collection_name, backend)
         similarities = []
-        
+
         for doc in docs:
-            stored_embedding = np.array(doc['embedding'])
-            fresh_embedding = np.array(provider.embed([doc['content']])[0])
-            similarity = self._cosine_similarity(stored_embedding, fresh_embedding)
-            similarities.append(similarity)
-        
-        mean_sim = np.mean(similarities)
-        min_sim = np.min(similarities)
+            try:
+                stored_embedding = np.array(doc['embedding'])
+                fresh_embedding = np.array(provider.embed([doc['content']])[0])
+                similarity = self._cosine_similarity(stored_embedding, fresh_embedding)
+                similarities.append(similarity)
+            except Exception as e:
+                print(f"  [WARN] Re-embed failed: {e}", file=sys.stderr)
+
+        mean_sim = float(np.mean(similarities)) if similarities else 0.0
+        min_sim = float(np.min(similarities)) if similarities else 0.0
         drifted = mean_sim < self.threshold
         
         stale_docs = self.check_stale_documents(collection_name, backend)
@@ -105,8 +108,42 @@ class DriftDetector:
             return self._sample_from_chromadb(collection_name)
     
     def _sample_from_opensearch(self, collection_name: str) -> List[dict]:
-        """Sample from OpenSearch (placeholder - requires opensearch-py client)."""
-        return []
+        """Sample N random documents from OpenSearch index."""
+        from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
+        endpoint = os.environ.get("OPENSEARCH_ENDPOINT", "")
+        region = os.environ.get("AWS_REGION", "us-east-1")
+        if not endpoint:
+            print("[ERROR] OPENSEARCH_ENDPOINT required", file=sys.stderr)
+            return []
+        creds = boto3.Session().get_credentials()
+        auth = AWSV4SignerAuth(creds, region, "es")
+        client = OpenSearch(
+            hosts=[{"host": endpoint.replace("https://", "").rstrip("/"), "port": 443}],
+            http_auth=auth, use_ssl=True, verify_certs=True,
+            connection_class=RequestsHttpConnection,
+        )
+        # Map collection name to index — try _to_index first, fall back to direct use
+        sys.path.insert(0, os.path.dirname(__file__))
+        try:
+            from aws_backend import _to_index
+            index = _to_index(collection_name)
+        except Exception:
+            index = collection_name  # assume it's already an index name
+        body = {
+            "size": self.sample_size,
+            "_source": ["content", "embedding"],
+            "query": {"function_score": {"query": {"match_all": {}}, "random_score": {}}},
+        }
+        try:
+            resp = client.search(index=index, body=body)
+            return [
+                {"content": h["_source"]["content"], "embedding": h["_source"]["embedding"]}
+                for h in resp["hits"]["hits"]
+                if h["_source"].get("embedding")
+            ]
+        except Exception as e:
+            print(f"[ERROR] Failed to sample from {index}: {e}", file=sys.stderr)
+            return []
     
     def _sample_from_chromadb(self, collection_name: str) -> List[dict]:
         """Sample from ChromaDB (placeholder - requires chromadb client)."""

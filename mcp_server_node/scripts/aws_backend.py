@@ -126,24 +126,48 @@ class OpenSearchVectorClient:
             connection_class=RequestsHttpConnection,
         )
         self._region = region
+        self._embedding_fn = None
+
+    def set_embedding_function(self, fn):
+        """Set a callable(texts) -> list[list[float]] for auto-embedding."""
+        self._embedding_fn = fn
+
+    def get_collection(self, name: str, **kwargs):
+        """ChromaDB-compatible get_collection (alias for get_or_create)."""
+        return self.get_or_create_collection(name, **kwargs)
+
+    def create_collection(self, name: str, **kwargs):
+        """ChromaDB-compatible create_collection (alias for get_or_create)."""
+        return self.get_or_create_collection(name, **kwargs)
 
     def get_or_create_collection(self, name: str, **kwargs):
         index = _to_index(name)
-        return _OpenSearchCollection(self._client, index, name)
+        embedding_function = kwargs.get("embedding_function") or self._embedding_fn
+        return _OpenSearchCollection(self._client, index, name,
+                                     embedding_function=embedding_function)
 
 
 class _OpenSearchCollection:
     """Minimal ChromaDB Collection interface for OpenSearch."""
 
-    def __init__(self, client, index: str, collection_name: str):
+    def __init__(self, client, index: str, collection_name: str,
+                 embedding_function=None):
         self._client = client
         self._index = index
         self._collection_name = collection_name
+        self._embedding_fn = embedding_function
+
+    def _auto_embed(self, documents, embeddings):
+        """Generate embeddings via registry provider if not supplied."""
+        if embeddings or not documents or not self._embedding_fn:
+            return embeddings
+        return self._embedding_fn(documents)
 
     def _bulk_index(self, ids, documents, embeddings, metadatas, action="index"):
         """Shared bulk indexing logic for add() and upsert()."""
         if not ids:
             return
+        embeddings = self._auto_embed(documents, embeddings)
         body = []
         for i, doc_id in enumerate(ids):
             op = {action: {"_index": self._index, "_id": doc_id}}
@@ -171,6 +195,38 @@ class _OpenSearchCollection:
         """Upsert documents into OpenSearch (insert-or-update by ID)."""
         self._bulk_index(ids, documents, embeddings, metadatas, action="index")
 
+    def get(self, include=None, limit=None, **kwargs):
+        """ChromaDB-compatible get() — returns existing doc IDs."""
+        try:
+            body = {"query": {"match_all": {}}, "_source": False, "size": 0}
+            # Use scroll to get all IDs if needed
+            if include is not None and include == []:
+                # Caller only wants IDs — use scroll API
+                ids = []
+                body["size"] = 10000
+                resp = self._client.search(index=self._index, body=body,
+                                           scroll="2m")
+                scroll_id = resp.get("_scroll_id")
+                while True:
+                    hits = resp["hits"]["hits"]
+                    if not hits:
+                        break
+                    ids.extend(h["_id"] for h in hits)
+                    resp = self._client.scroll(scroll_id=scroll_id, scroll="2m")
+                if scroll_id:
+                    try:
+                        self._client.clear_scroll(scroll_id=scroll_id)
+                    except Exception:
+                        pass
+                return {"ids": ids}
+            return {"ids": []}
+        except Exception:
+            return {"ids": []}
+
+    def modify(self, **kwargs):
+        """ChromaDB-compatible modify() — no-op for OpenSearch."""
+        pass
+
     def count(self) -> int:
         try:
             return self._client.count(index=self._index)["count"]
@@ -178,14 +234,36 @@ class _OpenSearchCollection:
             return 0
 
 
-def get_vector_client():
-    """Return a ChromaDB client (legacy) or OpenSearchVectorClient (aws)."""
+def get_vector_client(embedding_function=None):
+    """Return a ChromaDB client (legacy) or OpenSearchVectorClient (aws).
+
+    If embedding_function is provided, it will be used for auto-embedding
+    when documents are added without explicit embeddings.
+    """
     if BACKEND == "aws":
         endpoint = os.environ.get("OPENSEARCH_ENDPOINT", "")
         if not endpoint:
             print("[ERROR] OPENSEARCH_ENDPOINT required for DB_BACKEND=aws", file=sys.stderr)
             sys.exit(1)
-        return OpenSearchVectorClient(endpoint, AWS_REGION)
+        client = OpenSearchVectorClient(endpoint, AWS_REGION)
+        if embedding_function:
+            client.set_embedding_function(embedding_function)
+        elif not embedding_function:
+            # Auto-detect from registry if --model flag was used
+            try:
+                from embedding_registry import EmbeddingModelRegistry
+                from embedding_provider import create_provider
+                import argparse
+                p = argparse.ArgumentParser(add_help=False)
+                p.add_argument("--model", default="mpnet768")
+                a, _ = p.parse_known_args()
+                if a.model != "mpnet768":
+                    profile = EmbeddingModelRegistry().get_profile(a.model)
+                    provider = create_provider(profile)
+                    client.set_embedding_function(provider.embed)
+            except Exception:
+                pass
+        return client
     else:
         import chromadb
         host = os.environ.get("CHROMADB_HOST", "localhost")

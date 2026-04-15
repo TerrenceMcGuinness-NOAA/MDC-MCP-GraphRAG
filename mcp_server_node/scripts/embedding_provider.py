@@ -87,24 +87,63 @@ class BedrockProvider(EmbeddingProvider):
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         import json as _json
-        results = []
-        for text in texts:
-            body: dict = {"inputText": text}
-            body.update(self._profile.provider_params)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        max_workers = int(os.getenv("BEDROCK_CONCURRENCY", "10"))
+
+        def _embed_one(text: str) -> List[float]:
+            model_id = self._profile.model_id
+            if "nova" in model_id:
+                body = {
+                    "schemaVersion": "nova-multimodal-embed-v1",
+                    "taskType": "SINGLE_EMBEDDING",
+                    "singleEmbeddingParams": {
+                        "embeddingPurpose": self._profile.provider_params.get(
+                            "embeddingPurpose", "TEXT_RETRIEVAL"),
+                        "embeddingDimension": self._profile.dimensions,
+                        "text": {"truncationMode": "END", "value": text},
+                    },
+                }
+            else:
+                body = {"inputText": text}
+                body.update(self._profile.provider_params)
+            resp = self._client.invoke_model(
+                modelId=model_id,
+                body=_json.dumps(body),
+                contentType="application/json",
+                accept="application/json",
+            )
+            data = _json.loads(resp["body"].read())
+            if "embeddings" in data:
+                return data["embeddings"][0]["embedding"]
+            return data["embedding"]
+
+        # Single text — skip thread pool overhead
+        if len(texts) == 1:
             try:
-                resp = self._client.invoke_model(
-                    modelId=self._profile.model_id,
-                    body=_json.dumps(body),
-                    contentType="application/json",
-                    accept="application/json",
-                )
-                data = _json.loads(resp["body"].read())
-                results.append(data["embedding"])
+                return [_embed_one(texts[0])]
             except Exception as exc:
                 raise EmbeddingError(
                     f"Bedrock embed failed model={self._profile.model_id} "
-                    f"input_len={len(text)}: {exc}"
+                    f"input_len={len(texts[0])}: {exc}"
                 ) from exc
+
+        # Multiple texts — concurrent API calls
+        results = [None] * len(texts)
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(texts))) as pool:
+            future_to_idx = {
+                pool.submit(_embed_one, text): i
+                for i, text in enumerate(texts)
+            }
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as exc:
+                    raise EmbeddingError(
+                        f"Bedrock embed failed model={self._profile.model_id} "
+                        f"input_len={len(texts[idx])}: {exc}"
+                    ) from exc
         return results
 
     def embed_image(self, image_bytes: bytes) -> List[float]:
