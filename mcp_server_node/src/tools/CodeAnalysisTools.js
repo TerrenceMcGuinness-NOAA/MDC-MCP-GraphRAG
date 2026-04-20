@@ -872,7 +872,7 @@ export class CodeAnalysisTools {
 
       if (callers.length > 0) {
         for (const caller of callers.slice(0, 15)) {
-          const name = caller.name || caller.callerName || caller;
+          const name = caller.caller || caller.name || caller.callerName || (typeof caller === 'string' ? caller : JSON.stringify(caller));
           const file = caller.file || caller.callerFile;
           const type = caller.callerType || caller.type;
           result += `- **\`${name}\`**`;

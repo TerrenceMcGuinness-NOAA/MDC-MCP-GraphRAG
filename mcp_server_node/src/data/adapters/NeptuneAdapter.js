@@ -138,25 +138,59 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
     if (!this.connected) await this.connect();
 
     const transformed = transformApoc(cypher);
-    const session = this.driver.session({ defaultAccessMode: neo4j.session.READ });
-    const t0 = Date.now();
 
-    try {
-      const result = await session.run(transformed, params);
-      const elapsed = Date.now() - t0;
-      this.metrics.queriesExecuted++;
-      this.metrics.lastQueryTime = elapsed;
-      this.metrics.avgQueryTime =
-        (this.metrics.avgQueryTime * (this.metrics.queriesExecuted - 1) + elapsed) /
-        this.metrics.queriesExecuted;
-      return result.records.map(r => this._recordToObject(r));
-    } catch (err) {
-      this.metrics.queriesFailed++;
-      console.error(`[ERROR] NeptuneAdapter.query failed: ${err.message}`);
-      throw err;
-    } finally {
-      await session.close();
+    // Attempt query, reconnect on SigV4 expiry
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const session = this.driver.session({ defaultAccessMode: neo4j.session.READ });
+      const t0 = Date.now();
+
+      try {
+        const result = await session.run(transformed, params);
+        const elapsed = Date.now() - t0;
+        this.metrics.queriesExecuted++;
+        this.metrics.lastQueryTime = elapsed;
+        this.metrics.avgQueryTime =
+          (this.metrics.avgQueryTime * (this.metrics.queriesExecuted - 1) + elapsed) /
+          this.metrics.queriesExecuted;
+        return result.records.map(r => this._recordToObject(r));
+      } catch (err) {
+        // Detect SigV4 signature expiry and reconnect
+        if (attempt === 0 && this._isSignatureExpired(err)) {
+          console.error(`[WARN] NeptuneAdapter: SigV4 signature expired, reconnecting...`);
+          await session.close();
+          await this._reconnect();
+          continue; // retry with fresh token
+        }
+        this.metrics.queriesFailed++;
+        console.error(`[ERROR] NeptuneAdapter.query failed: ${err.message}`);
+        throw err;
+      } finally {
+        await session.close().catch(() => {});
+      }
     }
+  }
+
+  /**
+   * Detect if an error is a SigV4 signature expiry.
+   */
+  _isSignatureExpired(err) {
+    if (!err) return false;
+    const msg = err.message || '';
+    return msg.includes('Signature expired') ||
+           msg.includes('is now earlier than') ||
+           msg.includes('Credential should be scoped');
+  }
+
+  /**
+   * Force reconnect with fresh SigV4 credentials.
+   */
+  async _reconnect() {
+    try {
+      if (this.driver) await this.driver.close();
+    } catch {}
+    this.driver = null;
+    this.connected = false;
+    await this.connect();
   }
 
   // ── GraphDatabaseAdapter method implementations ───────────────────────────
@@ -180,12 +214,21 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async traceCallChain(functionName, depth = 3) {
-    return this.query(
-      `MATCH path = (f:Function {name: $name})-[:CALLS*1..${depth}]->(callee)
-       RETURN [n IN nodes(path) | n.name] AS chain,
-              [r IN relationships(path) | type(r)] AS rels`,
+    const depthInt = Math.min(Math.max(parseInt(depth, 10) || 3, 1), 5);
+    const results = await this.query(
+      `MATCH (f {name: $name})-[:CALLS*1..${depthInt}]->(callee)
+       RETURN callee.name AS callee, head(labels(callee)) AS calleeType,
+              1 AS depth
+       LIMIT 100`,
       { name: functionName }
     );
+    return results.map(r => ({
+      callee: r.callee,
+      name: r.callee,
+      calleeType: r.calleeType,
+      type: r.calleeType,
+      depth: r.depth || 1
+    }));
   }
 
   async findCallers(functionName) {
@@ -317,11 +360,21 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async traceScriptChain(scriptName, depth = 2) {
-    return this.query(
-      `MATCH path = (s {name: $name})-[:SOURCES|INVOKES*1..${depth}]->(child)
-       RETURN [n IN nodes(path) | n.name] AS chain`,
+    const depthInt = Math.min(Math.max(parseInt(depth, 10) || 2, 1), 5);
+    const results = await this.query(
+      `MATCH (s {name: $name})-[:SOURCES|INVOKES*1..${depthInt}]->(child)
+       RETURN DISTINCT child.name AS callee, head(labels(child)) AS calleeType,
+              1 AS depth
+       LIMIT 100`,
       { name: scriptName }
     );
+    return results.map(r => ({
+      callee: r.callee,
+      name: r.callee,
+      calleeType: r.calleeType,
+      type: r.calleeType,
+      depth: r.depth || 1
+    }));
   }
 
   async findScriptEnvDeps(scriptName) {
@@ -356,11 +409,20 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async tracePythonCallChain(name, depth = 3) {
-    return this.query(
-      `MATCH path = (f:PythonFunction {name: $name})-[:CALLS*1..${depth}]->(callee)
-       RETURN [n IN nodes(path) | n.name] AS chain`,
+    const depthInt = Math.min(Math.max(parseInt(depth, 10) || 3, 1), 5);
+    const results = await this.query(
+      `MATCH (f:PythonFunction {name: $name})-[:CALLS*1..${depthInt}]->(callee)
+       RETURN callee.name AS callee, callee.file AS file,
+              1 AS depth
+       LIMIT 100`,
       { name }
     );
+    return results.map(r => ({
+      callee: r.callee,
+      name: r.callee,
+      file: r.file,
+      depth: r.depth || 1
+    }));
   }
 
   async getPythonGraphStats() {
@@ -384,21 +446,32 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async traceFortranCallChain(name, depth = 3) {
-    return this.query(
-      `MATCH path = (f {name: $name})-[:CALLS*1..${depth}]->(callee)
-       WHERE f:FortranSubroutine OR f:FortranFunction OR f:FortranProgram
-       RETURN [n IN nodes(path) | n.name] AS chain,
-              [n IN nodes(path) | head(labels(n))] AS types`,
+    const depthInt = Math.min(Math.max(parseInt(depth, 10) || 3, 1), 5);
+    const results = await this.query(
+      `MATCH (f {name: $name})-[:CALLS*1..${depthInt}]->(callee)
+       WHERE (f:FortranSubroutine OR f:FortranFunction OR f:FortranProgram)
+         AND (callee:FortranSubroutine OR callee:FortranFunction OR callee:FortranProgram)
+       RETURN DISTINCT callee.name AS callee, head(labels(callee)) AS calleeType,
+              1 AS depth
+       LIMIT 100`,
       { name }
     );
+    return results.map(r => ({
+      callee: r.callee,
+      name: r.callee,
+      calleeType: r.calleeType,
+      type: r.calleeType,
+      depth: r.depth || 1
+    }));
   }
 
   async findFortranModuleUses(name) {
-    return this.query(
+    const results = await this.query(
       `MATCH (f {name: $name})-[:USES]->(m:FortranModule)
-       RETURN m.name AS module`,
+       RETURN m.name AS moduleName, m.filepath AS moduleFile`,
       { name }
     );
+    return results;
   }
 
   async traceCrossLanguagePath(scriptName, fortranDepth = 3) {
@@ -572,6 +645,22 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
     if (value === null || value === undefined) return value;
     if (neo4j.isInt(value)) return value.toNumber();
     if (Array.isArray(value)) return value.map(v => this._convertValue(v));
+    // Handle Neo4j Node objects (have labels and properties)
+    if (value.labels && value.properties) {
+      return { ...value.properties, _labels: value.labels };
+    }
+    // Handle Neo4j Relationship objects
+    if (value.type && value.properties && value.start && value.end) {
+      return { ...value.properties, _type: value.type };
+    }
+    // Handle Neo4j Path objects
+    if (value.segments) {
+      return value.segments.map(s => ({
+        start: this._convertValue(s.start),
+        rel: this._convertValue(s.relationship),
+        end: this._convertValue(s.end)
+      }));
+    }
     if (typeof value === 'object' && value.constructor?.name === 'Object') {
       const out = {};
       for (const k of Object.keys(value)) out[k] = this._convertValue(value[k]);
