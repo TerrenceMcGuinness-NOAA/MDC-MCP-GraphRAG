@@ -1,5 +1,55 @@
 # MCP Server Changelog
 
+## [7.40.0] - SDD Phase 47a: Rocoto Dryrun PR #125 Log Semantics & Upstream Reconcile (April 20, 2026)
+
+Closes out the Rocoto `--dryrun` PR after upstream collaborator
+@christopherwharrop-noaa's second review pass. All remaining feedback was
+about **clarity of logging / terminal output** plus a trivial merge conflict
+from upstream PR #126 (removal of `RUBY_VERSION < "1.9.0"` guards).
+
+### Rocoto Branch Reconcile (`supported_repos/rocoto/`, `feature/dryrun_nodaemon_final`)
+
+- **Upstream merge** (`9424352`): Merged `christopherwharrop/rocoto:develop` (5 commits ahead — PR #126 dead-code removal, PR #127 CI tests, PR #128 RSpec scaffolding, PR #108 standalone-bundler install, PR #123 cycledef `exclude_hours`/`valid_hours`). Single conflict in `lib/workflowmgr/utilities.rb`: kept this branch's `DRYRUN` constant + `dryrun_mode?` helper, adopted upstream's simplified `require 'timeout'` (dropped `system_timer` fallback). GitHub PR #125 status flipped from `CONFLICTING` → `MERGEABLE`.
+
+### Rocoto Dryrun Log Semantics (per PR #125 review)
+
+- **Startup banner** (`lib/workflowmgr/workflowengine.rb`): Added one-line `puts "Dryrun Mode: no new jobs would be submitted"` at the top of `WorkflowEngine#run` and `#boot`, gated by `WorkflowMgr.dryrun_mode?`. Fires once per `rocotorun` / `rocotoboot` invocation.
+- **Single-line workflow-log semantics** (`lib/workflowmgr/workflowengine.rb`): Suppressed the leading `@logServer.log(..., "Submitting #{task}")` and `"Forcibly submitting #{task}"` lines under `dryrun_mode?` so the per-job `Dryrun Mode: would submit …` line below is the single source of truth in the workflow log. Eliminates the contradictory `Submitting foo_3 / Dryrun: would submit foo_3` pair Chris flagged. Per-scheduler `WorkflowMgr.stderr("Submitting …", 4)` verbose-debug lines are intentionally retained (level 4, not in the workflow log).
+- **`Dryrun:` → `Dryrun Mode:` rename** at every emit site:
+  - `lib/workflowmgr/workflowengine.rb` (boot job-result + run job-result — 2 strings).
+  - `lib/workflowmgr/workflowreport.rb` (1 string).
+  - `lib/workflowmgr/lsfbatchsystem.rb` (log + stderr — 2 strings).
+  - `lib/workflowmgr/lsfcraybatchsystem.rb` (log + stderr — 2 strings).
+
+### "Validation" Wording Audit
+
+- **No code change required.** `workflowoption.rb` and `reportoption.rb` already describe `-n,--dryrun` as `"Show Workflow Manager commands, but do not execute"` — neutral; no "validate" / "pre-flight" claim. Only `validat*` hits in `lib/` are internal method names (`validate_opts`) and pre-existing XML/cycledef validation comments, none describing dryrun. The "validation" framing lives only in the GitHub PR #125 description body and will be softened there at push time per Chris's caveat that dryrun reports `y = f(x)` for the current state `x`.
+
+### Validation
+
+- `ruby -c` clean on all 5 modified files.
+- Local smoke tests on EC2 (Rocky 9, Ruby 3.2.3 via `module load ruby/3.2.3`, Slurm 23.11.x): `dryrun` PASS, `status` PASS, `threads-{1,4,8,16}` PASS (4/4). `real` / `full` not run — actual `sbatch` calls out of scope for this no-side-effects local close-out.
+- Workflow log post-change shows the desired single-line form:
+  ```
+  2026-04-20 20:22:52 +0000 :: <host> :: Dryrun Mode: would submit dryrun_task for cycle 202001010000
+  ```
+  with no preceding `Submitting …` line.
+
+### Smoke-Harness Bootstrap Note
+
+The upstream `Gemfile` (PR #108) now requires Ruby ≥ 3.2 and a populated `bundle/` directory. One-time bootstrap on this EC2:
+```bash
+module load ruby/3.2.3
+cd supported_repos/rocoto
+bundle config set --local path 'bundle'
+bundle install --standalone --local
+```
+After bootstrap, `./test/run_smoke.sh dryrun` runs in ~1s. Default system Ruby (3.0.7) cannot satisfy the new constraint. Upstream-driven; not addressed in this dryrun PR.
+
+### SDD
+
+- Spec: `sdd_framework/workflows/phase47a_rocoto_dryrun_log_semantics.md`.
+
 ## [7.39.0] - Phase 52: Unit Test Suite Repair & Pre-Commit Gate MCP Tool (April 18, 2026)
 
 Repaired 45 stale unit test failures across 4 test files and added a new `run_unit_tests` MCP tool (tool #49) to enforce a pre-commit quality gate. Codified the practice in both instruction files so the AI agent runs tests before every `git add`/`git commit`.
