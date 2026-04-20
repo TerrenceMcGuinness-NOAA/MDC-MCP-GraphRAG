@@ -259,6 +259,27 @@ class UnifiedMCPServer {
       },
       this.getQualityMetrics.bind(this)
     );
+
+    // Phase 52: Unit test runner tool (vitest)
+    this.server.registerTool(
+      'run_unit_tests',
+      'Run vitest unit tests and return results. REQUIRED before git commit. Runs mocked tests (no DB needed).',
+      {
+        type: 'object',
+        properties: {
+          file: {
+            type: 'string',
+            description: 'Run a specific test file (e.g., "CodeAnalysisTools" or "GraphRAGTools.test.js"). Omit to run all tests.'
+          },
+          verbose: {
+            type: 'boolean',
+            description: 'Include full vitest output instead of summary only',
+            default: false
+          }
+        }
+      },
+      this.runUnitTests.bind(this)
+    );
   }
 
   /**
@@ -1215,6 +1236,84 @@ class UnifiedMCPServer {
       }
     } else if (compare) {
       md += '## Regression\n\nOnly one benchmark result available. Run the benchmark again to enable comparison.\n';
+    }
+
+    return { content: [{ type: 'text', text: md }] };
+  }
+
+  /**
+   * Run vitest unit tests and return structured results.
+   * Spawns `npx vitest run` as a child process — no database connections needed.
+   */
+  async runUnitTests(args = {}) {
+    const { file, verbose = false } = args;
+    const { execSync } = await import('node:child_process');
+
+    const serverRoot = join(__dirname, '..');
+    const testDir = 'src/__tests__';
+    let target = testDir;
+    if (file) {
+      const normalized = file.endsWith('.test.js') ? file : `${file}.test.js`;
+      target = join(testDir, normalized);
+    }
+
+    let md = '# Unit Test Results\n\n';
+    let raw = '';
+    let exitCode = 0;
+
+    try {
+      raw = execSync(`npx vitest run ${target} --reporter=verbose 2>&1`, {
+        cwd: serverRoot,
+        encoding: 'utf-8',
+        timeout: 120_000,
+        env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' }
+      });
+    } catch (err) {
+      // vitest exits non-zero when tests fail — still capture stdout
+      raw = err.stdout || err.stderr || err.message || 'Unknown error';
+      exitCode = err.status || 1;
+    }
+
+    // Parse summary line: " Test Files  7 passed (7)" / " Tests  65 passed (65)"
+    const filesMatch = raw.match(/Test Files\s+(?:(\d+)\s+failed\s+\|\s+)?(\d+)\s+passed\s+\((\d+)\)/);
+    const testsMatch = raw.match(/Tests\s+(?:(\d+)\s+failed\s+\|\s+)?(\d+)\s+passed\s+\((\d+)\)/);
+    const durationMatch = raw.match(/Duration\s+([\d.]+s)/);
+
+    const filesFailed = filesMatch ? parseInt(filesMatch[1] || '0', 10) : 0;
+    const filesPassed = filesMatch ? parseInt(filesMatch[2], 10) : 0;
+    const filesTotal = filesMatch ? parseInt(filesMatch[3], 10) : 0;
+    const testsFailed = testsMatch ? parseInt(testsMatch[1] || '0', 10) : 0;
+    const testsPassed = testsMatch ? parseInt(testsMatch[2], 10) : 0;
+    const testsTotal = testsMatch ? parseInt(testsMatch[3], 10) : 0;
+    const duration = durationMatch ? durationMatch[1] : 'unknown';
+
+    const allPass = testsFailed === 0 && filesFailed === 0 && exitCode === 0;
+
+    md += `**Status**: ${allPass ? '[OK] ALL TESTS PASS' : '[FAIL] TEST FAILURES DETECTED'}\n`;
+    md += `**Target**: \`${target}\`\n`;
+    md += `**Duration**: ${duration}\n\n`;
+
+    md += '| Metric | Passed | Failed | Total |\n';
+    md += '|--------|--------|--------|-------|\n';
+    md += `| Test Files | ${filesPassed} | ${filesFailed} | ${filesTotal} |\n`;
+    md += `| Tests | ${testsPassed} | ${testsFailed} | ${testsTotal} |\n\n`;
+
+    if (!allPass) {
+      // Extract failure details
+      const failBlocks = raw.match(/FAIL\s+.*?(?=\n\n(?:\s*(?:✓|FAIL|Test Files)|\s*$))/gs);
+      if (failBlocks) {
+        md += '## Failures\n\n';
+        for (const block of failBlocks.slice(0, 10)) {
+          md += '```\n' + block.trim() + '\n```\n\n';
+        }
+      }
+      md += '**[WARN] Fix test failures before committing.**\n\n';
+    } else {
+      md += '[OK] Safe to proceed with `git add` and `git commit`.\n\n';
+    }
+
+    if (verbose) {
+      md += '## Full Output\n\n```\n' + raw.slice(-8000) + '\n```\n';
     }
 
     return { content: [{ type: 'text', text: md }] };

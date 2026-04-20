@@ -131,6 +131,14 @@ Each config has exactly one source:
 ### Changelog Practice
 **Always update `CHANGELOG.md`** when modifying tools, infrastructure, or completing SDD phases. Format: semantic versioning with dated headers and commit refs.
 
+### Pre-Commit Gate (REQUIRED)
+Before every `git add` / `git commit`, **run the unit tests** via the MCP tool:
+```
+run_unit_tests()          # all tests
+run_unit_tests({ file: "CodeAnalysisTools" })  # single module
+```
+**Do NOT commit if any tests fail.** Fix failures first, then commit. This is the project's primary regression gate until CI/CD is established.
+
 ### Software Stack
 Dependencies go through the **Spack module system**, not arbitrary `pip install`:
 ```bash

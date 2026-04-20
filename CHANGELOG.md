@@ -1,5 +1,34 @@
 # MCP Server Changelog
 
+## [7.39.0] - Phase 52: Unit Test Suite Repair & Pre-Commit Gate MCP Tool (April 18, 2026)
+
+Repaired 45 stale unit test failures across 4 test files and added a new `run_unit_tests` MCP tool (tool #49) to enforce a pre-commit quality gate. Codified the practice in both instruction files so the AI agent runs tests before every `git add`/`git commit`.
+
+### New Tool
+
+- **`run_unit_tests`** (`mcp_server_node/src/UnifiedMCPServer.js`):
+  Spawns `npx vitest run` via `execSync`, parses the summary line with regex, and returns structured markdown with pass/fail table, failure details (if any), and a commit gate message (`[OK] Safe to proceed` or `[WARN] Fix test failures`). Parameters: `file` (optional — run a single module, e.g. `"CodeAnalysisTools"`), `verbose` (optional — include full vitest output). 120s timeout, `FORCE_COLOR=0` + `NO_COLOR=1` to strip ANSI.
+
+### Test Suite Repair (45 → 0 failures, 65/65 pass)
+
+- **`CodeAnalysisTools.test.js`** — Fixed `graphDb` → `graphDB` casing throughout; updated mocks to use `findFileFunctions`, `findCallers`, `traceCallChain` matching current API; 12 tests.
+- **`WorkflowInfoTools.test.js`** — Removed broken `fs` mocks; tests now validate actual hardcoded structure output from `getWorkflowStructure`; 8 tests.
+- **`SemanticSearchTools.test.js`** — Removed stale EE2/findSimilarCode tests; updated `searchDocumentation` to `hybridQuery` flat-array API, `explainWithContext` to `multiSourceSearch`; 15 tests.
+- **`OperationalTools.test.js`** — Fixed `hybridQuery` to flat array, `multiSourceSearch` for `explainWorkflowComponent`, added `job_list` param for `listJobScripts`; 15 tests.
+
+### Config & Instructions
+
+- **`vitest.config.js`** — Added `src/__tests__/setup.js` to exclude list; restricted include to `*.test.js` patterns only.
+- **`.github/copilot-instructions.md`** — Added "Pre-Commit Gate (REQUIRED)" section mandating `run_unit_tests()` before every commit.
+- **`.github/instructions/eib-mcp-tools.instructions.md`** — Updated Utility module from 4 → 5 tools; added `run_unit_tests` table entry and Pre-Commit Gate workflow section.
+
+### Deployment Note
+
+`src/UnifiedMCPServer.js` is baked into the Docker image. Rebuild required for gateway:
+```bash
+docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node
+```
+
 ## [7.38.0] - SDD Phase 51: Gateway Health, Explain, and Architecture-Search Fixes (April 18, 2026)
 
 Three independent gateway-side defects observed against the EIB MCP Gateway (port 18888, image `eib-mcp-rag:latest`) while underlying Neo4j (2,758 files, 2.65M relationships) and ChromaDB (85,995 docs across 6 collections) were healthy. Fixed in-place on the `develop` branch (Phase 48's `src/health/HealthChecker.js` lives only on `develop_aws` and is not present here, so the equivalent check is added inline to `UnifiedMCPServer.healthCheck()`).

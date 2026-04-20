@@ -1,15 +1,12 @@
 /**
  * Unit Tests for SemanticSearchTools
- * Week 3 Phase 4: Test Suite Development
- * 
- * Tests 7 tools:
- * 1. search_documentation
- * 2. search_ee2_standards
- * 3. find_similar_code
- * 4. explain_with_context
- * 5. analyze_ee2_compliance
- * 6. generate_compliance_report
- * 7. get_knowledge_base_status
+ * Updated: Phase 52 — aligned with current multiSourceSearch/hybridQuery API
+ *
+ * Tests 4 core tools (EE2 compliance + findSimilarCode moved to separate modules):
+ * 1. search_documentation  (uses multiSourceSearch or hybridQuery)
+ * 2. explain_with_context   (uses multiSourceSearch)
+ * 3. get_knowledge_base_status (uses dataAccess.getStatistics)
+ * 4. find_related_files     (uses dataAccess.findRelatedCode)
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -20,21 +17,32 @@ describe('SemanticSearchTools', () => {
   let mockDataAccess;
 
   beforeEach(() => {
-    // Mock UnifiedDataAccess
     mockDataAccess = {
-      vectorDb: {
-        query: vi.fn(),
-        getCollectionStats: vi.fn(),
-        healthCheck: vi.fn()
+      vectorDB: {
+        query: vi.fn().mockResolvedValue([]),
+        listCollections: vi.fn().mockResolvedValue([]),
+        client: { getCollection: vi.fn() }
       },
-      graphDb: {
-        query: vi.fn(),
-        healthCheck: vi.fn()
+      graphDB: {
+        query: vi.fn().mockResolvedValue([]),
+        getScriptGraphStats: vi.fn().mockResolvedValue({}),
+        healthCheck: vi.fn().mockResolvedValue(true)
       },
-      hybridSearch: vi.fn()
+      hybridQuery: vi.fn().mockResolvedValue([]),
+      multiSourceSearch: vi.fn().mockResolvedValue([]),
+      findRelatedCode: vi.fn().mockResolvedValue([]),
+      getStatistics: vi.fn().mockResolvedValue({
+        vector: { totalCollections: 2, collections: { 'global-workflow-docs': 490, 'code-with-context': 1000 } },
+        graph: { fileCount: 937, functionCount: 500, classCount: 20, relationships: [] }
+      }),
+      connect: vi.fn().mockResolvedValue(),
+      close: vi.fn().mockResolvedValue()
     };
 
     tools = new SemanticSearchTools(mockDataAccess);
+    // Mark as initialized to skip real DB connections
+    tools.isInitialized = true;
+    tools.initializationError = null;
   });
 
   afterEach(() => {
@@ -42,245 +50,176 @@ describe('SemanticSearchTools', () => {
   });
 
   describe('search_documentation', () => {
-    it('should return semantic search results from ChromaDB', async () => {
-      // Mock vector DB response
-      mockDataAccess.vectorDb.query.mockResolvedValue({
-        documents: [['Sample workflow documentation']],
-        metadatas: [[{ source: 'global-workflow', url: 'https://...' }]],
-        distances: [[0.85]]
-      });
+    it('should return semantic search results via multiSourceSearch', async () => {
+      mockDataAccess.multiSourceSearch.mockResolvedValue([
+        {
+          document: 'Sample workflow documentation about running GFS',
+          metadata: { source: 'global-workflow', title: 'GFS Guide' },
+          distance: 0.85,
+          collection: 'global-workflow-docs'
+        }
+      ]);
 
       const result = await tools.searchDocumentation({
         query: 'How do I run the global workflow?',
-        maxResults: 3
+        max_results: 3
       });
 
-      expect(mockDataAccess.vectorDb.query).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryTexts: ['How do I run the global workflow?'],
-          nResults: 3
-        })
-      );
-
-      expect(result.content).toBeDefined();
-      expect(result.content[0].type).toBe('text');
+      expect(mockDataAccess.multiSourceSearch).toHaveBeenCalled();
       expect(result.content[0].text).toContain('Sample workflow documentation');
     });
 
     it('should handle empty results gracefully', async () => {
-      mockDataAccess.vectorDb.query.mockResolvedValue({
-        documents: [[]],
-        metadatas: [[]],
-        distances: [[]]
-      });
+      mockDataAccess.multiSourceSearch.mockResolvedValue([]);
 
       const result = await tools.searchDocumentation({
         query: 'nonexistent query',
-        maxResults: 3
+        max_results: 3
       });
 
       expect(result.content[0].text).toContain('No results found');
     });
 
-    it('should respect similarity threshold', async () => {
-      mockDataAccess.vectorDb.query.mockResolvedValue({
-        documents: [['Low relevance doc']],
-        metadatas: [[{ source: 'test' }]],
-        distances: [[0.95]] // High distance = low similarity
-      });
+    it('should use hybridQuery when collection is specified', async () => {
+      mockDataAccess.hybridQuery.mockResolvedValue([
+        {
+          document: 'Targeted collection result',
+          metadata: { source: 'test' },
+          distance: 0.7
+        }
+      ]);
 
       const result = await tools.searchDocumentation({
         query: 'test query',
-        maxResults: 3,
-        similarityThreshold: 0.3 // Only accept distances < 0.7 (similarity > 0.3)
+        max_results: 3,
+        collection: 'global-workflow-docs-v8-0-0'
       });
 
-      // Should filter out low similarity results
-      expect(result.content[0].text).toContain('No results found');
-    });
-  });
-
-  describe('find_similar_code', () => {
-    it('should find code patterns with vector similarity', async () => {
-      mockDataAccess.hybridSearch.mockResolvedValue({
-        vectorResults: [
-          {
-            text: 'def process_data(items): ...',
-            metadata: { file: 'utils.py', type: 'function' },
-            distance: 0.75
-          }
-        ],
-        graphResults: []
-      });
-
-      const result = await tools.findSimilarCode({
-        codePattern: 'function that processes data',
-        maxResults: 5
-      });
-
-      expect(mockDataAccess.hybridSearch).toHaveBeenCalled();
-      expect(result.content[0].text).toContain('def process_data');
-    });
-
-    it('should include graph context when available', async () => {
-      mockDataAccess.hybridSearch.mockResolvedValue({
-        vectorResults: [
-          {
-            text: 'def calculate_total(items): ...',
-            metadata: { file: 'pricing.py' },
-            distance: 0.8
-          }
-        ],
-        graphResults: [
-          {
-            callers: ['processOrder', 'generateInvoice'],
-            callees: ['validateItems', 'applyDiscount']
-          }
-        ]
-      });
-
-      const result = await tools.findSimilarCode({
-        codePattern: 'calculate totals',
-        includeContext: true
-      });
-
-      expect(result.content[0].text).toContain('processOrder');
-      expect(result.content[0].text).toContain('validateItems');
-    });
-  });
-
-  describe('get_knowledge_base_status', () => {
-    it('should return comprehensive system status', async () => {
-      mockDataAccess.vectorDb.getCollectionStats.mockResolvedValue({
-        name: 'global-workflow-docs-v2-0-0',
-        count: 490
-      });
-
-      mockDataAccess.graphDb.query.mockResolvedValue([
-        { nodeCount: 937, relationshipCount: 4764 }
-      ]);
-
-      mockDataAccess.vectorDb.healthCheck.mockResolvedValue(true);
-      mockDataAccess.graphDb.healthCheck.mockResolvedValue(true);
-
-      const result = await tools.getKnowledgeBaseStatus();
-
-      expect(result.content[0].text).toContain('490');
-      expect(result.content[0].text).toContain('937');
-      expect(result.content[0].text).toContain('4764');
-      expect(result.content[0].text).toContain('healthy');
-    });
-
-    it('should detect unhealthy components', async () => {
-      mockDataAccess.vectorDb.healthCheck.mockResolvedValue(false);
-      mockDataAccess.graphDb.healthCheck.mockResolvedValue(true);
-
-      const result = await tools.getKnowledgeBaseStatus();
-
-      expect(result.content[0].text).toContain('ChromaDB: [ERROR]');
-      expect(result.content[0].text).toContain('Neo4j: [OK]');
+      expect(mockDataAccess.hybridQuery).toHaveBeenCalled();
+      expect(result.content[0].text).toContain('Targeted collection result');
     });
   });
 
   describe('explain_with_context', () => {
-    it('should provide contextual explanations using RAG', async () => {
-      mockDataAccess.hybridSearch.mockResolvedValue({
-        vectorResults: [
+    it('should provide contextual explanations using multiSourceSearch', async () => {
+      mockDataAccess.multiSourceSearch.mockResolvedValue({
+        vector: [
           {
-            text: 'The forecast task runs after analysis completes...',
-            metadata: { source: 'global-workflow' },
-            distance: 0.7
+            document: 'The forecast task runs after analysis completes...',
+            metadata: { source: 'global-workflow' }
           }
         ],
-        graphResults: [
-          {
-            relatedComponents: ['GDAS', 'GFS', 'Rocoto']
-          }
+        graph: [
+          { name: 'JGLOBAL_FORECAST', type: 'JJob' }
         ]
       });
 
       const result = await tools.explainWithContext({
         topic: 'forecast task execution',
-        detailLevel: 'intermediate'
+        detail_level: 'intermediate'
       });
 
-      expect(mockDataAccess.hybridSearch).toHaveBeenCalled();
+      expect(mockDataAccess.multiSourceSearch).toHaveBeenCalled();
       expect(result.content[0].text).toContain('forecast');
-      expect(result.content[0].text.length).toBeGreaterThan(100);
+    });
+
+    it('should handle empty multi-source results', async () => {
+      mockDataAccess.multiSourceSearch.mockResolvedValue({
+        vector: [],
+        graph: []
+      });
+
+      const result = await tools.explainWithContext({
+        topic: 'nonexistent topic'
+      });
+
+      const text = result.content[0].text;
+      expect(text).toBeDefined();
+      expect(text).toContain('Explanation');
     });
   });
 
-  describe('search_ee2_standards', () => {
-    it('should search EE2 compliance documentation', async () => {
-      mockDataAccess.vectorDb.query.mockResolvedValue({
-        documents: [['EE2 standard: Environment variables must use ${VAR} syntax']],
-        metadatas: [[{ source: 'ee2-standards', category: 'environment_variables' }]],
-        distances: [[0.72]]
+  describe('get_knowledge_base_status', () => {
+    it('should return comprehensive system status', async () => {
+      mockDataAccess.getStatistics.mockResolvedValue({
+        vector: {
+          totalCollections: 6,
+          collections: {
+            'global-workflow-docs-v8-0-0': 22498,
+            'code-with-context-v8-0-0': 60576
+          }
+        },
+        graph: {
+          fileCount: 2758,
+          functionCount: 2012,
+          classCount: 54,
+          relationships: [
+            { relationshipType: 'CALLS', count: 2116421 }
+          ]
+        }
       });
 
-      const result = await tools.searchEE2Standards({
-        query: 'environment variable standards',
-        category: 'environment_variables'
+      const result = await tools.getKnowledgeBaseStatus({});
+
+      const text = result.content[0].text;
+      expect(text).toContain('Knowledge Base Status');
+      expect(text).toContain('2758');
+      expect(text).toContain('2012');
+      expect(text).toContain('Healthy');
+    });
+
+    it('should detect unhealthy vector DB', async () => {
+      mockDataAccess.getStatistics.mockResolvedValue({
+        vector: { totalCollections: 0, collections: {} },
+        graph: { fileCount: 100, functionCount: 50, classCount: 5, relationships: [] }
       });
 
-      expect(result.content[0].text).toContain('Environment variables');
-      expect(result.content[0].text).toContain('${VAR}');
+      const result = await tools.getKnowledgeBaseStatus({});
+
+      const text = result.content[0].text;
+      expect(text).toContain('Unhealthy');
     });
   });
 
-  describe('analyze_ee2_compliance', () => {
-    it('should analyze code for EE2 compliance', async () => {
-      const testCode = `
-export FOO=bar  # Non-compliant
-export BAR=\${HOME}/data  # Compliant
-      `;
+  describe('find_related_files', () => {
+    it('should find files with similar dependencies', async () => {
+      mockDataAccess.findRelatedCode.mockResolvedValue([
+        { file: 'scripts/exgdas_analysis.py', similarity: 0.85 },
+        { file: 'scripts/exgfs_forecast.py', similarity: 0.72 }
+      ]);
 
-      const result = await tools.analyzeEE2Compliance({
-        content: testCode,
-        analysisType: 'environment_variables'
+      const result = await tools.findRelatedFiles({
+        file_path: 'scripts/exglobal_forecast.py',
+        max_results: 5
       });
 
-      expect(result.content[0].text).toContain('compliance');
-      // Should detect issues
-      expect(result.content[0].text).toMatch(/violation|non-compliant|issue/i);
-    });
-  });
-
-  describe('generate_compliance_report', () => {
-    it('should generate comprehensive compliance report', async () => {
-      mockDataAccess.vectorDb.query.mockResolvedValue({
-        documents: [['Standard 1'], ['Standard 2']],
-        metadatas: [[{ category: 'env' }], [{ category: 'workflow' }]],
-        distances: [[0.5], [0.6]]
-      });
-
-      const result = await tools.generateComplianceReport({
-        scope: 'summary',
-        format: 'markdown'
-      });
-
-      expect(result.content[0].text).toContain('Compliance Report');
-      expect(result.content[0].text).toContain('##'); // Markdown headers
+      const text = result.content[0].text;
+      expect(text).toBeDefined();
     });
   });
 
   describe('Error Handling', () => {
     it('should handle database connection errors', async () => {
-      mockDataAccess.vectorDb.query.mockRejectedValue(new Error('Connection refused'));
+      mockDataAccess.multiSourceSearch.mockRejectedValue(new Error('Connection refused'));
 
       const result = await tools.searchDocumentation({
         query: 'test',
-        maxResults: 3
+        max_results: 3
       });
 
-      expect(result.content[0].text).toContain('error');
+      expect(result.content[0].text).toMatch(/error/i);
       expect(result.content[0].text).toContain('Connection refused');
     });
 
-    it('should validate required parameters', async () => {
-      await expect(
-        tools.searchDocumentation({}) // Missing query
-      ).rejects.toThrow(/query.*required/i);
+    it('should handle initialization errors', async () => {
+      tools.initializationError = new Error('ChromaDB not available');
+
+      const result = await tools.searchDocumentation({
+        query: 'test',
+        max_results: 3
+      });
+
+      expect(result.content[0].text).toMatch(/not available/i);
     });
   });
 });

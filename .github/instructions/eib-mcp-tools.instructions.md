@@ -118,7 +118,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 
 **State persistence**: Active session in `sdd_framework/execution_state/active_session.json` (survives server restarts). All events append to `sdd_framework/execution_state/history.jsonl` for audit trail. Use `get_sdd_session` to resume an in-progress session in a new conversation.
 
-### 9. Utility (4 tools — Built-in)
+### 9. Utility (5 tools — Built-in)
 
 | Tool | Required | Optional | Description |
 |------|----------|----------|-------------|
@@ -126,6 +126,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 | `mcp_health_check` | — | `detailed`, `deep`, `functional` | Check the health status of all MCP server components |
 | `get_health_trend` | — | `limit` | Get health trend data from persisted snapshots with anomaly detection |
 | `get_quality_metrics` | — | `category`, `compare` | Get RAG quality benchmark metrics with optional regression comparison |
+| `run_unit_tests` | — | `file`, `verbose` | Run vitest unit tests (mocked, no DB needed). **REQUIRED before git commit.** |
 
 ## RAG Knowledge Base Tiers
 
@@ -214,6 +215,20 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 - `check_knowledge_integrity()` — knowledge base integrity monitoring (random sampling, git-aware staleness)
 - `get_server_info()` — server version and tool count
 - `get_quality_metrics()` — RAG quality benchmark results and regression detection
+- `run_unit_tests()` — run vitest unit tests; returns pass/fail summary with failure details
+  - `run_unit_tests({ file: "GraphRAGTools" })` — single module
+  - `run_unit_tests({ verbose: true })` — include full vitest output
+
+### Pre-Commit Gate (REQUIRED)
+**Before every `git add` / `git commit`, run `run_unit_tests()`.** Do NOT commit if any tests fail.
+This is the project's primary regression gate until CI/CD is established.
+
+Workflow:
+```
+1. run_unit_tests()                    # verify all tests pass
+2. # Update CHANGELOG.md               # document changes
+3. git add <files> && git commit        # only if step 1 passes
+```
 
 ## Common Workflows
 
