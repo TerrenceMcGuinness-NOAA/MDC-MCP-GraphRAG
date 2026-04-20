@@ -233,28 +233,57 @@ export class OperationalTools {
     const { component, detail_level = 'detailed' } = args;
 
     try {
-      // Search for component in both vector DB and graph DB
-      const results = await this.dataAccess.multiSourceSearch(component, {
-        sources: ['vector', 'graph'],
-        maxResults: 5
+      // Phase 51 fix: multiSourceSearch returns a FLAT array of vector results
+      // (each may carry .graphContext from enrichment), not { vector, graph }.
+      // We also explicitly query the graph for J-job / script / file nodes when
+      // the component name looks operational (e.g., JGLOBAL_FORECAST).
+      const vectorResults = await this.dataAccess.multiSourceSearch(component, {
+        nResults: 5,
+        enrichWithGraph: true
       });
+
+      // Graph arm: match :JJob / :Script / :File nodes by name (and J-pattern
+      // names without extensions). Fail soft if graph is unavailable.
+      const isJJobLike = /^J(GFS|GDAS|GLOBAL|ENKF|[A-Z]+)/i.test(component);
+      let graphResults = [];
+      try {
+        const graphDB = this.dataAccess.graphDb || this.dataAccess.graphDB;
+        if (graphDB && typeof graphDB.query === 'function') {
+          const labelClause = isJJobLike
+            ? '(n:JJob OR n:Script OR n:File OR n:Function OR n:Class)'
+            : '(n:File OR n:Function OR n:Class OR n:Module)';
+          const cypher = `
+            MATCH (n)
+            WHERE ${labelClause}
+              AND (n.name = $name OR n.name CONTAINS $name OR n.path CONTAINS $name)
+            RETURN n.name AS name, labels(n)[0] AS type,
+                   coalesce(n.path, n.absolutePath, '') AS path,
+                   coalesce(n.language, '') AS language
+            LIMIT 10
+          `;
+          graphResults = await graphDB.query(cypher, { name: component }) || [];
+        }
+      } catch {
+        graphResults = [];
+      }
 
       let output = `# Workflow Component: ${component}\n\n`;
       output += `**Detail Level:** ${detail_level}\n\n`;
 
-      // Vector search results (documentation)
-      if (results.vector && results.vector.length > 0) {
+      // Documentation (vector arm)
+      if (vectorResults && vectorResults.length > 0) {
         output += `## Documentation\n\n`;
-        for (const result of results.vector.slice(0, 2)) {
-          output += `${result.document || result.text}\n\n`;
+        for (const result of vectorResults.slice(0, 2)) {
+          const text = result.document || result.text || '';
+          if (text) output += `${text}\n\n`;
         }
       }
 
-      // Graph search results (code structure)
-      if (results.graph && results.graph.length > 0) {
+      // Code Structure (graph arm)
+      if (graphResults.length > 0) {
         output += `## Code Structure\n\n`;
-        for (const item of results.graph) {
-          output += `### ${item.name || item.file}\n`;
+        for (const item of graphResults) {
+          output += `### ${item.name}\n`;
           output += `- **Type:** ${item.type || 'Component'}\n`;
           if (item.path) output += `- **Path:** ${item.path}\n`;
           if (item.language) output += `- **Language:** ${item.language}\n`;
@@ -262,19 +291,33 @@ export class OperationalTools {
         }
       }
 
-      // Try to find related dependencies
-      if (results.graph && results.graph.length > 0) {
-        const firstComponent = results.graph[0];
-        if (firstComponent.file) {
-          const imports = await this.dataAccess.graphDb.findFileImports(firstComponent.file);
-          if (imports && imports.length > 0) {
-            output += `## Dependencies\n\n`;
-            for (const imp of imports.slice(0, 5)) {
-              output += `- ${imp.importedFile}\n`;
+      // Dependencies (from first graph hit with a path)
+      const firstWithPath = graphResults.find(g => g.path);
+      if (firstWithPath) {
+        try {
+          const graphDB = this.dataAccess.graphDb || this.dataAccess.graphDB;
+          if (graphDB && typeof graphDB.findFileImports === 'function') {
+            const imports = await graphDB.findFileImports(firstWithPath.path);
+            if (imports && imports.length > 0) {
+              output += `## Dependencies\n\n`;
+              for (const imp of imports.slice(0, 5)) {
+                output += `- ${imp.importedFile || imp.path || imp.name}\n`;
+              }
+              output += `\n`;
             }
-            output += `\n`;
           }
+        } catch {
+          // Silent — dependencies are best-effort
         }
+      }
+
+      // No-results guard so callers never get just the heading.
+      if ((!vectorResults || vectorResults.length === 0) && graphResults.length === 0) {
+        output += `_No documentation or graph nodes matched **${component}**._\n\n`;
+        output += `Hints:\n`;
+        output += `- For J-jobs, try the exact filename (e.g., \`JGLOBAL_FORECAST\`).\n`;
+        output += `- For source files, include the path fragment (e.g., \`ush/forecast_postdet.sh\`).\n`;
+        output += `- Run \`get_knowledge_base_status\` to confirm collections are populated.\n\n`;
       }
 
       if (detail_level === 'expert') {

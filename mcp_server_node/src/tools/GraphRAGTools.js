@@ -415,22 +415,52 @@ export class GraphRAGTools {
         return { content: [{ type: 'text', text: '[ERROR] VectorDB not available for architecture search' }] };
       }
 
-      // Search community summaries
-      const results = await this.dataAccess.vectorDB.query(
-        COMMUNITY_COLLECTION, query, { nResults: max_results }
+      // Phase 51 fix: over-fetch, then filter by similarity floor and prefer
+      // curated L1/L2 hierarchy (added in Phase 24E) over noisy L0 micro-leaves.
+      const SIMILARITY_FLOOR = 0.2;
+      const MIN_LEVEL = 1;
+      const LEVEL_BOOST = 0.25;
+
+      const raw = await this.dataAccess.vectorDB.query(
+        COMMUNITY_COLLECTION, query, { nResults: Math.max(max_results * 4, 20) }
       );
 
-      if (!results || results.length === 0) {
-        return { content: [{ type: 'text', text: `No architectural context found for: "${query}"` }] };
+      const scored = (raw || []).map(r => {
+        const similarity = r.score != null
+          ? r.score
+          : (r.distance != null ? 1 - r.distance : 0);
+        const levelRaw = r.metadata?.level;
+        const level = typeof levelRaw === 'number'
+          ? levelRaw
+          : (levelRaw != null ? Number(levelRaw) || 0 : 0);
+        return {
+          ...r,
+          similarity,
+          level,
+          rankScore: similarity * (1 + LEVEL_BOOST * level)
+        };
+      });
+
+      const filtered = scored
+        .filter(r => r.level >= MIN_LEVEL && r.similarity >= SIMILARITY_FLOOR)
+        .sort((a, b) => b.rankScore - a.rankScore)
+        .slice(0, max_results);
+
+      if (filtered.length === 0) {
+        return {
+          content: [{
+            type: 'text',
+            text: `No high-confidence architectural matches for "${query}" (similarity floor ${SIMILARITY_FLOOR}, level >= ${MIN_LEVEL}). Try a more specific symbol or filename.`
+          }]
+        };
       }
 
       let response = `# Architecture Search: "${query}"\n\n`;
-      response += `Found ${results.length} relevant subsystems/communities:\n\n`;
+      response += `Found ${filtered.length} relevant subsystems/communities (filtered: similarity >= ${SIMILARITY_FLOOR}, level >= ${MIN_LEVEL}):\n\n`;
 
-      for (let i = 0; i < results.length; i++) {
-        const r = results[i];
-        const score = r.score != null ? r.score : (r.distance != null ? (1 - r.distance).toFixed(3) : 'N/A');
-        response += `## ${i + 1}. ${r.metadata?.communityId != null ? `Community ${r.metadata.communityId}` : 'Community'} (relevance: ${score})\n\n`;
+      for (let i = 0; i < filtered.length; i++) {
+        const r = filtered[i];
+        response += `## ${i + 1}. ${r.metadata?.communityId != null ? `Community ${r.metadata.communityId}` : 'Community'} (similarity: ${r.similarity.toFixed(3)}, level: ${r.level})\n\n`;
         response += `${r.text || r.document || 'No summary available'}\n\n`;
         if (r.metadata?.nodeCount) {
           response += `*${r.metadata.nodeCount} nodes, ${r.metadata.dominantType || 'mixed'} type*\n\n`;

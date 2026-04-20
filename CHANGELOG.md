@@ -1,5 +1,45 @@
 # MCP Server Changelog
 
+## [7.38.0] - SDD Phase 51: Gateway Health, Explain, and Architecture-Search Fixes (April 18, 2026)
+
+Three independent gateway-side defects observed against the EIB MCP Gateway (port 18888, image `eib-mcp-rag:latest`) while underlying Neo4j (2,758 files, 2.65M relationships) and ChromaDB (85,995 docs across 6 collections) were healthy. Fixed in-place on the `develop` branch (Phase 48's `src/health/HealthChecker.js` lives only on `develop_aws` and is not present here, so the equivalent check is added inline to `UnifiedMCPServer.healthCheck()`).
+
+### Fixes
+
+- **Defect 1 — Graph DB always reported degraded** (`mcp_server_node/src/UnifiedMCPServer.js`):
+  `healthCheck()` had no graph-database probe at all; the gateway's overall status was driven entirely by ChromaDB and never reflected Neo4j. Added a Graph Database (Neo4j) check that calls `graphDB.getStatistics()` and computes `nodeCount = fileCount + functionCount + classCount + moduleCount` (the actual schema returned by `GraphDatabase.getStatistics()`), so the report shows real per-label counts and degrades only when the graph is genuinely empty.
+
+- **Defect 2 — `explain_workflow_component` returned only the heading** (`mcp_server_node/src/tools/OperationalTools.js`):
+  The function read `results.vector` / `results.graph` from `multiSourceSearch`, but that helper returns a **flat array of vector results** (each optionally enriched with `.graphContext`). Rewrote `explainWorkflowComponent` to (a) iterate the flat array for the Documentation section, (b) issue a direct Cypher query for `:JJob`/`:Script`/`:File`/`:Function`/`:Class` nodes for the Code Structure section, expanding the label set to `:JJob`/`:Script` when the component name matches `/^J(GFS|GDAS|GLOBAL|ENKF|[A-Z]+)/i` (covers Phase 27B J-job ingestion), and (c) emit explicit hint guidance when both arms are empty so callers never receive just a `# Workflow Component:` heading.
+
+- **Defect 3 — `search_architecture` surfaced negative-similarity L0 micro-leaves** (`mcp_server_node/src/tools/GraphRAGTools.js`):
+  The ranker returned raw cosine without any threshold; queries like `"GFS forecast job"` returned 2-node L0 communities at relevance `-0.379`. `searchArchitecture` now over-fetches (`max_results * 4`), filters by `similarity >= 0.2 && level >= 1`, and reranks by `similarity * (1 + 0.25 * level)` so curated Phase 24E L1/L2 community summaries beat noisy L0 leaves of equal cosine. Returns a clear "no high-confidence matches" message when nothing passes the floor.
+
+### Tests
+
+- Added `mcp_server_node/src/__tests__/GraphRAGTools.test.js` (new) — 3 tests covering similarity floor, level boost ordering (L2 ranked above L1 at equal cosine), and L0 rejection.
+- Extended `mcp_server_node/src/__tests__/OperationalTools.test.js` with a new describe block — 3 tests for the J-job lookup contract (flat-array consumption, `:JJob`/`:Script` cypher labels, hint-guidance fallback).
+- All 6 new tests pass under `vitest@4.1.4`. Pre-existing `OperationalTools.test.js` failures (8) are unrelated stale tests against an old `hybridQuery({vectorResults, graphContext})` API and an older `list_job_scripts` output format — outside the scope of Phase 51.
+
+### Deployment Note
+
+Per `.github/copilot-instructions.md`, the `eib-mcp-rag:latest` Docker image is a snapshot. To activate these fixes in the gateway:
+
+```bash
+docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node
+pkill -f "docker-mcp gateway"
+docker stop $(docker ps -q  --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
+docker rm   $(docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
+MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025" docker mcp gateway run \
+  --catalog eib-local.yaml --servers eib-mcp-rag \
+  --transport streaming --port 18888 --long-lived &
+```
+
+### SDD
+
+- Spec: `sdd_framework/workflows/phase51_gateway_health_explain_search_fixes.md`.
+- Session: `session_2026-04-18_qcufpt` (7 steps, ISD).
+
 ## [7.37.0] - Rocoto Dryrun PR #124: Post-Reconciliation Hardening & Smoke Tests (April 3, 2026)
 
 ### Rocoto Dryrun Hardening (`supported_repos/rocoto/`)

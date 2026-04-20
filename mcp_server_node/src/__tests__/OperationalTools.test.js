@@ -236,7 +236,60 @@ describe('OperationalTools', () => {
         component: 'NONEXISTENT_COMPONENT'
       });
 
-      expect(result.content[0].text).toMatch(/not found|no information|missing/i);
+      expect(result.content[0].text).toMatch(/not found|no information|missing|no documentation/i);
+    });
+  });
+
+  describe('explainWorkflowComponent (Phase 51 — J-job + flat-array contract)', () => {
+    beforeEach(() => {
+      // Phase 51 contract: multiSourceSearch returns a FLAT array of vector
+      // results; graph hits come from a direct graphDb.query call.
+      mockDataAccess.multiSourceSearch = vi.fn();
+      mockDataAccess.graphDb.findFileImports = vi.fn().mockResolvedValue([]);
+    });
+
+    it('should populate Documentation + Code Structure for a J-job lookup', async () => {
+      mockDataAccess.multiSourceSearch.mockResolvedValue([
+        { document: 'JGLOBAL_FORECAST runs the GFS forecast model.', metadata: { source: 'jjobs' } }
+      ]);
+      mockDataAccess.graphDb.query.mockResolvedValue([
+        { name: 'JGLOBAL_FORECAST', type: 'JJob', path: 'jobs/JGLOBAL_FORECAST', language: 'shell' }
+      ]);
+
+      const result = await tools.explainWorkflowComponent({ component: 'JGLOBAL_FORECAST' });
+      const text = result.content[0].text;
+
+      expect(mockDataAccess.multiSourceSearch).toHaveBeenCalledWith(
+        'JGLOBAL_FORECAST',
+        expect.objectContaining({ enrichWithGraph: true })
+      );
+      expect(text).toContain('## Documentation');
+      expect(text).toContain('runs the GFS forecast model');
+      expect(text).toContain('## Code Structure');
+      expect(text).toContain('JGLOBAL_FORECAST');
+      expect(text).toContain('jobs/JGLOBAL_FORECAST');
+    });
+
+    it('should include :JJob / :Script labels in graph cypher when name is J-job-like', async () => {
+      mockDataAccess.multiSourceSearch.mockResolvedValue([]);
+      mockDataAccess.graphDb.query.mockResolvedValue([]);
+
+      await tools.explainWorkflowComponent({ component: 'JGDAS_ENKF_SELECT_OBS' });
+
+      const cypherArg = mockDataAccess.graphDb.query.mock.calls[0][0];
+      expect(cypherArg).toMatch(/n:JJob/);
+      expect(cypherArg).toMatch(/n:Script/);
+    });
+
+    it('should emit hint guidance instead of just the heading when both arms are empty', async () => {
+      mockDataAccess.multiSourceSearch.mockResolvedValue([]);
+      mockDataAccess.graphDb.query.mockResolvedValue([]);
+
+      const result = await tools.explainWorkflowComponent({ component: 'JTOTALLY_FAKE' });
+      const text = result.content[0].text;
+
+      expect(text).toMatch(/No documentation or graph nodes matched/);
+      expect(text).toMatch(/JGLOBAL_FORECAST/);
     });
   });
 });

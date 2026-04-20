@@ -448,6 +448,43 @@ class UnifiedMCPServer {
       });
     }
 
+    // Graph database check (Phase 51 fix: sum file/function/class/module counts;
+    // GraphDatabase.getStatistics() does NOT return a `nodes` field).
+    const graphDB = this.semanticSearchTools?.dataAccess?.graphDB
+      || this.codeAnalysisTools?.dataAccess?.graphDB
+      || this.operationalTools?.dataAccess?.graphDB;
+    if (graphDB) {
+      try {
+        const stats = await graphDB.getStatistics();
+        const nodeCount =
+          (stats?.nodes ?? 0) ||
+          ((stats?.fileCount ?? 0) +
+           (stats?.functionCount ?? 0) +
+           (stats?.classCount ?? 0) +
+           (stats?.moduleCount ?? 0));
+        const ok = nodeCount > 0;
+        checks.push({
+          component: 'Graph Database (Neo4j)',
+          status: ok ? 'healthy' : 'degraded',
+          details: ok
+            ? `${nodeCount} nodes (files: ${stats.fileCount ?? 0}, functions: ${stats.functionCount ?? 0}, classes: ${stats.classCount ?? 0}, modules: ${stats.moduleCount ?? 0})`
+            : 'Graph database has 0 nodes — run code-structure ingestion'
+        });
+      } catch (error) {
+        checks.push({
+          component: 'Graph Database (Neo4j)',
+          status: 'unhealthy',
+          details: `Error: ${error.message}`
+        });
+      }
+    } else {
+      checks.push({
+        component: 'Graph Database (Neo4j)',
+        status: 'disabled',
+        details: 'No data-access layer with graphDB available'
+      });
+    }
+
     // Operational tools check
     if (this.options.enableRAG && this.operationalTools) {
       try {
