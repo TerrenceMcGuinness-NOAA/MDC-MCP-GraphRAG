@@ -73,18 +73,9 @@
     - Compare rankings with mpnet768 hybrid results
     - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-- [ ]* 8. SageMaker container build and test (optional)
-  - [ ]* 8.1 Build Docker image from Dockerfile.sagemaker
-    - `docker build -f scripts/Dockerfile.sagemaker -t mdc-mcp-rag-ingestion:latest .`
-    - _Requirements: 9.1_
-  - [ ]* 8.2 Push to ECR
-    - _Requirements: 9.2_
-  - [ ]* 8.3 Dry-run cost estimate
-    - `python3 scripts/sagemaker_launcher.py ingest_ee2_v7.py --model titan1024 --backend aws --dry-run`
-    - _Requirements: 9.3_
-  - [ ]* 8.4 Submit test job (if SAGEMAKER_ROLE_ARN is set)
-    - Use ee2-standards (34 docs) as smallest collection
-    - _Requirements: 9.4, 9.5_
+- [x] 8. SageMaker container build and test (optional) — **DEFERRED**
+  - Deferred to future SageMaker exploration phase. All code exists (Dockerfile.sagemaker, sagemaker_launcher.py); requires admin IAM role creation (SAGEMAKER_ROLE_ARN).
+  - _Requirements: 9.1–9.5 — deferred, not blocked_
 
 - [x] 9. Documentation and wrap-up
   - [x] 9.1 Update CHANGELOG.md with Bedrock re-ingestion results

@@ -40,7 +40,7 @@ def generate():
     for tier_name in get_tier_names():
         tier_sources = DOCUMENTATION_SOURCES.get(tier_name, [])
         for s in tier_sources:
-            sources.append({
+            entry = {
                 'name': s['name'],
                 'url': s['url'],
                 'type': s.get('type', 'readthedocs'),
@@ -49,7 +49,10 @@ def generate():
                 'description': s.get('description', ''),
                 'max_pages': s.get('max_pages', 100),
                 'enabled': s.get('enabled', True),
-            })
+            }
+            if s.get('local_path'):
+                entry['local_path'] = s['local_path']
+            sources.append(entry)
 
     config = {
         'version': VERSION,

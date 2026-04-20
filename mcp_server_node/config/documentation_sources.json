@@ -1,5 +1,5 @@
 {
-  "version": "8.0.0",
+  "version": "8.1.0",
   "description": "Documentation sources for MCP RAG ingestion. AUTO-GENERATED from scripts/documentation_sources_config.py \u2014 DO NOT EDIT.",
   "generated_by": "scripts/generate-documentation-sources-json.py",
   "total_sources": 42,
@@ -33,7 +33,8 @@
       "priority": 1,
       "description": "UFS utilities - chgres_cube, grid generation, preprocessing",
       "max_pages": 100,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/ufs_utils.fd"
     },
     {
       "name": "esmf-user-guide",
@@ -103,7 +104,8 @@
       "priority": 2,
       "description": "UFS Weather Model - atmospheric model documentation",
       "max_pages": 150,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/ufs_model.fd"
     },
     {
       "name": "jedi-docs",
@@ -113,7 +115,8 @@
       "priority": 3,
       "description": "JEDI - Joint Effort for Data Assimilation Integration",
       "max_pages": 150,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/gdas.cd"
     },
     {
       "name": "fv3-dynamical-core",
@@ -133,7 +136,8 @@
       "priority": 2,
       "description": "CMEPS Community Mediator - inter-model data exchange",
       "max_pages": 50,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/ufs_model.fd/CMEPS"
     },
     {
       "name": "mom6",
@@ -143,7 +147,8 @@
       "priority": 2,
       "description": "MOM6 Ocean Model - modular ocean model v6",
       "max_pages": 200,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/ufs_model.fd/MOM6"
     },
     {
       "name": "cice",
@@ -153,7 +158,8 @@
       "priority": 2,
       "description": "CICE Sea Ice Model - Los Alamos sea ice model",
       "max_pages": 150,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/ufs_model.fd/CICE"
     },
     {
       "name": "ww3-wiki",
@@ -163,7 +169,8 @@
       "priority": 3,
       "description": "WAVEWATCH III - wave model wiki",
       "max_pages": 50,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/ufs_model.fd/WW3"
     },
     {
       "name": "fv3-docs",
@@ -183,7 +190,8 @@
       "priority": 4,
       "description": "GEOS-Chem / GOCART - aerosol transport model",
       "max_pages": 100,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/ufs_model.fd/GOCART"
     },
     {
       "name": "pyioda",
@@ -193,7 +201,8 @@
       "priority": 4,
       "description": "JEDI IODA - observation data access for DA (pyioda/ioda-converters)",
       "max_pages": 50,
-      "enabled": true
+      "enabled": true,
+      "local_path": "sorc/gdas.cd"
     },
     {
       "name": "fms",

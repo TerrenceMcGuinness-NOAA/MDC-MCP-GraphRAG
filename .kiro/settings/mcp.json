@@ -2,7 +2,7 @@
   "mcpServers": {
     "eib-mcp-gateway": {
       "type": "http",
-      "url": "https://kkjj1shd-18888.use.devtunnels.ms/mcp",
+      "url": "https://xpjldqf6-18888.use.devtunnels.ms/mcp",
       "headers": {
         "Authorization": "Bearer eib-mcp-gateway-token-2025"
       },
