@@ -162,3 +162,33 @@
   - Verify existing test suite passes (if applicable)
   - Ensure all Neptune-incompatible directed VLP patterns have been eliminated from NeptuneAdapter
   - Ask the user if questions arise
+
+- [ ] 5. Decompose `traceCrossLanguageChain` multi-stage query for Neptune parity
+  - **Context**: Phase 8.4 fixed the directed VLP syntax and HTTP GGSR injection, but `traceCrossLanguageChain()` still returns empty results for complex multi-stage queries on Neptune. The `trace_full_execution_chain` tool shows 13% data completeness vs legacy (1 node vs full tree). The root cause is the combination of multi-rel VLP (`SOURCES|INVOKES`) + zero-start range (`*0..3`) + `UNWIND` + subsequent `OPTIONAL MATCH` chains producing empty results on Neptune despite each piece working individually.
+  - **Evidence**: `find_callers_callees("JGLOBAL_FORECAST")` returns 11 callees via `traceScriptChain` (working), but `trace_full_execution_chain("JGLOBAL_FORECAST")` returns only the start node (broken). The data IS in Neptune — the query pattern is the issue.
+  - **Comparison baseline**: Legacy returns 1,676 chars with full tree: `JGLOBAL_FORECAST → exglobal_forecast.sh → gfs_model (EXECUTES) → forecast_postdet.sh → check_land_input_orography (INVOKES) → ...`
+  - [ ] 5.1 Decompose forward direction into 2-3 sequential queries
+    - **Query 1 — Shell chain**: Find start node + immediate shell children via SOURCES/INVOKES (1-3 hops). Use separate single-hop matches instead of `[:SOURCES|INVOKES*0..3]`:
+      - Hop 0: start node itself
+      - Hop 1: `MATCH (start)-[:SOURCES]->(s1)` UNION `MATCH (start)-[:INVOKES]->(s2)`
+      - Hop 2-3: chain from hop 1 results
+    - **Query 2 — Fortran bridge**: From shell children, find `(pivot)-[:EXECUTES]->(prog:FortranProgram)` then `(prog)-[:CALLS*1..N]->(sub)` for the Fortran call chain
+    - **Query 3 — Python bridge**: From shell children, find `(pivot)-[:INVOKES]->(pyMod:PythonModule)` then `(pyMod)-[:DEFINES]->(pyFunc:PythonFunction)`
+    - Assemble results in JavaScript into the same `{ chain, bridges, stats }` output format
+    - _Requirements: 2.1, 2.2_
+  - [ ] 5.2 Decompose reverse direction into sequential queries
+    - **Query 1**: Find target node, trace `<-[:CALLS*0..N]-` back to FortranProgram
+    - **Query 2**: Find `(prog)<-[:EXECUTES]-(script)` bridge
+    - **Query 3**: Find `(jjob)-[:SOURCES|INVOKES*1..3]->(script)` triggering J-Jobs (decomposed per-hop)
+    - Assemble into same output format
+    - _Requirements: 2.1, 2.2_
+  - [ ] 5.3 Verify `trace_full_execution_chain("JGLOBAL_FORECAST")` returns full tree
+    - Expected: `JGLOBAL_FORECAST → exglobal_forecast.sh → gfs_model (EXECUTES) → forecast_postdet.sh → check_land_input_orography (INVOKES) → ...`
+    - Target: ≥80% data completeness ratio vs legacy (currently 13%)
+    - Run `compare-backends.js` to measure improvement
+    - _Requirements: 2.1, 2.2_
+  - [ ] 5.4 Verify `find_callers_callees` module dependencies gap
+    - Legacy shows 31 Fortran module dependencies for `setuprad`; AWS shows fewer
+    - Check if `findFortranModuleUses` LIMIT or DISTINCT is truncating results
+    - Target: ≥90% data completeness ratio vs legacy (currently 69%)
+    - _Requirements: 2.1_
