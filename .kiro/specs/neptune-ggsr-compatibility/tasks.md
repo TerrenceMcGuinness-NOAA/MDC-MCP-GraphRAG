@@ -185,10 +185,12 @@
   - [ ] 5.3 Verify `trace_full_execution_chain("JGLOBAL_FORECAST")` returns full tree
     - Expected: `JGLOBAL_FORECAST → exglobal_forecast.sh → gfs_model (EXECUTES) → forecast_postdet.sh → check_land_input_orography (INVOKES) → ...`
     - Target: ≥80% data completeness ratio vs legacy (currently 13%)
+    - **Parity oracle**: Call `eib-mcp-gateway.trace_full_execution_chain` (legacy Neo4j) and `mdc-mcp-rag-aws.trace_full_execution_chain` (Neptune) with identical args, compare output char count and node names
     - Run `compare-backends.js` to measure improvement
     - _Requirements: 2.1, 2.2_
   - [ ] 5.4 Verify `find_callers_callees` module dependencies gap
     - Legacy shows 31 Fortran module dependencies for `setuprad`; AWS shows fewer
     - Check if `findFortranModuleUses` LIMIT or DISTINCT is truncating results
+    - **Parity oracle**: Call `eib-mcp-gateway.find_callers_callees("setuprad")` and `mdc-mcp-rag-aws.find_callers_callees("setuprad")`, compare module dependency counts and callee lists
     - Target: ≥90% data completeness ratio vs legacy (currently 69%)
     - _Requirements: 2.1_

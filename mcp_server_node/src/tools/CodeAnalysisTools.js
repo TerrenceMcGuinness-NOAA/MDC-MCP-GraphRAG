@@ -537,6 +537,18 @@ export class CodeAnalysisTools {
           graphType = 'python';
         }
       }
+
+      // Check if result is from Fortran graph (may have both Function and Fortran labels)
+      if (functions && functions.length > 0 && graphType === 'function' && !file_path) {
+        const fortranCheck = await this.dataAccess.graphDB.query(
+          `MATCH (f) WHERE (f:FortranSubroutine OR f:FortranFunction OR f:FortranModule OR f:FortranProgram)
+           AND f.name = $name RETURN f LIMIT 1`,
+          { name: function_name }
+        );
+        if (fortranCheck && fortranCheck.length > 0) {
+          graphType = 'fortran';
+        }
+      }
       
       // If no function found, try Fortran (Phase 10 M5)
       if (!functions || functions.length === 0) {
@@ -806,6 +818,16 @@ export class CodeAnalysisTools {
         );
         if (pyCheck && pyCheck.length > 0) {
           graphType = 'python';
+        } else {
+          // Check if it's a Fortran entity (may share generic CALLS edges)
+          const fortranCheck = await this.dataAccess.graphDB.query(
+            `MATCH (f) WHERE (f:FortranSubroutine OR f:FortranFunction OR f:FortranModule OR f:FortranProgram)
+             AND f.name = $name RETURN f LIMIT 1`,
+            { name: function_name }
+          );
+          if (fortranCheck && fortranCheck.length > 0) {
+            graphType = 'fortran';
+          }
         }
       }
       

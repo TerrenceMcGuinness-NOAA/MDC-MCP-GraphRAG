@@ -1,5 +1,23 @@
 # MCP Server Changelog
 
+## [8.5.1] - Phase 48B Task 5: Neptune traceCrossLanguageChain Decomposition (April 21, 2026)
+
+### Neptune Parity Fixes
+- Decomposed `traceCrossLanguageChain()` forward direction from monolithic query into 4 sequential queries (find start → shell children per-hop → Fortran bridge → Python bridge)
+- Decomposed reverse direction into 4 sequential queries (find target → Fortran CALLS trace → EXECUTES bridge → J-Job triggers)
+- Fixed `findFortranModuleUses()` — changed exact name match to case-insensitive CONTAINS, added `ORDER BY moduleName`, `LIMIT 50`, and `userName` to RETURN to match legacy
+- Added automatic `labels(x)[0]` → `head(labels(x))` transform in `NeptuneAdapter.query()` for Neptune compatibility with inline tool queries
+- Fixed Fortran type detection in `CodeAnalysisTools.findCallersCallees()` — now checks Fortran labels even when generic CALLS edges exist
+
+### Parity Results
+- `trace_full_execution_chain("JGLOBAL_FORECAST")`: 93.4% data completeness (target ≥80%)
+- `find_callers_callees("setuprad")`: 91.6% data completeness (target ≥90%)
+- Module dependencies: 31/31 matching legacy exactly
+
+### Files Modified
+- `mcp_server_node/src/data/adapters/NeptuneAdapter.js`
+- `mcp_server_node/src/tools/CodeAnalysisTools.js`
+
 ## [8.5.0] - Phase 52: Bedrock Titan1024 Re-Ingestion (April 15, 2026)
 
 ### Re-Ingestion Results

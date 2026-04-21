@@ -137,7 +137,8 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   async query(cypher, params = {}) {
     if (!this.connected) await this.connect();
 
-    const transformed = transformApoc(cypher);
+    const transformed = transformApoc(cypher)
+      .replace(/labels\((\w+)\)\[0\]/g, 'head(labels($1))');
 
     // Attempt query, reconnect on SigV4 expiry
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -467,8 +468,11 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
 
   async findFortranModuleUses(name) {
     const results = await this.query(
-      `MATCH (f {name: $name})-[:USES]->(m:FortranModule)
-       RETURN m.name AS moduleName, m.filepath AS moduleFile`,
+      `MATCH (user)-[:USES]->(mod:FortranModule)
+       WHERE toLower(user.name) CONTAINS toLower($name)
+       RETURN user.name AS userName, mod.name AS moduleName, mod.filepath AS moduleFile
+       ORDER BY moduleName
+       LIMIT 50`,
       { name }
     );
     return results;
@@ -489,95 +493,156 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
     const results = { chain: [], bridges: [], stats: { languages: new Set(), totalNodes: 0, bridgeCrossings: 0 } };
 
     if (direction === 'forward' || direction === 'both') {
-      const fwd = await this.query(
+      // Query 1: Find start node
+      const starts = await this.query(
         `MATCH (start)
          WHERE (start:ShellScript OR start:File OR start:FortranProgram OR start:PythonFunction OR start:PythonModule)
          AND (toLower(start.name) CONTAINS toLower($name) OR toLower(start.path) CONTAINS toLower($name))
-         WITH start, head(labels(start)) AS startLabel
-         OPTIONAL MATCH shellPath = (start)-[:SOURCES|INVOKES*0..3]->(exScript:ShellScript)
-         WITH start, startLabel, collect(DISTINCT exScript) AS shellHops
-         UNWIND (CASE WHEN size(shellHops) > 0 THEN shellHops ELSE [start] END) AS pivot
-         OPTIONAL MATCH (pivot)-[execRel:EXECUTES]->(prog:FortranProgram)
-         OPTIONAL MATCH fortranPath = (prog)-[:CALLS*1..${depthInt}]->(sub)
-         WHERE sub:FortranSubroutine OR sub:FortranFunction
-         OPTIONAL MATCH (pivot)-[invRel:INVOKES]->(pyMod:PythonModule)
-         OPTIONAL MATCH (pyMod)-[:DEFINES]->(pyFunc:PythonFunction)
-         RETURN DISTINCT
-           start.name AS source, startLabel,
-           pivot.name AS bridgeScript, head(labels(pivot)) AS pivotLabel,
-           prog.name AS fortranProgram,
-           collect(DISTINCT sub.name) AS fortranChain,
-           pyMod.name AS pythonModule, pyFunc.name AS pythonFunction,
-           CASE WHEN execRel IS NOT NULL THEN true ELSE false END AS hasFortranBridge,
-           CASE WHEN invRel IS NOT NULL THEN true ELSE false END AS hasPythonBridge
-         LIMIT 200`,
+         RETURN start.name AS name, head(labels(start)) AS label LIMIT 10`,
         { name }
       );
-      for (const row of fwd) {
-        if (row.source) {
-          results.chain.push({ name: row.source, label: row.startLabel, language: this._labelToLanguage(row.startLabel), direction: 'forward', hop: 0 });
-          results.stats.languages.add(this._labelToLanguage(row.startLabel));
+      if (starts.length === 0) { /* no start node — skip forward */ }
+      else {
+        for (const s of starts) {
+          results.chain.push({ name: s.name, label: s.label, language: this._labelToLanguage(s.label), direction: 'forward', hop: 0 });
+          results.stats.languages.add(this._labelToLanguage(s.label));
         }
-        if (row.bridgeScript && row.bridgeScript !== row.source) {
-          results.chain.push({ name: row.bridgeScript, label: row.pivotLabel, language: 'shell', direction: 'forward', hop: 1, relType: 'SOURCES/INVOKES' });
-          results.stats.languages.add('shell');
-        }
-        if (row.hasFortranBridge && row.fortranProgram) {
-          results.bridges.push({ from: row.bridgeScript || row.source, to: row.fortranProgram, type: 'EXECUTES', fromLang: 'shell', toLang: 'fortran' });
-          results.chain.push({ name: row.fortranProgram, label: 'FortranProgram', language: 'fortran', direction: 'forward', hop: 2, relType: 'EXECUTES' });
-          results.stats.bridgeCrossings++;
-          results.stats.languages.add('fortran');
-          for (const sub of (row.fortranChain || [])) {
-            results.chain.push({ name: sub, label: 'FortranSubroutine', language: 'fortran', direction: 'forward', hop: 3, relType: 'CALLS' });
+        const startNames = starts.map(s => s.name);
+
+        // Query 2: Shell children via SOURCES/INVOKES (per-hop, up to 3)
+        const pivotNames = new Set(startNames);
+        const pivotLabels = {};
+        for (const s of starts) pivotLabels[s.name] = s.label;
+
+        for (let hop = 1; hop <= 3; hop++) {
+          const parents = [...pivotNames];
+          const children = await this.query(
+            `MATCH (p)-[r]->(c:ShellScript)
+             WHERE p.name IN $parents AND type(r) IN ['SOURCES', 'INVOKES']
+             RETURN DISTINCT c.name AS name, head(labels(c)) AS label LIMIT 100`,
+            { parents }
+          );
+          if (children.length === 0) break;
+          for (const c of children) {
+            if (!pivotNames.has(c.name)) {
+              pivotNames.add(c.name);
+              pivotLabels[c.name] = c.label;
+              results.chain.push({ name: c.name, label: c.label, language: 'shell', direction: 'forward', hop, relType: 'SOURCES/INVOKES' });
+              results.stats.languages.add('shell');
+            }
           }
         }
-        if (row.hasPythonBridge && row.pythonModule) {
-          results.bridges.push({ from: row.bridgeScript || row.source, to: row.pythonModule, type: 'INVOKES', fromLang: 'shell', toLang: 'python' });
-          results.chain.push({ name: row.pythonModule, label: 'PythonModule', language: 'python', direction: 'forward', hop: 2, relType: 'INVOKES' });
+
+        // If no shell children found, use start nodes as pivots
+        const allPivots = [...pivotNames];
+
+        // Query 3: Fortran bridge — EXECUTES → FortranProgram → CALLS chain
+        const fortranBridges = await this.query(
+          `MATCH (pivot)-[:EXECUTES]->(prog:FortranProgram)
+           WHERE pivot.name IN $pivots
+           RETURN pivot.name AS pivotName, prog.name AS progName LIMIT 100`,
+          { pivots: allPivots }
+        );
+        for (const fb of fortranBridges) {
+          results.bridges.push({ from: fb.pivotName, to: fb.progName, type: 'EXECUTES', fromLang: 'shell', toLang: 'fortran' });
+          results.chain.push({ name: fb.progName, label: 'FortranProgram', language: 'fortran', direction: 'forward', hop: 2, relType: 'EXECUTES' });
+          results.stats.bridgeCrossings++;
+          results.stats.languages.add('fortran');
+
+          // Fortran call chain from this program
+          const subs = await this.query(
+            `MATCH (prog:FortranProgram {name: $progName})-[:CALLS*1..${depthInt}]->(sub)
+             WHERE sub:FortranSubroutine OR sub:FortranFunction
+             RETURN DISTINCT sub.name AS name LIMIT 200`,
+            { progName: fb.progName }
+          );
+          for (const sub of subs) {
+            results.chain.push({ name: sub.name, label: 'FortranSubroutine', language: 'fortran', direction: 'forward', hop: 3, relType: 'CALLS' });
+          }
+        }
+
+        // Query 4: Python bridge — INVOKES → PythonModule → DEFINES → PythonFunction
+        const pythonBridges = await this.query(
+          `MATCH (pivot)-[:INVOKES]->(pyMod:PythonModule)
+           WHERE pivot.name IN $pivots
+           OPTIONAL MATCH (pyMod)-[:DEFINES]->(pyFunc:PythonFunction)
+           RETURN pivot.name AS pivotName, pyMod.name AS modName,
+                  collect(DISTINCT pyFunc.name) AS funcs LIMIT 100`,
+          { pivots: allPivots }
+        );
+        for (const pb of pythonBridges) {
+          if (!pb.modName) continue;
+          results.bridges.push({ from: pb.pivotName, to: pb.modName, type: 'INVOKES', fromLang: 'shell', toLang: 'python' });
+          results.chain.push({ name: pb.modName, label: 'PythonModule', language: 'python', direction: 'forward', hop: 2, relType: 'INVOKES' });
           results.stats.bridgeCrossings++;
           results.stats.languages.add('python');
-          if (row.pythonFunction) {
-            results.chain.push({ name: row.pythonFunction, label: 'PythonFunction', language: 'python', direction: 'forward', hop: 3, relType: 'DEFINES' });
+          for (const fn of (pb.funcs || [])) {
+            if (fn) results.chain.push({ name: fn, label: 'PythonFunction', language: 'python', direction: 'forward', hop: 3, relType: 'DEFINES' });
           }
         }
       }
     }
 
     if (direction === 'reverse' || direction === 'both') {
-      const rev = await this.query(
+      // Query 1: Find target node
+      const targets = await this.query(
         `MATCH (target)
          WHERE (target:FortranProgram OR target:FortranSubroutine OR target:FortranFunction
                 OR target:PythonModule OR target:PythonFunction OR target:ShellScript)
-         AND (toLower(target.name) CONTAINS toLower($name))
-         WITH target, head(labels(target)) AS targetLabel
-         OPTIONAL MATCH (target)<-[:CALLS*0..${depthInt}]-(prog:FortranProgram)
-         OPTIONAL MATCH (prog)<-[:EXECUTES]-(script)
-         WHERE script:ShellScript OR script:File
-         OPTIONAL MATCH callerPath = (jjob:ShellScript)-[:SOURCES|INVOKES*1..3]->(script)
-         WHERE jjob.type = 'j-job'
-         RETURN DISTINCT
-           target.name AS targetName, targetLabel,
-           prog.name AS fortranProgram,
-           script.name AS executorScript, head(labels(script)) AS scriptLabel,
-           collect(DISTINCT jjob.name) AS triggeringJJobs
-         LIMIT 200`,
+         AND toLower(target.name) CONTAINS toLower($name)
+         RETURN target.name AS name, head(labels(target)) AS label LIMIT 10`,
         { name }
       );
-      for (const row of rev) {
-        if (row.targetName) {
-          results.chain.push({ name: row.targetName, label: row.targetLabel, language: this._labelToLanguage(row.targetLabel), direction: 'reverse', hop: 0 });
+      for (const t of targets) {
+        results.chain.push({ name: t.name, label: t.label, language: this._labelToLanguage(t.label), direction: 'reverse', hop: 0 });
+      }
+
+      // Query 2: Trace back through Fortran CALLS to FortranProgram
+      const targetNames = targets.map(t => t.name);
+      const fortranProgs = await this.query(
+        `MATCH (target)<-[:CALLS*0..${depthInt}]-(prog:FortranProgram)
+         WHERE target.name IN $targets
+         RETURN DISTINCT target.name AS targetName, prog.name AS progName LIMIT 100`,
+        { targets: targetNames }
+      );
+      const progNames = new Set();
+      for (const fp of fortranProgs) {
+        if (fp.progName && fp.progName !== fp.targetName) {
+          results.chain.push({ name: fp.progName, label: 'FortranProgram', language: 'fortran', direction: 'reverse', hop: 1, relType: 'CALLS' });
         }
-        if (row.fortranProgram && row.fortranProgram !== row.targetName) {
-          results.chain.push({ name: row.fortranProgram, label: 'FortranProgram', language: 'fortran', direction: 'reverse', hop: 1, relType: 'CALLS' });
-        }
-        if (row.executorScript) {
-          results.bridges.push({ from: row.executorScript, to: row.fortranProgram || row.targetName, type: 'EXECUTES', fromLang: 'shell', toLang: 'fortran' });
-          results.chain.push({ name: row.executorScript, label: row.scriptLabel, language: 'shell', direction: 'reverse', hop: 2, relType: 'EXECUTES' });
+        progNames.add(fp.progName);
+      }
+
+      // Query 3: Find executor scripts via EXECUTES
+      if (progNames.size > 0) {
+        const executors = await this.query(
+          `MATCH (prog)<-[:EXECUTES]-(script)
+           WHERE prog.name IN $progs AND (script:ShellScript OR script:File)
+           RETURN DISTINCT prog.name AS progName, script.name AS scriptName,
+                  head(labels(script)) AS scriptLabel LIMIT 100`,
+          { progs: [...progNames] }
+        );
+        const scriptNames = [];
+        for (const ex of executors) {
+          results.bridges.push({ from: ex.scriptName, to: ex.progName, type: 'EXECUTES', fromLang: 'shell', toLang: 'fortran' });
+          results.chain.push({ name: ex.scriptName, label: ex.scriptLabel, language: 'shell', direction: 'reverse', hop: 2, relType: 'EXECUTES' });
           results.stats.bridgeCrossings++;
           results.stats.languages.add('shell');
+          scriptNames.push(ex.scriptName);
         }
-        for (const jjob of (row.triggeringJJobs || [])) {
-          results.chain.push({ name: jjob, label: 'ShellScript', language: 'shell', direction: 'reverse', hop: 3, relType: 'SOURCES/INVOKES' });
+
+        // Query 4: Find triggering J-Jobs via SOURCES/INVOKES (per-hop)
+        if (scriptNames.length > 0) {
+          const jjobs = await this.query(
+            `MATCH (jjob:ShellScript)-[r]->(script)
+             WHERE script.name IN $scripts AND jjob.type = 'j-job'
+             AND type(r) IN ['SOURCES', 'INVOKES']
+             RETURN DISTINCT jjob.name AS name LIMIT 100`,
+            { scripts: scriptNames }
+          );
+          for (const jj of jjobs) {
+            results.chain.push({ name: jj.name, label: 'ShellScript', language: 'shell', direction: 'reverse', hop: 3, relType: 'SOURCES/INVOKES' });
+          }
         }
       }
     }
