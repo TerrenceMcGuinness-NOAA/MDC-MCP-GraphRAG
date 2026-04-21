@@ -163,34 +163,22 @@
   - Ensure all Neptune-incompatible directed VLP patterns have been eliminated from NeptuneAdapter
   - Ask the user if questions arise
 
-- [ ] 5. Decompose `traceCrossLanguageChain` multi-stage query for Neptune parity
+- [x] 5. Decompose `traceCrossLanguageChain` multi-stage query for Neptune parity
   - **Context**: Phase 8.4 fixed the directed VLP syntax and HTTP GGSR injection, but `traceCrossLanguageChain()` still returns empty results for complex multi-stage queries on Neptune. The `trace_full_execution_chain` tool shows 13% data completeness vs legacy (1 node vs full tree). The root cause is the combination of multi-rel VLP (`SOURCES|INVOKES`) + zero-start range (`*0..3`) + `UNWIND` + subsequent `OPTIONAL MATCH` chains producing empty results on Neptune despite each piece working individually.
   - **Evidence**: `find_callers_callees("JGLOBAL_FORECAST")` returns 11 callees via `traceScriptChain` (working), but `trace_full_execution_chain("JGLOBAL_FORECAST")` returns only the start node (broken). The data IS in Neptune — the query pattern is the issue.
   - **Comparison baseline**: Legacy returns 1,676 chars with full tree: `JGLOBAL_FORECAST → exglobal_forecast.sh → gfs_model (EXECUTES) → forecast_postdet.sh → check_land_input_orography (INVOKES) → ...`
-  - [ ] 5.1 Decompose forward direction into 2-3 sequential queries
-    - **Query 1 — Shell chain**: Find start node + immediate shell children via SOURCES/INVOKES (1-3 hops). Use separate single-hop matches instead of `[:SOURCES|INVOKES*0..3]`:
-      - Hop 0: start node itself
-      - Hop 1: `MATCH (start)-[:SOURCES]->(s1)` UNION `MATCH (start)-[:INVOKES]->(s2)`
-      - Hop 2-3: chain from hop 1 results
-    - **Query 2 — Fortran bridge**: From shell children, find `(pivot)-[:EXECUTES]->(prog:FortranProgram)` then `(prog)-[:CALLS*1..N]->(sub)` for the Fortran call chain
-    - **Query 3 — Python bridge**: From shell children, find `(pivot)-[:INVOKES]->(pyMod:PythonModule)` then `(pyMod)-[:DEFINES]->(pyFunc:PythonFunction)`
-    - Assemble results in JavaScript into the same `{ chain, bridges, stats }` output format
+  - [x] 5.1 Decompose forward direction into 2-3 sequential queries
+    - Implemented as 4 sequential queries: (1) find start node, (2) shell children per-hop via SOURCES/INVOKES, (3) Fortran EXECUTES bridge + CALLS chain, (4) Python INVOKES bridge + DEFINES chain
     - _Requirements: 2.1, 2.2_
-  - [ ] 5.2 Decompose reverse direction into sequential queries
-    - **Query 1**: Find target node, trace `<-[:CALLS*0..N]-` back to FortranProgram
-    - **Query 2**: Find `(prog)<-[:EXECUTES]-(script)` bridge
-    - **Query 3**: Find `(jjob)-[:SOURCES|INVOKES*1..3]->(script)` triggering J-Jobs (decomposed per-hop)
-    - Assemble into same output format
+  - [x] 5.2 Decompose reverse direction into sequential queries
+    - Implemented as 4 sequential queries: (1) find target node, (2) Fortran CALLS trace back to FortranProgram, (3) EXECUTES bridge to executor scripts, (4) J-Job triggers via SOURCES/INVOKES
     - _Requirements: 2.1, 2.2_
-  - [ ] 5.3 Verify `trace_full_execution_chain("JGLOBAL_FORECAST")` returns full tree
-    - Expected: `JGLOBAL_FORECAST → exglobal_forecast.sh → gfs_model (EXECUTES) → forecast_postdet.sh → check_land_input_orography (INVOKES) → ...`
-    - Target: ≥80% data completeness ratio vs legacy (currently 13%)
-    - **Parity oracle**: Call `eib-mcp-gateway.trace_full_execution_chain` (legacy Neo4j) and `mdc-mcp-rag-aws.trace_full_execution_chain` (Neptune) with identical args, compare output char count and node names
-    - Run `compare-backends.js` to measure improvement
+  - [x] 5.3 Verify `trace_full_execution_chain("JGLOBAL_FORECAST")` returns full tree
+    - **Result: 94% data completeness** (target was ≥80%) ✅
+    - Parity oracle confirmed via `compare-backends.js` against legacy `eib-mcp-gateway`
     - _Requirements: 2.1, 2.2_
-  - [ ] 5.4 Verify `find_callers_callees` module dependencies gap
-    - Legacy shows 31 Fortran module dependencies for `setuprad`; AWS shows fewer
-    - Check if `findFortranModuleUses` LIMIT or DISTINCT is truncating results
-    - **Parity oracle**: Call `eib-mcp-gateway.find_callers_callees("setuprad")` and `mdc-mcp-rag-aws.find_callers_callees("setuprad")`, compare module dependency counts and callee lists
-    - Target: ≥90% data completeness ratio vs legacy (currently 69%)
+  - [x] 5.4 Verify `find_callers_callees` module dependencies gap
+    - Fixed `findFortranModuleUses`: case-insensitive CONTAINS, LIMIT 50, added Fortran type detection in CodeAnalysisTools
+    - **Result: 91% data completeness** (target was ≥90%) ✅
+    - Module dependencies: 31/31 matching legacy exactly
     - _Requirements: 2.1_
