@@ -18,34 +18,7 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
   - [x] 2.4 Health check — DONE (9/9 HEALTHY on AWS MCP, verified live April 13)
 
 - [x] 3. Checkpoint — connection validation passes
-  - _All connections verified, 45/45 tools pass_
-    - Verify `backend-selector.js` instantiates `OpenSearchAdapter` and `NeptuneAdapter` without import errors when `DB_BACKEND=aws`
-    - Verify `NeptuneAdapter` resolves `apoc-transform.js` and `HealthChecker.js` imports
-    - Verify `OpenSearchAdapter` resolves `@opensearch-project/opensearch` and `@aws-sdk/credential-provider-node`
-    - Log any import failures to stderr with module path and error message
-    - _Requirements: 1.1–1.5_
-
-  - [ ] 2.2 Add Neptune connection validation logic
-    - Verify endpoint `wss://...` is converted to `bolt+s://` and connection succeeds
-    - Verify `MATCH (n) RETURN count(n) AS nodeCount LIMIT 1` returns nodeCount > 0
-    - Verify retry behavior (up to 4 attempts with exponential backoff)
-    - _Requirements: 2.1–2.4_
-
-  - [ ] 2.3 Add OpenSearch connection validation logic
-    - Verify SigV4 client creation with EC2 IAM role credentials
-    - Verify `Xenova/all-mpnet-base-v2` embedding model loads as singleton
-    - Verify `listCollections()` returns at least 5 indices: `mdc-code-context`, `mdc-workflow-docs`, `mdc-jjobs`, `mdc-community-summaries`, `mdc-ee2-standards`
-    - _Requirements: 3.1–3.4_
-
-  - [ ] 2.4 Add health check validation assertions
-    - Verify `mcp_health_check` returns `status: healthy` for vector and graph
-    - Verify OpenSearch cluster status is `green` or `yellow` with index count ≥ 5
-    - Verify Neptune node count > 50,000
-    - Verify `get_knowledge_base_status` returns ~85,921 vector docs and ~59,759 graph nodes
-    - _Requirements: 4.1–4.4_
-
-- [ ] 3. Checkpoint — Ensure connection validation passes
-  - Ensure all connection and health check tests pass, ask the user if questions arise.
+  - _All connections verified, 45/45 tools pass. Sub-tasks completed as part of tasks 1-2._
 
 - [ ] 4. Implement APOC transform property tests
   - [ ] 4.1 Create vitest test file — DEFERRED (tools work without APOC transforms on Neptune)
@@ -118,34 +91,11 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
   - Parity confirmed on 4/5 key queries via live side-by-side testing
   - Report at docs/aws-mcp-validation-report.md
 
-- [ ] 11. Fix Kiro MCP stdio connection for mdc-mcp-rag-aws
-  - **FOCUSED DEBUGGING TASK** — The AWS MCP server works perfectly via CLI (45/45 tools pass) but crashes ~48ms after Kiro spawns it via stdio transport.
-  - **Findings from investigation (April 9-13, 2026):**
-    - The server loads modules, prints `[OK] EE2ComplianceTools: Loaded Phase 2 config` to stderr, then the process exits before the MCP handshake completes
-    - Manual MCP handshake via piped stdin works perfectly: `initialize` → `initialized` → `tools/list` returns all 51 tools
-    - The server stays alive indefinitely when run manually (`node src/UnifiedMCPServer.js full`)
-    - No uncaught exceptions or unhandled rejections detected with `--trace-uncaught`
-    - stdout is clean (0 bytes) — no protocol corruption from console output
-    - `quiet-console.js` correctly redirects all console.log to log file
-    - The EE2 config line uses `console.error` (stderr), not stdout
-    - Friday's "successful connection" was a false positive — Kiro attributed the IAM Policy Autopilot's startup message to our server
-    - The server has NEVER successfully completed a Kiro stdio connection
-  - **Attempted fixes that did NOT resolve the issue:**
-    - Transport-first startup: moved `this.server.start()` before `dataAccess.connect()` — still crashes
-    - setTimeout(2000) deferred connect: wrapped background connect in 2s delay — still crashes (process exits before timeout fires)
-    - Absolute path in mcp.json: `/mdc-mcp-rag-server/mcp_server_node/src/UnifiedMCPServer.js` — fixed MODULE_NOT_FOUND but didn't fix the handshake crash
-    - Removed IAM Policy Autopilot to eliminate resource contention — no effect
-  - **Hypotheses to investigate:**
-    - [ ] 11.1 **SSH double-hop latency (MOST LIKELY)** — Kiro IDE connects via SSH through a jump box (laptop → SSH → jump box → SSH → EC2). The MCP stdio transport sends every byte through this double-hop tunnel. The handshake requires multiple rapid request/response exchanges — if any round-trip exceeds the SDK's internal timeout (~50ms?), the connection drops. This explains why: (a) manual stdin piping works (local to EC2), (b) CLI validation works (local to EC2), (c) the 48ms crash gap matches SSH RTT, (d) the IAM autopilot connects (tiny handshake). **Fix: use HTTP transport instead of stdio** — HTTP is designed for latency and works over the same SSH tunnel that the legacy eib-mcp-gateway uses successfully.
-    - [ ] 11.2 Check if the MCP SDK v1.26.0 StdioServerTransport has a known issue with Node.js v18.20.8 — try downgrading to SDK v1.24.3 or upgrading Node.js
-    - [ ] 11.3 Check if the `quiet-console.js` top-level await import is interfering with the stdio transport setup
-    - [ ] 11.4 Add a minimal MCP wrapper script that imports ONLY BaseServer with zero tools, test if that connects — isolate whether the issue is in tool registration or transport latency
-    - [ ] 11.5 **Implement HTTP/SSE transport (recommended workaround)** — run the server with `express` or the MCP SDK's `StreamableHTTPServerTransport` on a local port (e.g., 3000), forward via SSH tunnel (`-L 3000:localhost:3000`), configure Kiro with `"type": "http", "url": "http://localhost:3000/mcp"`. This matches how the legacy eib-mcp-gateway works and avoids the stdio latency problem entirely.
-    - [ ] 11.6 Capture the exact bytes Kiro sends on stdin during the handshake — add a tee/logging layer
-    - [ ] 11.7 Check if Kiro's stdio spawner sets a connection timeout shorter than the SSH RTT
-  - **Config**: `.kiro/settings/mcp.json` — currently `"disabled": true` to prevent crash loops
-  - **Acceptance**: `mdc-mcp-rag-aws` shows `Connected (51 tools)` in Kiro MCP panel and stays connected for >60 seconds
-  - **RESOLVED**: Stateless HTTP transport via mcp-http-server.js works. Root cause was SSH double-hop latency killing stdio handshake. Production fix: deploy via AgentCore Runtime (Phase 51b).
+- [x] 11. Fix Kiro MCP stdio connection for mdc-mcp-rag-aws — **RESOLVED**
+  - Root cause: SSH double-hop latency killing stdio handshake (48ms crash gap matches SSH RTT)
+  - Fix: Stateless HTTP transport via `mcp-http-server.js` on port 3000 — works reliably
+  - Production path: Deploy via AgentCore Runtime (task 12)
+  - Config: `.kiro/settings/mcp.json` uses `"type": "http", "url": "http://localhost:3000/mcp"`
 
 - [ ] 12. Deploy MCP server via AWS Bedrock AgentCore Runtime
   - **PRIORITY**: Replace mcp-http-server.js development bridge with managed AWS deployment
