@@ -9,7 +9,7 @@ cd "$SCRIPT_DIR"
 export DB_BACKEND=aws
 export AWS_REGION=us-east-1
 export OPENSEARCH_ENDPOINT=https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com
-export NEPTUNE_ENDPOINT=wss://mdc-mcp-rag-neptune.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182
+export NEPTUNE_ENDPOINT=wss://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182
 
 # Kill any existing instance
 if lsof -i :3000 -t &>/dev/null; then
