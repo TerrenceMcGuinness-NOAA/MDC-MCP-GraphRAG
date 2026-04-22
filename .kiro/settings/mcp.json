@@ -63,8 +63,8 @@
     },
     "mdc-mcp-rag-aws": {
       "type": "http",
-      "url": "http://localhost:3000/mcp",
-      "disabled": false,
+      "url": "https://{api-id}-{vpce-id}.execute-api.us-east-1.amazonaws.com/prod/mcp",
+      "disabled": true,
       "autoApprove": [
         "get_workflow_structure",
         "get_system_configs",

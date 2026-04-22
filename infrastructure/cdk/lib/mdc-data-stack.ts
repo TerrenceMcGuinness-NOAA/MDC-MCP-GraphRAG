@@ -1,11 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as neptune from 'aws-cdk-lib/aws-neptune';
 import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as kms from 'aws-cdk-lib/aws-kms';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
 interface MdcDataStackProps extends cdk.StackProps {
@@ -14,111 +11,29 @@ interface MdcDataStackProps extends cdk.StackProps {
 }
 
 export class MdcDataStack extends cdk.Stack {
+  public readonly neptuneEndpoint: string;
+  public readonly openSearchDomain: opensearch.IDomain;
+
   constructor(scope: Construct, id: string, props: MdcDataStackProps) {
     super(scope, id, props);
 
     const { vpc, ecsSecurityGroup } = props;
-    const privateSubnets = vpc.selectSubnets({ subnetGroupName: 'Private' });
 
-    // --- KMS key for encryption at rest ---
-    const encryptionKey = new kms.Key(this, 'MdcEncryptionKey', {
-      alias: 'mdc-mcp-rag-key',
-      enableKeyRotation: true,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
+    // --- Neptune (import existing cluster — admin-created) ---
+    // Cluster: mdc-mcp-rag-neptune (59,759 nodes, 2,633,374 rels)
+    // Bulk loader role already exists (mdc-mcp-rag-neptune-s3-loader)
+    this.neptuneEndpoint = 'mdc-mcp-rag-neptune.cluster-czm8iyqe6brc.us-east-1.neptune.amazonaws.com';
 
-    // --- Neptune security group ---
-    const neptuneSg = new ec2.SecurityGroup(this, 'NeptuneSg', {
-      vpc,
-      securityGroupName: 'mdc-mcp-rag-neptune-sg',
-      description: 'Neptune cluster - allow ECS on 8182',
-      allowAllOutbound: false,
-    });
-    neptuneSg.addIngressRule(ecsSecurityGroup, ec2.Port.tcp(8182), 'ECS to Neptune');
-
-    // --- Neptune cluster (openCypher, IAM auth) ---
-    const neptuneSubnetGroup = new neptune.CfnDBSubnetGroup(this, 'NeptuneSubnetGroup', {
-      dbSubnetGroupDescription: 'MDC MCP RAG Neptune subnet group',
-      subnetIds: privateSubnets.subnetIds,
-      dbSubnetGroupName: 'mdc-mcp-rag-neptune-subnets',
-    });
-
-    const neptuneCluster = new neptune.CfnDBCluster(this, 'NeptuneCluster', {
-      dbClusterIdentifier: 'mdc-mcp-rag-neptune',
-      engineVersion: '1.3.2.1',
-      dbSubnetGroupName: neptuneSubnetGroup.ref,
-      vpcSecurityGroupIds: [neptuneSg.securityGroupId],
-      iamAuthEnabled: true,
-      storageEncrypted: true,
-      kmsKeyId: encryptionKey.keyArn,
-      deletionProtection: false,  // dev phase — enable for production
-    });
-
-    new neptune.CfnDBInstance(this, 'NeptuneInstance', {
-      dbInstanceClass: 'db.r6g.large',
-      dbClusterIdentifier: neptuneCluster.ref,
-      dbInstanceIdentifier: 'mdc-mcp-rag-neptune-instance',
-    });
-
-    // --- Neptune bulk loader IAM role (S3 read access for /loader API) ---
-    const neptuneBulkLoaderRole = new iam.Role(this, 'NeptuneBulkLoaderRole', {
-      roleName: 'mdc-mcp-rag-neptune-s3-loader',
-      assumedBy: new iam.ServicePrincipal('rds.amazonaws.com'),
-      description: 'Allows Neptune bulk loader to read from S3 migration bucket',
-    });
-    neptuneBulkLoaderRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject', 's3:ListBucket'],
-      resources: [
-        `arn:aws:s3:::mdc-mcp-rag-migration`,
-        `arn:aws:s3:::mdc-mcp-rag-migration/*`,
-      ],
-    }));
-
-    neptuneCluster.addPropertyOverride('AssociatedRoles', [{
-      RoleArn: neptuneBulkLoaderRole.roleArn,
-    }]);
-
-    // --- OpenSearch security group ---
-    const opensearchSg = new ec2.SecurityGroup(this, 'OpenSearchSg', {
-      vpc,
-      securityGroupName: 'mdc-mcp-rag-opensearch-sg',
-      description: 'OpenSearch domain - allow ECS on 443',
-      allowAllOutbound: false,
-    });
-    opensearchSg.addIngressRule(ecsSecurityGroup, ec2.Port.tcp(443), 'ECS to OpenSearch');
-
-    // Select only 2 subnets for OpenSearch zone awareness (requires exactly 2)
-    const twoSubnets = vpc.selectSubnets({
-      subnetGroupName: 'Private',
-      availabilityZones: ['us-east-1a', 'us-east-1b'],
-    });
-
-    // --- OpenSearch domain (k-NN, 768-dim) ---
-    new opensearch.Domain(this, 'OpenSearchDomain', {
-      domainName: 'mdc-mcp-rag-search',
-      version: opensearch.EngineVersion.OPENSEARCH_2_11,
-      capacity: {
-        dataNodes: 2,
-        dataNodeInstanceType: 'r6g.large.search',
-        multiAzWithStandbyEnabled: false,
-      },
-      ebs: { volumeSize: 100, volumeType: ec2.EbsDeviceVolumeType.GP3 },
-      encryptionAtRest: { enabled: true, kmsKey: encryptionKey },
-      nodeToNodeEncryption: true,
-      enforceHttps: true,
-      vpc,
-      vpcSubnets: [{ availabilityZones: ['us-east-1a', 'us-east-1b'], subnetGroupName: 'Private' }],
-      securityGroups: [opensearchSg],
-      zoneAwareness: { enabled: true, availabilityZoneCount: 2 },
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
+    // --- OpenSearch (import existing domain) ---
+    this.openSearchDomain = opensearch.Domain.fromDomainEndpoint(this, 'OpenSearchDomain',
+      'https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com'
+    );
 
     // --- EFS filesystem (/mdc-mcp-rag persistent mount) ---
     const fileSystem = new efs.FileSystem(this, 'MdcEfs', {
       vpc,
       fileSystemName: 'mdc-mcp-rag-efs',
       encrypted: true,
-      kmsKey: encryptionKey,
       lifecyclePolicy: efs.LifecyclePolicy.AFTER_30_DAYS,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
@@ -127,21 +42,16 @@ export class MdcDataStack extends cdk.Stack {
     // --- S3 migration staging bucket ---
     new s3.Bucket(this, 'MigrationBucket', {
       bucketName: 'mdc-mcp-rag-migration',
-      encryption: s3.BucketEncryption.KMS,
-      encryptionKey,
+      encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       versioned: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // Outputs (no secret values)
+    // Outputs
     new cdk.CfnOutput(this, 'NeptuneClusterEndpoint', {
-      value: neptuneCluster.attrEndpoint,
-      description: 'Neptune cluster endpoint',
-    });
-    new cdk.CfnOutput(this, 'NeptuneBulkLoaderRoleArn', {
-      value: neptuneBulkLoaderRole.roleArn,
-      description: 'IAM role ARN for Neptune bulk loader S3 access',
+      value: this.neptuneEndpoint,
+      description: 'Neptune cluster endpoint (imported)',
     });
     new cdk.CfnOutput(this, 'EfsFileSystemId', {
       value: fileSystem.fileSystemId,

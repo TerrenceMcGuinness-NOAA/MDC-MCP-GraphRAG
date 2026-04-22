@@ -18,9 +18,8 @@ const dataStack     = new MdcDataStack(app, 'MdcDataStack', {
 });
 const serverStack   = new MdcServerStack(app, 'MdcServerStack', {
   env,
-  vpc:      vpcStack.vpc,
-  userPool: securityStack.userPool,
-  webAcl:   securityStack.webAcl,
+  vpc:    vpcStack.vpc,
+  webAcl: securityStack.webAcl,
 });
 
 securityStack.addDependency(vpcStack);

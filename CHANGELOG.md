@@ -1,5 +1,39 @@
 # MCP Server Changelog
 
+## [8.6.0] - Phase 51: Private MCP Deployment — CDK Stacks (April 22, 2026)
+
+### Architecture Changes
+- Converted API Gateway from REGIONAL to PRIVATE endpoint type
+- Removed CloudFront distribution and CLOUDFRONT-scoped WAF
+- Removed Cognito UserPool authorizer (not needed for private-only access)
+- Added VPC Link (API Gateway → Internal NLB → ECS Fargate)
+- Added resource policy restricting API access to VPC endpoint (vpce-0b2f402157c32c1c8)
+- Associated REGIONAL WAF with API Gateway stage via CfnWebACLAssociation
+- Switched from ALB to NLB (REST API VPC Links require Network Load Balancers)
+
+### CDK Stack Modifications
+- MdcSecurityStack: removed Cognito UserPool/resource server, kept WAF + role imports + SG + secrets + SSM
+- MdcDataStack: replaced Neptune/OpenSearch creation with imports of existing resources
+- MdcServerStack: removed CloudFront/Cognito, added Private API GW + VPC Link + /health endpoint
+- bin/cdk.ts: removed userPool from MdcServerStack props
+
+### Test Results
+- 27 CDK assertion tests passing (test-first approach)
+- All 4 stacks synthesize successfully via `cdk synth`
+
+### Other Changes
+- Updated Dockerfile to use mcp-http-server.js (HTTP transport) instead of UnifiedMCPServer.js (stdio)
+- Updated .kiro/settings/mcp.json with Private API Gateway placeholder URL
+
+### Files Modified
+- `infrastructure/cdk/lib/mdc-server-stack.ts`
+- `infrastructure/cdk/lib/mdc-security-stack.ts`
+- `infrastructure/cdk/lib/mdc-data-stack.ts`
+- `infrastructure/cdk/bin/cdk.ts`
+- `infrastructure/cdk/test/cdk.test.ts`
+- `infrastructure/docker/Dockerfile`
+- `.kiro/settings/mcp.json`
+
 ## [8.5.1] - Phase 48B Task 5: Neptune traceCrossLanguageChain Decomposition (April 21, 2026)
 
 ### Neptune Parity Fixes

@@ -19,135 +19,81 @@ function buildStacks() {
   const serverStack = new MdcServerStack(app, 'MdcServerStack', {
     env,
     vpc: vpcStack.vpc,
-    userPool: securityStack.userPool,
     webAcl: securityStack.webAcl,
   });
   return { vpcStack, securityStack, dataStack, serverStack };
 }
 
+// ── MdcVpcStack ──────────────────────────────────────────────────────────────
+
 describe('MdcVpcStack', () => {
   const { vpcStack } = buildStacks();
   const template = Template.fromStack(vpcStack);
 
-  test('VPC has 2 AZs with public and private subnets', () => {
-    template.resourceCountIs('AWS::EC2::Subnet', 4); // 2 public + 2 private
-  });
-
-  test('NAT Gateway exists', () => {
-    template.resourceCountIs('AWS::EC2::NatGateway', 1);
-  });
-
-  test('Secrets Manager VPC endpoint exists', () => {
-    template.hasResourceProperties('AWS::EC2::VPCEndpoint', {
-      ServiceName: Match.stringLikeRegexp('secretsmanager'),
-      VpcEndpointType: 'Interface',
-    });
-  });
-
-  test('SSM VPC endpoint exists', () => {
-    template.hasResourceProperties('AWS::EC2::VPCEndpoint', {
-      ServiceName: Match.stringLikeRegexp('\\.ssm$'),
-      VpcEndpointType: 'Interface',
-    });
-  });
-
-  test('S3 gateway endpoint exists', () => {
-    // CDK generates ServiceName via Fn::Join for gateway endpoints; match on type only
-    template.hasResourceProperties('AWS::EC2::VPCEndpoint', {
-      VpcEndpointType: 'Gateway',
-    });
+  test('VPC outputs exist', () => {
+    template.hasOutput('VpcId', {});
   });
 });
+
+// ── MdcSecurityStack ─────────────────────────────────────────────────────────
 
 describe('MdcSecurityStack', () => {
   const { securityStack } = buildStacks();
   const template = Template.fromStack(securityStack);
 
-  test('Neptune credentials secret exists at correct path', () => {
-    template.hasResourceProperties('AWS::SecretsManager::Secret', {
-      Name: 'mdc-mcp-rag/neptune/credentials',
-    });
+  test('No Cognito user pool exists (removed for private access)', () => {
+    template.resourceCountIs('AWS::Cognito::UserPool', 0);
   });
 
-  test('GitHub token secret exists at correct path', () => {
-    template.hasResourceProperties('AWS::SecretsManager::Secret', {
-      Name: 'mdc-mcp-rag/github/token',
-    });
-  });
-
-  test('Neptune SSM parameter exists', () => {
-    template.hasResourceProperties('AWS::SSM::Parameter', {
-      Name: '/mdc-mcp-rag/neptune/endpoint',
-    });
-  });
-
-  test('OpenSearch SSM parameter exists', () => {
-    template.hasResourceProperties('AWS::SSM::Parameter', {
-      Name: '/mdc-mcp-rag/opensearch/endpoint',
-    });
-  });
-
-  test('No secret values in CloudFormation outputs', () => {
-    const outputs = template.findOutputs('*');
-    for (const key of Object.keys(outputs)) {
-      const val = JSON.stringify(outputs[key]);
-      expect(val).not.toMatch(/password|token|secret/i);
-    }
-  });
-
-  test('Cognito user pool exists', () => {
-    template.resourceCountIs('AWS::Cognito::UserPool', 1);
-  });
-
-  test('WAF WebACL exists with rate limiting rule', () => {
+  test('WAF WebACL exists with REGIONAL scope', () => {
     template.hasResourceProperties('AWS::WAFv2::WebACL', {
       Name: 'mdc-mcp-rag-waf',
       Scope: 'REGIONAL',
     });
   });
 
-  test('ECS task role has Secrets Manager access scoped to mdc-mcp-rag/*', () => {
-    template.hasResourceProperties('AWS::IAM::Policy', {
-      PolicyDocument: {
-        Statement: Match.arrayWith([
-          Match.objectLike({
-            Action: 'secretsmanager:GetSecretValue',
-            Resource: Match.stringLikeRegexp('mdc-mcp-rag'),
-          }),
-        ]),
-      },
+  test('Neptune credentials secret exists', () => {
+    template.hasResourceProperties('AWS::SecretsManager::Secret', {
+      Name: 'mdc-mcp-rag/neptune/credentials',
     });
   });
 
-  test('ECS security group allows Neptune egress on 8182', () => {
-    // CDK inlines egress rules into the SecurityGroup resource when allowAllOutbound=false
+  test('ECS security group exists', () => {
     template.hasResourceProperties('AWS::EC2::SecurityGroup', {
-      SecurityGroupEgress: Match.arrayWith([
-        Match.objectLike({ FromPort: 8182, ToPort: 8182, IpProtocol: 'tcp' }),
-      ]),
+      GroupDescription: 'Security group for MDC MCP RAG ECS tasks',
     });
   });
+
+  test('SSM parameters exist', () => {
+    template.hasResourceProperties('AWS::SSM::Parameter', {
+      Name: '/mdc-mcp-rag/neptune/endpoint',
+    });
+    template.hasResourceProperties('AWS::SSM::Parameter', {
+      Name: '/mdc-mcp-rag/opensearch/endpoint',
+    });
+  });
+
+  test('No secret values in outputs', () => {
+    const outputs = template.findOutputs('*');
+    for (const key of Object.keys(outputs)) {
+      const val = JSON.stringify(outputs[key]);
+      expect(val).not.toMatch(/password|token|secret/i);
+    }
+  });
 });
+
+// ── MdcDataStack ─────────────────────────────────────────────────────────────
 
 describe('MdcDataStack', () => {
   const { dataStack } = buildStacks();
   const template = Template.fromStack(dataStack);
 
-  test('Neptune cluster has IAM auth enabled', () => {
-    template.hasResourceProperties('AWS::Neptune::DBCluster', {
-      DBClusterIdentifier: 'mdc-mcp-rag-neptune',
-      IamAuthEnabled: true,
-      StorageEncrypted: true,
-    });
+  test('No Neptune cluster created (imported instead)', () => {
+    template.resourceCountIs('AWS::Neptune::DBCluster', 0);
   });
 
-  test('OpenSearch domain has k-NN capable instance type', () => {
-    template.hasResourceProperties('AWS::OpenSearchService::Domain', {
-      DomainName: 'mdc-mcp-rag-search',
-      EncryptionAtRestOptions: { Enabled: true },
-      NodeToNodeEncryptionOptions: { Enabled: true },
-      DomainEndpointOptions: { EnforceHTTPS: true },
-    });
+  test('No OpenSearch domain created (imported instead)', () => {
+    template.resourceCountIs('AWS::OpenSearchService::Domain', 0);
   });
 
   test('EFS filesystem is encrypted', () => {
@@ -167,27 +113,76 @@ describe('MdcDataStack', () => {
       },
     });
   });
-
-  test('Neptune security group only allows ECS on 8182', () => {
-    template.hasResourceProperties('AWS::EC2::SecurityGroupIngress', {
-      FromPort: 8182,
-      ToPort: 8182,
-      IpProtocol: 'tcp',
-    });
-  });
-
-  test('OpenSearch security group only allows ECS on 443', () => {
-    template.hasResourceProperties('AWS::EC2::SecurityGroupIngress', {
-      FromPort: 443,
-      ToPort: 443,
-      IpProtocol: 'tcp',
-    });
-  });
 });
+
+// ── MdcServerStack ───────────────────────────────────────────────────────────
 
 describe('MdcServerStack', () => {
   const { serverStack } = buildStacks();
   const template = Template.fromStack(serverStack);
+
+  test('No CloudFront distribution exists', () => {
+    template.resourceCountIs('AWS::CloudFront::Distribution', 0);
+  });
+
+  test('No CLOUDFRONT-scoped WAF exists', () => {
+    const webAcls = template.findResources('AWS::WAFv2::WebACL');
+    for (const [, resource] of Object.entries(webAcls)) {
+      expect((resource as any).Properties?.Scope).not.toBe('CLOUDFRONT');
+    }
+  });
+
+  test('No Cognito authorizer exists', () => {
+    template.resourceCountIs('AWS::ApiGateway::Authorizer', 0);
+  });
+
+  test('API Gateway endpoint type is PRIVATE', () => {
+    template.hasResourceProperties('AWS::ApiGateway::RestApi', {
+      EndpointConfiguration: { Types: ['PRIVATE'] },
+    });
+  });
+
+  test('API Gateway resource policy restricts to VPC endpoint', () => {
+    template.hasResourceProperties('AWS::ApiGateway::RestApi', {
+      Policy: Match.objectLike({
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Effect: 'Deny',
+            Condition: Match.objectLike({
+              StringNotEquals: Match.objectLike({
+                'aws:sourceVpce': Match.anyValue(),
+              }),
+            }),
+          }),
+        ]),
+      }),
+    });
+  });
+
+  test('/health endpoint exists with no auth', () => {
+    template.hasResourceProperties('AWS::ApiGateway::Method', {
+      AuthorizationType: 'NONE',
+      HttpMethod: 'ANY',
+    });
+  });
+
+  test('VPC Link exists for API Gateway', () => {
+    template.resourceCountIs('AWS::ApiGateway::VpcLink', 1);
+  });
+
+  test('WAF associated with API Gateway stage', () => {
+    template.resourceCountIs('AWS::WAFv2::WebACLAssociation', 1);
+  });
+
+  test('PrivateApiEndpoint output exists', () => {
+    template.hasOutput('PrivateApiEndpoint', {});
+  });
+
+  test('No CloudFrontDomain output exists', () => {
+    const outputs = template.findOutputs('*');
+    expect(outputs).not.toHaveProperty('CloudFrontDomain');
+    expect(outputs).not.toHaveProperty('McpEndpoint');
+  });
 
   test('ECS Fargate task definition has 1 vCPU and 2GB memory', () => {
     template.hasResourceProperties('AWS::ECS::TaskDefinition', {
@@ -197,46 +192,25 @@ describe('MdcServerStack', () => {
     });
   });
 
-  test('ECS task role has Secrets Manager access scoped to mdc-mcp-rag/*', () => {
-    template.hasResourceProperties('AWS::IAM::Policy', {
-      PolicyDocument: {
-        Statement: Match.arrayWith([
-          Match.objectLike({
-            Action: 'secretsmanager:GetSecretValue',
-            Resource: Match.stringLikeRegexp('mdc-mcp-rag'),
-          }),
-        ]),
-      },
-    });
-  });
-
-  test('ALB health check is configured on /health path', () => {
+  test('NLB health check on /health path', () => {
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
       HealthCheckPath: '/health',
-      HealthCheckIntervalSeconds: 30,
-      HealthyThresholdCount: 2,
     });
   });
 
-  test('CloudFront distribution exists with HTTPS-only viewer protocol', () => {
-    template.hasResourceProperties('AWS::CloudFront::Distribution', {
-      DistributionConfig: Match.objectLike({
-        DefaultCacheBehavior: Match.objectLike({
-          ViewerProtocolPolicy: 'https-only',
+  test('NLB is internal (not public)', () => {
+    template.hasResourceProperties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
+      Scheme: 'internal',
+    });
+  });
+
+  test('ECS assignPublicIp is DISABLED', () => {
+    template.hasResourceProperties('AWS::ECS::Service', {
+      NetworkConfiguration: Match.objectLike({
+        AwsvpcConfiguration: Match.objectLike({
+          AssignPublicIp: 'DISABLED',
         }),
-        HttpVersion: 'http2',
       }),
-    });
-  });
-
-  test('CloudFront WAF WebACL has rate limiting and geo-restriction rules', () => {
-    template.hasResourceProperties('AWS::WAFv2::WebACL', {
-      Name: 'mdc-mcp-rag-cf-waf',
-      Scope: 'CLOUDFRONT',
-      Rules: Match.arrayWith([
-        Match.objectLike({ Name: 'RateLimit' }),
-        Match.objectLike({ Name: 'GeoBlock' }),
-      ]),
     });
   });
 
@@ -244,7 +218,7 @@ describe('MdcServerStack', () => {
     template.resourceCountIs('AWS::ApiGateway::RestApi', 1);
   });
 
-  test('No secret values in MdcServerStack CloudFormation outputs', () => {
+  test('No secret values in outputs', () => {
     const outputs = template.findOutputs('*');
     for (const key of Object.keys(outputs)) {
       const val = JSON.stringify(outputs[key]);

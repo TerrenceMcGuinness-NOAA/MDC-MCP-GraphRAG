@@ -1,31 +1,28 @@
 # MDC MCP RAG Server — ECS Fargate image
-# Runs UnifiedMCPServer.js in 'full' scenario mode (all 51 tools)
+# Runs mcp-http-server.js (Streamable HTTP transport) on port 3000
 
-FROM node:20-alpine AS deps
+FROM node:20-slim AS deps
 WORKDIR /app
 COPY mcp_server_node/package*.json ./
 RUN npm ci --omit=dev
 
-FROM node:20-alpine
+FROM node:20-slim
 WORKDIR /app
 
-# Copy dependencies and source
 COPY --from=deps /app/node_modules ./node_modules
 COPY mcp_server_node/src ./src
 COPY mcp_server_node/package.json ./
 
-# Non-root user
-RUN addgroup -S mcp && adduser -S mcp -G mcp
+RUN groupadd -r mcp && useradd -r -g mcp mcp
 USER mcp
 
 ENV NODE_ENV=production \
-    DB_BACKEND=aws
+    DB_BACKEND=aws \
+    AWS_REGION=us-east-1
 
 EXPOSE 3000
 
-# Health check — MCP server responds to a tools/list probe on stdio;
-# for HTTP health we rely on the ALB target group health check path /health
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD node -e "process.exit(0)" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://localhost:3000/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
-ENTRYPOINT ["node", "src/UnifiedMCPServer.js", "full"]
+CMD ["node", "src/mcp-http-server.js", "3000", "full"]
