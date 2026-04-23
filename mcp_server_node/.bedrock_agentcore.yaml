@@ -1,0 +1,68 @@
+default_agent: MdcMcpRagServer
+agents:
+  MdcMcpRagServer:
+    name: MdcMcpRagServer
+    language: typescript
+    node_version: "20"
+    entrypoint: src/mcp-agentcore-entrypoint.js
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: null
+    source_path: .
+    aws:
+      execution_role: arn:aws:iam::903050880929:role/mdc-mcp-rag-ecs-task-role
+      execution_role_auto_create: false
+      account: "903050880929"
+      region: us-east-1
+      ecr_repository: 903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: true
+      network_configuration:
+        network_mode: VPC
+        network_mode_config:
+          subnets:
+            - subnet-0e13af6b3a9a6416f
+            - subnet-024fd9b597b3075a5
+            - subnet-04447750c61bd7e06
+          security_groups:
+            - sg-096489a0876cc78c1
+      protocol_configuration:
+        server_protocol: MCP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: 900
+        max_lifetime: 28800
+    bedrock_agentcore:
+      agent_id: null
+      agent_arn: null
+      agent_session_id: null
+    codebuild:
+      project_name: null
+      execution_role: null
+      source_bucket: null
+    memory:
+      mode: NO_MEMORY
+      memory_id: null
+      memory_arn: null
+      memory_name: null
+      event_expiry_days: 30
+      first_invoke_memory_check_done: false
+      was_created_by_toolkit: false
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

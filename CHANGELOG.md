@@ -1,5 +1,31 @@
 # MCP Server Changelog
 
+## [8.7.0] - Phase 51b: AgentCore MCP Deployment (April 23, 2026)
+
+### New Files
+- `mcp_server_node/src/mcp-agentcore-entrypoint.js` — AgentCore Runtime MCP entrypoint
+  - Streamable HTTP on 0.0.0.0:8000/mcp (AgentCore convention)
+  - /ping health endpoint returning {"status":"Healthy"}
+  - Shared data access across stateless requests (same pattern as mcp-http-server.js)
+- `mcp_server_node/Dockerfile.agentcore` — ARM64 container for AgentCore Runtime
+  - node:20-slim base, production deps only, 302MB compressed
+  - Healthcheck on /ping, CMD node src/mcp-agentcore-entrypoint.js
+- `mcp_server_node/.bedrock_agentcore.yaml` — AgentCore CLI configuration
+  - Container deployment, MCP protocol, VPC network mode
+  - 3 private subnets (us-east-1a/b/d), ECS security group
+  - Idle timeout 900s, max lifetime 28800s
+- `mcp_server_node/.dockerignore` — Build context exclusions
+- `docs/agentcore-execution-role-request.md` — Admin request for IAM trust policy update
+
+### Infrastructure
+- Created ECR repository: mdc-mcp-rag (903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag)
+- Pushed ARM64 container image tagged `agentcore`
+- Container verified locally: /ping returns healthy, MCP server starts
+
+### Blockers
+- IAM trust policy on mdc-mcp-rag-ecs-task-role needs bedrock-agentcore.amazonaws.com
+- Admin request generated, deployment paused at Task 7 checkpoint
+
 ## [8.6.0] - Phase 51: Private MCP Deployment — CDK Stacks (April 22, 2026)
 
 ### Architecture Changes
