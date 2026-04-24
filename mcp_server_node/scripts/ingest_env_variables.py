@@ -258,7 +258,11 @@ def parse_env_vars(file_path):
 # ===========================================================================
 
 def create_constraints(tx):
-    """Create uniqueness constraints for EnvironmentVariable nodes."""
+    """Create uniqueness constraints for EnvironmentVariable nodes.
+    
+    Skipped on Neptune (DB_BACKEND=aws) — Neptune auto-indexes all properties
+    and does not support CREATE CONSTRAINT syntax.
+    """
     tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (e:EnvironmentVariable) REQUIRE e.name IS UNIQUE")
 
 
@@ -544,14 +548,21 @@ def main():
     print(f"\n[OK] Starting Neo4j ingestion...")
     
     with driver.session() as session:
-        # Create constraints
-        session.execute_write(create_constraints)
-        print("[OK] Constraints created")
+        # Create constraints (skip on Neptune — auto-indexes all properties)
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+            print("[OK] Skipping constraint creation (Neptune auto-indexes all properties)")
+        else:
+            session.execute_write(create_constraints)
+            print("[OK] Constraints created")
 
         # Ingest each script
         total_counts = {"exports": 0, "sets": 0, "depends": 0}
         for i, parsed in enumerate(all_parsed):
-            counts = session.execute_write(ingest_script, parsed)
+            if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+                # Neptune adapter: call ingest_script directly with session
+                counts = ingest_script(session, parsed)
+            else:
+                counts = session.execute_write(ingest_script, parsed)
             total_counts["exports"] += counts["exports"]
             total_counts["sets"] += counts["sets"]
             total_counts["depends"] += counts["depends"]

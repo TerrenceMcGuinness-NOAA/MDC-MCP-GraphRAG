@@ -531,9 +531,16 @@ class Neo4jIngester:
                 self.driver = None
     
     def create_indexes(self):
-        """Create indexes for Fortran nodes."""
+        """Create indexes for Fortran nodes.
+        
+        Skipped on Neptune (DB_BACKEND=aws) — Neptune auto-indexes all properties.
+        """
         if self.dry_run or not self.driver:
             print("[DRY-RUN] Would create indexes for FortranModule, FortranSubroutine, etc.")
+            return
+        
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+            print("[OK] Skipping index creation (Neptune auto-indexes all properties)")
             return
         
         indexes = [

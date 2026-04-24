@@ -352,7 +352,14 @@ class Neo4jGraphClient:
         print("[OK] Cleared existing shell script graph")
     
     def create_indexes(self):
-        """Create indexes for performance"""
+        """Create indexes for performance.
+        
+        Skipped on Neptune (DB_BACKEND=aws) — Neptune auto-indexes all properties.
+        """
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+            print("[OK] Skipping index creation (Neptune auto-indexes all properties)")
+            return
+        
         indexes = [
             "CREATE INDEX shell_script_name IF NOT EXISTS FOR (s:ShellScript) ON (s.name)",
             "CREATE INDEX shell_script_path IF NOT EXISTS FOR (s:ShellScript) ON (s.path)",
