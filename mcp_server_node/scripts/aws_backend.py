@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 aws_backend.py — AWS backend adapters for ingestion scripts (Phase 48D)
 
@@ -21,25 +23,305 @@ Environment variables:
 import os
 import json
 import sys
+import time
+import urllib.parse
+
+try:
+    import boto3
+    import botocore.auth
+    import botocore.awsrequest
+    import urllib3
+except ImportError:
+    boto3 = None  # type: ignore[assignment]
+    botocore = None  # type: ignore[assignment]
+    urllib3 = None  # type: ignore[assignment]
 
 BACKEND = os.environ.get("DB_BACKEND", "legacy")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+
+# ── Neptune exception classes ─────────────────────────────────────────────────
+
+class NeptuneQueryError(Exception):
+    """Raised when a Neptune openCypher query fails."""
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        super().__init__(f"Neptune query failed: {status_code} {message}")
+
+
+class NeptuneConnectionError(Exception):
+    """Raised when Neptune is unreachable."""
+    pass
+
+
+# ── Endpoint normalization ────────────────────────────────────────────────────
+
+def _normalize_endpoint(endpoint: str) -> str:
+    """Normalize a Neptune endpoint to ``https://<host>:<port>/opencypher``.
+
+    Handles four input formats:
+      - ``wss://host:port/path``   → replace scheme with ``https://``
+      - ``bolt+s://host:port``     → replace scheme with ``https://``
+      - ``https://host:port``      → keep as-is
+      - bare hostname              → prepend ``https://`` and append ``:8182``
+
+    The returned URL always ends with ``/opencypher``.
+    """
+    # Strip whitespace
+    endpoint = endpoint.strip()
+
+    # Scheme replacement
+    if endpoint.startswith("wss://"):
+        endpoint = "https://" + endpoint[len("wss://"):]
+    elif endpoint.startswith("bolt+s://"):
+        endpoint = "https://" + endpoint[len("bolt+s://"):]
+    elif not endpoint.startswith("https://"):
+        # Bare hostname — prepend scheme and append default port
+        endpoint = f"https://{endpoint}:8182"
+
+    # Ensure path ends with /opencypher
+    if not endpoint.endswith("/opencypher"):
+        # Strip trailing slash before appending
+        endpoint = endpoint.rstrip("/") + "/opencypher"
+
+    return endpoint
+
+
+# ── Neptune result wrapper ────────────────────────────────────────────────────
+
+class NeptuneResult:
+    """neo4j Result-compatible wrapper for Neptune HTTP JSON responses."""
+
+    def __init__(self, records: list[dict]):
+        self._records = records
+        self._index = 0
+
+    def single(self) -> dict | None:
+        """Return the first record, or None if empty."""
+        return self._records[0] if self._records else None
+
+    def __iter__(self):
+        self._index = 0
+        return self
+
+    def __next__(self):
+        if self._index >= len(self._records):
+            raise StopIteration
+        record = self._records[self._index]
+        self._index += 1
+        return record
+
+
+# ── Neptune session (HTTP + SigV4) ────────────────────────────────────────────
+
+class NeptuneSession:
+    """neo4j Session-compatible object for Neptune HTTP queries.
+
+    Each query is sent as a SigV4-signed HTTP POST to the Neptune
+    openCypher endpoint.  Credentials are refreshed per-request so
+    long-running ingestion jobs survive credential rotation.
+    """
+
+    def __init__(self, endpoint: str, region: str, pool):
+        """
+        Parameters
+        ----------
+        endpoint : str
+            Fully-normalised Neptune HTTPS URL ending with ``/opencypher``.
+        region : str
+            AWS region for SigV4 signing.
+        pool : urllib3.PoolManager
+            Shared connection pool for HTTP requests.
+        """
+        self._endpoint = endpoint
+        self._region = region
+        self._pool = pool
+
+    # -- public interface (neo4j Session surface) ---------------------------
+
+    def run(self, query: str, **params) -> "NeptuneResult":
+        """Execute an openCypher query against Neptune.
+
+        Parameters
+        ----------
+        query : str
+            Cypher query string.
+        **params
+            Query parameters (serialized as JSON in the POST body).
+
+        Returns
+        -------
+        NeptuneResult
+            Iterable result object with ``.single()`` support.
+        """
+        return self._execute_with_retry(query, params)
+
+    def close(self) -> None:
+        """No-op — HTTP is stateless."""
+        pass
+
+    def __enter__(self) -> "NeptuneSession":
+        return self
+
+    def __exit__(self, *args) -> None:
+        self.close()
+
+    # -- internal: query execution -----------------------------------------
+
+    def _execute_query(self, query: str, params: dict) -> "NeptuneResult":
+        """Build, sign, and send a single HTTP POST to Neptune.
+
+        Raises
+        ------
+        NeptuneQueryError
+            On HTTP 4xx/5xx responses from Neptune.
+        NeptuneConnectionError
+            On network timeouts or connection failures.
+        """
+        # 1. Build POST body
+        body_parts = {"query": query}
+        if params:
+            body_parts["parameters"] = json.dumps(params)
+        body = urllib.parse.urlencode(body_parts)
+
+        # 2. Obtain fresh credentials (handles rotation for long jobs)
+        creds = boto3.Session().get_credentials().get_frozen_credentials()
+
+        # 3. Create signable request
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        aws_request = botocore.awsrequest.AWSRequest(
+            method="POST",
+            url=self._endpoint,
+            data=body,
+            headers=headers,
+        )
+
+        # 4. Sign with SigV4
+        botocore.auth.SigV4Auth(creds, "neptune-db", self._region).add_auth(aws_request)
+
+        # 5. Send via urllib3
+        try:
+            response = self._pool.request(
+                "POST",
+                self._endpoint,
+                body=body,
+                headers=dict(aws_request.headers),
+                timeout=30,
+            )
+        except Exception as exc:
+            # urllib3 timeout / connection errors → NeptuneConnectionError
+            raise NeptuneConnectionError(
+                f"Neptune unreachable at {self._endpoint}: {exc}"
+            ) from exc
+
+        # 6. Handle HTTP errors
+        status = response.status
+        if status >= 400:
+            try:
+                err_body = json.loads(response.data.decode("utf-8"))
+                message = err_body.get("detailedMessage", err_body.get("message", response.data.decode("utf-8")))
+            except Exception:
+                message = response.data.decode("utf-8", errors="replace")
+            raise NeptuneQueryError(status, message)
+
+        # 7. Parse successful JSON response
+        try:
+            data = json.loads(response.data.decode("utf-8"))
+        except Exception as exc:
+            raise NeptuneQueryError(
+                status, f"Invalid JSON response: {response.data.decode('utf-8', errors='replace')}"
+            ) from exc
+
+        return NeptuneResult(data.get("results", []))
+
+    # -- internal: retry wrapper -------------------------------------------
+
+    def _execute_with_retry(self, query: str, params: dict) -> "NeptuneResult":
+        """Wrap ``_execute_query`` with exponential-backoff retry logic.
+
+        Retries up to 3 times on HTTP 429, 500, and 503 responses.
+        Backoff schedule: 1 s → 2 s → 4 s.
+        """
+        max_retries = 3
+        backoff = 1  # seconds
+        for attempt in range(max_retries + 1):
+            try:
+                return self._execute_query(query, params)
+            except NeptuneQueryError as e:
+                if e.status_code in (429, 500, 503) and attempt < max_retries:
+                    print(
+                        f"[WARN] Neptune request retry {attempt + 1}/{max_retries}: "
+                        f"HTTP {e.status_code}",
+                        file=sys.stderr,
+                    )
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                print(
+                    f"[ERROR] Neptune query failed: {e.status_code} {e}",
+                    file=sys.stderr,
+                )
+                raise
+
+
+# ── Neptune HTTP adapter (neo4j Driver drop-in) ──────────────────────────────
+
+class NeptuneHTTPAdapter:
+    """neo4j.Driver-compatible adapter for Neptune HTTP openCypher API.
+
+    Provides the ``session()`` / ``close()`` / ``verify_connectivity()``
+    surface used by the four ingestion scripts so they require zero code
+    changes when ``DB_BACKEND=aws``.
+    """
+
+    def __init__(self, endpoint: str, region: str = "us-east-1"):
+        """
+        Parameters
+        ----------
+        endpoint : str
+            Neptune endpoint in any supported format (bare hostname,
+            ``wss://``, ``bolt+s://``, or ``https://``).
+        region : str
+            AWS region for SigV4 signing.
+        """
+        self._endpoint = _normalize_endpoint(endpoint)
+        self._region = region
+        self._pool = urllib3.PoolManager()
+
+    def session(self) -> "NeptuneSession":
+        """Return a new NeptuneSession (context-manager compatible)."""
+        return NeptuneSession(self._endpoint, self._region, self._pool)
+
+    def close(self) -> None:
+        """Release the urllib3 connection pool."""
+        self._pool.clear()
+
+    def verify_connectivity(self) -> None:
+        """Execute ``RETURN 1`` against Neptune.
+
+        Prints an ``[OK]`` banner to stderr on success.
+        Raises on failure (NeptuneQueryError or NeptuneConnectionError).
+        """
+        with self.session() as s:
+            s.run("RETURN 1")
+        print(
+            f"[OK] Connected to Neptune (HTTP/SigV4): {self._endpoint}",
+            file=sys.stderr,
+        )
+
 
 # ── Graph driver ──────────────────────────────────────────────────────────────
 
 def get_graph_driver():
     """Return a neo4j.Driver connected to Neo4j (legacy) or Neptune (aws)."""
-    from neo4j import GraphDatabase, Auth
-
     if BACKEND == "aws":
         endpoint = os.environ.get("NEPTUNE_ENDPOINT", "")
         if not endpoint:
             print("[ERROR] NEPTUNE_ENDPOINT required for DB_BACKEND=aws", file=sys.stderr)
             sys.exit(1)
-        bolt_uri = endpoint.replace("wss://", "bolt+s://") if endpoint.startswith("wss://") else endpoint
-        # Neptune uses IAM auth — no username/password
-        return GraphDatabase.driver(bolt_uri, auth=Auth("none", "", ""), encrypted=True)
+        return NeptuneHTTPAdapter(endpoint, AWS_REGION)
     else:
+        from neo4j import GraphDatabase, Auth
         uri  = os.environ.get("NEO4J_URI",      "bolt://localhost:7687")
         user = os.environ.get("NEO4J_USER",     "neo4j")
         pwd  = os.environ.get("NEO4J_PASSWORD", "gfsworkflow2025")
