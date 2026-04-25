@@ -1,5 +1,38 @@
 # MCP Server Changelog
 
+## [8.8.0] - Phase 53 Track B: Neptune SigV4 Adapter + Re-Ingestion (April 25, 2026)
+
+### Neptune HTTP/SigV4 Adapter (neptune-python-sigv4-ingestion spec)
+- Replaced non-functional Bolt driver in `aws_backend.py` with HTTP-based Neptune adapter
+- `NeptuneHTTPAdapter`: neo4j Driver-compatible drop-in for `get_graph_driver()` when `DB_BACKEND=aws`
+- `NeptuneSession`: SigV4-signed HTTP POST to Neptune `/opencypher` endpoint via botocore
+- `NeptuneResult`: Result wrapper with iteration, `single()`, and dict-style column access
+- Endpoint normalization: `wss://`, `bolt+s://`, bare hostname → `https://host:8182/opencypher`
+- Retry logic with exponential backoff (1s/2s/4s) on HTTP 429/500/503
+- Fresh credentials per request via `boto3.Session()` for long-running ingestion jobs
+- 26 tests passing: 3 property-based (Hypothesis, 100+ iterations each) + 23 unit tests
+
+### Neptune DDL Compatibility Fixes
+- `ingest_fortran_graph.py`: Skip `CREATE INDEX` when `DB_BACKEND=aws` (Neptune auto-indexes)
+- `ingest_shell_graph_v8.py`: Skip `CREATE INDEX` when `DB_BACKEND=aws`
+- `ingest_env_variables.py`: Skip `CREATE CONSTRAINT` on AWS; replace `execute_write` with direct `session.run` for Neptune adapter compatibility
+
+### Track B Re-Ingestion (in progress)
+- Fortran ingestion started against Neptune via SigV4 adapter — confirmed working
+- Neptune counts grew from baseline: +290 nodes, +45,950 relationships
+- Fortran ingestion hit memory pressure (~6GB RSS on t3.xlarge) after ~3 hours processing 7,275 files — process entered disk sleep (swap thrashing), killed
+- MERGE semantics ensure no data loss — re-run will resume idempotently
+- Remaining: Shell, cross-language bridges, Python ingestion still pending
+
+### Known Issues
+- `ingest_fortran_graph.py` holds all parsed ASTs in memory — OOM risk on t3.xlarge with full submodule tree (7,275 Fortran files)
+- Next quarter: investigate batched parsing or streaming writes to reduce memory footprint
+- Next quarter: Python SDK migration to replace Node.js MCP server (discussion started, not yet spec'd)
+
+### Commits
+- `67a5271` feat: Neptune HTTP/SigV4 adapter for Python ingestion scripts
+- `6965634` fix: skip Neo4j-specific DDL on Neptune (DB_BACKEND=aws)
+
 ## [8.7.0] - Phase 51b: AgentCore MCP Deployment (April 23, 2026)
 
 ### New Files
