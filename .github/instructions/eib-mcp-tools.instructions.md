@@ -18,10 +18,13 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 | "How does X subsystem work?" | `search_architecture` | No |
 | "Find files related to X" | `find_related_files` | No |
 | "Is this code EE2-compliant?" | `analyze_ee2_compliance` | No |
+| "Diagnose this job/run failure log" | `find_env_dependencies` + `trace_execution_path` + `search_documentation` + `search_issues` (see *Diagnose a job/run failure log* recipe below) | Use `read_file`/`grep` only to extract the failing trace lines from the log itself |
 | "Show me line 45-100" | No | `read_file` |
 | "Search for literal 'FOO'" | No | `grep_search` |
 
 **Best practice**: MCP tools for discovery, then `read_file` for specific line-level details.
+
+**Anti-pattern (observed April 27, 2026)**: when a failure log is provided as the only input, it is tempting to read it directly and skip MCP graph tools because the root cause is "already visible" in the trace. Do not skip them — even when the diagnosis is obvious, run `find_env_dependencies` / `trace_execution_path` / `find_callers_callees` to (a) cite verbatim line refs, (b) enumerate other call sites with the same anti-pattern (so a single bug fix gets full coverage), and (c) ground recommendations in the graph rather than in your reading of the log.
 
 ## Tool Modules (51 tools / 9 modules)
 
@@ -264,6 +267,25 @@ Workflow:
 2. search_documentation({ query: "data assimilation" })
 3. get_operational_guidance({ operation: "running DA on Hera" })
 ```
+
+### "Diagnose a job/run failure log" (for `*_Error_Analysis.md` wiki pages)
+Applies whenever the input is a job log, gist URL, slurm output, etc., and you are asked for a root-cause analysis. The shell trace is your *primary* evidence; MCP tools are how you *ground* the analysis.
+```
+0. mcp_health_check({ detailed: true })                           # confirm gateway/DBs are healthy before trusting any answer
+1. # Read the log: extract the failing command, the first error message, and the abort point
+2. trace_execution_path({ function_name: "<failing_script_basename>" })
+                                                                    # full call chain (J-Job -> ex-script -> ush helper -> srun)
+3. find_callers_callees({ function_name: "<failing_helper>" })   # other call sites that share the same bug pattern
+4. find_env_dependencies({ variable_name: "<suspect_var>" })     # e.g. wavempexec, OMP_NUM_THREADS, USE_CFP, max_tasks_per_node
+5. analyze_code_structure({ file_path: "ush/<failing_helper>.sh" })
+                                                                    # back patch recommendations with verbatim line refs
+6. search_documentation({ query: "<distinctive Slurm/MPI error string>" })
+                                                                    # any prior occurrence in the KB?
+7. search_issues({ query: "<short keyword set>" })                # NOTE: prefer short OR-style queries; long AND-joined strings return zero hits
+8. # Write the analysis page; cite graph results, not just log lines
+9. # Recommendation: re-ingest global-workflow.wiki so the new analysis is queryable next time
+```
+**Why each step matters**: step 0 makes "no results" interpretable; steps 2-5 separate the *immediate* failure from the *propagation chain* (e.g., a swallowed `srun` exit code that masks the real fatal as a misleading downstream check); steps 6-7 confirm whether a fix already exists. Skipping steps 2-5 produces a correct but ungrounded conclusion.
 
 ### "Execute a tracked SDD phase"
 ```
