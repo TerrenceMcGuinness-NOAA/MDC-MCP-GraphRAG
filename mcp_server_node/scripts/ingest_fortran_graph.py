@@ -852,7 +852,8 @@ def run_sample_test(sample_size: int = 100):
         print(f"  USES:  ~{projected_uses:,}")
 
 
-def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
+def run_full_ingestion(dry_run: bool = False, repo_name: str = None,
+                       skip: int = 0, limit: int = 0):
     """Run full ingestion of all Fortran files to Neo4j."""
     print(f"\n{'='*60}")
     print(f"Fortran Graph Ingestion v{VERSION}")
@@ -861,16 +862,30 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     print(f"{'='*60}")
     print(f"Mode: {'DRY-RUN (no Neo4j writes)' if dry_run else 'LIVE'}")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    if skip:
+        print(f"Skipping first {skip} files (resume mode)")
+    if limit:
+        print(f"Limiting to {limit} files")
     sys.stdout.flush()
     
     # Find all files
     files = find_fortran_files(WORKFLOW_ROOT)
-    print(f"\n[INFO] Found {len(files)} Fortran files")
+    total_found = len(files)
+    print(f"\n[INFO] Found {total_found} Fortran files")
     sys.stdout.flush()
     
     if not files:
         print("[ERROR] No Fortran files found!")
         return
+    
+    # Apply skip/limit for resume and batching
+    if skip:
+        files = files[skip:]
+        print(f"[INFO] Skipped {skip}, {len(files)} files remaining")
+    if limit:
+        files = files[:limit]
+        print(f"[INFO] Limited to {len(files)} files")
+    sys.stdout.flush()
     
     # Phase 39: Discover include directories for CPP preprocessing
     include_dirs = discover_include_dirs(WORKFLOW_ROOT)
@@ -1013,6 +1028,10 @@ Examples:
                         help='Number of files for sample validation')
     parser.add_argument('--dry-run', '-n', action='store_true',
                         help='Parse files but do not write to Neo4j')
+    parser.add_argument('--skip', type=int, default=0, metavar='N',
+                        help='Skip the first N files (for resuming after OOM)')
+    parser.add_argument('--limit', type=int, default=0, metavar='N',
+                        help='Process at most N files (0 = all)')
     parser.add_argument('--repo-name', metavar='NAME',
                         help='Tag all nodes with this repo name (e.g., nceplibs-bufr)')
     parser.add_argument('--root-dir', metavar='DIR',
@@ -1037,7 +1056,8 @@ Examples:
     elif args.sample:
         run_sample_test(args.sample_size)
     else:
-        run_full_ingestion(dry_run=args.dry_run, repo_name=args.repo_name)
+        run_full_ingestion(dry_run=args.dry_run, repo_name=args.repo_name,
+                           skip=args.skip, limit=args.limit)
 
 
 if __name__ == '__main__':
