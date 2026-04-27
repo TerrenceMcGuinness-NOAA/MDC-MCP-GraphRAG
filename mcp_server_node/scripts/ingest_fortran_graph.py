@@ -51,6 +51,8 @@ import argparse
 import json
 import subprocess
 import tempfile
+import resource
+import time
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple, Any
 from collections import defaultdict
@@ -771,10 +773,13 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
         print(f"Repository: {repo_name}")
     print(f"{'='*60}")
     print(f"Mode: {'DRY-RUN (no Neo4j writes)' if dry_run else 'LIVE'}")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    sys.stdout.flush()
     
     # Find all files
     files = find_fortran_files(WORKFLOW_ROOT)
     print(f"\n[INFO] Found {len(files)} Fortran files")
+    sys.stdout.flush()
     
     if not files:
         print("[ERROR] No Fortran files found!")
@@ -783,6 +788,7 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     # Phase 39: Discover include directories for CPP preprocessing
     include_dirs = discover_include_dirs(WORKFLOW_ROOT)
     print(f"[INFO] Discovered {len(include_dirs)} include directories for CPP")
+    sys.stdout.flush()
     
     # Initialize
     parser = FortranParser()
@@ -794,26 +800,69 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     
     total_nodes = 0
     total_rels = 0
+    t_start = time.time()
+    
+    def _rss_mb():
+        """Current RSS in MB."""
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    
+    def _elapsed():
+        """Elapsed time as H:MM:SS."""
+        s = int(time.time() - t_start)
+        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+    
+    def _eta(i, total):
+        """Estimated time remaining."""
+        if i == 0:
+            return "calculating..."
+        elapsed = time.time() - t_start
+        rate = i / elapsed  # files per second
+        remaining = (total - i) / rate
+        s = int(remaining)
+        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+    
+    print(f"\n[INFO] Processing {len(files)} files (RSS: {_rss_mb():.0f} MB)")
+    print(f"[INFO] Progress logged every 50 files, per-file logging to stderr")
+    sys.stdout.flush()
     
     # Process files with progress
-    print(f"\n[INFO] Processing files...")
     for i, filepath in enumerate(files):
-        if (i + 1) % 500 == 0:
-            pct = (i + 1) / len(files) * 100
-            print(f"  Progress: {i+1}/{len(files)} ({pct:.0f}%) "
-                  f"[OK:{parser.stats['files_processed']} FAIL:{parser.stats['files_failed']} "
-                  f"CPP:{parser.stats['files_preprocessed']}]")
+        rel_path = os.path.relpath(filepath, WORKFLOW_ROOT)
+        
+        # Per-file logging to stderr (visible in real-time)
+        print(f"  [{i+1}/{len(files)}] PARSE {rel_path}", file=sys.stderr, end="", flush=True)
         
         result = parser.parse_file(filepath)
+        
         if result:
+            file_nodes = (len(result.get('modules', [])) + len(result.get('subroutines', [])) +
+                         len(result.get('functions', [])) + len(result.get('programs', [])))
+            file_rels = len(result.get('calls', [])) + len(result.get('uses', []))
+            
+            print(f" → INGEST ({file_nodes}n/{file_rels}r)", file=sys.stderr, end="", flush=True)
+            
             counts = ingester.ingest_file_result(result, repo_name=repo_name)
             total_nodes += counts['nodes']
             total_rels += counts['relationships']
+            
+            print(f" ✓", file=sys.stderr, flush=True)
+        else:
+            print(f" → SKIP (parse failed)", file=sys.stderr, flush=True)
+        
+        # Progress checkpoint every 50 files
+        if (i + 1) % 50 == 0 or (i + 1) == len(files):
+            pct = (i + 1) / len(files) * 100
+            print(f"  Progress: {i+1}/{len(files)} ({pct:.0f}%) "
+                  f"[OK:{parser.stats['files_processed']} FAIL:{parser.stats['files_failed']} "
+                  f"CPP:{parser.stats['files_preprocessed']}] "
+                  f"Nodes:{total_nodes:,} Rels:{total_rels:,} "
+                  f"RSS:{_rss_mb():.0f}MB Elapsed:{_elapsed()} ETA:{_eta(i+1, len(files))}")
+            sys.stdout.flush()
     
     # Final summary
     summary = parser.get_summary()
     print(f"\n{'='*60}")
-    print("Ingestion Complete")
+    print(f"Ingestion Complete — {_elapsed()} elapsed")
     print(f"{'='*60}")
     print(f"  Files processed:    {summary['files']['processed']}")
     print(f"  Files failed:       {summary['files']['failed']}")
@@ -829,6 +878,8 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     print(f"  Programs:    {summary['entities']['programs']}")
     print(f"  CALLS:       {summary['relationships']['calls']}")
     print(f"  USES:        {summary['relationships']['uses']}")
+    print(f"\nPeak RSS: {_rss_mb():.0f} MB")
+    sys.stdout.flush()
     
     if parser.errors and not dry_run:
         error_file = Path(WORKFLOW_ROOT).parent / 'fortran_parse_errors.json'
