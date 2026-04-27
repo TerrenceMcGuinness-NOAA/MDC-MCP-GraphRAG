@@ -155,6 +155,79 @@ SUBMODULE_PATHS = [
 
 
 # ============================================================================
+# SOURCE SANITIZATION (Phase 53 — fparser compatibility)
+# ============================================================================
+
+def _sanitize_fortran_source(file_path: str) -> Optional[str]:
+    """Fix Fortran source issues that cause fparser to fail.
+
+    Returns path to a sanitized temp file, or None if no fixes were needed.
+
+    Known issues fixed:
+    1. Dangling continuations: ``VARIABLE = &`` followed by blank/comment lines
+       with no actual continuation value.  Common in CRTM where CVS ``$Id$``
+       keywords were stripped by git, leaving ``MODULE_RCS_ID = &`` with nothing
+       after it.  Fix: replace the ``&`` with an empty string literal so the
+       statement is syntactically complete.
+    """
+    try:
+        with open(file_path, 'r', errors='replace') as f:
+            lines = f.readlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    modified = False
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].rstrip()
+        # Look for non-comment lines ending with &
+        code_part = stripped.lstrip()
+        if stripped.endswith('&') and not code_part.startswith('!'):
+            # Scan ahead: skip blank lines and comment-only lines
+            j = i + 1
+            while j < len(lines) and (
+                lines[j].strip() == '' or lines[j].strip().startswith('!')
+            ):
+                j += 1
+            # If the next code line doesn't look like a continuation value
+            # (i.e., it starts a new statement), this is a dangling &
+            dangling = False
+            if j >= len(lines):
+                dangling = True
+            elif '=' in stripped:
+                # e.g. CHARACTER(*), PARAMETER :: X = &
+                # Next code line should be a value, not a TYPE or END or new decl
+                next_code = lines[j].strip().upper() if j < len(lines) else ''
+                if (next_code.startswith('TYPE') or next_code.startswith('END') or
+                    next_code.startswith('INTEGER') or next_code.startswith('REAL') or
+                    next_code.startswith('CHARACTER') or next_code.startswith('LOGICAL') or
+                    next_code.startswith('PUBLIC') or next_code.startswith('PRIVATE') or
+                    next_code.startswith('CONTAINS') or next_code.startswith('SUBROUTINE') or
+                    next_code.startswith('FUNCTION') or next_code.startswith('MODULE') or
+                    next_code.startswith('PROGRAM') or next_code.startswith('USE ') or
+                    next_code.startswith('IMPLICIT') or next_code.startswith('INTERFACE') or
+                    next_code.startswith('!')):
+                    dangling = True
+
+            if dangling:
+                # Replace trailing & with empty string to complete the statement
+                # e.g. CHARACTER(*), PARAMETER :: X = &  →  CHARACTER(*), PARAMETER :: X = ''
+                lines[i] = stripped[:-1] + "''\n"
+                modified = True
+        i += 1
+
+    if not modified:
+        return None
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.f90', delete=False, dir=tempfile.gettempdir()
+    )
+    tmp.writelines(lines)
+    tmp.close()
+    return tmp.name
+
+
+# ============================================================================
 # C PREPROCESSOR SUPPORT (Phase 39)
 # ============================================================================
 
@@ -286,14 +359,26 @@ class FortranParser:
         
         Phase 39: Automatically preprocesses files containing CPP directives
         (#ifdef, #include, etc.) using cpp -traditional-cpp before parsing.
+        
+        Phase 53: Sanitizes dangling continuations (e.g. stripped CVS $Id$
+        keywords in CRTM) before parsing.  Sanitization runs first, then
+        CPP preprocessing if needed.
         """
         temp_path = None
+        sanitized_path = None
         actual_path = filepath
         
         try:
+            # Phase 53: Sanitize dangling continuations
+            sanitized_path = _sanitize_fortran_source(filepath)
+            if sanitized_path:
+                actual_path = sanitized_path
+                self.stats.setdefault('files_sanitized', 0)
+                self.stats['files_sanitized'] += 1
+            
             # Phase 39: Preprocess files with CPP directives
-            if needs_preprocessing(filepath):
-                temp_path = preprocess_fortran(filepath, self._include_dirs)
+            if needs_preprocessing(actual_path):
+                temp_path = preprocess_fortran(actual_path, self._include_dirs)
                 if temp_path:
                     actual_path = temp_path
                     self.stats['files_preprocessed'] += 1
@@ -316,11 +401,12 @@ class FortranParser:
             self.errors.append({'file': filepath, 'error': str(e)})
             return None
         finally:
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
+            for p in (temp_path, sanitized_path):
+                if p and os.path.exists(p):
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
     
     def _extract_structure(self, tree, filepath: str) -> Dict[str, Any]:
         """Extract modules, subroutines, functions, calls, uses from AST."""
@@ -858,7 +944,8 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
             pct = (i + 1) / len(files) * 100
             print(f"  Progress: {i+1}/{len(files)} ({pct:.0f}%) "
                   f"[OK:{parser.stats['files_processed']} FAIL:{parser.stats['files_failed']} "
-                  f"CPP:{parser.stats['files_preprocessed']}] "
+                  f"CPP:{parser.stats['files_preprocessed']} "
+                  f"SAN:{parser.stats.get('files_sanitized', 0)}] "
                   f"Nodes:{total_nodes:,} Rels:{total_rels:,} "
                   f"RSS:{rss:.0f}MB Elapsed:{_elapsed()} ETA:{_eta(i+1, len(files))}")
             sys.stdout.flush()
