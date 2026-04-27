@@ -53,6 +53,7 @@ import subprocess
 import tempfile
 import resource
 import time
+import gc
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple, Any
 from collections import defaultdict
@@ -851,13 +852,19 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
         
         # Progress checkpoint every 50 files
         if (i + 1) % 50 == 0 or (i + 1) == len(files):
+            # Force garbage collection to release fparser AST remnants
+            gc.collect()
+            rss = _rss_mb()
             pct = (i + 1) / len(files) * 100
             print(f"  Progress: {i+1}/{len(files)} ({pct:.0f}%) "
                   f"[OK:{parser.stats['files_processed']} FAIL:{parser.stats['files_failed']} "
                   f"CPP:{parser.stats['files_preprocessed']}] "
                   f"Nodes:{total_nodes:,} Rels:{total_rels:,} "
-                  f"RSS:{_rss_mb():.0f}MB Elapsed:{_elapsed()} ETA:{_eta(i+1, len(files))}")
+                  f"RSS:{rss:.0f}MB Elapsed:{_elapsed()} ETA:{_eta(i+1, len(files))}")
             sys.stdout.flush()
+            # Memory pressure warning
+            if rss > 4000:
+                print(f"  [WARN] RSS {rss:.0f}MB exceeds 4GB — memory pressure risk", flush=True)
     
     # Final summary
     summary = parser.get_summary()
