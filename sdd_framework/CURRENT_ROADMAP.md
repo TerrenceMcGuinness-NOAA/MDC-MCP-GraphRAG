@@ -230,6 +230,7 @@ deterministic IDs, upsert semantics, and `--model`/`--backend` flags.
 | B17 | Medium | Knowledge Curator Agent (stale embedding detection, auto re-ingestion) |
 | B18 | Low | Browser-based Documentation Crawler (AgentCore Browser) |
 | B19 | Low | Agent Registry publication (organizational tool catalog) |
+| 55 | Medium | Neptune Analytics Community Detection — Replace legacy Neo4j GDS dependency with native AWS Louvain/LPA on Neptune Analytics. Refresh hierarchical communities and LLM summaries. |
 
 ---
 
