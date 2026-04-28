@@ -1,5 +1,46 @@
 # MCP Server Changelog
 
+## [8.8.1] - Phase 53 Track B: Fortran Ingestion Complete (April 27, 2026)
+
+### Fortran Ingestion — Completed
+- Full Fortran graph ingestion into Neptune: 63,379 nodes (+3,620), 2,765,892 rels (+132,518)
+- Processed 7,275 Fortran files across all UFS submodules in two batches (--skip flag for OOM recovery)
+- 88% parse success rate (6,409 files parsed, 866 fparser F2003 strict-mode failures)
+
+### Fortran Source Sanitizer (new)
+- `_sanitize_fortran_source()`: preprocessor that fixes fparser-incompatible patterns before parsing
+- Fix 1: Dangling assignment continuations (`VARIABLE = &` with no value — CVS $Id$ stripping)
+- Fix 2: Dangling USE/ONLY continuations (`USE Module, ONLY: X, &` with no continuation)
+- Fix 3: Non-standard write comma (`write(6,*),` — accepted by gfortran, rejected by fparser)
+- Fix 4: Git merge conflict markers (`<<<<<<`, `>>>>>>`, `=======`)
+- ~550 files recovered total (406 in main run + 133 in recovery pass)
+
+### Observability Enhancements
+- Per-file logging: `PARSE → INGEST (Xn/Yr) → ✓` for every file
+- Progress checkpoints every 50 files with RSS, elapsed time, ETA
+- `gc.collect()` every 50 files to mitigate fparser memory accumulation
+- Memory pressure warning at 4GB RSS threshold
+- `--skip N` and `--limit N` flags for batched processing (OOM recovery)
+
+### Memory Management
+- fparser accumulates ~6GB RSS over 7,275 files (ParserFactory grammar cache)
+- Solved via `--skip` batching: first batch processes 5,500 files, second batch resumes from 5,500
+- Peak RSS per batch: ~2.9GB (well within t3.xlarge 16GB)
+
+### Remaining (next session)
+- Task 4: Shell script graph ingestion
+- Task 5: Cross-language bridge ingestion
+- Task 6: Python graph ingestion
+- Task 7-8: Validation
+- 866 Fortran files still failing (fparser limitations: ESMF macros, F2008 features, fixed-form)
+
+### Commits
+- `8cd5bec` feat: enhance ingest_fortran_graph.py logging for observability
+- `7a9e7d1` feat: add gc.collect() and memory pressure warning
+- `75b64c6` fix: sanitize dangling Fortran continuations for CRTM compatibility
+- `75ee05b` feat: add --skip and --limit flags for batched Fortran ingestion
+- `586f336` fix: extend Fortran sanitizer for USE/ONLY, write-comma, merge markers
+
 ## [8.8.0] - Phase 53 Track B: Neptune SigV4 Adapter + Re-Ingestion (April 25, 2026)
 
 ### Neptune HTTP/SigV4 Adapter (neptune-python-sigv4-ingestion spec)

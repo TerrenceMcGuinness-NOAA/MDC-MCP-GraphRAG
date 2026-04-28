@@ -23,8 +23,8 @@ Re-ingest the global-workflow source tree into the recovered Neptune cluster to 
   - [ ] 2.3 Summarize: number of commits, files changed by type (Fortran, Shell, Python)
     - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 3. Re-run Fortran graph ingestion
-  - [ ] 3.0 Enhance `ingest_fortran_graph.py` logging and observability
+- [x] 3. Re-run Fortran graph ingestion
+  - [x] 3.0 Enhance `ingest_fortran_graph.py` logging and observability
     - Add per-file logging with timestamps showing which file is being parsed and ingested
     - Add memory usage reporting (RSS) at progress checkpoints
     - Reduce progress interval from every 500 files to every 50 files
@@ -33,7 +33,7 @@ Re-ingest the global-workflow source tree into the recovered Neptune cluster to 
     - Log phase transitions: "PARSING file X" → "INGESTING file X" → "DONE file X"
     - Flush stdout after each log line to ensure real-time visibility
     - _Requirements: 8.1, 8.2, 8.3_
-  - [ ] 3.1 Run Fortran ingestion against Neptune via SigV4 adapter
+  - [x] 3.1 Run Fortran ingestion against Neptune via SigV4 adapter
     - Working directory: `mcp_server_node`
     - Command: `DB_BACKEND=aws NEPTUNE_ENDPOINT="wss://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182" AWS_REGION=us-east-1 python3.12 scripts/ingest_fortran_graph.py`
     - Note: `CREATE INDEX` warnings from Neptune are expected and non-fatal (Neptune doesn't support Neo4j index syntax)
