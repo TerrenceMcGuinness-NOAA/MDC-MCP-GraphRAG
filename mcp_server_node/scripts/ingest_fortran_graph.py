@@ -54,6 +54,7 @@ import tempfile
 import resource
 import time
 import gc
+import re
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple, Any
 from collections import defaultdict
@@ -164,11 +165,22 @@ def _sanitize_fortran_source(file_path: str) -> Optional[str]:
     Returns path to a sanitized temp file, or None if no fixes were needed.
 
     Known issues fixed:
-    1. Dangling continuations: ``VARIABLE = &`` followed by blank/comment lines
-       with no actual continuation value.  Common in CRTM where CVS ``$Id$``
-       keywords were stripped by git, leaving ``MODULE_RCS_ID = &`` with nothing
-       after it.  Fix: replace the ``&`` with an empty string literal so the
-       statement is syntactically complete.
+    1. Dangling assignment continuations: ``VARIABLE = &`` followed by
+       blank/comment lines with no actual continuation value.  Common in CRTM
+       where CVS ``$Id$`` keywords were stripped by git.
+       Fix: replace the ``&`` with an empty string literal.
+
+    2. Dangling USE/ONLY continuations: ``USE Module, ONLY: X, &`` followed
+       by blank/comment lines.  Same CVS stripping root cause.
+       Fix: remove the trailing ``, &`` to close the ONLY list.
+
+    3. Non-standard write comma: ``write(6,*),`` — some compilers accept a
+       comma after the format specifier but fparser (strict F2003) rejects it.
+       Fix: remove the extra comma.
+
+    4. Git merge conflict markers: ``<<<<<<< variant A``, ``=======``,
+       ``>>>>>>> variant B`` left in source files.
+       Fix: comment them out.
     """
     try:
         with open(file_path, 'r', errors='replace') as f:
@@ -177,43 +189,75 @@ def _sanitize_fortran_source(file_path: str) -> Optional[str]:
         return None
 
     modified = False
+
+    # --- New statement keywords that signal "this is NOT a continuation" ---
+    _NEW_STMT = (
+        'TYPE', 'END', 'INTEGER', 'REAL', 'CHARACTER', 'LOGICAL',
+        'PUBLIC', 'PRIVATE', 'CONTAINS', 'SUBROUTINE', 'FUNCTION',
+        'MODULE', 'PROGRAM', 'USE ', 'IMPLICIT', 'INTERFACE', 'CALL ',
+        'IF ', 'IF(', 'DO ', 'SELECT', 'WRITE', 'READ', 'OPEN',
+        'CLOSE', 'ALLOCATE', 'DEALLOCATE', 'NULLIFY', 'CLASS',
+        'ABSTRACT', 'PROCEDURE', 'GENERIC', 'FINAL', 'DATA ',
+    )
+
     i = 0
     while i < len(lines):
         stripped = lines[i].rstrip()
-        # Look for non-comment lines ending with &
         code_part = stripped.lstrip()
+
+        # --- Fix 4: Git merge conflict markers ---
+        if code_part.startswith(('<<<<<<', '>>>>>>', '======= ')):
+            lines[i] = '! [SANITIZED merge marker] ' + lines[i]
+            modified = True
+            i += 1
+            continue
+
+        # --- Fix 3: Non-standard write comma ---
+        # write(6,*), or write(*,*), → remove the trailing comma
+        if re.match(r'.*\bwrite\s*\([^)]*\)\s*,', code_part, re.IGNORECASE):
+            new_line = re.sub(
+                r'(\bwrite\s*\([^)]*\))\s*,',
+                r'\1 ',
+                lines[i],
+                flags=re.IGNORECASE,
+            )
+            if new_line != lines[i]:
+                lines[i] = new_line
+                modified = True
+                i += 1
+                continue
+
+        # --- Fixes 1 & 2: Dangling continuations ---
         if stripped.endswith('&') and not code_part.startswith('!'):
-            # Scan ahead: skip blank lines and comment-only lines
+            # Scan ahead past blank/comment lines
             j = i + 1
             while j < len(lines) and (
                 lines[j].strip() == '' or lines[j].strip().startswith('!')
             ):
                 j += 1
-            # If the next code line doesn't look like a continuation value
-            # (i.e., it starts a new statement), this is a dangling &
+
             dangling = False
             if j >= len(lines):
                 dangling = True
-            elif '=' in stripped:
-                # e.g. CHARACTER(*), PARAMETER :: X = &
-                # Next code line should be a value, not a TYPE or END or new decl
-                next_code = lines[j].strip().upper() if j < len(lines) else ''
-                if (next_code.startswith('TYPE') or next_code.startswith('END') or
-                    next_code.startswith('INTEGER') or next_code.startswith('REAL') or
-                    next_code.startswith('CHARACTER') or next_code.startswith('LOGICAL') or
-                    next_code.startswith('PUBLIC') or next_code.startswith('PRIVATE') or
-                    next_code.startswith('CONTAINS') or next_code.startswith('SUBROUTINE') or
-                    next_code.startswith('FUNCTION') or next_code.startswith('MODULE') or
-                    next_code.startswith('PROGRAM') or next_code.startswith('USE ') or
-                    next_code.startswith('IMPLICIT') or next_code.startswith('INTERFACE') or
-                    next_code.startswith('!')):
+            elif j > i + 1:
+                # There's a gap (blank/comment lines) before the next code line
+                next_code = lines[j].strip().upper()
+                if any(next_code.startswith(kw) for kw in _NEW_STMT):
                     dangling = True
 
             if dangling:
-                # Replace trailing & with empty string to complete the statement
-                # e.g. CHARACTER(*), PARAMETER :: X = &  →  CHARACTER(*), PARAMETER :: X = ''
-                lines[i] = stripped[:-1] + "''\n"
-                modified = True
+                # Fix 2: USE ... ONLY: X, &  →  USE ... ONLY: X
+                if re.search(r',\s*&\s*$', stripped):
+                    lines[i] = re.sub(r',\s*&\s*$', '\n', stripped) + '\n'
+                    modified = True
+                # Fix 1: VARIABLE = &  →  VARIABLE = ''
+                elif '=' in stripped:
+                    lines[i] = stripped[:-1] + "''\n"
+                    modified = True
+                else:
+                    # Generic dangling & — just remove it
+                    lines[i] = stripped[:-1] + '\n'
+                    modified = True
         i += 1
 
     if not modified:
