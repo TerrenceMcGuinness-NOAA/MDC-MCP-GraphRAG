@@ -179,16 +179,65 @@ deterministic IDs, upsert semantics, and `--model`/`--backend` flags.
 
 | Phase | Priority | Goal | Status |
 |-------|----------|------|--------|
-| 51b | **High** | AgentCore MCP Deployment (replace dev bridge with managed AWS) | Spec written, not started |
-| 52 | **High** | Bedrock Embedding Re-ingestion (Titan 1024-dim, benchmark vs MPNet) | Spec written, not started |
+| 53 | **High** | Neptune Recovery — Track B Re-Ingestion (Fortran ✅, Shell ✅, Bridges ✅, Python pending) | In progress |
+| 51b | **High** | AgentCore MCP Deployment (replace dev bridge with managed AWS) | Blocked on IAM trust policy |
+| 52 | **High** | Bedrock Embedding Re-ingestion (Titan 1024-dim, benchmark vs MPNet) | Complete |
 
 ---
 
-## Planned
+## Q3 2026 — Path A: AgentCore Container Deployment
 
 | Phase | Priority | Goal |
 |-------|----------|------|
-| 4C | Medium | USD Sub-Agent Dispatch (autonomous multi-agent workflows) |
+| 51b | **High** | Deploy Node.js MCP server to AgentCore Runtime (container, VPC mode, Cognito auth) |
+| 54 | **High** | Remove dev bridge (port 3000), retire security group hack |
+
+---
+
+## Q4 2026–Q1 2027 — Path B: Full Python Port (Strands Agents SDK)
+
+*Reference: `docs/presentations/papers/agentcore_strategic_assessment/AgentCore_Strategic_Assessment.tex`*
+
+| Phase | Priority | Goal | Effort |
+|-------|----------|------|--------|
+| B1 | High | FastMCP wrapper + tool registration (Python scaffolding) | 1 week |
+| B2 | High | OpenSearch adapter (Python) — reuse `aws_backend.py` | 1 week |
+| B3 | High | Neptune adapter (Python) — openCypher via SigV4 HTTP | 2 weeks |
+| B4 | High | SemanticSearchTools port (7 tools) | 1 week |
+| B5 | High | CodeAnalysisTools port (6 tools) | 2 weeks |
+| B6 | High | GraphRAGTools + GGSR port (9 tools) — most complex | 3 weeks |
+| B7 | Medium | EE2ComplianceTools port (5 tools) | 1 week |
+| B8 | Medium | OperationalTools port (4 tools) | 1 week |
+| B9 | Medium | SDDWorkflowTools port (9 tools) | 1 week |
+| B10 | Medium | WorkflowInfoTools port (3 tools) | 3 days |
+| B11 | High | Strands agent layer — multi-agent orchestration | 2 weeks |
+| B12 | Medium | AgentCore Memory integration (STM + LTM) | 1 week |
+| B13 | Medium | AgentCore Gateway + Cedar Policy | 1 week |
+| B14 | Medium | Observability (OpenTelemetry) + Evaluations | 1 week |
+
+**Total estimated effort: ~16 weeks**
+
+**Strategy**: Node.js server continues serving production during port. Each module validated against existing baseline before cutover. No big-bang migration.
+
+---
+
+## Q2 2027 — Path B Phase 3: Autonomous Agents
+
+| Phase | Priority | Goal |
+|-------|----------|------|
+| B15 | Medium | Autonomous Code Analyst Agent (impact reports for PRs) |
+| B16 | Medium | Autonomous Compliance Auditor (nightly EE2 scans) |
+| B17 | Medium | Knowledge Curator Agent (stale embedding detection, auto re-ingestion) |
+| B18 | Low | Browser-based Documentation Crawler (AgentCore Browser) |
+| B19 | Low | Agent Registry publication (organizational tool catalog) |
+
+---
+
+## Planned (Deferred)
+
+| Phase | Priority | Goal |
+|-------|----------|------|
+| 4C | Low | USD Sub-Agent Dispatch (superseded by Strands multi-agent in B11) |
 | 4D | Medium | Multi-Tenant SDD Workspaces (team/user hierarchy) |
 | 8 | Low | Multi-Modal Embeddings (diagrams, flowcharts) |
 | 24I | Low | Learned Graph Embeddings |
