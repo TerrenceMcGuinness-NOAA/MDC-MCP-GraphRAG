@@ -221,7 +221,7 @@ Status:         READY
 
 ### What's Needed from Infrastructure Team (Phase 1)
 
-1. **IAM identities**: 9 additional developer IAM users with `bedrock-agentcore:InvokeAgentRuntime` permission (1 already active and validated)
+1. **IAM identities**: ✅ Done — 10 developer accounts provisioned by infrastructure team
 2. **EC2 access**: Each developer needs SSH remote development access to the EC2 (same jumpbox pattern as current setup)
 3. **Kiro onboarding**: Each developer configures Kiro with SSH remote connection to EC2 + their IAM credentials
 4. **Proxy deployment**: The `agentcore-kiro-proxy.py` script is already in the repo — no additional installation needed
@@ -388,8 +388,8 @@ jobs:
 |-------|-----------|-------------|--------|
 | 1a | AgentCore Runtime deployed | ✅ Done | April 30, 2026 |
 | 1b | First user validated (VPN + IAM + Kiro) | ✅ Done | April 30, 2026 |
-| 1c | AgentCore Kiro Proxy built and tested | Spec complete | May 2026 |
-| 1d | 9 additional IAM users + EC2 access provisioned | Infra team | May 2026 |
+| 1c | Cohort accounts provisioned | ✅ Done (infra team) | April 2026 |
+| 1d | AgentCore Kiro Proxy built and tested | Spec complete | May 2026 |
 | 1e | 10-user pilot with Kiro | Developer onboarding | May 2026 |
 | 2a | CDK stack deployment (API GW + Fargate) | Infra team approval | June 2026 |
 | 2b | mTLS + WAF configuration | Security team | June 2026 |
