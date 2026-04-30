@@ -61,10 +61,18 @@
       ],
       "disabled": false
     },
-    "mdc-mcp-rag-aws": {
-      "type": "http",
-      "url": "https://{api-id}-{vpce-id}.execute-api.us-east-1.amazonaws.com/prod/mcp",
-      "disabled": true,
+    "agentcore-mcp-rag": {
+      "type": "command",
+      "command": "python3",
+      "args": [
+        "/mdc-mcp-rag/eib-mcp-rag-server/tools/agentcore-kiro-proxy.py",
+        "--runtime-id",
+        "arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server-TMXDllG2Wi"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
       "autoApprove": [
         "get_workflow_structure",
         "get_system_configs",

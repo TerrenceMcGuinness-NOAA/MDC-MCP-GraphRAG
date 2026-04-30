@@ -1,5 +1,60 @@
 # MCP Server Changelog
 
+## [8.9.0] - Phase 51b: AgentCore Runtime Deployed + Kiro Proxy (April 30, 2026)
+
+### AgentCore Runtime — Deployed and Validated
+- Runtime created via AgentCore Power MCP tool `create_agent_runtime`
+- Runtime ID: `mdc_mcp_rag_server-TMXDllG2Wi`, Status: READY (version 2)
+- Protocol: MCP, Network: VPC (us-east-1a, us-east-1b)
+- First attempt failed: `subnet-024fd9b597b3075a5` in us-east-1d (use1-az6) unsupported by AgentCore
+- Retry with 2 supported subnets succeeded in ~4 minutes
+- All 51 tools validated via `InvokeAgentRuntime` API (initialize, tools/list, get_server_info)
+- Environment variables added via `UpdateAgentRuntime` (version 2): DB_BACKEND, NEPTUNE_ENDPOINT, OPENSEARCH_ENDPOINT, AWS_REGION, WORKFLOW_ROOT
+- Idle timeout: 900s, max lifetime: 28800s
+
+### AgentCore Kiro Proxy — Built and Connected
+- New file: `tools/agentcore-kiro-proxy.py` — stdio MCP bridge (Kiro ↔ AgentCore Runtime)
+- Reads JSON-RPC from stdin, forwards via boto3 `invoke_agent_runtime` (SigV4), parses SSE response, writes to stdout
+- Single Python file, no deps beyond stdlib + boto3, Python 3.9 compatible
+- Session management: unique 43-char session ID per process, reuse across calls
+- Retry logic: 3 retries with exponential backoff (0.5s/1s/2s) on transient errors
+- Signal handling: SIGTERM/SIGINT graceful shutdown
+- Tests: `tests/test_agentcore_kiro_proxy.py` — property-based (Hypothesis) + unit tests (pytest)
+- Kiro spec: `.kiro/specs/agentcore-kiro-proxy/` (requirements, design, tasks)
+
+### Kiro MCP Configuration
+- Added `agentcore-mcp-rag` entry to `.kiro/settings/mcp.json` (command type, python3)
+- 51 tools visible in Kiro MCP panel alongside legacy `eib-mcp-gateway`
+- Static tools (get_server_info) confirmed working through AgentCore
+- Graph tools (get_code_context) pending: Neptune VPC connectivity from microVM needs security group update
+
+### IAM Permissions — Resolved
+- Trust policy updated: `bedrock-agentcore.amazonaws.com` on `mdc-mcp-rag-ecs-task-role`
+- 4 service-linked roles created by admin
+- Explicit deny on `bedrock-agentcore:*` removed
+- Verified: `aws bedrock-agentcore-control list-agent-runtimes` returns successfully
+- CLI note: subcommand is `bedrock-agentcore-control` (not `bedrock-agentcore`)
+
+### Documentation
+- `docs/mcp-access-architecture-proposal.md` — Two-phase deployment strategy (Phase 1: AgentCore + 10-user cohort, Phase 2: Fargate + GitHub Actions CI/CD)
+- `docs/presentations/mcp_access_architecture.pdf` — LaTeX/TikZ presentation with architecture diagrams
+- Wiki: `MCP-Access-Architecture-Proposal` published to global-workflow.wiki
+- SDD: `sdd_framework/workflows/phase51b_agentcore_mcp_deployment.md` reconciled with actual progress
+- Kiro spec: `.kiro/specs/agentcore-mcp-deployment/tasks.md` — tasks 1-6 marked complete, 7-11 updated
+
+### Remaining (next session)
+- Debug Neptune VPC connectivity from AgentCore microVM (security group egress/ingress)
+- Validate graph + vector tools through AgentCore (get_code_context, search_documentation)
+- Update CHANGELOG and SDD after full validation
+- Retire dev bridge (Task 10)
+
+### Commits
+- `9988788` docs: reconcile Phase 51b SDD and Kiro spec with deployment progress
+- `41ee0a5` docs: add MCP access architecture proposal
+- `b86f3b2` docs: add MCP access architecture PDF with TikZ diagrams
+- `994575d` docs: update architecture proposal with Kiro SSH remote + proxy details
+- `f19bc6a` docs: cohort accounts already provisioned by infra team
+
 ## [8.8.1] - Phase 53 Track B: Fortran Ingestion Complete (April 27, 2026)
 
 ### Fortran Ingestion — Completed
