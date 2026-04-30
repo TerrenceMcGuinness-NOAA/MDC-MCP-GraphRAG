@@ -75,6 +75,17 @@ These tools reflect the **legacy system's data** — the same data we are portin
 - Python docstrings: numpy style
 - Always update `CHANGELOG.md` for version changes
 
+## CDK Deployment Safety (Post-Mortem Corrective Action)
+
+After the April 22, 2026 Neptune data loss incident, the following are MANDATORY
+for any CDK stack deployment. See `.kiro/steering/05-cdk-data-safety.md` for full rules.
+
+1. **Every stateful resource MUST have `removalPolicy: RETAIN`** — CDK defaults to DESTROY
+2. **Run `cdk diff` before every `cdk deploy`** — review for unintended deletions
+3. **Two-step pattern for resource migration** — deploy RETAIN first, then remove from CDK
+4. **CDK tests MUST assert `DeletionPolicy: Retain`** on all stateful resources
+5. **Never skip the pre-deploy checklist** in `.kiro/steering/05-cdk-data-safety.md`
+
 ## AWS-Specific Considerations
 
 - **IaC First**: All infrastructure changes via CDK or AgentCore CLI — no manual console changes
