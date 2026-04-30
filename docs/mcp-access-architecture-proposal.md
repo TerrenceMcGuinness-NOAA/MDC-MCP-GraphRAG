@@ -120,10 +120,78 @@ Enable 10 developers on GFE laptops to access the MCP server through their Kiro 
 
 1. Developer connects GFE laptop to NOAA VPN (CAC authentication)
 2. VPN provides access to the private VPC (no internet gateway)
-3. Kiro IDE connects to AgentCore Runtime endpoint via MCP protocol
-4. AgentCore creates an isolated microVM session for that user
-5. MCP server in the microVM queries Neptune/OpenSearch on behalf of the user
-6. Session auto-terminates after 15 minutes idle (configurable)
+3. Kiro IDE (running on GFE) connects to EC2 via SSH remote development (same pattern as VS Code Remote SSH)
+4. Kiro pushes its server-side component onto the EC2 via the SSH connection
+5. Kiro spawns the **AgentCore MCP Proxy** as a `"command"` type MCP server on the EC2
+6. The proxy calls `InvokeAgentRuntime` (boto3, SigV4) to reach the AgentCore Runtime
+7. AgentCore creates an isolated microVM session for that user
+8. MCP server in the microVM queries Neptune/OpenSearch on behalf of the user
+9. Session auto-terminates after 15 minutes idle (configurable)
+
+### Kiro-to-AgentCore Connectivity (The Proxy)
+
+AgentCore MCP runtimes are accessed via the `InvokeAgentRuntime` API with SigV4 signing — they do not expose a plain HTTPS URL. Kiro's MCP client expects either a plain HTTP URL or a local `"command"` process. The solution is a **thin stdio proxy** that runs on the EC2:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  GFE Laptop                                                     │
+│  ┌──────────┐                                                   │
+│  │ Kiro IDE │ ─── SSH Remote Development ───┐                   │
+│  └──────────┘                               │                   │
+└─────────────────────────────────────────────│───────────────────┘
+                                              │
+                              CAC VPN → Jumpbox → SSH
+                                              │
+                                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  EC2 Instance (Kiro remote workspace)                           │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  agentcore-kiro-proxy.py (command-type MCP server)        │  │
+│  │  - Reads JSON-RPC from stdin (Kiro sends it)              │  │
+│  │  - Calls invoke_agent_runtime via boto3 (SigV4/IAM)       │  │
+│  │  - Parses SSE response from AgentCore                     │  │
+│  │  - Writes JSON-RPC to stdout (Kiro reads it)              │  │
+│  └───────────────────────────┬───────────────────────────────┘  │
+│                              │                                   │
+│                              │ boto3 API call (VPC-internal)     │
+│                              ▼                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  AgentCore Runtime (microVM per user session)             │  │
+│  │  51 MCP tools → Neptune + OpenSearch                      │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key properties of the proxy:**
+- Single Python file (~100 lines), no dependencies beyond boto3 (already on EC2)
+- Runs on the EC2 where Kiro's remote workspace lives — same pattern as the AWS Powers
+- Each user's Kiro instance spawns its own proxy process → own AgentCore session → own microVM
+- Transparent forwarding: proxy never interprets tool schemas, just passes JSON-RPC through
+
+**Kiro MCP configuration (on EC2 at `/home/ec2-user/.kiro/settings/mcp.json`):**
+
+```json
+{
+  "agentcore-mcp-rag": {
+    "command": "python3",
+    "args": ["/home/ec2-user/eib-mcp-rag-server/tools/agentcore-kiro-proxy.py",
+             "--runtime-id", "mdc_mcp_rag_server-TMXDllG2Wi"],
+    "env": {
+      "AWS_REGION": "us-east-1"
+    }
+  }
+}
+```
+
+This follows the same pattern as the three existing AWS Powers (IAM Policy Autopilot, AWS IaC, AgentCore) which are also configured as `"command"` type servers on the EC2.
+
+### Important: No Software on GFE
+
+- **Nothing runs on the GFE laptop** except Kiro itself (desktop application)
+- All MCP servers, Powers, Python, uvx, boto3 — everything executes on the EC2
+- Kiro connects to the EC2 via SSH remote development (analogous to VS Code Remote SSH)
+- The GFE provides only the thin client UI and the CAC VPN network path
 
 ### Authentication (Validated)
 
@@ -154,10 +222,11 @@ Status:         READY
 ### What's Needed from Infrastructure Team (Phase 1)
 
 1. **IAM identities**: 9 additional developer IAM users with `bedrock-agentcore:InvokeAgentRuntime` permission (1 already active and validated)
-2. **Kiro onboarding**: Each developer configures Kiro with their IAM credentials (same pattern as current setup)
-3. **No Internet Gateway required** — all traffic stays within VPC
-4. **VPN routing already in place** — CAC VPN → private VPC connectivity confirmed working
-5. **DNS resolution already working** — AgentCore endpoint reachable via ARN-based invocation through IAM/SigV4
+2. **EC2 access**: Each developer needs SSH remote development access to the EC2 (same jumpbox pattern as current setup)
+3. **Kiro onboarding**: Each developer configures Kiro with SSH remote connection to EC2 + their IAM credentials
+4. **Proxy deployment**: The `agentcore-kiro-proxy.py` script is already in the repo — no additional installation needed
+5. **No Internet Gateway required** — all traffic stays within VPC
+6. **VPN routing already in place** — CAC VPN → private VPC connectivity confirmed working
 
 ### Cost Estimate (Phase 1)
 
@@ -319,8 +388,9 @@ jobs:
 |-------|-----------|-------------|--------|
 | 1a | AgentCore Runtime deployed | ✅ Done | April 30, 2026 |
 | 1b | First user validated (VPN + IAM + Kiro) | ✅ Done | April 30, 2026 |
-| 1c | 9 additional IAM users provisioned | Infra team | May 2026 |
-| 1d | 10-user pilot with Kiro | Developer onboarding | May 2026 |
+| 1c | AgentCore Kiro Proxy built and tested | Spec complete | May 2026 |
+| 1d | 9 additional IAM users + EC2 access provisioned | Infra team | May 2026 |
+| 1e | 10-user pilot with Kiro | Developer onboarding | May 2026 |
 | 2a | CDK stack deployment (API GW + Fargate) | Infra team approval | June 2026 |
 | 2b | mTLS + WAF configuration | Security team | June 2026 |
 | 2c | GitHub Actions integration | DevOps | July 2026 |
@@ -334,6 +404,7 @@ jobs:
 |-------|----------|--------|
 | MCP Server container (ARM64) | `903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:agentcore` | ✅ Pushed |
 | AgentCore Runtime | `mdc_mcp_rag_server-TMXDllG2Wi` | ✅ READY |
+| AgentCore Kiro Proxy | `tools/agentcore-kiro-proxy.py` | 🔨 Spec complete |
 | CDK Stacks (API GW + Fargate) | `infrastructure/cdk/lib/` | ✅ Coded, 27 tests passing |
 | Neptune graph database | 164,916 nodes, 2,941,593 relationships | ✅ Loaded |
 | OpenSearch vector store | 85,000+ documents, 5 indices | ✅ Loaded |
@@ -355,6 +426,7 @@ jobs:
 ## References
 
 - AgentCore Runtime: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-mcp.html
+- AgentCore Kiro Proxy Spec: `.kiro/specs/agentcore-kiro-proxy/` (requirements, design, tasks)
 - CDK Stacks: `infrastructure/cdk/lib/` (this repository)
 - Container: `mcp_server_node/Dockerfile.agentcore`
 - Permissions: `docs/agentcore-permissions-request.md`
