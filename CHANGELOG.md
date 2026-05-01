@@ -35,13 +35,19 @@ covered by a regression test under `mcp_server_node/src/__tests__/`.
   from `multiSourceSearch`, and emits a no-results guard so callers never get
   just a heading.
 - **D8** `explain_workflow_component` renders a Job Definition section when
-  the graph arm matches a `:JJob` (instead of falling through to the generic
-  semantic documentation arm). Delegates to `getJobDetails` and degrades
-  gracefully when filesystem reads fail.
+  the graph arm matches a `:JJob` — or a `:ShellScript` whose name matches
+  the J-job pattern (`^J(GFS|GDAS|GLOBAL|ENKF|...)`). The Cypher label
+  clause was widened to include `:ShellScript` so canonical J-jobs like
+  `JGLOBAL_FORECAST` (stored as `:ShellScript` nodes in the graph) hit the
+  J-Job render branch. Delegates to `getJobDetails` and degrades gracefully
+  when filesystem reads fail.
 - **D9** `get_operational_guidance` accepts `topic` (canonical) and
-  `operation` (backward-compatible alias). Schema updated to advertise
-  `topic` as the primary parameter via `anyOf: [{required:[topic]}, {required:[operation]}]`.
-  Returns a structured error if neither is supplied.
+  `operation` (backward-compatible alias). Schema advertises both as optional
+  properties (no `anyOf`/`required`); the handler enforces presence of at
+  least one at runtime and returns a structured error otherwise. The
+  original `anyOf` form was rejected by the gateway's JSON-schema validator
+  even when `topic` was supplied, so it was dropped during gateway
+  re-validation.
 - **D10** `search_architecture` two-pass relaxation: Pass 1 keeps the strict
   Phase 51 floor (`similarity ≥ 0.2 ∧ level ≥ 1`); Pass 2 drops the floor
   to `0.15`; final fallback returns the top-3 by `similarity * (1 + 0.25 *
@@ -61,9 +67,13 @@ covered by a regression test under `mcp_server_node/src/__tests__/`.
 ### Notes
 - **Docker image rebuild required** so the gateway picks up these fixes:
   `docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node`
-  followed by gateway restart per the project README.
+  followed by gateway restart per the project README. **Re-validated against
+  the rebuilt gateway on 2026-05-01**: 9/10 defects pass live tool probes;
+  D9 server-side accepts `topic` (verified by container source inspection
+  + unit tests), but VS Code's MCP schema cache requires an MCP reconnect
+  before the client stops pre-validating against the old schema.
 - `docs/MCP_TOOL_QUALITY_REPORT.md` rows for the 10 affected tools updated
-  in-place (★ → ★★★★) with a Phase-53 re-validation footer dated 2026-05-02.
+  in-place (★ → ★★★★) with a Phase-53 re-validation footer dated 2026-05-01.
 - Spec: `sdd_framework/workflows/phase53_gateway_tool_quality_remediation.md`.
 
 ---

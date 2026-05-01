@@ -64,11 +64,7 @@ export class OperationalTools {
             default: 'routine',
             description: 'Operational urgency level'
           }
-        },
-        anyOf: [
-          { required: ['topic'] },
-          { required: ['operation'] }
-        ]
+        }
       },
       this.getOperationalGuidance.bind(this)
     );
@@ -272,8 +268,8 @@ export class OperationalTools {
         const graphDB = this.dataAccess.graphDb || this.dataAccess.graphDB;
         if (graphDB && typeof graphDB.query === 'function') {
           const labelClause = isJJobLike
-            ? '(n:JJob OR n:Script OR n:File OR n:Function OR n:Class)'
-            : '(n:File OR n:Function OR n:Class OR n:Module)';
+            ? '(n:JJob OR n:Script OR n:ShellScript OR n:File OR n:Function OR n:Class)'
+            : '(n:File OR n:Function OR n:Class OR n:Module OR n:ShellScript)';
           const cypher = `
             MATCH (n)
             WHERE ${labelClause}
@@ -292,10 +288,12 @@ export class OperationalTools {
       let output = `# Workflow Component: ${component}\n\n`;
       output += `**Detail Level:** ${detail_level}\n\n`;
 
-      // Phase 53 D8: when the graph arm directly hit a J-Job, render the
-      // job's structured details (sourced scripts, inputs, outputs) instead
-      // of falling through to the generic semantic documentation arm.
-      const jjobHit = graphResults.find(r => r && r.type === 'JJob');
+      // Phase 53 D8: when the graph arm directly hit a J-Job (or a ShellScript
+      // that matches the J-job name pattern), render the job's structured
+      // details instead of falling through to generic semantic documentation.
+      const jjobHit = graphResults.find(
+        r => r && (r.type === 'JJob' || (r.type === 'ShellScript' && isJJobLike))
+      );
       if (jjobHit) {
         try {
           const jobDetails = await this.getJobDetails({
