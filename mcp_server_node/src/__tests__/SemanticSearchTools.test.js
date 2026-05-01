@@ -196,6 +196,43 @@ describe('SemanticSearchTools', () => {
       const text = result.content[0].text;
       expect(text).toBeDefined();
     });
+
+    it('Phase 53 D2: renders file path label, not "Unknown"', async () => {
+      // findRelatedCode returns { relatedFiles, imports }; rows use `path`.
+      mockDataAccess.findRelatedCode.mockResolvedValue({
+        relatedFiles: [
+          { path: 'scripts/foo.py', similarity: 0.9 }
+        ],
+        imports: []
+      });
+
+      const result = await tools.findRelatedFiles({
+        file_path: 'scripts/exglobal_forecast.py'
+      });
+
+      const text = result.content[0].text;
+      expect(text).toContain('scripts/foo.py');
+      expect(text).not.toMatch(/Unknown/);
+    });
+  });
+
+  describe('Phase 53 D7: explain_with_context body population', () => {
+    it('emits a non-empty body when only `query` and `topic` are supplied', async () => {
+      mockDataAccess.multiSourceSearch.mockResolvedValue([
+        { document: 'Forecast jobs are sourced from JGLOBAL_FORECAST', metadata: { source: 'docs' }, distance: 0.4 },
+        { document: 'Inputs include initial conditions and lateral BCs', metadata: { source: 'docs' }, distance: 0.5 }
+      ]);
+
+      const result = await tools.explainWithContext({
+        topic: 'GFS forecast pipeline',
+        detail_level: 'intermediate'
+      });
+
+      const text = result.content[0].text;
+      // Body must contain at least one source result, not just a heading
+      expect(text.length).toBeGreaterThan(200);
+      expect(text).toMatch(/Forecast jobs|Inputs/);
+    });
   });
 
   describe('Error Handling', () => {

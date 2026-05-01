@@ -50,7 +50,8 @@ export class OperationalTools {
       {
         type: 'object',
         properties: {
-          operation: { type: 'string', description: 'Operation or procedure to get guidance for' },
+          topic: { type: 'string', description: 'Operation or procedure to get guidance for (canonical parameter)' },
+          operation: { type: 'string', description: 'Alias for `topic` (deprecated; kept for backward compatibility)' },
           platform: {
             type: 'string',
             enum: ['hera', 'hercules', 'orion', 'wcoss2', 'gaea', 'generic'],
@@ -64,7 +65,10 @@ export class OperationalTools {
             description: 'Operational urgency level'
           }
         },
-        required: ['operation']
+        anyOf: [
+          { required: ['topic'] },
+          { required: ['operation'] }
+        ]
       },
       this.getOperationalGuidance.bind(this)
     );
@@ -169,7 +173,25 @@ export class OperationalTools {
 
   async getOperationalGuidance(args) {
     await this.ensureInitialized();
-    const { operation, platform = 'generic', urgency = 'routine' } = args;
+    // Phase 53 D9: accept `topic` as the canonical parameter and `operation`
+    // as a backwards-compatible alias. Schema still advertises both.
+    if (args.topic && !args.operation) {
+      console.error('[INFO] get_operational_guidance: using `topic`; `operation` remains accepted as alias');
+    } else if (args.operation && !args.topic) {
+      console.error('[WARN] get_operational_guidance: `operation` is now an alias; prefer `topic`');
+    }
+    const operation = args.topic ?? args.operation;
+    const { platform = 'generic', urgency = 'routine' } = args;
+
+    if (!operation) {
+      return {
+        content: [{
+          type: 'text',
+          text: 'Error: missing required parameter — pass `topic` (preferred) or `operation`.'
+        }],
+        isError: true
+      };
+    }
 
     try {
       // Search for operational procedures in documentation
@@ -269,6 +291,35 @@ export class OperationalTools {
 
       let output = `# Workflow Component: ${component}\n\n`;
       output += `**Detail Level:** ${detail_level}\n\n`;
+
+      // Phase 53 D8: when the graph arm directly hit a J-Job, render the
+      // job's structured details (sourced scripts, inputs, outputs) instead
+      // of falling through to the generic semantic documentation arm.
+      const jjobHit = graphResults.find(r => r && r.type === 'JJob');
+      if (jjobHit) {
+        try {
+          const jobDetails = await this.getJobDetails({
+            job_name: jjobHit.name || component,
+            include_chromadb: false,
+            include_config: false,
+            include_content: false
+          });
+          const jobBody = jobDetails?.content?.[0]?.text;
+          if (jobBody && typeof jobBody === 'string') {
+            output += `## Job Definition\n\n${jobBody}\n\n`;
+          } else {
+            output += `## Job Definition\n\n- **Name:** ${jjobHit.name}\n- **Type:** ${jjobHit.type}\n`;
+            if (jjobHit.path) output += `- **Path:** ${jjobHit.path}\n`;
+            output += `\n`;
+          }
+        } catch (err) {
+          // Graceful degradation — emit a minimal block so the body is
+          // never empty when we know we matched a J-Job.
+          output += `## Job Definition\n\n- **Name:** ${jjobHit.name}\n- **Type:** ${jjobHit.type}\n`;
+          if (jjobHit.path) output += `- **Path:** ${jjobHit.path}\n`;
+          output += `_(Detailed job extraction unavailable: ${err.message})_\n\n`;
+        }
+      }
 
       // Documentation (vector arm)
       if (vectorResults && vectorResults.length > 0) {

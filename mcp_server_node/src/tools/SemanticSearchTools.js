@@ -290,7 +290,12 @@ export class SemanticSearchTools {
       if (relatedFiles.length > 0) {
         output += `## Files with Similar Dependencies\n\n`;
         for (const file of relatedFiles.slice(0, max_results)) {
-          const fileName = typeof file === 'string' ? file : (file.filePath || file.target || 'Unknown');
+          // Phase 53 D2: GraphDatabase.findImporters returns rows keyed by
+          // `file` (path); other shapes use `path`/`filePath`/`target`.
+          // Old chain only checked filePath/target → every row labeled "Unknown".
+          const fileName = typeof file === 'string'
+            ? file
+            : (file.filePath ?? file.file ?? file.path ?? file.target ?? file.name ?? 'Unknown');
           output += `- \`${fileName}\`\n`;
         }
         output += `\n`;
@@ -334,33 +339,66 @@ export class SemanticSearchTools {
     const { topic, context_type = 'all', detail_level = 'intermediate' } = args;
 
     try {
-      const results = await this.dataAccess.multiSourceSearch(topic, {
-        sources: ['vector', 'graph'],
+      // Phase 53 D7: multiSourceSearch may return either a flat array of
+      // results (post-Phase 51) or a { vector, graph } object. The old code
+      // only handled the object shape, so a flat-array response left every
+      // body section unrendered → output was just the heading.
+      const raw = await this.dataAccess.multiSourceSearch(topic, {
+        sources: ['vector', 'graph', 'community'],
         maxResults: 5
       });
+
+      let vectorResults = [];
+      let graphResults = [];
+      if (Array.isArray(raw)) {
+        // Flat array — partition by presence of graph context.
+        for (const r of raw) {
+          if (r && (r.document || r.text)) vectorResults.push(r);
+          if (r && r.graphContext) graphResults.push(r.graphContext);
+          if (r && (r.name || r.type) && !(r.document || r.text)) graphResults.push(r);
+        }
+      } else if (raw && typeof raw === 'object') {
+        vectorResults = raw.vector || [];
+        graphResults = raw.graph || [];
+      }
 
       let output = `# Explanation: ${topic}\n\n`;
       output += `**Context Type:** ${context_type}\n`;
       output += `**Detail Level:** ${detail_level}\n\n`;
 
-      if (results.vector && results.vector.length > 0) {
+      if (vectorResults.length > 0) {
         output += `## Documentation Context\n\n`;
-        for (const result of results.vector.slice(0, 3)) {
-          output += `${result.document || result.text}\n\n`;
+        for (const result of vectorResults.slice(0, 3)) {
+          const text = result.document || result.text || '';
+          if (!text) continue;
+          const sim = result.distance != null
+            ? (1 - result.distance).toFixed(3)
+            : (result.similarity != null ? result.similarity.toFixed(3) : null);
+          output += sim != null ? `_(similarity: ${sim})_\n` : '';
+          output += `${text}\n\n`;
         }
       }
 
-      if (results.graph && results.graph.length > 0) {
+      if (graphResults.length > 0) {
         output += `## Code Structure Context\n\n`;
-        for (const result of results.graph.slice(0, 3)) {
-          output += `- **${result.name || result.file}**: ${result.type || 'Component'}\n`;
+        for (const result of graphResults.slice(0, 3)) {
+          const name = result.name || result.file || result.path || 'Component';
+          const type = result.type || (Array.isArray(result.labels) ? result.labels[0] : 'Component');
+          output += `- **${name}**: ${type}\n`;
         }
         output += `\n`;
       }
 
+      // Phase 53 D7: ensure body is never just a heading. If neither arm
+      // produced content, surface a clear no-results message.
+      if (vectorResults.length === 0 && graphResults.length === 0) {
+        output += `_No documentation or graph nodes matched **${topic}**._\n\n`;
+        output += `Try a more specific query or run \`get_knowledge_base_status\` to confirm collections are populated.\n\n`;
+      }
+
       output += `## Summary\n\n`;
       output += `This explanation combines semantic documentation search with code structure analysis.\n`;
-      
+
       return { content: [{ type: 'text', text: output }] };
     } catch (error) {
       return {

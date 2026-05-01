@@ -1,5 +1,73 @@
 # MCP Server Changelog
 
+## [8.3.0] - SDD Phase 53: Gateway Tool Quality Remediation (May 2, 2026)
+
+Fixes the 10 reproducible tool-output defects (D1–D10) catalogued in
+`docs/MCP_TOOL_QUALITY_REPORT.md`. Every fix is minimal/surgical and is
+covered by a regression test under `mcp_server_node/src/__tests__/`.
+
+### Fixed
+- **D1** `find_dependencies` no longer renders `[object Object]` for import names.
+  Fallback chain now reads `imp.moduleName ?? imp.target ?? imp.name ?? imp.path` for
+  imports and `imp.file ?? imp.source ?? imp.path ?? imp.name` for importers
+  (matches the actual Neo4j returned-field names from `findFileImports` and
+  `findImporters`).
+- **D2** `find_related_files` no longer labels every result `Unknown`.
+  The `fileName` resolver now includes `file.path` in its fallback chain so
+  rows returned by `findRelatedCode` (which uses Cypher alias `f.path`) render
+  the canonical file path.
+- **D3** `get_code_context` header no longer shows `null` for File nodes.
+  Display name resolves through `node.name → basename(node.path) → args.symbol`.
+- **D4** `analyze_code_structure` resolves partial paths via a 3-tier resolver
+  (exact → `ENDS WITH` suffix → basename suffix), ranked by shortest path.
+  `scripts/exglobal_forecast.sh` now correctly resolves to the canonical
+  `supported_repos/global-workflow/scripts/exglobal_forecast.sh` node and
+  prints a `Resolved … → …` notice.
+- **D5** `find_env_dependencies` header count is now derived from a single
+  source of truth (`dependents.length + ggsrCount`) and matches the body.
+- **D6** `scan_repository_compliance` accepts `files=[{name,content,path?}]`
+  without a `repository_path`. The handler now branches at the top: when an
+  in-memory `files` array is provided it skips all filesystem checks and
+  reuses the existing per-file compliance loop. Path-mode behaviour is
+  unchanged.
+- **D7** `explain_with_context` always populates body sections — handles both
+  the post-Phase-51 flat-array shape and the legacy `{vector, graph}` shape
+  from `multiSourceSearch`, and emits a no-results guard so callers never get
+  just a heading.
+- **D8** `explain_workflow_component` renders a Job Definition section when
+  the graph arm matches a `:JJob` (instead of falling through to the generic
+  semantic documentation arm). Delegates to `getJobDetails` and degrades
+  gracefully when filesystem reads fail.
+- **D9** `get_operational_guidance` accepts `topic` (canonical) and
+  `operation` (backward-compatible alias). Schema updated to advertise
+  `topic` as the primary parameter via `anyOf: [{required:[topic]}, {required:[operation]}]`.
+  Returns a structured error if neither is supplied.
+- **D10** `search_architecture` two-pass relaxation: Pass 1 keeps the strict
+  Phase 51 floor (`similarity ≥ 0.2 ∧ level ≥ 1`); Pass 2 drops the floor
+  to `0.15`; final fallback returns the top-3 by `similarity * (1 + 0.25 *
+  level)` with a `[low-confidence]` annotation. Never returns a silent
+  empty match.
+
+### Added
+- 13 regression tests across 5 test files (one focused test per defect plus
+  edge-case coverage):
+  - `src/__tests__/CodeAnalysisTools.test.js` — D1, D4, D5
+  - `src/__tests__/SemanticSearchTools.test.js` — D2, D7
+  - `src/__tests__/GraphRAGTools.test.js` — D3, D10 (×2)
+  - `src/__tests__/OperationalTools.test.js` — D8, D9 (×3 incl. error case)
+  - `src/__tests__/EE2ComplianceTools.test.js` — D6 (NEW file; 2 tests)
+- Final test count: **78/78 passing** (65 baseline + 13 new), 0 regressions.
+
+### Notes
+- **Docker image rebuild required** so the gateway picks up these fixes:
+  `docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node`
+  followed by gateway restart per the project README.
+- `docs/MCP_TOOL_QUALITY_REPORT.md` rows for the 10 affected tools updated
+  in-place (★ → ★★★★) with a Phase-53 re-validation footer dated 2026-05-02.
+- Spec: `sdd_framework/workflows/phase53_gateway_tool_quality_remediation.md`.
+
+---
+
 ## [7.40.0] - SDD Phase 47a: Rocoto Dryrun PR #125 Log Semantics & Upstream Reconcile (April 20, 2026)
 
 Closes out the Rocoto `--dryrun` PR after upstream collaborator

@@ -645,60 +645,89 @@ export class EE2ComplianceTools {
       };
     }
     
-    const { 
-      repository_path, 
+    const {
+      repository_path,
+      files: providedFiles,
       file_patterns = ['**/*.sh', '**/*.py', '**/JEVS_*', '**/exglobal_*', '**/*.config'],
       sample_size = 10000,  // Default to full scan
       categories = ['error_handling', 'environment_variables', 'file_naming']
     } = args;
 
     try {
-      console.error(`[SCAN] Starting repository compliance scan: ${repository_path}`);
       const fs = await import('fs');
       const path = await import('path');
-      const { glob } = await import('glob');
-      
-      // Verify repository exists
-      if (!fs.existsSync(repository_path)) {
-        return {
-          content: [{ type: 'text', text: `Repository not found: ${repository_path}` }],
-          isError: true
-        };
-      }
-      
-      // Collect all files matching patterns
-      const allFiles = [];
+
+      // Phase 53 D6: accept `files=[{name, content, path?}]` directly so
+      // remote MCP callers and tests can scan code without a filesystem
+      // path. Old code threw "Repository not found: undefined" because
+      // `repository_path` was checked before `files`.
+      const usingProvidedFiles = Array.isArray(providedFiles) && providedFiles.length > 0;
+      let allFiles = [];
       const filesByType = {
         shell_scripts: [],
         python_scripts: [],
         job_cards: [],
         config_files: []
       };
-      
-      for (const pattern of file_patterns) {
-        const matches = await glob(pattern, {
-          cwd: repository_path,
-          absolute: false,
-          ignore: ['**/dev/**', 'dev/**']  // Exclude /dev and all subdirectories
-        });
-        allFiles.push(...matches.map(f => path.join(repository_path, f)));
-      }
-      
-      console.error(`[OK] Found ${allFiles.length} files (excluding /dev directory)`);
-      
-      // Categorize files
-      for (const file of allFiles) {
-        const basename = path.basename(file);
-        const ext = path.extname(file);
-        
-        if (ext === '.sh' || basename.startsWith('ex')) {
-          filesByType.shell_scripts.push(file);
-        } else if (ext === '.py') {
-          filesByType.python_scripts.push(file);
-        } else if (basename.startsWith('JEVS_') || basename.startsWith('J')) {
-          filesByType.job_cards.push(file);
-        } else if (ext === '.config' || ext === '.cfg') {
-          filesByType.config_files.push(file);
+      const virtualContents = new Map();
+
+      if (usingProvidedFiles) {
+        console.error(`[SCAN] In-memory compliance scan: ${providedFiles.length} files`);
+        for (const f of providedFiles) {
+          if (!f || typeof f.content !== 'string' || !f.name) continue;
+          const virtualPath = f.path || f.name;
+          allFiles.push(virtualPath);
+          virtualContents.set(virtualPath, f.content);
+          const basename = path.basename(virtualPath);
+          const ext = path.extname(virtualPath);
+          if (ext === '.sh' || basename.startsWith('ex')) {
+            filesByType.shell_scripts.push(virtualPath);
+          } else if (ext === '.py') {
+            filesByType.python_scripts.push(virtualPath);
+          } else if (basename.startsWith('JEVS_') || basename.startsWith('J')) {
+            filesByType.job_cards.push(virtualPath);
+          } else if (ext === '.config' || ext === '.cfg') {
+            filesByType.config_files.push(virtualPath);
+          }
+        }
+      } else {
+        console.error(`[SCAN] Starting repository compliance scan: ${repository_path}`);
+        const { glob } = await import('glob');
+
+        // Verify repository exists
+        if (!fs.existsSync(repository_path)) {
+          return {
+            content: [{ type: 'text', text: `Repository not found: ${repository_path}` }],
+            isError: true
+          };
+        }
+
+        // Collect all files matching patterns
+        for (const pattern of file_patterns) {
+          const matches = await glob(pattern, {
+            cwd: repository_path,
+            absolute: false,
+            ignore: ['**/dev/**', 'dev/**']  // Exclude /dev and all subdirectories
+          });
+          allFiles.push(...matches.map(f => path.join(repository_path, f)));
+        }
+
+        console.error(`[OK] Found ${allFiles.length} files (excluding /dev directory)`);
+
+        // Categorize files
+        for (const file of allFiles) {
+          const basename = path.basename(file);
+          const ext = path.extname(file);
+
+          if (ext === '.sh' || basename.startsWith('ex')) {
+            filesByType.shell_scripts.push(file);
+          } else if (ext === '.py') {
+            filesByType.python_scripts.push(file);
+          } else if (basename.startsWith('JEVS_') || basename.startsWith('J')) {
+            filesByType.job_cards.push(file);
+          } else if (ext === '.config' || ext === '.cfg') {
+            filesByType.config_files.push(file);
+          }
         }
       }
       
@@ -736,9 +765,14 @@ export class EE2ComplianceTools {
       
       for (const { file, type } of samplesToAnalyze) {
         try {
-          const content = fs.readFileSync(file, 'utf-8');
+          // Phase 53 D6: prefer in-memory content when caller passed `files`.
+          const content = virtualContents.has(file)
+            ? virtualContents.get(file)
+            : fs.readFileSync(file, 'utf-8');
           const lines = content.split('\n');
-          const relativePath = path.relative(repository_path, file);
+          const relativePath = usingProvidedFiles
+            ? file
+            : path.relative(repository_path, file);
           const basename = path.basename(file);  // Compute once for all category checks
           
           // Enhanced analysis with code examples and specific fixes
@@ -1105,7 +1139,7 @@ export class EE2ComplianceTools {
       
       // Return structured data focused on ACTIONABLE findings only
       const scanResult = {
-        repository: repository_path,
+        repository: usingProvidedFiles ? '(in-memory files)' : repository_path,
         scan_date: new Date().toISOString(),
         statistics: {
           total_files: allFiles.length,

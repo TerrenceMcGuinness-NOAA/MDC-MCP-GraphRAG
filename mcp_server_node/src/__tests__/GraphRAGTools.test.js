@@ -60,12 +60,60 @@ describe('GraphRAGTools.searchArchitecture (Phase 51)', () => {
     expect(idxL2).toBeLessThan(idxL1);
   });
 
-  it('rejects results below the 0.2 similarity floor', async () => {
+  it('Phase 53 D10: returns Pass 2 results when only similarity 0.15..0.2 communities exist', async () => {
     const { tools } = makeTools([
       { text: 'L1 weak', metadata: { communityId: 1, level: 1 }, distance: 0.85 } // sim 0.15
     ]);
 
     const result = await tools.searchArchitecture({ query: 'anything' });
-    expect(result.content[0].text).toMatch(/No high-confidence architectural matches/);
+    const text = result.content[0].text;
+    // Pass 2 floor (0.15) includes this community — body must not be empty.
+    expect(text).toContain('Community 1');
+    expect(text).toContain('similarity >= 0.15');
+  });
+
+  it('Phase 53 D10: low-confidence fallback returns top results with annotation when no community passes 0.15', async () => {
+    const { tools } = makeTools([
+      { text: 'L1 very weak', metadata: { communityId: 42, level: 1 }, distance: 0.95 } // sim 0.05
+    ]);
+
+    const result = await tools.searchArchitecture({ query: 'anything' });
+    const text = result.content[0].text;
+    expect(text).toContain('low-confidence');
+    expect(text).toContain('Community 42');
+  });
+});
+
+describe('GraphRAGTools.getCodeContext (Phase 53 D3)', () => {
+  it('falls back to symbol name when node has no `name` field (File nodes)', async () => {
+    const dataAccess = {
+      vectorDB: { query: vi.fn() },
+      graphDB: {
+        query: vi.fn()
+          // 1st call: nodeInfo lookup — return a File node with name=null,
+          // which previously caused the header to render `null`.
+          .mockResolvedValueOnce([{ name: null, labels: ['File'], path: 'scripts/exglobal_forecast.sh' }])
+          // 2nd call: callers lookup — empty
+          .mockResolvedValueOnce([])
+      }
+    };
+    const tools = new GraphRAGTools(dataAccess, {
+      getSessionState: () => null,
+      markFileModified: () => {},
+      getSessionContext: () => ({}),
+      createCheckpoint: () => ({}),
+      restoreCheckpoint: () => ({})
+    });
+    tools.ensureInitialized = vi.fn().mockResolvedValue();
+    tools.retrieval = {
+      retrieve: vi.fn().mockResolvedValue({ ggsrSection: '', semanticSection: '', communitySection: '', metadata: {} })
+    };
+
+    const result = await tools.getCodeContext({ symbol: 'exglobal_forecast.sh' });
+    const text = result.content[0].text;
+
+    expect(text).not.toContain('`null`');
+    // Should contain the basename derived from path, OR the user-supplied symbol
+    expect(text).toMatch(/Code Context: `(exglobal_forecast\.sh)`/);
   });
 });

@@ -223,5 +223,66 @@ describe('OperationalTools', () => {
 
       expect(result.content[0].text).toMatch(/error/i);
     });
+
+    it('Phase 53 D8: renders Job Definition section when graph hits a JJob', async () => {
+      // Graph arm returns a J-Job hit; vector arm returns nothing useful.
+      mockDataAccess.multiSourceSearch.mockResolvedValue([]);
+      mockDataAccess.graphDb.query.mockResolvedValue([
+        { name: 'JGLOBAL_FORECAST', type: 'JJob', path: 'jobs/JGLOBAL_FORECAST', language: 'shell' }
+      ]);
+      mockDataAccess.graphDB.query.mockResolvedValue([
+        { name: 'JGLOBAL_FORECAST', type: 'JJob', path: 'jobs/JGLOBAL_FORECAST', language: 'shell' }
+      ]);
+      // getJobDetails internally calls fs.readFile — short-circuit it via spy.
+      const getJobDetailsSpy = vi.spyOn(tools, 'getJobDetails').mockResolvedValue({
+        content: [{
+          type: 'text',
+          text: '## Sourced Scripts\n- exglobal_forecast.sh\n## Inputs\n- ICs\n## Outputs\n- forecast files\n'
+        }]
+      });
+
+      const result = await tools.explainWorkflowComponent({ component: 'JGLOBAL_FORECAST' });
+      const text = result.content[0].text;
+
+      expect(getJobDetailsSpy).toHaveBeenCalled();
+      expect(text).toContain('Job Definition');
+      expect(text).toMatch(/Sourced Scripts|Inputs/);
+    });
+  });
+
+  describe('Phase 53 D9: get_operational_guidance topic alias', () => {
+    it('accepts `topic` as canonical parameter', async () => {
+      mockDataAccess.hybridQuery.mockResolvedValue([
+        { document: 'Restart procedure', metadata: { source: 'ops' }, distance: 0.5 }
+      ]);
+
+      const result = await tools.getOperationalGuidance({
+        topic: 'restart failed workflow',
+        platform: 'hera'
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect(result.content[0].text).toMatch(/restart|hera/i);
+    });
+
+    it('accepts `operation` as backward-compatible alias', async () => {
+      mockDataAccess.hybridQuery.mockResolvedValue([
+        { document: 'Restart procedure', metadata: { source: 'ops' }, distance: 0.5 }
+      ]);
+
+      const result = await tools.getOperationalGuidance({
+        operation: 'restart failed workflow',
+        platform: 'hera'
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect(result.content[0].text).toMatch(/restart|hera/i);
+    });
+
+    it('returns an error when neither parameter is supplied', async () => {
+      const result = await tools.getOperationalGuidance({ platform: 'hera' });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/topic|operation/);
+    });
   });
 });

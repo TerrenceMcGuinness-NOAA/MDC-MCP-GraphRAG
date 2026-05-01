@@ -284,9 +284,41 @@ export class CodeAnalysisTools {
     const { file_path, include_dependencies = true, depth = 2, token_budget = 4000 } = args;
 
     try {
-      // Use UnifiedDataAccess to get file information with graph context
-      const fileInfo = await this.dataAccess.graphDB.findFileFunctions(file_path);
-      
+      // Phase 53 D4: three-tier path resolver.
+      // Other tools find the same node by basename; analyze_code_structure
+      // used exact-match on :File.path and returned "File not found" for
+      // partial paths (e.g., scripts/exglobal_forecast.sh vs the absolute
+      // supported_repos/...).
+      let resolvedPath = file_path;
+      let fileInfo = await this.dataAccess.graphDB.findFileFunctions(file_path);
+
+      if (!fileInfo || fileInfo.length === 0) {
+        try {
+          // Tier 2 + 3: ENDS WITH suffix or basename match, ranked by shortest path.
+          const basename = file_path.split('/').pop();
+          const candidates = await this.dataAccess.graphDB.query(
+            `MATCH (f:File)
+             WHERE f.path = $exact
+                OR f.path ENDS WITH $suffix
+                OR f.path ENDS WITH $basenameSuffix
+             RETURN f.path AS path
+             ORDER BY size(f.path) ASC
+             LIMIT 5`,
+            {
+              exact: file_path,
+              suffix: file_path.startsWith('/') ? file_path : '/' + file_path,
+              basenameSuffix: '/' + basename
+            }
+          );
+          if (candidates && candidates.length > 0) {
+            resolvedPath = candidates[0].path;
+            fileInfo = await this.dataAccess.graphDB.findFileFunctions(resolvedPath);
+          }
+        } catch (_) {
+          // Resolver is best-effort; fall through to the original "not found" path.
+        }
+      }
+
       if (!fileInfo || fileInfo.length === 0) {
         return {
           content: [{
@@ -297,7 +329,10 @@ export class CodeAnalysisTools {
       }
 
       // Build analysis result
-      let analysis = `# Code Structure Analysis: ${file_path}\n\n`;
+      let analysis = `# Code Structure Analysis: ${resolvedPath}\n\n`;
+      if (resolvedPath !== file_path) {
+        analysis += `*Resolved \`${file_path}\` → \`${resolvedPath}\`*\n\n`;
+      }
       
       // File overview
       const functions = fileInfo.filter(item => item.type === 'FUNCTION');
@@ -436,7 +471,14 @@ export class CodeAnalysisTools {
         if (imports.length > 0) {
           result += `Found ${imports.length} direct imports:\n\n`;
           for (const imp of imports) {
-            result += `- \`${imp.target || imp}\`\n`;
+            // Phase 53 D1: GraphDatabase.findFileImports returns
+            // { moduleName, importType, importedItem, alias, lineNumber }.
+            // Old code used imp.target (always undefined) → fell through to
+            // the object itself → rendered as "[object Object]".
+            const label = typeof imp === 'string'
+              ? imp
+              : (imp.moduleName ?? imp.target ?? imp.name ?? imp.path ?? JSON.stringify(imp));
+            result += `- \`${label}\`\n`;
           }
         } else {
           result += `*No imports found*\n`;
@@ -451,7 +493,14 @@ export class CodeAnalysisTools {
         if (importers.length > 0) {
           result += `Found ${importers.length} files that import this:\n\n`;
           for (const imp of importers) {
-            result += `- \`${imp.source || imp}\`\n`;
+            // Phase 53 D1: GraphDatabase.findImporters returns
+            // { file, importType, importedItem, lineNumber }.
+            // Old code used imp.source (always undefined) → fell through to
+            // the object itself → rendered as "[object Object]".
+            const label = typeof imp === 'string'
+              ? imp
+              : (imp.file ?? imp.source ?? imp.path ?? imp.name ?? JSON.stringify(imp));
+            result += `- \`${label}\`\n`;
           }
         } else {
           result += `*No importers found*\n`;
@@ -1139,8 +1188,10 @@ export class CodeAnalysisTools {
     const limitVal = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 500);  // Clamp 1-500
 
     try {
-      let result = `# Environment Variable Analysis: ${variable_name}\n\n`;
-      
+      // Phase 53 D5: Build sections into local strings, run GGSR first, then
+      // emit the header with a single-source count derived from total rows
+      // shown (table + GGSR) so the header never disagrees with the body.
+
       // Query scripts that depend on this variable
       // Note: LIMIT embedded in query string (not parameter) to avoid Neo4j float conversion
       const dependsQuery = `
@@ -1149,13 +1200,13 @@ export class CodeAnalysisTools {
         ORDER BY s.script_type, s.name
         LIMIT ${limitVal}
       `;
-      
-      const dependents = await this.dataAccess.graphDB.query(dependsQuery, { 
+
+      const dependents = await this.dataAccess.graphDB.query(dependsQuery, {
         varName: variable_name
       });
-      
-      result += `## Scripts Depending on \`${variable_name}\` (${dependents.length})\n\n`;
-      
+
+      // Build the dependents body separately
+      let dependentsBody = '';
       if (dependents.length > 0) {
         // Group by type
         const byType = {};
@@ -1164,25 +1215,28 @@ export class CodeAnalysisTools {
           if (!byType[type]) byType[type] = [];
           byType[type].push(dep);
         }
-        
+
         for (const [type, scripts] of Object.entries(byType)) {
-          result += `### ${type} (${scripts.length})\n`;
+          dependentsBody += `### ${type} (${scripts.length})\n`;
           for (const script of scripts.slice(0, 20)) {
-            result += `- **\`${script.script}\`**`;
-            if (script.path) result += ` - \`${script.path}\``;
-            if (script.category) result += ` [${script.category}]`;
-            result += `\n`;
+            dependentsBody += `- **\`${script.script}\`**`;
+            if (script.path) dependentsBody += ` - \`${script.path}\``;
+            if (script.category) dependentsBody += ` [${script.category}]`;
+            dependentsBody += `\n`;
           }
           if (scripts.length > 20) {
-            result += `*... and ${scripts.length - 20} more*\n`;
+            dependentsBody += `*... and ${scripts.length - 20} more*\n`;
           }
-          result += `\n`;
+          dependentsBody += `\n`;
         }
       } else {
-        result += `*No scripts found depending on this variable*\n\n`;
+        dependentsBody += `*No scripts found depending on this variable*\n\n`;
       }
       
       // Query scripts that export this variable
+      let exportersBody = '';
+      let exportersCount = 0;
+      let exportersHeader = '';
       if (show_exports) {
         const exportsQuery = `
           MATCH (s:CodeFile)-[r:EXPORTS]->(e:EnvironmentVariable {name: $varName})
@@ -1190,54 +1244,40 @@ export class CodeAnalysisTools {
           ORDER BY s.script_type, s.name
           LIMIT ${limitVal}
         `;
-        
-        const exporters = await this.dataAccess.graphDB.query(exportsQuery, { 
+
+        const exporters = await this.dataAccess.graphDB.query(exportsQuery, {
           varName: variable_name
         });
-        
-        result += `## Scripts Exporting \`${variable_name}\` (${exporters.length})\n\n`;
-        
+        exportersCount = exporters.length;
+        exportersHeader = `## Scripts Exporting \`${variable_name}\` (${exportersCount})\n\n`;
+
         if (exporters.length > 0) {
           for (const exp of exporters.slice(0, 20)) {
-            result += `- **\`${exp.script}\`**`;
-            if (exp.path) result += ` - \`${exp.path}\``;
-            if (exp.line) result += ` (line ${exp.line})`;
-            if (exp.value && exp.value.length < 50) result += ` = \`${exp.value}\``;
-            result += `\n`;
+            exportersBody += `- **\`${exp.script}\`**`;
+            if (exp.path) exportersBody += ` - \`${exp.path}\``;
+            if (exp.line) exportersBody += ` (line ${exp.line})`;
+            if (exp.value && exp.value.length < 50) exportersBody += ` = \`${exp.value}\``;
+            exportersBody += `\n`;
           }
           if (exporters.length > 20) {
-            result += `*... and ${exporters.length - 20} more*\n`;
+            exportersBody += `*... and ${exporters.length - 20} more*\n`;
           }
         } else {
-          result += `*No scripts found exporting this variable*\n`;
+          exportersBody += `*No scripts found exporting this variable*\n`;
         }
       }
-      
+
       // Summary with EE2 metadata
       const metaQuery = `
         MATCH (e:EnvironmentVariable {name: $varName})
         RETURN e.is_ee2_standard as isEE2, e.is_home_model as isHome, e.first_seen_in as firstSeen
       `;
       const meta = await this.dataAccess.graphDB.query(metaQuery, { varName: variable_name });
-      
-      result += `\n## Summary\n\n`;
-      if (meta && meta.length > 0) {
-        const m = meta[0];
-        const tags = [];
-        if (m.isEE2) tags.push('EE2 Standard');
-        if (m.isHome) tags.push('HOMEmodel');
-        if (tags.length > 0) result += `- **Classification:** ${tags.join(', ')}\n`;
-        if (m.firstSeen) result += `- **First seen in:** \`${m.firstSeen}\`\n`;
-      }
-      result += `- **Total dependencies:** ${dependents.length} scripts\n`;
-      result += `- **Impact level:** ${dependents.length > 50 ? 'HIGH' : dependents.length > 20 ? 'MEDIUM' : 'LOW'}\n`;
-      
-      if (dependents.length > 50) {
-        result += `\n[WARN] This variable is widely used - changes will have broad impact\n`;
-      }
 
       // Phase 24D: Unified GGSR + semantic retrieval for env variables
       // Wrapped in isolated try-catch so core graph results always return
+      let ggsrBody = '';
+      let ggsrCount = 0;
       if (this.retrieval) {
         try {
           const semanticKeys = dependents.slice(0, 5).map(d => d.script);
@@ -1252,12 +1292,44 @@ export class CodeAnalysisTools {
             }),
             timeout
           ]);
-          result += ctx.ggsrSection + ctx.semanticSection + (ctx.communitySection || "");
+          ggsrBody = (ctx.ggsrSection || '') + (ctx.semanticSection || '') + (ctx.communitySection || '');
+          ggsrCount = ctx.metadata?.ggsrCount || 0;
         } catch (ggsrErr) {
           console.error('[WARN] GGSR enrichment failed for env var:', ggsrErr.message);
-          result += `\n*[GGSR enrichment skipped: ${ggsrErr.message}]*\n`;
+          ggsrBody = `\n*[GGSR enrichment skipped: ${ggsrErr.message}]*\n`;
         }
       }
+
+      // Phase 53 D5: Header count is single source of truth — total of
+      // dependents + GGSR-enriched scripts. Avoids the report claiming
+      // "(0)" while the body shows rows.
+      const totalScripts = dependents.length + ggsrCount;
+
+      let result = `# Environment Variable Analysis: ${variable_name}\n\n`;
+      result += `## Scripts Depending on \`${variable_name}\` (${totalScripts})\n\n`;
+      result += dependentsBody;
+
+      if (show_exports) {
+        result += exportersHeader + exportersBody;
+      }
+
+      result += `\n## Summary\n\n`;
+      if (meta && meta.length > 0) {
+        const m = meta[0];
+        const tags = [];
+        if (m.isEE2) tags.push('EE2 Standard');
+        if (m.isHome) tags.push('HOMEmodel');
+        if (tags.length > 0) result += `- **Classification:** ${tags.join(', ')}\n`;
+        if (m.firstSeen) result += `- **First seen in:** \`${m.firstSeen}\`\n`;
+      }
+      result += `- **Total dependencies:** ${totalScripts} scripts\n`;
+      result += `- **Impact level:** ${totalScripts > 50 ? 'HIGH' : totalScripts > 20 ? 'MEDIUM' : 'LOW'}\n`;
+
+      if (totalScripts > 50) {
+        result += `\n[WARN] This variable is widely used - changes will have broad impact\n`;
+      }
+
+      result += ggsrBody;
 
       return {
         content: [{

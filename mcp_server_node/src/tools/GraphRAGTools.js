@@ -337,6 +337,11 @@ export class GraphRAGTools {
       }
 
       const node = nodeInfo[0];
+      // Phase 53 D3: File nodes carry only `path`, not `name`. Without a
+      // fallback, the header rendered "# Code Context: `null`".
+      const displayName = node.name
+        ?? (node.path ? node.path.split('/').pop() : null)
+        ?? symbol;
 
       // 2. GGSR neighborhood
       const ctx = await this.retrieval.retrieve(symbol, [symbol], {
@@ -356,7 +361,7 @@ export class GraphRAGTools {
       );
 
       // 4. Build structured response
-      let response = `# Code Context: \`${node.name}\`\n\n`;
+      let response = `# Code Context: \`${displayName}\`\n\n`;
       response += `**Type**: ${node.labels?.join(', ') || 'Unknown'}\n`;
       if (node.path) response += `**Path**: ${node.path}\n`;
       response += '\n';
@@ -441,26 +446,59 @@ export class GraphRAGTools {
         };
       });
 
-      const filtered = scored
-        .filter(r => r.level >= MIN_LEVEL && r.similarity >= SIMILARITY_FLOOR)
-        .sort((a, b) => b.rankScore - a.rankScore)
+      // Phase 53 D10: two-pass relaxation so a broad query never returns
+      // a silent "no matches" message. Pass 1 keeps the strict Phase 51
+      // floor; Pass 2 drops the similarity floor; final fallback returns
+      // the top-N raw results with a [low-confidence] annotation.
+      const PASS1_FLOOR = 0.2;
+      const PASS2_FLOOR = 0.15;
+
+      const sortedAll = scored
+        .filter(r => r.level >= MIN_LEVEL)
+        .sort((a, b) => b.rankScore - a.rankScore);
+
+      let filtered = sortedAll
+        .filter(r => r.similarity >= PASS1_FLOOR)
         .slice(0, max_results);
+
+      let confidenceTier = 'high';
+      if (filtered.length === 0) {
+        filtered = sortedAll
+          .filter(r => r.similarity >= PASS2_FLOOR)
+          .slice(0, max_results);
+        if (filtered.length > 0) confidenceTier = 'medium';
+      }
+
+      let lowConfidenceFallback = false;
+      if (filtered.length === 0) {
+        // Final fallback: top-3 by rankScore regardless of floor (level >= 1
+        // is still required so we don't surface noisy L0 micro-leaves).
+        filtered = sortedAll.slice(0, Math.min(3, max_results));
+        lowConfidenceFallback = filtered.length > 0;
+        confidenceTier = 'low';
+      }
 
       if (filtered.length === 0) {
         return {
           content: [{
             type: 'text',
-            text: `No high-confidence architectural matches for "${query}" (similarity floor ${SIMILARITY_FLOOR}, level >= ${MIN_LEVEL}). Try a more specific symbol or filename.`
+            text: `No high-confidence architectural matches for "${query}" (similarity floor ${PASS1_FLOOR}, level >= ${MIN_LEVEL}). Try a more specific symbol or filename.`
           }]
         };
       }
 
       let response = `# Architecture Search: "${query}"\n\n`;
-      response += `Found ${filtered.length} relevant subsystems/communities (filtered: similarity >= ${SIMILARITY_FLOOR}, level >= ${MIN_LEVEL}):\n\n`;
+      if (lowConfidenceFallback) {
+        response += `_[low-confidence] No communities passed the ${PASS1_FLOOR}/${PASS2_FLOOR} similarity floors; showing the top ${filtered.length} by rank score._\n\n`;
+      } else {
+        const floorUsed = confidenceTier === 'high' ? PASS1_FLOOR : PASS2_FLOOR;
+        response += `Found ${filtered.length} relevant subsystems/communities (filtered: similarity >= ${floorUsed}, level >= ${MIN_LEVEL}):\n\n`;
+      }
 
       for (let i = 0; i < filtered.length; i++) {
         const r = filtered[i];
-        response += `## ${i + 1}. ${r.metadata?.communityId != null ? `Community ${r.metadata.communityId}` : 'Community'} (similarity: ${r.similarity.toFixed(3)}, level: ${r.level})\n\n`;
+        const tag = lowConfidenceFallback ? ' [low-confidence]' : '';
+        response += `## ${i + 1}. ${r.metadata?.communityId != null ? `Community ${r.metadata.communityId}` : 'Community'}${tag} (similarity: ${r.similarity.toFixed(3)}, level: ${r.level})\n\n`;
         response += `${r.text || r.document || 'No summary available'}\n\n`;
         if (r.metadata?.nodeCount) {
           response += `*${r.metadata.nodeCount} nodes, ${r.metadata.dominantType || 'mixed'} type*\n\n`;

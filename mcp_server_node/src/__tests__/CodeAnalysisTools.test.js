@@ -246,5 +246,83 @@ describe('CodeAnalysisTools', () => {
 
       expect(result.content[0].text).toMatch(/not found|tip/i);
     });
+
+    it('Phase 53 D4: resolves a partial path via ENDS WITH suffix match', async () => {
+      // Tier 1 (exact) returns nothing; Tier 2/3 query returns the canonical path.
+      mockDataAccess.graphDB.findFileFunctions
+        .mockResolvedValueOnce([])  // Tier-1 exact lookup
+        .mockResolvedValueOnce([{ name: 'main', type: 'FUNCTION' }]);  // After resolution
+
+      mockDataAccess.graphDB.query.mockResolvedValueOnce([
+        { path: 'supported_repos/global-workflow/scripts/exglobal_forecast.sh' }
+      ]);
+
+      const result = await tools.analyzeCodeStructure({
+        file_path: 'scripts/exglobal_forecast.sh'
+      });
+
+      const text = result.content[0].text;
+      expect(text).not.toMatch(/^File not found/);
+      expect(text).toContain('supported_repos/global-workflow/scripts/exglobal_forecast.sh');
+      expect(text).toContain('Resolved');
+    });
+  });
+
+  describe('Phase 53 D1: find_dependencies object rendering', () => {
+    it('renders moduleName/file fields instead of [object Object]', async () => {
+      mockDataAccess.graphDB.findFileImports.mockResolvedValue([
+        { moduleName: 'wxflow', importType: 'python', importedItem: 'logger' },
+        { moduleName: 'pygfs.utils', importType: 'python' }
+      ]);
+      mockDataAccess.graphDB.findImporters.mockResolvedValue([
+        { file: 'scripts/exglobal_forecast.sh', importType: 'source' }
+      ]);
+
+      const result = await tools.findDependencies({
+        target: 'ush/wxflow.sh',
+        direction: 'both'
+      });
+
+      const text = result.content[0].text;
+      expect(text).not.toContain('[object Object]');
+      expect(text).toContain('wxflow');
+      expect(text).toContain('pygfs.utils');
+      expect(text).toContain('scripts/exglobal_forecast.sh');
+    });
+  });
+
+  describe('Phase 53 D5: find_env_dependencies header counter', () => {
+    it('header count equals dependents + GGSR-enriched count', async () => {
+      mockDataAccess.graphDB.query.mockImplementation((cypher) => {
+        if (cypher.includes('DEPENDS_ON_ENV')) {
+          return Promise.resolve([
+            { script: 's1', path: 'p1', type: 'shell', language: 'bash' },
+            { script: 's2', path: 'p2', type: 'shell', language: 'bash' }
+          ]);
+        }
+        if (cypher.includes('EXPORTS_ENV')) {
+          return Promise.resolve([]);
+        }
+        // Metadata query
+        return Promise.resolve([{ isEE2: false, isHome: false }]);
+      });
+
+      // Inject a retrieval mock so the GGSR branch runs
+      tools.retrieval = {
+        retrieve: vi.fn().mockResolvedValue({
+          ggsrSection: '## GGSR Section\nrow\n',
+          semanticSection: '',
+          communitySection: '',
+          metadata: { ggsrCount: 3 }
+        })
+      };
+
+      const result = await tools.findEnvDependencies({ variable_name: 'HOMEgfs', show_exports: false });
+      const text = result.content[0].text;
+
+      // Header count = 2 dependents + 3 GGSR = 5
+      expect(text).toMatch(/Scripts Depending on `HOMEgfs` \(5\)/);
+      expect(text).toContain('Total dependencies:** 5');
+    });
   });
 });
