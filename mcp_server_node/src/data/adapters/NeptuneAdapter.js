@@ -280,17 +280,62 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async getStatistics() {
-    const [nodes, rels] = await Promise.all([
-      this.query('MATCH (n) RETURN count(n) AS count'),
-      this.query('MATCH ()-[r]->() RETURN count(r) AS count'),
-    ]);
-    return { nodes: nodes[0]?.count ?? 0, relationships: rels[0]?.count ?? 0 };
+    // Neptune lacks Neo4j's count store, so full-graph MATCH (n) RETURN count(n)
+    // scans all 63K+ nodes and times out. Use label-specific counts instead,
+    // which leverage Neptune's label index for O(1) lookups.
+    const labels = ['File', 'Function', 'Class', 'Module', 'ShellScript', 'EnvVar',
+                    'FortranModule', 'FortranSubroutine', 'FortranFunction', 'FortranProgram',
+                    'PythonModule', 'PythonFunction'];
+    const counts = await Promise.all(
+      labels.map(async (label) => {
+        try {
+          const r = await this.query(`MATCH (n:${label}) RETURN count(n) AS count`);
+          return r[0]?.count ?? 0;
+        } catch { return 0; }
+      })
+    );
+    const totalNodes = counts.reduce((sum, c) => sum + c, 0);
+
+    // Relationship count by type (indexed, much faster than untyped scan)
+    const relTypes = ['IMPORTS', 'DEFINES', 'CALLS', 'SOURCES', 'INVOKES',
+                      'USES', 'EXECUTES', 'DEPENDS_ON_ENV', 'EXPORTS'];
+    const relCounts = await Promise.all(
+      relTypes.map(async (type) => {
+        try {
+          const r = await this.query(`MATCH ()-[r:${type}]->() RETURN count(r) AS count`);
+          return r[0]?.count ?? 0;
+        } catch { return 0; }
+      })
+    );
+    const totalRels = relCounts.reduce((sum, c) => sum + c, 0);
+
+    // Build per-label breakdown for detailed stats
+    const labelBreakdown = {};
+    labels.forEach((label, i) => { if (counts[i] > 0) labelBreakdown[label] = counts[i]; });
+
+    return {
+      nodes: totalNodes,
+      relationships: totalRels,
+      fileCount: counts[0] ?? 0,
+      functionCount: counts[1] ?? 0,
+      classCount: counts[2] ?? 0,
+      labelBreakdown,
+    };
   }
 
   async getRelationshipStats() {
-    return this.query(
-      `MATCH ()-[r]->() RETURN type(r) AS relType, count(r) AS count ORDER BY count DESC`
+    // Use typed relationship counts instead of scanning all relationships
+    const relTypes = ['IMPORTS', 'DEFINES', 'CALLS', 'SOURCES', 'INVOKES',
+                      'USES', 'EXECUTES', 'DEPENDS_ON_ENV', 'EXPORTS'];
+    const results = await Promise.all(
+      relTypes.map(async (type) => {
+        try {
+          const r = await this.query(`MATCH ()-[r:${type}]->() RETURN count(r) AS count`);
+          return { relationshipType: type, count: r[0]?.count ?? 0 };
+        } catch { return { relationshipType: type, count: 0 }; }
+      })
     );
+    return results.filter(r => r.count > 0).sort((a, b) => b.count - a.count);
   }
 
   async searchFiles(pattern) {
@@ -326,7 +371,8 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   async healthCheck() {
     try {
       if (!this.connected) await this.connect();
-      const result = await this.query('MATCH (n) RETURN count(n) AS nodeCount LIMIT 1');
+      // Use a label-specific count instead of full-graph scan (Neptune has no count store)
+      const result = await this.query('MATCH (n:File) RETURN count(n) AS nodeCount');
       const nodeCount = result[0]?.nodeCount ?? 0;
       return {
         status: nodeCount > 0 ? 'healthy' : 'degraded',
@@ -387,15 +433,29 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async getScriptGraphStats() {
-    const [scripts, envVars, rels] = await Promise.all([
+    // Count scripts by type property and env vars by label
+    const [scripts, jjobs, exScripts, ushScripts, envVars,
+           sourcesRels, invokesRels, exportsRels, dependsRels] = await Promise.all([
       this.query('MATCH (n:ShellScript) RETURN count(n) AS count'),
+      this.query("MATCH (n:ShellScript {type: 'j-job'}) RETURN count(n) AS count"),
+      this.query("MATCH (n:ShellScript {type: 'ex-script'}) RETURN count(n) AS count"),
+      this.query("MATCH (n:ShellScript {type: 'ush-script'}) RETURN count(n) AS count"),
       this.query('MATCH (n:EnvVar) RETURN count(n) AS count'),
-      this.query('MATCH ()-[r:SOURCES|INVOKES|USES]->() RETURN count(r) AS count'),
+      this.query('MATCH ()-[r:SOURCES]->() RETURN count(r) AS count'),
+      this.query('MATCH ()-[r:INVOKES]->() RETURN count(r) AS count'),
+      this.query('MATCH ()-[r:EXPORTS]->() RETURN count(r) AS count'),
+      this.query('MATCH ()-[r:DEPENDS_ON_ENV]->() RETURN count(r) AS count'),
     ]);
     return {
-      scripts: scripts[0]?.count ?? 0,
+      totalScripts: scripts[0]?.count ?? 0,
+      jJobs: jjobs[0]?.count ?? 0,
+      exScripts: exScripts[0]?.count ?? 0,
+      ushScripts: ushScripts[0]?.count ?? 0,
       envVars: envVars[0]?.count ?? 0,
-      relationships: rels[0]?.count ?? 0,
+      sourcesRels: sourcesRels[0]?.count ?? 0,
+      invokesRels: invokesRels[0]?.count ?? 0,
+      exportsRels: exportsRels[0]?.count ?? 0,
+      dependsRels: dependsRels[0]?.count ?? 0,
     };
   }
 

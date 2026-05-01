@@ -113,6 +113,23 @@ describe('MdcDataStack', () => {
       },
     });
   });
+
+  test('All stateful resources have DeletionPolicy Retain', () => {
+    // Post-mortem corrective action: every data-bearing resource MUST have
+    // DeletionPolicy: Retain to prevent accidental deletion during stack updates.
+    // See docs/postmortem/2026-04-22-neptune-data-loss.md
+    const statefulTypes = [
+      'AWS::EFS::FileSystem',
+      'AWS::S3::Bucket',
+      // Add Neptune, OpenSearch, KMS, RDS here if they return to CDK management
+    ];
+    for (const type of statefulTypes) {
+      const resources = template.findResources(type);
+      for (const [logicalId, resource] of Object.entries(resources)) {
+        expect((resource as any).DeletionPolicy).toBe('Retain');
+      }
+    }
+  });
 });
 
 // ── MdcServerStack ───────────────────────────────────────────────────────────

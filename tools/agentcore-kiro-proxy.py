@@ -143,7 +143,12 @@ class AgentCoreClient:
     """Manages communication with AgentCore Runtime via boto3."""
 
     def __init__(self, agent_runtime_id, region, session_id):
-        self.client = boto3.client("bedrock-agentcore", region_name=region)
+        from botocore.config import Config
+        self.client = boto3.client(
+            "bedrock-agentcore",
+            region_name=region,
+            config=Config(read_timeout=300, connect_timeout=10, retries={"max_attempts": 0}),
+        )
         self.agent_runtime_id = agent_runtime_id
         self.session_id = session_id
 
