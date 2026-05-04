@@ -283,6 +283,12 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
     // Neptune lacks Neo4j's count store, so full-graph MATCH (n) RETURN count(n)
     // scans all 63K+ nodes and times out. Use label-specific counts instead,
     // which leverage Neptune's label index for O(1) lookups.
+    //
+    // IMPORTANT: Ensure connection is established BEFORE parallel queries.
+    // On cold AgentCore microVMs, parallel queries race the connection and
+    // some silently fail with pool timeouts.
+    if (!this.connected) await this.connect();
+
     const labels = ['File', 'Function', 'Class', 'Module', 'ShellScript', 'EnvVar',
                     'FortranModule', 'FortranSubroutine', 'FortranFunction', 'FortranProgram',
                     'PythonModule', 'PythonFunction'];
@@ -291,7 +297,10 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
         try {
           const r = await this.query(`MATCH (n:${label}) RETURN count(n) AS count`);
           return r[0]?.count ?? 0;
-        } catch { return 0; }
+        } catch (err) {
+          console.error(`[WARN] NeptuneAdapter.getStatistics: ${label} count failed: ${err.message}`);
+          return 0;
+        }
       })
     );
     const totalNodes = counts.reduce((sum, c) => sum + c, 0);
@@ -304,7 +313,10 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
         try {
           const r = await this.query(`MATCH ()-[r:${type}]->() RETURN count(r) AS count`);
           return r[0]?.count ?? 0;
-        } catch { return 0; }
+        } catch (err) {
+          console.error(`[WARN] NeptuneAdapter.getStatistics: ${type} rel count failed: ${err.message}`);
+          return 0;
+        }
       })
     );
     const totalRels = relCounts.reduce((sum, c) => sum + c, 0);
@@ -325,6 +337,9 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
 
   async getRelationshipStats() {
     // Use typed relationship counts instead of scanning all relationships
+    // Ensure connection before parallel queries (cold-start protection)
+    if (!this.connected) await this.connect();
+
     const relTypes = ['IMPORTS', 'DEFINES', 'CALLS', 'SOURCES', 'INVOKES',
                       'USES', 'EXECUTES', 'DEPENDS_ON_ENV', 'EXPORTS'];
     const results = await Promise.all(
@@ -332,7 +347,10 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
         try {
           const r = await this.query(`MATCH ()-[r:${type}]->() RETURN count(r) AS count`);
           return { relationshipType: type, count: r[0]?.count ?? 0 };
-        } catch { return { relationshipType: type, count: 0 }; }
+        } catch (err) {
+          console.error(`[WARN] NeptuneAdapter.getRelationshipStats: ${type} failed: ${err.message}`);
+          return { relationshipType: type, count: 0 };
+        }
       })
     );
     return results.filter(r => r.count > 0).sort((a, b) => b.count - a.count);
@@ -433,6 +451,9 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async getScriptGraphStats() {
+    // Ensure connection before parallel queries (cold-start protection)
+    if (!this.connected) await this.connect();
+
     // Count scripts by type property and env vars by label
     const [scripts, jjobs, exScripts, ushScripts, envVars,
            sourcesRels, invokesRels, exportsRels, dependsRels] = await Promise.all([
@@ -487,6 +508,7 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async getPythonGraphStats() {
+    if (!this.connected) await this.connect();
     const [fns, modules, rels] = await Promise.all([
       this.query('MATCH (n:PythonFunction) RETURN count(n) AS count'),
       this.query('MATCH (n:PythonModule) RETURN count(n) AS count'),
@@ -734,6 +756,7 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
   }
 
   async getFortranGraphStats() {
+    if (!this.connected) await this.connect();
     const keys = ['FortranModule', 'FortranSubroutine', 'FortranFunction', 'FortranProgram'];
     const stats = {};
     await Promise.all(keys.map(async label => {
