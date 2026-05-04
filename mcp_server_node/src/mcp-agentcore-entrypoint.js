@@ -83,30 +83,83 @@ const httpServer = createServer(async (req, res) => {
   res.end(JSON.stringify({ error: 'Use /mcp or /ping' }));
 });
 
-// Initialize shared data access in background
+// Pre-warm database connections BEFORE accepting requests.
+// On AgentCore microVMs, the first Neptune Bolt+SigV4 and OpenSearch HTTPS+SigV4
+// connections take ~75s each. By awaiting them here, the cold-start cost moves to
+// boot time rather than the first user query.
 const initMcp = new UnifiedMCPServer(config);
-initMcp.dataAccess.connect().then(async () => {
-  sharedDataAccess = initMcp.dataAccess;
-  console.error('[AgentCore] [OK] Shared data access connected');
-  if (sharedDataAccess.graphDB) {
-    try {
-      const { GGSRTraversalPrototypes } = await import('./graphrag/GGSRTraversalPrototypes.js');
-      sharedGGSR = new GGSRTraversalPrototypes(sharedDataAccess.graphDB);
-      const { GraphGuidedRetrieval } = await import('./graphrag/GraphGuidedRetrieval.js');
-      sharedRetrieval = new GraphGuidedRetrieval({
-        dataAccess: sharedDataAccess, ggsr: sharedGGSR,
-        vectorDB: sharedDataAccess.vectorDB || null,
-      });
-      console.error('[AgentCore] [OK] GGSR initialized');
-    } catch (err) {
-      console.error(`[AgentCore] [WARN] GGSR: ${err.message}`);
-    }
-  }
-}).catch(err => {
-  console.error(`[AgentCore] [ERROR] Data access: ${err.message}`);
-});
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.error(`[AgentCore] Listening on http://0.0.0.0:${PORT}/mcp`);
-  console.error(`[AgentCore] Health check: http://0.0.0.0:${PORT}/ping`);
+async function prewarm() {
+  const t0 = Date.now();
+  try {
+    await initMcp.dataAccess.connect();
+    sharedDataAccess = initMcp.dataAccess;
+    console.error(`[AgentCore] [OK] Data access connected (${Date.now() - t0}ms)`);
+
+    // Pre-warm Neptune connection pool with a lightweight query
+    if (sharedDataAccess.graphDB && sharedDataAccess.graphDB.query) {
+      const tg = Date.now();
+      try {
+        await sharedDataAccess.graphDB.query('MATCH (n:File) RETURN count(n) AS c LIMIT 1');
+        console.error(`[AgentCore] [OK] Neptune pre-warmed (${Date.now() - tg}ms)`);
+      } catch (err) {
+        console.error(`[AgentCore] [WARN] Neptune pre-warm: ${err.message}`);
+      }
+    }
+
+    // Pre-warm OpenSearch connection with a lightweight query
+    if (sharedDataAccess.vectorDB && sharedDataAccess.vectorDB.listCollections) {
+      const tv = Date.now();
+      try {
+        await sharedDataAccess.vectorDB.listCollections();
+        console.error(`[AgentCore] [OK] OpenSearch pre-warmed (${Date.now() - tv}ms)`);
+      } catch (err) {
+        console.error(`[AgentCore] [WARN] OpenSearch pre-warm: ${err.message}`);
+      }
+    }
+
+    // Pre-warm embedding model (loads ONNX runtime + model weights into memory)
+    if (sharedDataAccess.vectorDB && sharedDataAccess.vectorDB.generateEmbeddings) {
+      const te = Date.now();
+      try {
+        await sharedDataAccess.vectorDB.generateEmbeddings('warmup');
+        console.error(`[AgentCore] [OK] Embedding model pre-warmed (${Date.now() - te}ms)`);
+      } catch (err) {
+        console.error(`[AgentCore] [WARN] Embedding pre-warm: ${err.message}`);
+      }
+    }
+
+    // Initialize GGSR
+    if (sharedDataAccess.graphDB) {
+      try {
+        const { GGSRTraversalPrototypes } = await import('./graphrag/GGSRTraversalPrototypes.js');
+        sharedGGSR = new GGSRTraversalPrototypes(sharedDataAccess.graphDB);
+        const { GraphGuidedRetrieval } = await import('./graphrag/GraphGuidedRetrieval.js');
+        sharedRetrieval = new GraphGuidedRetrieval({
+          dataAccess: sharedDataAccess, ggsr: sharedGGSR,
+          vectorDB: sharedDataAccess.vectorDB || null,
+        });
+        console.error(`[AgentCore] [OK] GGSR initialized`);
+      } catch (err) {
+        console.error(`[AgentCore] [WARN] GGSR: ${err.message}`);
+      }
+    }
+
+    console.error(`[AgentCore] [OK] Pre-warm complete (${Date.now() - t0}ms total)`);
+  } catch (err) {
+    console.error(`[AgentCore] [ERROR] Pre-warm failed: ${err.message} — server will start anyway`);
+  }
+}
+
+// Await pre-warm, THEN start listening
+prewarm().then(() => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.error(`[AgentCore] Listening on http://0.0.0.0:${PORT}/mcp`);
+    console.error(`[AgentCore] Health check: http://0.0.0.0:${PORT}/ping`);
+  });
+}).catch(() => {
+  // Start anyway even if pre-warm fails — tools will connect on demand
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.error(`[AgentCore] Listening on http://0.0.0.0:${PORT}/mcp (pre-warm failed)`);
+  });
 });

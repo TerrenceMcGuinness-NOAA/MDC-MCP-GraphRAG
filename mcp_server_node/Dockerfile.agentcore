@@ -23,6 +23,19 @@ COPY src/ ./src/
 COPY utils/ ./utils/
 COPY config/ ./config/
 
+# Pre-download the embedding model into the container image.
+# Without this, the Xenova/all-mpnet-base-v2 ONNX model (~90MB) is downloaded
+# from HuggingFace on every microVM cold start, adding ~60-80s to the first
+# semantic query. Baking it in eliminates this entirely.
+RUN node -e " \
+  import('@xenova/transformers').then(async ({pipeline}) => { \
+    console.log('Downloading embedding model...'); \
+    const p = await pipeline('feature-extraction', 'Xenova/all-mpnet-base-v2'); \
+    console.log('Model cached successfully'); \
+    process.exit(0); \
+  }).catch(e => { console.error(e); process.exit(1); }); \
+"
+
 # Runtime environment
 ENV NODE_ENV=production \
     DB_BACKEND=aws \
