@@ -14,8 +14,8 @@
 #                       Set this if $HOME has limited storage
 #                       Example: export VSCODE_SERVER_DIR=/scratch/$USER/vscode
 #
-# Prerequisites: VS Code with tunnel support (code-insiders --version >= 1.80)
-#   - System install: /usr/bin/code-insiders (preferred)
+# Prerequisites: VS Code with tunnel support (code --version >= 1.80)
+#   - System install: /usr/bin/code (preferred)
 #   - Or standalone CLI: https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64
 ################################################################################
 set -e
@@ -120,6 +120,6 @@ Tunnel started with PID: ${TUNNEL_PID}
 
 Commands:
   cat ${OUTPUT_FILE}              # View logs
-  code-insiders tunnel status              # Check status
-  code-insiders tunnel kill                # Stop tunnel
+  code tunnel status              # Check status
+  code tunnel kill                # Stop tunnel
 EOF
