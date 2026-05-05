@@ -54,7 +54,7 @@ OUTPUT_FILE="${VSCODE_DIR}/${SERVER_NAME}.out"
 # Find VS Code CLI - prefer system install, fallback to local
 find_code() {
     # System VS Code with tunnel support (installed via RPM/DEB)
-    if command -v codes &>/dev/null && code tunnel --help &>/dev/null 2>&1; then
+    if command -v code &>/dev/null && code tunnel --help &>/dev/null 2>&1; then
         command -v code
         return 0
     fi
