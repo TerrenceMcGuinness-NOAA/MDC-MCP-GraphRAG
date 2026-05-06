@@ -542,6 +542,25 @@ class AgentCoreClient:
         error = text[:200] if result.get("isError") else None
         return (text, latency_ms, error)
 
+    def stop_session(self):
+        """Stop the AgentCore session to release the microVM and its Neptune connections.
+
+        This prevents connection pool exhaustion on Neptune (1000 connection limit)
+        when running repeated test sessions. Without this, timed-out or abandoned
+        sessions leave dangling Bolt connections until Neptune's idle timeout reaps them.
+        """
+        if not self._initialized:
+            return
+        try:
+            self.client.stop_runtime_session(
+                agentRuntimeArn=self.runtime_arn,
+                runtimeSessionId=self.session_id,
+                qualifier="DEFAULT",
+            )
+            print(f"  [OK] AgentCore session stopped: {self.session_id[:20]}...", file=sys.stderr)
+        except Exception as e:
+            print(f"  [WARN] Failed to stop session: {e}", file=sys.stderr)
+
 
 def create_client(server_name: str):
     """Factory: create the right client based on server transport type."""
@@ -801,7 +820,16 @@ def main():
     print(f"MCP Parity Test — {len(TOOL_TESTS)} tools × {len(servers)} server(s)\n")
 
     runner = ParityTestRunner(servers)
-    runner.run_all()
+    try:
+        runner.run_all()
+    finally:
+        # Always clean up AgentCore sessions to release Neptune connections.
+        # Without this, timed-out tests leave dangling connections that accumulate
+        # toward Neptune's 1000-connection limit.
+        for name, client in runner.clients.items():
+            if hasattr(client, 'stop_session'):
+                client.stop_session()
+
     report = runner.generate_report(output)
 
     # Print summary to stdout

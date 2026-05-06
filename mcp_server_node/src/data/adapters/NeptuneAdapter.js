@@ -40,7 +40,7 @@ export class NeptuneAdapter extends GraphDatabaseAdapter {
     this.endpoint = config.endpoint || process.env.NEPTUNE_ENDPOINT || '';
     this.region   = config.region   || process.env.AWS_REGION || 'us-east-1';
     this.config   = {
-      maxConnectionPoolSize: config.maxConnectionPoolSize || 50,
+      maxConnectionPoolSize: config.maxConnectionPoolSize || 10,
       connectionTimeout:     config.connectionTimeout     || 30000,
     };
     this.driver    = null;
