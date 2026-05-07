@@ -66,6 +66,30 @@ The `eib-mcp-gateway` MCP tools are available for:
 
 These tools reflect the **legacy system's data** — the same data we are porting to AWS.
 
+## Using the AWS MCP (AgentCore + Neptune Direct)
+
+Two AWS-native MCP connections are configured:
+
+1. **`agentcore-mcp-rag`** — Full 51-tool MCP server via AgentCore Runtime proxy
+   - Uses `tools/agentcore-kiro-proxy.py` (stdio → boto3 → AgentCore SSE)
+   - Currently: static tools work, graph/vector tools pending VPC connectivity fix
+
+2. **Neptune MCP Server** — Direct openCypher/Gremlin access to the AWS Neptune graph
+   - 164,916 nodes, 2,941,593 relationships (live, fully loaded)
+   - Use for ad-hoc graph queries, schema inspection, data validation
+   - Configured via `amazon-neptune-mcp-server` in `.kiro/settings/mcp.json`
+
+## Steering vs COTS Instruction Files
+
+**Steering** (`.kiro/steering/`) is the authoritative context system for Kiro. It is always
+loaded and drives agent behavior on this workspace.
+
+**Instruction files** (`.github/instructions/`) are a separate system for COTS IDEs (GitHub
+Copilot, Cursor) that conditionally load when those IDEs detect an active MCP server. They
+document the same 51 tools but are NOT maintained for Kiro and may drift from current state.
+
+**Rule**: Do not edit instruction files to influence Kiro behavior. Edit steering files instead.
+
 ## Code Conventions
 
 - ASCII prefixes only in console output (`[OK]`, `[ERROR]`, `[WARN]`) — no emoji (breaks MCP stdio)
@@ -114,8 +138,12 @@ npm run validate       # syntax check
 |--------|--------|
 | Documentation URLs | `mcp_server_node/scripts/documentation_sources_config.py` |
 | Environment config | `SETUP/mcp-env.sh` |
-| MCP client config | `.kiro/settings/mcp.json` (points to legacy) |
+| MCP client config (Kiro) | `.kiro/settings/mcp.json` (legacy + AgentCore + Neptune) |
+| AgentCore deployment | `mcp_server_node/.bedrock_agentcore.yaml` |
+| Neptune endpoint | `wss://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182` |
+| OpenSearch endpoint | `vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com` |
 | Changelog | `CHANGELOG.md` (root) |
+| SDD phase progress | `.kiro/steering/04-phase48-progress.md` |
 
 ## Development Guidelines
 

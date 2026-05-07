@@ -2,73 +2,75 @@
 inclusion: auto
 ---
 
-# Phase 48 & 49 Progress — AWS Infrastructure Port + Ingestion Pipeline Restructure
+# SDD Phase Progress — AWS Infrastructure Port & Beyond
 
-## Phase 48: AWS Infrastructure Port — COMPLETE
+## Phase Summary (as of May 2026)
 
-**SDD Session**: `session_2026-03-30_phase48` — **26/26 steps COMPLETE**
-**Branch**: `develop_aws`
-**Commits**: `ee4a86e` → `337c9fe` (4 commits, Phase 48A-48E)
+| Phase | Name | Status | Key Outcome |
+|-------|------|--------|-------------|
+| 48 | AWS Infrastructure Port | ✅ COMPLETE | CDK stacks, adapters, migration scripts |
+| 49 | Ingestion Pipeline Restructure | ✅ COMPLETE | Model-aware embeddings, registry, search builders |
+| 50/50b | S3 Migration Export + Neptune Bulk Load | ✅ COMPLETE | Data migrated to AWS (OpenSearch + Neptune) |
+| 51 | Gateway Health/Explain/Search Fixes | ✅ COMPLETE | 3 defects patched, 45/45 tools pass with DB_BACKEND=aws |
+| 51b | AgentCore MCP Deployment | 🔶 IN PROGRESS (Step 5+) | Runtime deployed, proxy built, VPC connectivity pending |
+| 53 | Neptune Recovery + Re-Ingestion | ✅ COMPLETE (Track A+B) | 164,916 nodes, 2,941,593 rels in Neptune |
 
-All CDK stacks, adapters, migration scripts, and validation tooling built.
+## Current Live State (AWS)
 
-## Phase 49: Ingestion Pipeline Restructure — COMPLETE
+| Resource | Endpoint | Data |
+|----------|----------|------|
+| Neptune | `mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182` | 164,916 nodes, 2,941,593 rels |
+| OpenSearch | `vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com` | 85,921+ docs, 17 indices |
+| AgentCore Runtime | `mdc_mcp_rag_server-TMXDllG2Wi` (READY, version 2) | 51 tools, MCP protocol |
+| ECR Image | `903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:agentcore` | ARM64, node:20-slim |
+| S3 Migration | `s3://mdc-mcp-rag-migration/` | Bulk load CSVs, export archives |
 
-**SDD Session**: `session_2026-04-03_phase49` — **21/21 steps COMPLETE**
-**Branch**: `develop_aws`
-**Kiro Spec**: `.kiro/specs/ingestion-pipeline-restructure/` (32 requirements, 23 tasks — ALL DONE)
-**Commits**: `43f2625` → `e807b70` (6 commits, Phase 49A-49E)
+## Phase 51b: AgentCore MCP Deployment — Current Focus
 
-### All Steps Complete
+**Steps 0–4**: ✅ Complete (tooling, entrypoint, Dockerfile, ECR push, IAM)
+**Step 5**: ✅ Runtime deployed (`create_agent_runtime` via Kiro Power)
+**Steps 6–9**: ⬜ Pending — VPC connectivity validation, Kiro config switch, bridge retirement
 
-| Step | Sub-Phase | What Was Built | Commit |
-|------|-----------|----------------|--------|
-| 0-2 | 49A | `embedding_registry.py`, `embedding_provider.py`, `collection_namer.py` + P1-P5 | `43f2625` |
-| 3-4 | 49A | BaseIngester refactor + 7 ingestion scripts registry-driven + P6-P8 | `daeab02` |
-| 5-8 | 49B | aws_backend model-aware, dead code archival, index/migration updates + P9-P11 | `8d0037f` |
-| 9-14 | 49C | HybridSearchBuilder, GraphAugmenter, MatryoshkaQuery, comparative queries, UnifiedDataAccess wiring | `81536d7` |
-| 15-16 | 49D | FeedbackLogger.js, SageMaker launcher + ECR Dockerfile | `27d301f` |
-| 17-20 | 49E | drift_detector.py, benchmark_runner.py, fine_tuning_pipeline.py, hard_negative_miner.py | `e807b70` |
+### Blocking Issue
+AgentCore microVM needs security group update to reach Neptune (port 8182) and
+OpenSearch (port 443) within the VPC. Static tools work; graph/vector tools pending.
 
-5 optional property tests (P12-P17) were skipped per spec — marked `*` in tasks.md.
+### AgentCore Kiro Proxy
+- `tools/agentcore-kiro-proxy.py` — stdio MCP bridge (Kiro ↔ AgentCore Runtime via boto3)
+- Configured in `.kiro/settings/mcp.json` as `agentcore-mcp-rag`
+- 51 tools visible alongside legacy `eib-mcp-gateway`
 
-## Phase 50/50b: S3 Migration Export + Neptune Bulk Load — COMPLETE
+## Phase 53: Neptune Recovery — COMPLETE (Track A+B)
 
-**Phase 50 SDD Session**: `session_2026-04-07_8yca4n` — 7/7 steps
-**Phase 50b SDD Session**: `session_2026-04-09_phase50b` — 8/9 steps (cross-env verify deferred)
-**Branch**: `develop_aws`
+After the April 22, 2026 Neptune data loss (CDK `removalPolicy: DESTROY` default),
+recovery was executed in two tracks:
 
-### Migration Parity
+- **Track A**: S3 bulk load restored the April 7 baseline (~59K nodes)
+- **Track B**: Full re-ingestion from current source tree brought the graph to
+  164,916 nodes and 2,941,593 relationships (surpassing the original 59K/2.6M
+  due to deduplication cleanup and new code merged since April 7)
 
-| Component | Legacy (PW) | AWS | Status |
-|-----------|-------------|-----|--------|
-| Vectors (ChromaDB → OpenSearch) | 85,995 docs | 85,921 docs | ✅ 5/5 collections exact |
-| Graph rels (Neo4j → Neptune) | 2,653,565 | 2,633,374 | ✅ 99.2% (20K unresolvable) |
-| Graph nodes (Neo4j → Neptune) | 98,813 | 59,759 | ✅ Deduplicated (39K dupes) |
+Track C (automated incremental ingestion) is designed but not yet implemented.
 
-### Next Steps
+## Next Steps (Priority Order)
 
-1. Deploy MCP server via AWS Bedrock AgentCore Runtime (replace mcp-http-server.js wrapper)
-2. Run Bedrock embedding re-ingestion (Phase 52)
-3. SageMaker fine-tuning pipeline execution
-
-## Key Architecture Decisions
-
-- **CONE mnemonic**: ChromaDB→OpenSearch (vectors), Neo4j→Neptune (graphs), Embeddings stay same
-- **Model-aware naming**: `{domain}-{version}-{model-short}` (e.g., `code-with-context-v8-0-0-mpnet768`)
-- **No IGW/NAT needed**: API Gateway + VPC Link + Internal ALB for internet exposure
-- **Self-improving loop**: Feedback → Hard negatives from graph → Fine-tune on SageMaker → Re-ingest
+1. **Resolve AgentCore ↔ Neptune/OpenSearch VPC connectivity** (security group egress)
+2. **Validate all 51 tools through AgentCore** (graph + vector tools)
+3. **Switch Kiro MCP config** from legacy `eib-mcp-gateway` to `agentcore-mcp-rag`
+4. **Retire dev bridge** (`mcp-http-server.js` on port 3000)
+5. **Phase 52**: Bedrock embedding re-ingestion (SageMaker fine-tuning pipeline)
+6. **Phase 53 Track C**: Automated incremental ingestion pipeline
 
 ## Reference Files
 
 | File | Purpose |
 |------|---------|
-| `sdd_framework/workflows/phase49_ingestion_pipeline_restructure.md` | SDD spec (21 steps) |
-| `.kiro/specs/ingestion-pipeline-restructure/requirements.md` | 32 requirements |
-| `.kiro/specs/ingestion-pipeline-restructure/design.md` | Full architecture + interfaces |
-| `.kiro/specs/ingestion-pipeline-restructure/tasks.md` | 23 Kiro tasks (23/23 complete, 5 optional skipped) |
-| `docs/vpc-endpoint-request.md` | VPC endpoint request (completed) |
-| `docs/vpc-endpoint-status.md` | VPC endpoint verification (10/10) |
-| `docs/cdk-bootstrap-request.txt` | CDK bootstrap admin ticket |
-| `docs/parallel-works-export-runbook.md` | PW-side S3 export instructions |
-| `sdd_framework/execution_state/active_session.json` | Live session state |
+| `sdd_framework/workflows/phase48_aws_infrastructure_port.md` | CDK + adapters spec |
+| `sdd_framework/workflows/phase49_ingestion_pipeline_restructure.md` | Embedding registry + search |
+| `sdd_framework/workflows/phase51_gateway_health_explain_search_fixes.md` | 3-defect patch |
+| `sdd_framework/workflows/phase51b_agentcore_mcp_deployment.md` | AgentCore deployment |
+| `sdd_framework/workflows/phase53_neptune_recovery_incremental_ingestion.md` | Neptune recovery |
+| `.kiro/specs/agentcore-mcp-deployment/` | Kiro spec for AgentCore |
+| `.kiro/specs/agentcore-kiro-proxy/` | Kiro spec for proxy bridge |
+| `docs/postmortem/2026-04-22-neptune-data-loss.md` | CDK data loss post-mortem |
+| `docs/mcp-access-architecture-proposal.md` | Two-phase deployment strategy |

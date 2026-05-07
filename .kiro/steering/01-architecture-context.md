@@ -23,6 +23,44 @@ It is an MCP/RAG development platform for NOAA Global Workflow AI assistance, pr
 across 9 modules for code analysis, EE2 compliance validation, semantic search, SDD workflow
 tracking, and operational guidance for weather forecasting infrastructure.
 
+## AWS Bedrock AgentCore — MCP Deployment Target
+
+The MCP server is deployed to **AWS Bedrock AgentCore Runtime** as an ARM64 container:
+
+- **Runtime ID**: `mdc_mcp_rag_server-TMXDllG2Wi` (status: READY)
+- **Protocol**: MCP (Streamable HTTP on port 8000)
+- **Entrypoint**: `mcp_server_node/src/mcp-agentcore-entrypoint.js`
+- **Container**: `903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:agentcore`
+- **Network**: VPC mode (private subnets us-east-1a, us-east-1b)
+- **Lifecycle**: idle timeout 900s, max lifetime 28800s
+- **Kiro Proxy**: `tools/agentcore-kiro-proxy.py` (stdio bridge via boto3 `invoke_agent_runtime`)
+
+AgentCore handles session isolation (microVMs), scaling, and lifecycle management.
+The proxy translates Kiro's stdio JSON-RPC into AgentCore's SSE-based invocation API.
+
+## Neptune Graph Database (AWS)
+
+The knowledge graph is hosted on **Amazon Neptune** (openCypher):
+
+- **Cluster**: `mdc-mcp-graprag-neptune-1`
+- **Endpoint**: `wss://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182`
+- **Data**: 164,916 nodes, 2,941,593 relationships (as of Phase 53 Track B re-ingestion)
+- **Node labels**: File, ShellScript, FortranProgram, FortranModule, FortranSubroutine,
+  FortranFunction, PythonModule, PythonClass, PythonFunction, CodeFile, CodeFunction,
+  CodeClass, Community, EnvironmentVariable, ConfigFile, RocotoTask, RocotoMetatask,
+  Experiment, CITestCase, Developer, Documentation, and more
+- **Key relationships**: CALLS, INVOKES, EXECUTES, SOURCES, USES, IMPORTS, DEFINES,
+  DEPENDS_ON, DEPENDS_ON_ENV, EXPORTS, MEMBER_OF, PARENT_OF, INTERACTS_WITH
+- **Auth**: IAM SigV4 (via `mdc-mcp-rag-ecs-task-role`)
+- **Access from Kiro**: Direct via Neptune MCP server (configured in `.kiro/settings/mcp.json`)
+
+## OpenSearch (Vector Database)
+
+- **Domain**: `vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com`
+- **Data**: 85,921+ documents across 17 indices
+- **Embedding model**: `Xenova/all-mpnet-base-v2` (768-dim, baked into container image)
+- **Auth**: IAM SigV4
+
 ## The Two-System Architecture
 
 There are two instances of this system in play during development:
@@ -101,8 +139,26 @@ Do NOT change this property exposure pattern.
 | Path | Purpose |
 |------|---------|
 | `mcp_server_node/` | Node.js MCP server source (51 tools, 9 modules) |
+| `mcp_server_node/src/mcp-agentcore-entrypoint.js` | AgentCore Runtime entrypoint |
+| `mcp_server_node/Dockerfile.agentcore` | ARM64 container for AgentCore |
+| `mcp_server_node/.bedrock_agentcore.yaml` | AgentCore deployment config |
+| `tools/agentcore-kiro-proxy.py` | Kiro ↔ AgentCore stdio bridge |
+| `infrastructure/cdk/` | CDK stacks (VPC, Security, Data) |
 | `sdd_framework/` | SDD methodology, workflow specs, execution state |
-| `SETUP/` | Legacy provisioning scripts (Docker-based, being ported) |
-| `docker/` | Docker configs (legacy, reference only on AWS) |
+| `SETUP/` | Legacy provisioning scripts (Docker-based, reference only) |
 | `supported_repos/` | Read-only git submodules (global-workflow, etc.) |
 | `docs/` | Technical docs, compliance reports, presentations |
+| `HelloAgent/` | Bedrock AgentCore starter template (Python, reference) |
+
+## Steering vs Instruction Files — Boundary
+
+| System | Location | Purpose | Loaded By |
+|--------|----------|---------|-----------|
+| **Kiro Steering** | `.kiro/steering/*.md` | Guides Kiro agent behavior — architecture, workflow, safety | Kiro (always-on) |
+| **Kiro Hooks** | `.kiro/hooks/*.kiro.hook` | Automated triggers (CDK safety review on file edit) | Kiro (event-driven) |
+| **COTS Instruction Files** | `.github/instructions/*.md` | Legacy MCP tool-usage reference for Copilot/Cursor | GitHub Copilot / Cursor |
+
+**Do NOT conflate these.** Steering is the authoritative source for Kiro. The `.github/instructions/`
+file is a COTS IDE integration artifact for when Copilot or Cursor connects to the legacy
+`eib-mcp-gateway` server. It documents the same 51 tools but is not maintained for Kiro and
+may drift from current architecture.
