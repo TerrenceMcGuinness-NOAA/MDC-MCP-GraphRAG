@@ -139,7 +139,14 @@ def test_register_module_register_fn_raises():
 
 
 def test_initialize_degraded_mode_when_data_access_missing():
-    """Without a backend_selector module, initialize() runs in degraded mode."""
+    """Without a backend_selector module, initialize() runs in degraded mode.
+
+    As of Phase B11 (Task 17) the ``utility`` tool module is ported and
+    registers successfully even without a data-access layer — that is the
+    point of pulling utility forward in the port schedule, so the first
+    AgentCore smoke test has working tools. ``semantic_search`` still
+    fails because its module doesn't exist yet.
+    """
     cfg = load_config(
         env={"MCP_ENABLED_MODULES": "semantic_search,utility"},
     )
@@ -152,10 +159,15 @@ def test_initialize_degraded_mode_when_data_access_missing():
         data, results = asyncio.run(mcp_server.initialize(mcp, cfg))
 
     assert data is None
-    # Both modules attempted even though neither is implemented yet.
     names = [r.name for r in results]
     assert names == ["semantic_search", "utility"]
-    assert all(r.registered is False for r in results)
+    by_name = {r.name: r for r in results}
+    # semantic_search is still unported -> registration failed.
+    assert by_name["semantic_search"].registered is False
+    assert "No module named" in (by_name["semantic_search"].error or "")
+    # utility is ported and works in degraded mode.
+    assert by_name["utility"].registered is True
+    assert by_name["utility"].error is None
 
 
 def test_initialize_registers_modules_when_data_access_available():

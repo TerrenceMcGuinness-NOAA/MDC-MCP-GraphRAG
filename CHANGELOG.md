@@ -1,5 +1,263 @@
 # MCP Server Changelog
 
+## [8.13.0] - Phase B4 + Early B11: Parity Framework and Utility Tools Port (May 12, 2026)
+
+### Scope
+
+Tasks 7 and 17 from `.kiro/specs/python-mcp-server-port/tasks.md`:
+
+- **Task 7 (Phase B4)** — dual-server parity testing framework and shared test
+  fixtures.
+- **Task 17 (Phase B11)** — port of the 4 utility tools (`get_server_info`,
+  `mcp_health_check`, `get_health_trend`, `get_quality_metrics`).
+
+Task 6 is a checkpoint and was skipped (B3 landed at `1603b3e`). All code
+lives under `mcp_server_python/`. No changes to `mcp_server_node/`, no
+deployments, no ECR pushes, no AgentCore Runtime updates.
+
+### Sequencing Note — Task 17 Pulled Forward
+
+Task 17 is the **B11** utility-tool module in the linear spec, but it is being
+ported now — before Phase B5 (`semantic_search`) — because the first AgentCore
+Runtime smoke test for the Python server needs a minimal working tool set that
+does **not** depend on live Neptune / OpenSearch connectivity. The utility
+tools are the natural choice:
+
+- `get_server_info` works unconditionally.
+- `mcp_health_check` reports degraded state cleanly when the data layer is
+  absent, rather than crashing.
+- `get_health_trend` / `get_quality_metrics` read local JSONL files and have
+  no cloud dependency.
+
+This means the Python server can boot with `--modules utility` alone, pass
+the AgentCore Runtime health probe, and let the operator validate the
+streamable-HTTP transport, SigV4 entry path, and observability wiring in
+isolation before any production tool is exposed. Once the smoke test passes,
+subsequent phases (B5, B6, …) layer tools on top of the validated base.
+
+The rest of Phase B11 (`github_tools`, etc.) will be ported in their
+original slot.
+
+### Phase B4 — Parity Testing Framework (`tests/parity/`)
+
+- `tests/parity/parity_runner.py` (717 lines) — dual-server MCP parity
+  harness:
+  - `ComparisonMode` enum with three strategies: `EXACT` (ordered deep
+    equals, e.g. top-k document IDs), `SET_EQUALITY` (order-insensitive
+    `collections.Counter` multiset comparison that rejects duplicate
+    mismatches), `TOLERANCE` (element-wise relative delta with a
+    near-zero guard of `max(|x|, |y|, 1)`; default ±10% to match the
+    design's "relevance scores within 10%" requirement).
+  - `ParityRunner.assert_parity(tool_name, arguments, comparison,
+    id_extractor=…, name_extractor=…, score_extractor=…)` dispatches the
+    two tool calls concurrently via `asyncio.gather`, so latency is
+    `max(node_ms, python_ms)` rather than their sum. Extractor callbacks
+    let each tool project its response to the comparable subset without
+    forcing every tool to share a shape.
+  - `ParityResult` / `ParitySummary` / `ParityCase` dataclasses cover
+    per-call results, batch aggregation, and declarative test cases.
+  - `HTTPJSONRPCToolCaller` — minimal Streamable-HTTP client (lazy
+    `httpx` import) for wiring the framework against a live server.
+    Tests always inject mock callers via `build_mock_tool_caller` so
+    pytest runs offline.
+  - CLI entrypoint with `--nodejs-url`, `--python-url`, `--module`,
+    `--cases-file`, `--tolerance`, `--nodejs-header`, `--python-header`
+    (the last two support AgentCore bearer-token auth).
+  - Framework makes zero live HTTP calls by itself — the Python server
+    isn't deployed yet, so the framework lives idle until the first
+    smoke test.
+
+### Phase B4 — Shared Test Fixtures (`tests/conftest.py`)
+
+- `tests/conftest.py` extended from 20 lines to 521 lines:
+  - `SAMPLE_VECTOR_HITS` / `SAMPLE_GRAPH_ROWS` — canonical sample data
+    shaped to match `VECTOR_RESULT_KEYS` and the GGSR scorer's expected
+    row shape.
+  - `MockVectorDB` / `MockGraphDB` / `MockUnifiedDataAccess` —
+    dataclass-based doubles that structurally satisfy
+    `VectorDBProtocol` / `GraphDBProtocol`. Knobs: `hits`, `collections`,
+    `health`, `raise_on_query`. Every call is recorded on `call_log`
+    so tests can assert the adapter was reached with the expected
+    inputs. `MockGraphDB.add_response(fragment, rows)` registers
+    cypher-template-specific responses with longest-match wins.
+    `MockUnifiedDataAccess.health_check` composes adapter health with
+    a configurable `min_indices=5` guard matching the Node.js
+    `HealthChecker.checkDatabases` behaviour.
+  - `FakeClock` — monotonic ISO-8601 clock generator, injectable into
+    `SessionManager` and the utility tools for Hypothesis
+    reproducibility.
+  - `make_deterministic_id_factory(prefix, width)` — zero-arg ID
+    factory producing `{prefix}000001`-style tokens; replaces the
+    random-alnum default when tests need reproducible shrinks.
+  - `build_mock_tool_caller(responses, latency_ms, side_effect)` —
+    returns a `ParityRunner.ToolCaller`-compatible callable so parity
+    tests can exercise the framework without network.
+  - Fixtures: `sample_vector_hits`, `sample_graph_rows`,
+    `mock_vector_db`, `mock_graph_db`, `mock_data_access`,
+    `fake_clock`, `deterministic_id_factory`, `tmp_state_dir`,
+    `monotonic_wall_clock`.
+
+### Phase B11 — Utility Tools Module (`src/tools/utility.py`)
+
+- `src/tools/utility.py` (1010 lines) with a single public entry
+  `register(mcp, data, *, state_dir=None, server_version=None)` that
+  registers all 4 tools on the FastMCP instance. Input schemas match
+  the Node.js `UnifiedMCPServer.js` utility tool registrations exactly
+  (parameter names, types, defaults, enum values).
+
+- **`get_server_info(include_capabilities: bool = False) -> str`** —
+  reports server version (from `src.mcp_server.SERVER_VERSION`, lazy
+  import to avoid circular deps), live tool count (via
+  `mcp.list_tools()`), the list of registered tools, and the inferred
+  active-module set. `_infer_active_modules()` maps currently-registered
+  tool names back to the 9 canonical module names using the
+  authoritative tool-list from the Node.js server. When
+  `include_capabilities=True`, adds a block showing whether the data
+  access layer is connected or in degraded mode.
+
+- **`mcp_health_check(detailed: bool = False, deep: bool = False,
+  functional: bool = False) -> str`** — awaits `data.health_check(deep=…)`
+  when `data` is not `None`. Three overall states:
+  - `HEALTHY` — all component rows are `healthy`/`disabled`.
+  - `DEGRADED` — at least one row is `degraded` (e.g. vector DB has
+    fewer than `MIN_HEALTHY_INDICES=5` indices, or graph DB has 0
+    nodes).
+  - `UNHEALTHY` — a component raised or returned an error. The
+    `Data Access Layer` row is `disabled` when `data is None`
+    (first-deploy scenario), which keeps overall status `HEALTHY` so
+    the AgentCore Runtime's own health probe passes during the smoke
+    test.
+
+  `deep=True` persists a snapshot to `state_dir/health_history.jsonl`
+  in the Node.js-compatible schema:
+
+  ```json
+  {"timestamp": "2026-05-12T…Z", "source": "tool_call",
+   "neo4j": {"status": "ok", "nodes": N, "relationships": R, "latency_ms": L},
+   "chromadb": {"status": "healthy", "collections": C, "total_docs": D, "latency_ms": L},
+   "drift": {"neo4j_node_delta": D1, "chromadb_doc_delta": D2}}
+  ```
+
+  Drift is computed against the last line of the file.
+
+- **`get_health_trend(limit: int = 10) -> str`** — reads
+  `state_dir/health_history.jsonl`, tails the last `limit` entries,
+  renders a markdown table with per-snapshot node / relationship /
+  doc / collection / drift counts, then computes count-increase/
+  decrease trend lines, average + delta latency trend, and flags any
+  consecutive-snapshot change exceeding `HEALTH_ANOMALY_PCT=0.10`
+  (the same 10% threshold as the Node.js implementation).
+
+- **`get_quality_metrics(category: Literal[6 enum values] | None =
+  None, compare: bool = False) -> str`** — reads
+  `state_dir/quality_metrics.jsonl` (one benchmark snapshot per line).
+  Renders Overall table (Precision@5, Recall@5, MRR, Coverage, P50,
+  P95) plus per-category breakdown. When `compare=True` and at least
+  two snapshots exist, renders a regression table with
+  `[IMPROVED]` / `[DEGRADED]` tags (lower-is-better logic for
+  `latency_*` metrics). `category` filter narrows both the category
+  table and the regression block.
+
+  > *Note:* the Python port expects a JSONL file, one snapshot per
+  > line. The Node.js original reads a directory of JSON files
+  > (`mcp_server_node/test/benchmark/results/*.json`). If strict
+  > parity is required for this tool in Phase B4 parity tests, the
+  > test fixture will consolidate the directory into a JSONL
+  > on-the-fly — documented in the follow-ups of
+  > `sdd_framework/execution_state/phase_b4_b11_session.json`.
+
+- State-directory resolution precedence: explicit `state_dir` argument
+  → `SDD_STATE_DIR` environment variable → `sdd_framework/execution_state`
+  default. Matches the precedence already used by
+  `src.sdd.session_manager.SessionManager`.
+
+### Tests
+
+- `tests/unit/test_parity_runner.py` (449 lines, 31 tests) — every
+  comparison mode, every extractor path, exception-side divergence
+  reporting, `run_cases` with `--module` filter, `ParitySummary`
+  rendering, CLI helper functions (`_parse_headers`, `_load_cases`),
+  and a concurrency assertion (both mock callers with 50ms latency
+  complete in < 90ms when dispatched in parallel).
+- `tests/unit/test_conftest_mocks.py` (239 lines, 28 tests) — protocol
+  compliance for both mock adapters, query filtering, retry-on-error,
+  multi-collection merge, call-log tracking, `MockUnifiedDataAccess`
+  health composition (healthy / few-indices / empty-graph / deep-flag
+  forwarding).
+- `tests/unit/test_utility_tools.py` (610 lines, 38 tests) — schema
+  parity (parameter names, bool defaults, limit default, enum values
+  via `anyOf[0].enum` since `Literal | None` becomes
+  `anyOf: [{enum: […]}, {type: null}]` under FastMCP); `get_server_info`
+  (version, tool count, tool list, active-module inference, capability
+  block); `mcp_health_check` (healthy, degraded variants, data-raises
+  path, deep-flag snapshot persistence, drift vs prior, non-deep does
+  not write, functional-flag messaging); `get_health_trend` (no file,
+  empty file, tail-N table, anomaly detection at >10%, stable message,
+  single-snapshot skips trend section, invalid limit rejected);
+  `get_quality_metrics` (missing file, empty file, overall + category
+  rendering, category filter, no-match, compare without prior,
+  regression table); state-dir resolution precedence;
+  `_infer_active_modules`.
+- Pre-existing `test_initialize_degraded_mode_when_data_access_missing`
+  updated — it previously asserted "no modules register in degraded
+  mode" on the assumption that `semantic_search` and `utility` were
+  both unported. Now `utility` registers successfully (the deliberate
+  Phase B11 sequencing), so the test was tightened to assert
+  `semantic_search.registered is False` *and* `utility.registered is
+  True`. This is the correct behaviour for the first-deploy smoke-test
+  scenario.
+
+**Test run summary** (`python3.12 -m pytest tests/`):
+
+- Task 7: **59 / 59** new tests passed (31 parity + 28 mock).
+- Task 17: **38 / 38** utility tool tests passed.
+- Full suite: **195 / 195** passed (157 before Task 17 + 38 new).
+- 0 failures, 0 skipped. Run time ~5 seconds.
+
+### Files Added
+
+- `mcp_server_python/tests/parity/parity_runner.py` (717 lines)
+- `mcp_server_python/src/tools/utility.py` (1010 lines)
+- `mcp_server_python/tests/unit/test_parity_runner.py` (449 lines)
+- `mcp_server_python/tests/unit/test_conftest_mocks.py` (239 lines)
+- `mcp_server_python/tests/unit/test_utility_tools.py` (610 lines)
+- `sdd_framework/execution_state/phase_b4_b11_session.json` — side-carried
+  completion record for this phase.
+
+### Files Updated
+
+- `mcp_server_python/tests/conftest.py` — extended from 20 → 521 lines
+  with the mock-adapter + fixture library described above.
+- `mcp_server_python/tests/unit/test_mcp_server.py` — one test updated to
+  reflect the deliberate Task 17 early-port sequencing.
+- `sdd_framework/execution_state/history.jsonl` — appended 6 events for
+  the B4+B11 lifecycle (1 × `started`, 4 × `step_completed`, 1 ×
+  `completed`), all round-trippable via `SessionManager.get_history`.
+
+### Files Not Touched
+
+- `mcp_server_node/` (the running production server, still on Node.js).
+- `.kiro/settings/mcp.json` (the active MCP registration).
+- AgentCore Runtime (`mdc_mcp_rag_server-TMXDllG2Wi`) — still on version 7.
+- `sdd_framework/execution_state/active_session.json` — belongs to the
+  unrelated phase56 session (blocked on user approval).
+- Neptune and OpenSearch (no queries, no writes).
+
+### Next
+
+- Task 8 (Phase B5, `semantic_search`) is the next module in the linear
+  port order. The Task 7 parity framework will validate it against the
+  Node.js baseline once the Python server is deployed to a staging
+  AgentCore Runtime.
+- Before continuing the module ports, the operator should (a) build the
+  AgentCore Runtime container with the `utility` module registered,
+  (b) push to ECR, (c) update the AgentCore Runtime to point at the new
+  image, (d) run the first smoke test: `mcp_health_check({})` via the
+  live proxy, expecting overall status `HEALTHY` with `Data Access Layer:
+  disabled` and the two utility-tool rows green. These steps are
+  explicitly out of scope for this session per the user's instruction
+  ("do not deploy anything").
+
 ## [8.12.0] - Phase B3: GGSR Traversal Engine and SDD Session Manager (May 12, 2026)
 
 ### Scope
