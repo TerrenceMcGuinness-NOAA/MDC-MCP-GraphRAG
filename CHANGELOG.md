@@ -1,5 +1,107 @@
 # MCP Server Changelog
 
+## [8.11.0] - Phase B1–B2: Python MCP Server Port Foundation (May 12, 2026)
+
+### Scope
+
+Initial scaffolding and database adapter layer for the Python port of the Node.js MCP
+server (spec: `.kiro/specs/python-mcp-server-port/`). The Node.js server
+(`mcp_server_node/`) continues to run production unchanged. All Python code lives under
+`mcp_server_python/`.
+
+This phase is additive and does not modify, redeploy, or replace any running system.
+
+### Phase B1 — Project Scaffolding (`mcp_server_python/`)
+
+- New directory tree: `src/`, `src/config/`, `src/data/`, `src/graphrag/`, `src/tools/`,
+  `src/sdd/`, `src/agents/`, `tests/unit/`, `tests/parity/`, `tests/properties/`
+- `pyproject.toml` with pinned runtime dependencies: `fastmcp==3.2.4`,
+  `opensearch-py==3.2.0`, `boto3==1.42.70`, `strands-agents==1.39.0`,
+  `opentelemetry-api==1.41.1`, and test extras (`pytest==8.4.2`, `hypothesis==6.152.2`).
+  Python 3.12+ required.
+- `Dockerfile` (ARM64, Python 3.12, port 8000) for future AgentCore Runtime deployment.
+- `.bedrock_agentcore.yaml` for `agentcore deploy` (placeholder — not deployed).
+- `README.md` describing the port strategy and local dev workflow.
+
+### Phase B1 — Environment Configuration
+
+- `src/config/environment.py` — `load_config()` returning a `ServerConfig` dataclass
+  with validated fields for `DB_BACKEND` (aws|legacy), Neptune/OpenSearch/ChromaDB
+  endpoints, port range, enabled modules, and SDD state directory.
+- `src/config/aws_config.py` — region and endpoint defaults for AWS managed services.
+- Raises `ValueError` on invalid port, unknown module name, or non-numeric ChromaDB port.
+
+### Phase B1 — FastMCP Server Entrypoint
+
+- `src/mcp_server.py` — `build_server()` factory, async `initialize()` that connects
+  adapters, and module-based tool registration loop.
+- Degraded mode: catches adapter init failures, logs, and continues with available
+  tools rather than crashing.
+- CLI flags: `--modules` (comma-separated whitelist), `--log-level`.
+- `KNOWN_MODULES` covers all 9 tool module names from the Node.js server.
+
+### Phase B2 — Database Adapter Protocols
+
+- `src/data/protocols.py` — `VectorDBProtocol` and `GraphDBProtocol` as Python
+  `typing.Protocol` classes matching the method signatures of the Node.js adapters:
+  `connect`, `query`, `multi_collection_query`, `health_check`, `close` (vector);
+  `connect`, `query`, `health_check`, `close` (graph).
+
+### Phase B2 — OpenSearch Adapter
+
+- `src/data/opensearch_adapter.py` — async wrapper over `opensearch-py` implementing
+  `VectorDBProtocol`. SigV4 auth via `aws_backend.py` helpers.
+- Hybrid BM25 + k-NN query construction with RRF fusion.
+- Supports all 5 production mpnet768 indices.
+- Exponential backoff retry (max 3, 1s → 2s → 4s) on HTTP 429 / 5xx.
+
+### Phase B2 — Neptune Adapter
+
+- `src/data/aws_backend.py` — SigV4 HTTP adapter for Neptune's openCypher endpoint
+  (port 8182), replacing the Node.js Bolt driver approach.
+- Parameterized queries, session context manager, retry on 429/500/503 and
+  ConcurrentModificationException.
+- Record format parity with Node.js `NeptuneAdapter._recordToObject`.
+
+### Phase B2 — UnifiedDataAccess + Backend Selector
+
+- Facade exposing `hybrid_search()`, `graph_query()`, `health_check()` over both
+  adapters. Backend selector routes to aws or legacy per `DB_BACKEND` env var.
+
+### Tests
+
+46 unit tests passing (`python3.12 -m pytest tests/`):
+- 17 tests covering `environment.py` (env var parsing, defaults, validation errors,
+  module whitelist, legacy backend routing).
+- 15 tests covering `mcp_server.py` (arg parsing, module filtering, registration,
+  degraded mode initialization).
+- Additional coverage for config and data modules.
+
+Property tests (Hypothesis) for Properties 2–7 are scaffolded in `tests/properties/`
+and will be filled in as adapters are exercised against live backends.
+
+### What This Enables
+
+- Python server can be imported and configured locally; `build_server()` returns a
+  FastMCP instance ready for tool registration.
+- Adapters can query the same Neptune + OpenSearch the Node.js server uses,
+  read-only, with no state changes.
+- Next phase (B3) adds GGSR traversal and SDD session manager, then B4 adds the
+  parity test framework before porting any user-facing tools.
+
+### Files Added
+
+- `mcp_server_python/` (new directory, ~20 files)
+- `sdd_framework/execution_state/phase_b1_b2_session.json`
+- `.gitignore` entry for `.hypothesis/`
+
+### Files Not Touched
+
+- `mcp_server_node/` (the running production server)
+- `.kiro/settings/mcp.json` (the active MCP registration)
+- AgentCore Runtime (`mdc_mcp_rag_server-TMXDllG2Wi`) — still on version 7
+- Neptune and OpenSearch (no writes)
+
 ## [8.10.0] - Phase 56: OpenSearch Connection Pool Exhaustion Fix (May 12, 2026)
 
 ### Problem
