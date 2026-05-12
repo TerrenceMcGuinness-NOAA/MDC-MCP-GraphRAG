@@ -1,5 +1,185 @@
 # MCP Server Changelog
 
+## [8.12.0] - Phase B3: GGSR Traversal Engine and SDD Session Manager (May 12, 2026)
+
+### Scope
+
+Tasks 4 and 5 from `.kiro/specs/python-mcp-server-port/tasks.md` — the GGSR traversal
+engine and the SDD session manager. Task 3 is a checkpoint and was skipped (Tasks 1
+and 2 landed previously at `4e235d4` and `dc293c0` on `develop_aws`). Continues the
+Python port of the Node.js MCP server. All code lives under `mcp_server_python/`.
+
+Additive only. No changes to `mcp_server_node/`, no deployments, no ECR pushes, no
+AgentCore Runtime updates. The active `phase56` session (blocked on user approval for
+ECR rotation) is unaffected.
+
+### Phase B3 — GGSR Traversal Engine (`src/graphrag/`)
+
+- `src/graphrag/ggsr_traversal.py` (387 lines) — `GGSRTraversal` class with:
+  - `WEIGHT_MATRIX` (27 relationship types copied verbatim from Node.js
+    `GGSRTraversalPrototypes.js` `RELATIONSHIP_WEIGHTS`): `CALLS=1.0`,
+    `EXECUTES=1.0`, `SOURCES=0.95`, `INVOKES=0.9`, `CALLED_BY=0.9`,
+    `DEPENDS_ON=0.8`, `DEPENDS_ON_ENV=0.8`, `IMPORTS=0.7`, `USES=0.7`,
+    `INHERITS=0.7`, `DEFINES=0.65`, `PROVIDED_BY=0.6`, `EXPORTS=0.6`,
+    `DOC_REFERENCES=0.6`, `DOC_DESCRIBES=0.55`, `TRANSITIVELY_DEPENDS=0.5`,
+    `HAS_METHOD=0.5`, `CONTAINS=0.5`, `SETS=0.5`, `DOCUMENTED_BY=0.4`,
+    `SAME_DIRECTORY=0.4`, `BUILT_BY=0.35`, `BUILD_ORCHESTRATES=0.35`,
+    `REQUIRES_VERSION=0.3`, `AUTHORED=0.3`, `AUTHORED_BY=0.3`,
+    `CONTRIBUTED_TO=0.3`. Unknown edges fall back to `DEFAULT_WEIGHT=0.3`.
+  - `HOP_DECAY = 0.5`; score formula `weight × HOP_DECAY^hop_distance`.
+  - `BRIDGE_DECAY_OVERRIDE = 0.8` for cross-language bridge hops.
+  - `budget_aware_neighborhood(entity, token_budget, max_results, hops, min_weight)`
+    for 1- or 2-hop retrieval against any `GraphDBProtocol` adapter.
+  - `_score_results`: scores every record then sorts descending.
+  - `_trim_to_budget`: greedy prefix that stops before exceeding the token budget.
+  - `_multi_hop_query`: Neptune-compatible Cypher (`toLower($baseName) CONTAINS`,
+    no regex operators).
+  - `GGSRScoredResult` dataclass for tool-layer consumption.
+- `src/graphrag/graph_guided_retrieval.py` (284 lines) — `GraphGuidedRetrieval`
+  combining GGSR traversal with vector search:
+  - `get_code_context(entity, …)` runs graph neighbourhood + semantic enrichment
+    in parallel via `asyncio.gather` (equivalent to `Promise.all` in the Node.js
+    source).
+  - `GGSRRetrievalResult(entity, ggsr_results, semantic_hits, metadata)` return type.
+  - Degrades gracefully when no `vector_db` is wired in (`semantic_available=False`).
+  - `retrieve` kept as an alias of `get_code_context` for Node.js naming parity.
+  - Query classification and community summaries from the full JS version are
+    deferred to Phase B7 (GraphRAGTools port).
+
+Note on weight values: the initial B3 implementation followed an abbreviated
+9-type matrix and `HOP_DECAY=0.6` that were incorrectly stated in the spec
+tasks.md. Pre-commit review against the authoritative Node.js source corrected
+the matrix to all 27 types and `HOP_DECAY=0.5`; `.kiro/specs/python-mcp-server-port/tasks.md`
+and `design.md` have been updated to match for future phases.
+
+### Phase B3 — SDD Session Manager (`src/sdd/`)
+
+- `src/sdd/session_manager.py` (814 lines) — `SessionManager` class with:
+  - Injectable `state_dir`, `clock`, and `id_factory` for testability; defaults
+    mirror the Node.js path conventions and `Math.random().toString(36).substr(2, 6)`
+    ID shape.
+  - Data models as dataclasses: `SDDSession`, `SDDStep`, `FileModification`,
+    `ExaminedSymbol`, `Checkpoint` — camelCase fields for byte-compat with the
+    existing `active_session.json` on disk.
+  - Lifecycle: `start_session`, `record_step`, `complete_session`, `abandon_session`,
+    `resume_session`.
+  - State tracking: `examine_symbol` (dedup, silent on no-session), `mark_modified`,
+    `checkpoint_state`, `restore_checkpoint` (restores `examined` + `modifications`
+    from the snapshot).
+  - Readers: `get_session_state`, `get_session_context`, `get_history` with
+    phase-substring / event-name / limit filters.
+  - Static `serialize_session` / `deserialize_session` for Property 11 round-trip.
+  - `threading.Lock` guards all disk mutations (FastMCP can dispatch handlers on a
+    thread pool; the Node.js server was single-threaded).
+  - JSONL event names match `mcp_server_node/src/sdd/SessionManager.js`: `started`,
+    `step_completed`, `file_modified`, `symbol_examined`, `checkpoint_created`,
+    `checkpoint_restored`, `completed`, `abandoned`, `resumed`.
+- Constants exported: `VALID_TAGS` (7 semantic tags), `VALID_CHANGE_TYPES` (4 change
+  types), `STATUS_ACTIVE` / `STATUS_COMPLETED` / `STATUS_ABANDONED`, `SessionError`.
+
+### Tests
+
+**Property tests** (Hypothesis, `tests/properties/`):
+- `test_ggsr_props.py` (294 lines, 11 tests) — Property 9 decomposed into eight
+  sub-properties: exact score formula for known edges, descending sort order,
+  `DEFAULT_WEIGHT` fallback for unknown edges, hop-2 score ≤ hop-1 for the same edge
+  (exact `HOP_DECAY` ratio), trim never exceeds budget, trim is a prefix (no
+  reordering), larger budget keeps at least as many rows, all known edges produce
+  finite scores in (0, 1]. Plus edge cases: empty input, zero budget, `hop_distance<1`
+  clamped to 1. Up to 150 Hypothesis examples per property.
+- `test_sdd_session_props.py` (370 lines, 4 tests × up to 60 examples each) —
+  Properties 10 and 11: examined dedup and first-seen ordering, modifications
+  duplicate preservation, `restore_checkpoint` reverts state for any mix of
+  pre/post operations, full lifecycle serialize/deserialize round-trip for all
+  three terminal states (complete/abandon/still-active). Key gotcha: the initial
+  function-scoped fixture leaked active sessions across Hypothesis examples;
+  resolved by creating a fresh `SessionManager` + `tempfile.TemporaryDirectory`
+  per iteration in a `try/finally`.
+
+**Unit tests** (`tests/unit/test_session_manager.py`, 538 lines, 37 tests):
+- Initialization (recursive state dir + checkpoints subdir creation).
+- `start_session` (file write shape, history event, double-start rejection,
+  empty-phase rejection).
+- `record_step` (append, `currentStep` watermark, duplicate step rejected,
+  no-session raises, unknown tag accepted with log warning, empty tag defaults
+  to `implement`, history event emitted).
+- `examine_symbol` / `mark_modified` (dedup, silent-on-no-session, every-call
+  appended even for same path, `file_path` required, unknown `changeType` warning).
+- `checkpoint_state` / `restore_checkpoint` (snapshot JSON written with full
+  pre-state copies, restore reverts only `examined` + `modifications`, unknown
+  checkpoint id raises `SessionError`).
+- `complete_session` / `abandon_session` (status set, active file removed, history
+  event includes `duration` / `reason`).
+- `resume_session` across a fresh `SessionManager` instance (simulates server
+  restart).
+- JSONL format parity: full 7-event lifecycle written one-object-per-line, every
+  event has `sessionId` + `phase` + Z-suffix timestamp, matching the Node.js
+  `SessionManager.js` writer.
+- `active_session.json` top-level keys match Node.js; optional lifecycle fields
+  (`completedAt`, `abandonedAt`, `summary`, `abandonReason`) are omitted from the
+  JSON until the matching transition happens.
+- `get_history` event / phase-substring / limit filters.
+- `serialize_session` / `deserialize_session` round-trip preserves all fields;
+  unknown keys ignored for forward-compat; non-object JSON rejected with
+  `ValueError`.
+- Thread safety smoke test: 10 concurrent `record_step` calls produce exactly
+  steps 1..10 with no corruption (guard on `threading.Lock`).
+
+**Test run summary** (`python3.12 -m pytest tests/`):
+- Task 4: **11 / 11** GGSR property tests passed.
+- Task 5: **41 / 41** SDD tests passed (4 property + 37 unit).
+- Full suite: **98 / 98** passed (57 pre-existing from Phase B1–B2 + 41 new).
+- 0 failures, 0 skipped. Run time ~4 seconds.
+
+### What This Enables
+
+- Phase B3 of the spec is complete. The GGSR engine and SDD session manager are
+  both ready to be wired into the tool layer that starts in Phase B5.
+- Any Phase B5+ tool module that needs a graph neighbourhood can now call
+  `GGSRTraversal.budget_aware_neighborhood` or
+  `GraphGuidedRetrieval.get_code_context`.
+- The SDD tool module (Phase B10) can delegate directly to `SessionManager` with
+  no additional translation layer — the on-disk JSON / JSONL shapes are already
+  Node.js-compatible.
+
+### Files Added
+
+- `mcp_server_python/src/graphrag/ggsr_traversal.py` (387 lines)
+- `mcp_server_python/src/graphrag/graph_guided_retrieval.py` (284 lines)
+- `mcp_server_python/src/sdd/session_manager.py` (814 lines)
+- `mcp_server_python/tests/properties/test_ggsr_props.py` (294 lines)
+- `mcp_server_python/tests/properties/test_sdd_session_props.py` (370 lines)
+- `mcp_server_python/tests/unit/test_session_manager.py` (538 lines)
+- `sdd_framework/execution_state/phase_b3_session.json` (renamed from
+  `phase_b1_b2_session.json`; populated with the full B3 completion record)
+
+### Files Updated
+
+- `mcp_server_python/src/graphrag/__init__.py` — re-exports `GGSRTraversal`,
+  `GraphGuidedRetrieval`, etc.
+- `mcp_server_python/src/sdd/__init__.py` — re-exports `SessionManager`,
+  dataclasses, constants.
+- `sdd_framework/execution_state/history.jsonl` — appended 8 events for the B3
+  lifecycle (`started`, 6 × `step_completed`, `completed`). Also repaired one
+  newline-less concatenation between the trailing `phase56` step-8 line and the
+  first B3 line; two older concatenations (lines 329 and 341, from pre-B1
+  Node.js writes) were left in place as out-of-scope.
+
+### Files Not Touched
+
+- `mcp_server_node/` (the running production server, still on Node.js).
+- `.kiro/settings/mcp.json` (the active MCP registration).
+- AgentCore Runtime (`mdc_mcp_rag_server-TMXDllG2Wi`) — still on version 7.
+- `sdd_framework/execution_state/active_session.json` (belongs to `phase56`,
+  blocked on user approval; untouched).
+- Neptune and OpenSearch (no queries, no writes).
+
+### Next
+
+- Task 6 is a checkpoint — user should review before proceeding.
+- Tasks 7+ belong to Phase B4 (parity testing framework) and Phases B5–B11
+  (per-module tool ports).
+
 ## [8.11.0] - Phase B1–B2: Python MCP Server Port Foundation (May 12, 2026)
 
 ### Scope

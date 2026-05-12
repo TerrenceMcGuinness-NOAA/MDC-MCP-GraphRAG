@@ -340,21 +340,48 @@ class NeptuneAdapter:
 ```python
 # src/graphrag/ggsr_traversal.py
 
-# Relationship weight matrix (matches Node.js GGSRTraversalPrototypes.js)
+# Relationship weight matrix — copied verbatim from Node.js
+# mcp_server_node/src/graphrag/GGSRTraversalPrototypes.js RELATIONSHIP_WEIGHTS.
+# Any divergence breaks parity tests in Task 7.
 WEIGHT_MATRIX = {
-    "CALLS": 1.0,
-    "IMPORTS": 0.9,
-    "DEFINES": 0.85,
-    "USES": 0.8,
-    "EXECUTES": 0.95,
-    "INVOKES": 0.9,
-    "SOURCES": 0.85,
-    "CONTAINS": 0.7,
-    "DEPENDS_ON": 0.75,
+    "CALLS":                1.0,
+    "EXECUTES":             1.0,
+    "SOURCES":              0.95,
+    "INVOKES":              0.9,
+    "CALLED_BY":            0.9,
+    "DEPENDS_ON":           0.8,
+    "DEPENDS_ON_ENV":       0.8,
+    "IMPORTS":              0.7,
+    "USES":                 0.7,
+    "INHERITS":             0.7,
+    "DEFINES":              0.65,
+    "PROVIDED_BY":          0.6,   # Phase 34C: Fortran USE → NCEPLIBS ExternalLibrary
+    "EXPORTS":              0.6,
+    "DOC_REFERENCES":       0.6,
+    "DOC_DESCRIBES":        0.55,
+    "TRANSITIVELY_DEPENDS": 0.5,   # Phase 34C: indirect library deps
+    "HAS_METHOD":           0.5,
+    "CONTAINS":             0.5,
+    "SETS":                 0.5,
+    "DOCUMENTED_BY":        0.4,   # Phase 34C: graph node → ChromaDB doc
+    "SAME_DIRECTORY":       0.4,
+    "BUILT_BY":             0.35,
+    "BUILD_ORCHESTRATES":   0.35,
+    "REQUIRES_VERSION":     0.3,   # Phase 34C: platform version constraints
+    "AUTHORED":             0.3,
+    "AUTHORED_BY":          0.3,
+    "CONTRIBUTED_TO":       0.3,
 }
 
 # Hop decay: score *= decay^hop_distance
-HOP_DECAY = 0.6
+HOP_DECAY = 0.5
+
+# Cross-language bridge hops (Shell↔Fortran↔Python) use this in place of
+# HOP_DECAY to avoid over-penalising meaningful execution handoffs.
+BRIDGE_DECAY_OVERRIDE = 0.8
+
+# Fallback weight for relationship types missing from WEIGHT_MATRIX.
+DEFAULT_WEIGHT = 0.3
 
 class GGSRTraversal:
     """Graph-Guided Semantic Retrieval traversal engine."""
@@ -376,7 +403,7 @@ class GGSRTraversal:
     def _score_results(self, results: list[dict]) -> list[dict]:
         """Apply weight matrix and hop decay scoring."""
         for r in results:
-            rel_weight = WEIGHT_MATRIX.get(r["relationship"], 0.5)
+            rel_weight = WEIGHT_MATRIX.get(r["relationship"], DEFAULT_WEIGHT)
             hop_score = HOP_DECAY ** r["hop_distance"]
             r["score"] = rel_weight * hop_score
         return sorted(results, key=lambda r: r["score"], reverse=True)
