@@ -1,0 +1,68 @@
+{
+  "sessionId": "session_2026-05-12_phase56",
+  "phase": "phase56_opensearch_connection_pool_exhaustion",
+  "startedAt": "2026-05-12T18:05:39.399Z",
+  "lastActivityAt": "2026-05-12T18:38:00.000Z",
+  "totalSteps": 8,
+  "notes": "OpenSearch connection pool exhaustion fix — mirrors Neptune fix from commit 6ad5094",
+  "completedSteps": [
+    {
+      "step": 1,
+      "name": "Research — Audit OpenSearch connection lifecycle",
+      "tag": "research",
+      "completedAt": "2026-05-12T18:08:00.000Z",
+      "notes": "Four leak points identified: OpenSearchAdapter unbounded socket pool, close() no-op, entrypoint missing SIGTERM handler, kiro-proxy missing stop_runtime_session. Parity test already compliant from Neptune fix 6ad5094."
+    },
+    {
+      "step": 2,
+      "name": "Add HTTP agent configuration to OpenSearchAdapter",
+      "tag": "implement",
+      "completedAt": "2026-05-12T18:12:00.000Z",
+      "notes": "Added node:https Agent import, poolConfig (maxSockets:10, maxFreeSockets:5, keepAliveMsecs:30000, socketTimeout:60000). connect() now creates bounded HTTPS agent; close() properly calls client.close() and agent.destroy()."
+    },
+    {
+      "step": 3,
+      "name": "Add SIGTERM/SIGINT graceful shutdown to mcp-agentcore-entrypoint.js",
+      "tag": "implement",
+      "completedAt": "2026-05-12T18:18:00.000Z",
+      "notes": "Added gracefulShutdown(signal) with 5s timeout guard. Closes HTTP server then calls sharedDataAccess.close() which releases NeptuneAdapter.driver + OpenSearchAdapter agent/client."
+    },
+    {
+      "step": 4,
+      "name": "Add connection cleanup to test scripts",
+      "tag": "implement",
+      "completedAt": "2026-05-12T18:22:00.000Z",
+      "notes": "mcp-parity-test.py already compliant. Extended scope: added AgentCoreClient.stop_session() to tools/agentcore-kiro-proxy.py and wrapped main loop in try/finally so session is released on any exit path."
+    },
+    {
+      "step": 5,
+      "name": "Baseline capture; full validation deferred to post-deploy",
+      "tag": "validate",
+      "completedAt": "2026-05-12T18:32:00.000Z",
+      "notes": "CloudWatch ActiveConnectionCount is not exposed for managed OpenSearch — confirmed via list-metrics. Baseline captured (OpenSearchRequests 1-13/hr typical with 147 peak; 5xx=0). Full validation against the fix requires v8 deployed (Step 7). Acceptance re-interpreted as application-level: absence of 'Max connection limit reached' from get_knowledge_base_status."
+    },
+    {
+      "step": 8,
+      "name": "Update CHANGELOG with OpenSearch connection pool fix",
+      "tag": "document",
+      "completedAt": "2026-05-12T18:38:00.000Z",
+      "notes": "Added [8.10.0] Phase 56 entry to CHANGELOG.md with root cause, three file-level fixes, CloudWatch metric caveat, pre-deploy validation, prior art, and deploy-gating note for Steps 6-7."
+    }
+  ],
+  "pendingSteps": [
+    {
+      "step": 6,
+      "name": "Simulate reconnection storm with 5 sequential proxy sessions",
+      "tag": "validate",
+      "blockedBy": "step_7",
+      "notes": "Requires v8 runtime to be live. Test plan: 5 sequential proxy sessions, verify connections stay bounded (≤50 total), confirm stop_session() releases each."
+    },
+    {
+      "step": 7,
+      "name": "Build ARM64 container, push to ECR, update AgentCore Runtime to v8",
+      "tag": "configure",
+      "blockedBy": "user_confirmation",
+      "notes": "Medium-high risk: rotates live AgentCore Runtime. Requires docker buildx (ARM64) or Amazon Linux ARM builder, ECR push credentials, and bedrock-agentcore-control update-agent-runtime permissions. Awaiting user approval per safety guardrails."
+    }
+  ]
+}

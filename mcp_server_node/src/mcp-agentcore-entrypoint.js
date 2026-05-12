@@ -24,15 +24,61 @@ const scenario = process.env.MCP_SCENARIO || 'full';
 process.on('unhandledRejection', (reason) => { console.error('[ERROR] Unhandled:', reason); });
 process.on('uncaughtException', (error) => { console.error('[ERROR] Uncaught:', error); });
 
-const config = UnifiedMCPServer.getConfiguration(scenario);
-console.error(`[AgentCore] Starting '${scenario}' on port ${PORT}`);
-
 // Shared data access — connect once, reuse across all requests
 let sharedDataAccess = null;
 let sharedGGSR = null;
 let sharedRetrieval = null;
+let httpServer = null;
+let shuttingDown = false;
 
-const httpServer = createServer(async (req, res) => {
+/**
+ * Graceful shutdown — release all database connections before exit.
+ *
+ * Phase 56 fix: AgentCore microVMs receive SIGTERM when the idle timeout
+ * fires (900s) or the runtime is stopped. Without this handler, the Node
+ * process died without calling sharedDataAccess.close(), leaking Neptune
+ * Bolt connections and OpenSearch HTTPS sockets. Over many cold-start /
+ * reconnect cycles these accumulated toward the 1000-connection OpenSearch
+ * cluster limit.
+ *
+ * We cap shutdown at 5s — AgentCore sends SIGKILL shortly after SIGTERM.
+ */
+async function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.error(`[AgentCore] Received ${signal}, shutting down gracefully...`);
+
+  const shutdownTimeout = setTimeout(() => {
+    console.error('[AgentCore] [WARN] Shutdown timeout (5s) — forcing exit');
+    process.exit(1);
+  }, 5000);
+  shutdownTimeout.unref();
+
+  try {
+    if (httpServer && httpServer.listening) {
+      await new Promise((resolve) => httpServer.close(resolve));
+      console.error('[AgentCore] [OK] HTTP server closed');
+    }
+    if (sharedDataAccess && typeof sharedDataAccess.close === 'function') {
+      await sharedDataAccess.close();
+      console.error('[AgentCore] [OK] Data access closed (Neptune + OpenSearch released)');
+    }
+  } catch (err) {
+    console.error(`[AgentCore] [ERROR] Shutdown error: ${err.message}`);
+  } finally {
+    clearTimeout(shutdownTimeout);
+    console.error('[AgentCore] Shutdown complete');
+    process.exit(0);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+const config = UnifiedMCPServer.getConfiguration(scenario);
+console.error(`[AgentCore] Starting '${scenario}' on port ${PORT}`);
+
+httpServer = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id');
@@ -151,15 +197,14 @@ async function prewarm() {
   }
 }
 
-// Await pre-warm, THEN start listening
-prewarm().then(() => {
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    console.error(`[AgentCore] Listening on http://0.0.0.0:${PORT}/mcp`);
-    console.error(`[AgentCore] Health check: http://0.0.0.0:${PORT}/ping`);
-  });
-}).catch(() => {
-  // Start anyway even if pre-warm fails — tools will connect on demand
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    console.error(`[AgentCore] Listening on http://0.0.0.0:${PORT}/mcp (pre-warm failed)`);
+// Start listening FIRST so /ping responds within AgentCore's 120s init window,
+// then pre-warm database connections in the background. Tools that arrive before
+// pre-warm completes will connect on-demand (slower first call, but no init timeout).
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.error(`[AgentCore] Listening on http://0.0.0.0:${PORT}/mcp`);
+  console.error(`[AgentCore] Health check: http://0.0.0.0:${PORT}/ping`);
+  // Fire pre-warm in background — does not block request handling
+  prewarm().catch((err) => {
+    console.error(`[AgentCore] [WARN] Pre-warm failed (non-fatal): ${err.message}`);
   });
 });

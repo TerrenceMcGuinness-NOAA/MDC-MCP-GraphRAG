@@ -38,7 +38,7 @@ Troubleshooting:
 Requirements: Python 3.9+, boto3 (no other dependencies).
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 import argparse
 import json
@@ -46,6 +46,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 import time
 import uuid
 
@@ -63,6 +64,9 @@ RETRYABLE_EXCEPTIONS = (
 )
 MAX_RETRIES = 3
 BASE_DELAY = 0.5
+
+# Keepalive interval (seconds) — prevents AgentCore cold starts
+KEEPALIVE_INTERVAL = 45
 
 # Shutdown flag
 _shutdown = False
@@ -204,6 +208,27 @@ class AgentCoreClient:
         logger.debug("Response received in %.3fs", elapsed)
         return body
 
+    def stop_session(self):
+        """Stop the AgentCore runtime session to release the microVM.
+
+        Phase 56 fix: without this, every Kiro restart/disconnect leaves a
+        live AgentCore microVM for the full 900s idle timeout, each holding
+        Neptune Bolt connections and OpenSearch HTTPS sockets. Under
+        reconnect storms these accumulate toward the 1000-connection limit.
+
+        Safe to call repeatedly or when no session has been opened — errors
+        are logged but do not propagate.
+        """
+        try:
+            self.client.stop_runtime_session(
+                agentRuntimeArn=self.agent_runtime_id,
+                runtimeSessionId=self.session_id,
+                qualifier="DEFAULT",
+            )
+            logger.info("AgentCore session stopped: %s", self.session_id)
+        except Exception as exc:
+            logger.warning("stop_runtime_session failed: %s", exc)
+
 
 # -- SSEParser --
 
@@ -265,6 +290,72 @@ def write_response(obj):
     sys.stdout.flush()
 
 
+# -- Local initialize --
+
+# Cached server capabilities from the first successful remote initialize
+_server_info_cache = None
+_server_info_lock = threading.Lock()
+
+# Default capabilities to return immediately while warming up
+_DEFAULT_SERVER_INFO = {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
+    "serverInfo": {"name": "agentcore-kiro-proxy", "version": __version__},
+}
+
+
+def handle_initialize_locally(request_id):
+    """Answer initialize immediately with cached or default server info."""
+    with _server_info_lock:
+        info = _server_info_cache if _server_info_cache else _DEFAULT_SERVER_INFO
+    write_response({"jsonrpc": "2.0", "id": request_id, "result": info})
+
+
+def warm_remote(client):
+    """Send initialize to AgentCore in background to warm the container.
+
+    Caches the real server info for future initialize calls.
+    """
+    global _server_info_cache
+    try:
+        warmup_msg = {
+            "jsonrpc": "2.0", "method": "initialize", "id": str(uuid.uuid4()),
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "agentcore-kiro-proxy-warmup", "version": __version__},
+            },
+        }
+        raw = client.invoke(warmup_msg)
+        responses = parse_sse(raw)
+        if responses and "result" in responses[0]:
+            with _server_info_lock:
+                _server_info_cache = responses[0]["result"]
+            logger.info("Remote warmup complete, cached server info")
+        else:
+            logger.warning("Remote warmup got unexpected response")
+    except Exception as exc:
+        logger.warning("Remote warmup failed (non-fatal): %s", exc)
+
+
+# -- Keepalive --
+
+def keepalive_loop(client):
+    """Periodically ping AgentCore to keep the container warm."""
+    while not _shutdown:
+        time.sleep(KEEPALIVE_INTERVAL)
+        if _shutdown:
+            break
+        try:
+            ping = {
+                "jsonrpc": "2.0", "method": "ping", "id": str(uuid.uuid4()),
+            }
+            client.invoke(ping)
+            logger.debug("Keepalive ping sent")
+        except Exception as exc:
+            logger.debug("Keepalive ping failed (non-fatal): %s", exc)
+
+
 def main(argv=None):
     """Entry point: parse args, create components, run message loop."""
     args = parse_args(argv)
@@ -286,56 +377,82 @@ def main(argv=None):
         )
         return 1
 
+    # Start background warmup immediately so AgentCore is hot by the time
+    # Kiro sends tools/list (which must arrive within 60s).
+    warmup_thread = threading.Thread(target=warm_remote, args=(client,), daemon=True)
+    warmup_thread.start()
+
+    # Start keepalive thread to prevent cold starts between calls
+    keepalive_thread = threading.Thread(target=keepalive_loop, args=(client,), daemon=True)
+    keepalive_thread.start()
+
     exit_code = 0
-    while not _shutdown:
-        msg = read_message()
-        if msg is None:
-            logger.info("EOF on stdin, shutting down (session=%s)", client.session_id)
-            break
+    try:
+        while not _shutdown:
+            msg = read_message()
+            if msg is None:
+                logger.info("EOF on stdin, shutting down (session=%s)", client.session_id)
+                break
 
-        request_id = msg.get("id")
-        is_notification = request_id is None
+            request_id = msg.get("id")
+            method = msg.get("method", "")
+            is_notification = request_id is None
 
-        try:
-            raw_sse = client.invoke(msg)
-            responses = parse_sse(raw_sse)
-            if is_notification:
-                # Notifications don't expect a response to Kiro, but log if
-                # AgentCore sent something back.
-                if responses:
-                    logger.debug("AgentCore replied to notification: %s", msg.get("method"))
+            # Handle initialize locally for instant response
+            if method == "initialize":
+                handle_initialize_locally(request_id)
                 continue
-            for resp in responses:
-                write_response(resp)
-            if not responses and not is_notification:
-                write_response(
-                    make_error_response(request_id, -32603, "Empty SSE response")
-                )
-        except NoCredentialsError:
-            logger.error("AWS credentials lost during operation")
-            if not is_notification:
-                write_response(
-                    make_error_response(request_id, -32603, "AWS credentials not available")
-                )
-        except ClientError as exc:
-            logger.error("AgentCore invocation failed: %s", exc)
-            if not is_notification:
-                error_code = exc.response["Error"]["Code"]
-                write_response(
-                    make_error_response(
-                        request_id, -32603,
-                        f"AgentCore invocation failed after {MAX_RETRIES} retries",
-                        {"exception": error_code, "detail": str(exc)},
+
+            # Skip notifications that don't need forwarding
+            if method == "notifications/initialized":
+                continue
+
+            try:
+                raw_sse = client.invoke(msg)
+                responses = parse_sse(raw_sse)
+                if is_notification:
+                    # Notifications don't expect a response to Kiro, but log if
+                    # AgentCore sent something back.
+                    if responses:
+                        logger.debug("AgentCore replied to notification: %s", msg.get("method"))
+                    continue
+                for resp in responses:
+                    write_response(resp)
+                if not responses and not is_notification:
+                    write_response(
+                        make_error_response(request_id, -32603, "Empty SSE response")
                     )
-                )
-        except Exception as exc:
-            logger.exception("Unhandled exception processing message")
-            if not is_notification:
-                write_response(
-                    make_error_response(
-                        request_id, -32603, f"Internal proxy error: {exc}"
+            except NoCredentialsError:
+                logger.error("AWS credentials lost during operation")
+                if not is_notification:
+                    write_response(
+                        make_error_response(request_id, -32603, "AWS credentials not available")
                     )
-                )
+            except ClientError as exc:
+                logger.error("AgentCore invocation failed: %s", exc)
+                if not is_notification:
+                    error_code = exc.response["Error"]["Code"]
+                    write_response(
+                        make_error_response(
+                            request_id, -32603,
+                            f"AgentCore invocation failed after {MAX_RETRIES} retries",
+                            {"exception": error_code, "detail": str(exc)},
+                        )
+                    )
+            except Exception as exc:
+                logger.exception("Unhandled exception processing message")
+                if not is_notification:
+                    write_response(
+                        make_error_response(
+                            request_id, -32603, f"Internal proxy error: {exc}"
+                        )
+                    )
+    finally:
+        # Phase 56 fix: always release the AgentCore microVM session on exit
+        # so the proxy does not leak live microVMs (each holding Neptune +
+        # OpenSearch connections) for the full 900s idle timeout on every
+        # Kiro restart / disconnect.
+        client.stop_session()
 
     logger.info("Proxy exiting (code=%d, session=%s)", exit_code, client.session_id)
     return exit_code

@@ -1,5 +1,109 @@
 # MCP Server Changelog
 
+## [8.10.0] - Phase 56: OpenSearch Connection Pool Exhaustion Fix (May 12, 2026)
+
+### Problem
+
+On May 11-12, 2026, `get_knowledge_base_status` and all vector-backed tools began failing with:
+```
+Error getting status: "Unexpected server exception 'Max connection limit reached. Limit = 1000'"
+```
+
+Root cause: each AgentCore microVM instantiated `@opensearch-project/opensearch` `Client()` with no
+HTTP agent configuration, so HTTPS connections accumulated unbounded. Multiple microVMs (spawned
+by Kiro cold-start/reconnect cycles) each left dangling sockets until their 900s idle-timeout
+reaper ran, collectively exceeding the OpenSearch cluster's hard 1000-connection limit.
+
+This is the same class of bug fixed for Neptune in commit `6ad5094` (May 6, 2026). The Neptune
+fix reduced the Bolt pool from 50→10 and added `stop_session()` cleanup to test scripts.
+
+### Fixes Applied
+
+#### `mcp_server_node/src/data/adapters/OpenSearchAdapter.js`
+- Added `node:https` `Agent` import and `poolConfig` constructor option with defaults:
+  `maxSockets: 10`, `maxFreeSockets: 5`, `keepAlive: true`, `keepAliveMsecs: 30000`,
+  `socketTimeout: 60000` (matches Neptune `maxConnectionPoolSize: 10`).
+- `connect()` now wires a bounded `HttpsAgent` into the OpenSearch `Client`, capping
+  concurrent HTTPS sockets per microVM at 10.
+- `close()` was previously a no-op — now properly awaits `client.close()` to flush
+  pending requests and calls `agent.destroy()` to release every socket in the pool.
+  Both calls are wrapped in try/catch so teardown never throws.
+
+#### `mcp_server_node/src/mcp-agentcore-entrypoint.js`
+- Added `gracefulShutdown(signal)` handler wired to `process.on('SIGTERM')` and
+  `process.on('SIGINT')`. On signal: stops accepting new HTTP requests, then calls
+  `sharedDataAccess.close()` — which closes both NeptuneAdapter.driver and
+  OpenSearchAdapter (now properly releasing its socket pool).
+- 5s timeout guard prevents hang if close() stalls — AgentCore sends SIGKILL shortly
+  after SIGTERM on microVM idle-timeout.
+- Converted `httpServer` from `const` inside `createServer` to an outer-scope `let`
+  so the shutdown handler can reach it.
+
+#### `tools/agentcore-kiro-proxy.py`
+- Added `AgentCoreClient.stop_session()` method that calls `stop_runtime_session`
+  on the bedrock-agentcore control plane, terminating the microVM (and its
+  Neptune + OpenSearch connection pools) immediately rather than waiting for the
+  900s idle timeout.
+- Wrapped `main()` message loop in `try/finally` so `stop_session()` is called on
+  any exit path: SIGTERM, SIGINT, EOF on stdin, uncaught exception.
+- Without this, every Kiro restart/disconnect left a live microVM for the full
+  900s idle timeout, each holding pooled connections — a secondary leak source.
+
+#### `tools/mcp-parity-test.py`
+- Unchanged in this phase (already compliant from Neptune fix `6ad5094`).
+
+### Validation
+
+**Pre-deploy (source):**
+- `node --check` passes for OpenSearchAdapter.js and mcp-agentcore-entrypoint.js.
+- `python3 -m py_compile` passes for agentcore-kiro-proxy.py.
+- Module-import + null-safe `close()` verified via stand-alone Node script.
+
+**CloudWatch metric caveat:**
+The SDD spec referenced `ActiveConnectionCount` for Step 5 validation. This metric is
+not exposed for managed AWS OpenSearch Service (confirmed via `list-metrics`). The
+available signals are `OpenSearchRequests`, `5xx` count, and application-layer errors.
+Baseline captured (May 11-12): `OpenSearchRequests` 1-13/hr typical with 108/147 peaks
+during Kiro sessions; `5xx` = 0 throughout. Full post-deploy validation will use
+application-level signal (absence of "Max connection limit reached" from
+`get_knowledge_base_status`).
+
+**Post-deploy (pending Step 7 — AgentCore v8 rollout):**
+- Reconnection storm test: 5 sequential proxy sessions; confirm connections stay
+  bounded (5 × 10 = 50 max) and release after `stop_session()`.
+- `mcp_health_check({deep: true})` shows 9/9 healthy.
+- `get_knowledge_base_status()` returns successfully.
+
+### Prior Art
+
+- `6ad5094` — Neptune pool size 50→10, added session cleanup (May 6, 2026)
+- `ee7a2d2` — Pre-warm connections in entrypoint before listen (May 4, 2026)
+- `4266089` — Shared `dataAccess` instance, eliminated 3x duplicate connections (April 10, 2026)
+
+### Relationship to Proxy Keepalive (v1.1.0, May 12)
+
+The `agentcore-kiro-proxy.py` v1.1.0 patch (earlier today) addresses the Kiro-side
+60s MCP-timeout symptom by answering `initialize` locally and background-warming
+AgentCore. Phase 56 addresses the independent server-side connection accumulation
+that made cold starts catastrophic when they did occur.
+
+### Files Modified
+
+- `mcp_server_node/src/data/adapters/OpenSearchAdapter.js`
+- `mcp_server_node/src/mcp-agentcore-entrypoint.js`
+- `tools/agentcore-kiro-proxy.py`
+- `sdd_framework/workflows/phase56_opensearch_connection_pool_exhaustion.md` (phase spec)
+- `sdd_framework/execution_state/active_session.json`
+- `sdd_framework/execution_state/history.jsonl`
+
+### Remaining (Steps 6, 7)
+
+- **Step 7**: Build new ARM64 image, push to ECR, update AgentCore Runtime to v8.
+- **Step 6**: Validate under reconnection storm with v8 live (5 sequential proxy
+  sessions, confirm connections bounded and released).
+
+Both gated on user confirmation since Step 7 rotates the live runtime.
+
 ## [8.9.0] - Phase 51b: AgentCore Runtime Deployed + Kiro Proxy (April 30, 2026)
 
 ### AgentCore Runtime — Deployed and Validated

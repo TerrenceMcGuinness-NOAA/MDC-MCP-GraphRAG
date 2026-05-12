@@ -21,6 +21,7 @@ import { Client } from '@opensearch-project/opensearch';
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/lib/aws/index-v3.js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { pipeline } from '@xenova/transformers';
+import { Agent as HttpsAgent } from 'node:https';
 import { VectorDatabaseAdapter } from './VectorDatabaseAdapter.js';
 
 // Singleton embedding model — shared with ChromaDB adapter if both loaded
@@ -44,12 +45,24 @@ export class OpenSearchAdapter extends VectorDatabaseAdapter {
    * @param {object} config
    * @param {string} config.endpoint  - OpenSearch domain endpoint (https://...)
    * @param {string} [config.region]  - AWS region (default: AWS_REGION env or us-east-1)
+   * @param {number} [config.maxSockets=10]     - Max concurrent HTTPS sockets per microVM
+   *   (matches Neptune maxConnectionPoolSize; see Phase 56).
+   * @param {number} [config.maxFreeSockets=5]  - Max idle sockets kept in pool.
+   * @param {number} [config.keepAliveMsecs=30000] - TCP keepalive interval (30s).
+   * @param {number} [config.socketTimeout=60000]  - Per-socket I/O timeout (60s).
    */
   constructor(config = {}) {
     super();
     this.endpoint = config.endpoint || process.env.OPENSEARCH_ENDPOINT || '';
     this.region   = config.region   || process.env.AWS_REGION || 'us-east-1';
+    this.poolConfig = {
+      maxSockets:     config.maxSockets     || 10,
+      maxFreeSockets: config.maxFreeSockets || 5,
+      keepAliveMsecs: config.keepAliveMsecs || 30000,
+      socketTimeout:  config.socketTimeout  || 60000,
+    };
     this.client   = null;
+    this.agent    = null;
     this.connected = false;
     this.metrics = { queriesExecuted: 0, documentsAdded: 0, avgQueryTime: 0, lastQueryTime: null };
   }
@@ -62,6 +75,19 @@ export class OpenSearchAdapter extends VectorDatabaseAdapter {
       throw new Error('OpenSearchAdapter: endpoint is required (set OPENSEARCH_ENDPOINT or pass config.endpoint)');
     }
 
+    // Bounded HTTPS agent prevents unbounded socket accumulation in long-lived
+    // microVMs. Phase 56 fix — OpenSearch has a hard cluster limit of 1000
+    // connections; without this, multiple microVMs (from Kiro reconnect storms)
+    // each open unbounded connections and hit the limit.
+    // Mirrors Neptune's maxConnectionPoolSize: 10 from fix 6ad5094.
+    this.agent = new HttpsAgent({
+      maxSockets:     this.poolConfig.maxSockets,
+      maxFreeSockets: this.poolConfig.maxFreeSockets,
+      keepAlive:      true,
+      keepAliveMsecs: this.poolConfig.keepAliveMsecs,
+      timeout:        this.poolConfig.socketTimeout,
+    });
+
     this.client = new Client({
       ...AwsSigv4Signer({
         region: this.region,
@@ -69,6 +95,7 @@ export class OpenSearchAdapter extends VectorDatabaseAdapter {
         getCredentials: defaultProvider(),
       }),
       node: this.endpoint,
+      agent: () => this.agent,
     });
 
     // Load singleton embedding model
@@ -248,7 +275,31 @@ export class OpenSearchAdapter extends VectorDatabaseAdapter {
     return { ...this.metrics, connected: this.connected, endpoint: this.endpoint };
   }
 
+  /**
+   * Release all HTTPS sockets held by the OpenSearch client.
+   *
+   * Phase 56 fix: previously a no-op — this leaked sockets whenever a microVM
+   * was torn down (SIGTERM, idle timeout). Now we explicitly close the client
+   * (flushing pending requests) and destroy the HTTPS agent to release every
+   * socket in the pool.
+   */
   async close() {
+    try {
+      if (this.client && typeof this.client.close === 'function') {
+        await this.client.close();
+      }
+    } catch (err) {
+      console.error(`[WARN] OpenSearchAdapter.close: client.close failed — ${err.message}`);
+    }
+    try {
+      if (this.agent && typeof this.agent.destroy === 'function') {
+        this.agent.destroy();
+      }
+    } catch (err) {
+      console.error(`[WARN] OpenSearchAdapter.close: agent.destroy failed — ${err.message}`);
+    }
+    this.client = null;
+    this.agent = null;
     this.connected = false;
     console.error('[OK] OpenSearchAdapter closed');
   }

@@ -23,6 +23,64 @@ It is an MCP/RAG development platform for NOAA Global Workflow AI assistance, pr
 across 9 modules for code analysis, EE2 compliance validation, semantic search, SDD workflow
 tracking, and operational guidance for weather forecasting infrastructure.
 
+## Two-Layer Architecture: MCP-as-a-Service + Agent Consumers
+
+The AgentCore deployment creates a clean architectural split that unlocks new delivery patterns beyond the original MCP/Kiro use case.
+
+### Layer 1 — MCP-as-a-Service (what we built)
+
+The `mdc_mcp_rag_server` AgentCore Runtime is a shared, authenticated, auto-scaling
+**tool library**. AgentCore provides microVM session isolation, inbound auth (Cognito
+JWT after Phase B), VPC-private backend access, and observability. It hosts our
+51 tools but does not itself perform reasoning or orchestration — it is a library
+of primitives.
+
+This layer stays dumb, stable, and composable. Changes to Layer 2 do not require
+redeploying Layer 1.
+
+### Layer 2 — Consumers (three tiers)
+
+**Tier A — Direct consumers** use the MCP as their own tool source. Each just needs
+an endpoint URL and a JWT:
+- Kiro IDE (developer workstation, macOS laptop)
+- GitHub Actions CI pipelines (Phase B flagship)
+- HPC researcher sessions (Phase B)
+
+**Tier B — Agent-wrapped consumers** are full AgentCore Runtime deployments (one
+per agent, each with its own IAM role and Cognito client) that wrap the MCP behind
+a task-specific interface. They give end users a single endpoint for a multi-step
+analytical workflow:
+- EE2 Compliance Analyzer (takes code/logs, returns synthesized diagnosis)
+- Build Failure Diagnoser (takes Rocoto log, returns root-cause narrative)
+- Code Review Assistant (takes PR diff, returns review comments)
+- Onboarding Docent (natural-language Q&A for new team members)
+
+The `HelloAgent/` folder is an AWS-provided scaffold of this pattern — ~80 lines
+of Strands + Bedrock + MCP client showing the complete agent shape. It is retained
+as a reference, not used in production.
+
+**Tier C — Scheduled consumers** run on a cadence against the MCP:
+- Drift monitor (nightly `check_knowledge_integrity`)
+- EE2 baseline bot (weekly `scan_repository_compliance`)
+- Release notes generator (on-tag change analysis)
+
+### Why this partition is correct
+
+- **Trust boundaries are clean**: each Tier B agent has its own IAM role; revoking
+  one agent does not affect the MCP or other agents.
+- **Cost is attributable**: each agent runtime is billed independently.
+- **Models evolve separately**: agents can use different Bedrock models (Sonnet,
+  Haiku, Nova) without touching the MCP.
+- **Agent CI/CD is lightweight**: new agents are ~80-line forks of HelloAgent;
+  creating one does not touch `mcp_server_node/` or the infrastructure stacks.
+
+### Implication for Kiro
+
+When designing new features, ask: is this a Layer 1 addition (a new MCP tool
+primitive) or a Layer 2 addition (a new agent or direct consumer)? Default to
+Layer 2 unless the capability is a reusable primitive that multiple consumers
+will need. Keep Layer 1 narrow and stable.
+
 ## AWS Bedrock AgentCore — MCP Deployment Target
 
 The MCP server is deployed to **AWS Bedrock AgentCore Runtime** as an ARM64 container:
