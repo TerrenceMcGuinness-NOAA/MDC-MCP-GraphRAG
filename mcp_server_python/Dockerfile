@@ -49,12 +49,15 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B7 deployment: boot with utility + semantic_search + code_analysis
-# + graph_rag modules registered (4 + 7 + 6 + 9 = 26 tools). The 5 graph /
-# vector-backed graph_rag tools require a data-access layer at call time;
-# the 4 session tools (mark_as_modified / get_session_context /
-# checkpoint_state / restore_checkpoint) need only a SessionManager and
-# work even in degraded-mode boot. Tools that need graph / vector data
-# surface the degraded state as an [ERROR] response rather than failing
-# registration.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag"]
+# Phase B8 deployment: boot with utility + semantic_search + code_analysis
+# + graph_rag + ee2_compliance modules registered (4 + 7 + 6 + 9 + 5 =
+# 31 tools). The EE2 module splits degraded-mode behaviour: only
+# search_ee2_standards requires the vector store; the other four tools
+# (analyze_ee2_compliance / generate_compliance_report /
+# scan_repository_compliance / extract_code_for_analysis) operate on
+# caller-supplied content and work even when the vector adapter is
+# unavailable. The two content-abstracted scanners (scan_repository_
+# compliance and extract_code_for_analysis) reject repository_path /
+# path arguments with a clear [ERROR] — the hosted Python port does
+# not read from the caller's filesystem.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance"]

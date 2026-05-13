@@ -1,5 +1,202 @@
 # MCP Server Changelog
 
+## [8.17.0] - Phase B8: EE2ComplianceTools Port (May 13, 2026)
+
+### Scope
+
+Task 12 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 5 Node.js
+EE2ComplianceTools to Python. All code under `mcp_server_python/`. No
+deployments, no ECR pushes, no changes to `mcp_server_node/` or the live
+AgentCore runtimes. Phase B8 is the first tool module to consume a
+content-abstraction layer instead of reading from the caller's filesystem:
+the two scan / extract tools are explicitly hosted-only.
+
+### Tools Ported (`src/tools/ee2_compliance.py`, 1130 lines)
+
+All 5 tools; input schemas match `mcp_server_node/src/tools/EE2ComplianceTools.js`
+exactly (verified by two separate assertions — one in the unit-test module
+and a second in the parity module).
+
+**Vector-backed tool (1 — requires a data-access layer):**
+
+- `search_ee2_standards(query, category?, max_results=8, include_examples=true)` —
+  semantic search against the `ee2-standards-v5-0-0-enhanced` vector
+  collection. Enhances the query with the category name (if provided) and
+  the anchor token "EE2 compliance". Degrades to `[ERROR]` when the vector
+  adapter is unavailable.
+
+**Content-scanning tools (4 — operate on caller-supplied content, work in
+degraded mode):**
+
+- `analyze_ee2_compliance(content, analysis_type='comprehensive', include_recommendations=true)` —
+  SME-corrected (Phase 2) pattern battery. Flags `set -eu` and `set -e`
+  in bash scripts as anti-patterns (HIGH confidence), flags file
+  operations (cp / mv / ln) without a trailing `err_chk`, reports a
+  positive observation when a script uses `preamble.sh` or `err_chk`
+  without `set -eu`, and checks environment-variable quoting hygiene.
+  Analysis-type narrowing restricts the category set for targeted
+  reviews.
+- `generate_compliance_report(scope='summary', categories?, format='markdown')` —
+  reference reporting with summary / detailed / checklist scopes.
+  Pulls standard excerpts from the vector store when available and
+  renders an `[INFO]` footer when the adapter is missing. Adds a
+  Passthrough Recommendation block when file_naming or
+  environment_variables are requested.
+- `scan_repository_compliance(files?, repository_path?, file_patterns?, sample_size=10000, categories?)` —
+  batched per-file violation scanner across error_handling / file_naming
+  / shebang_compliance / production_utilities categories (the
+  environment_variables category exists for parity but is deliberately
+  no-op per the Node.js Phase 2 notes: only SME-validated rules fire).
+  Content-abstracted: the Python port rejects `repository_path` with
+  a clear `[ERROR]` instructing the caller to use `files` instead,
+  and emits deterministic JSON via `json.dumps(sort_keys=False)` so
+  test snapshots stay stable.
+- `extract_code_for_analysis(content?, files?, path?, content_type='auto', categories?, file_pattern='\.(sh|py)$', max_files=50)` —
+  per-file snippet extraction with LLM prompt bundles per category.
+  Mirrors Node.js `CodeSnippetExtractor` + `EE2AnalysisPrompts`
+  inline (no sub-module, to keep the port self-contained). Also
+  content-abstracted: rejects `path` with a clear `[ERROR]` when
+  neither `content` nor `files` is provided. `content_type='auto'`
+  detects bash vs python from the shebang or structural markers.
+
+### SME-Corrected Behaviour (Preserved)
+
+The Phase 2 corrections documented in `.github/instructions/eib-mcp-tools.instructions.md`
+are preserved bit-for-bit:
+
+- `set -eu` is **NOT** required by EE2 (80 % false-positive rate when
+  flagged as missing). The port flags it as an anti-pattern when
+  present, not as missing.
+- `err_chk` / `err_exit` via `preamble.sh` is the correct EE2 pattern
+  for error handling. A script using either one is reported as
+  compliant.
+- File operations without a trailing `err_chk` are flagged (silent
+  failures are the operational risk).
+- Non-quoted variable references (`$VAR` outnumbering `"${VAR}"`) are
+  flagged as hygiene concerns but without a HIGH confidence level.
+
+### Tests Added
+
+`tests/unit/test_ee2_compliance_tools.py` — 58 tests covering:
+
+- Schema parity (names / required fields / defaults / enums) across
+  all 5 tools, including the array-of-enum and `anyOf[enum, null]`
+  shapes FastMCP emits for `Literal[...] | None` parameters.
+- Degraded-mode split: parameterized over the 1 vector-backed tool
+  (returns `[ERROR]`) and the 4 content-scanners (work without
+  `data`).
+- SME-corrected analyze behaviour: `set -eu` flagged, `set -e`
+  flagged, `err_chk` / `preamble.sh` praised as EE2-compliant,
+  file-ops-without-err_chk flagged, unquoted variables flagged,
+  `analysis_type` narrowing.
+- `generate_compliance_report` summary / detailed / checklist
+  rendering with mock vector hits (including `_extract_checklist_items`
+  round-trip), category filtering, Passthrough Recommendation
+  insertion.
+- `scan_repository_compliance` file-type categorization, 5-category
+  violation battery, content-abstraction rejection of
+  `repository_path`, empty-files rejection, sample_size truncation,
+  handling of malformed entries (skip without crashing).
+- `extract_code_for_analysis` content + files routing,
+  content-abstraction rejection of `path`-only mode, `file_pattern`
+  regex filtering, `max_files` truncation, invalid regex rejection,
+  auto-detect content type, SME-correction text in prompt bundles,
+  unknown-category rejection via direct helper call (pydantic catches
+  at the tool boundary before our code runs).
+- Helper function coverage: `_build_standards_query`,
+  `_extract_checklist_items`, `_detect_content_type`, prompt/pattern
+  coverage assertions.
+
+`tests/parity/test_ee2_compliance_parity.py` — 10 hermetic tests +
+25 live-parity cases (gated on `RUN_PARITY=1`):
+
+- Catalogue coverage (≥5 cases per tool, ≥25 total).
+- Schema parity against the authoritative Node.js source.
+- Framework PASS/FAIL sanity (identical responses pass;
+  set-difference responses fail).
+- Observation-count TOLERANCE (±10 %) drift detection.
+- Total-files TOLERANCE drift detection.
+- Extractor unit tests (`_extract_standard_ids`,
+  `_extract_observation_categories`, `_extract_scan_category_keys`,
+  `_extract_extract_file_paths`).
+- Per-tool live cases:
+  - `search_ee2_standards` — 5 cases, SET_EQUALITY on `## Standard N`
+    section titles.
+  - `analyze_ee2_compliance` — 4 cases SET_EQUALITY on observation
+    category headings + 1 case TOLERANCE ±10 % on observation count.
+  - `generate_compliance_report` — 5 cases SET_EQUALITY on markdown
+    headings.
+  - `scan_repository_compliance` — 4 cases SET_EQUALITY on
+    `issues_by_category` keys + 1 case TOLERANCE on `total_files`.
+  - `extract_code_for_analysis` — 5 cases SET_EQUALITY on per-file
+    snippet section titles.
+
+### Dockerfile CMD
+
+Changed from `--modules utility,semantic_search,code_analysis,graph_rag`
+(B7 baseline, 26 tools) to `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance`
+(31 tools: 4 + 7 + 6 + 9 + 5). Comment block rewritten to document the
+split degraded-mode contract and the content-abstraction gate on the
+scan + extract tools.
+
+### `test_mcp_server.py` Fixture Swap
+
+`test_initialize_degraded_mode_when_data_access_missing` updated:
+
+- `operational` replaced by `github_tools` as the "still-unported"
+  fixture (next unported module after B8).
+- `ee2_compliance` added to the list of modules asserted to register
+  successfully in degraded mode.
+- Module whitelist now covers 5 ported + 1 unported = 6 modules.
+
+### Verification
+
+Local pytest run (no AWS credentials required):
+
+- Unit tests: 446 passed (was 388 baseline + 58 new ee2_compliance).
+- Hermetic parity tests: 10 (9 smoke + 1 schema parity).
+- Live parity cases: 25 skipped by default (enable with
+  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
+- Full suite: **456 passed, 136 skipped, 0 failed.**
+
+### Iteration Notes
+
+Captured for future port authors:
+
+1. The Node.js COM-uppercase regex needs **two** quoted strings on
+   the same line (COMOUT reference + separate quoted filename with
+   extension). A single quoted string containing both (`"${COMOUT}/foo.NC"`)
+   does not trigger the match — confirmed against Node.js and
+   preserved in the Python port.
+2. `MockVectorDB.query` in `tests/conftest.py` filters by
+   `similarity_threshold` by indexing `h["score"]` — mock hits that
+   omit `score` will `KeyError`. Always include `score` in seeded
+   hit fixtures.
+3. FastMCP / pydantic validates `Literal[...]` enums at the tool
+   boundary before the tool body runs. Unknown-category tests must
+   call the internal `_tool_*` helper directly (or rely on pydantic
+   as the enforcement point).
+4. `ParityRunner.assert_parity` uses `name_extractor` for
+   `SET_EQUALITY` mode, not `id_extractor` — the B7 template
+   documents this convention. `ToolCase(extractor_kind="id", ...)`
+   with `ComparisonMode.SET_EQUALITY` silently falls back to
+   comparing the raw response dict, which accepts any two responses
+   as equal if they share the same top-level keys.
+5. Task prompt listed `name, content` as top-level required
+   parameters for `scan_repository_compliance` and
+   `extract_code_for_analysis`. The authoritative Node.js schema
+   nests them inside the `files` array items. Per the task's "ignore
+   discrepancies, match Node.js" directive, the port follows Node.js.
+
+### Next Phase
+
+Task 13 (Phase B9 — `operational` tools, 4 tools) is next in
+alphabetical order. Task 14 (`sdd_workflow`, 9 tools) and Task 15
+(`workflow_info`, 3 tools) remain pending. `github_tools` (Task 16,
+4 tools) is the last unported module; once it lands, the Python
+server will register all 51 tools.
+
+
 ## [8.16.0] - Phase B7: GraphRAGTools Port (May 13, 2026)
 
 ### Scope

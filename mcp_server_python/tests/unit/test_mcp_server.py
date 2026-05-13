@@ -141,19 +141,20 @@ def test_register_module_register_fn_raises():
 def test_initialize_degraded_mode_when_data_access_missing():
     """Without a backend_selector module, initialize() runs in degraded mode.
 
-    As of Phase B7 the ``utility``, ``semantic_search``, ``code_analysis``,
-    and ``graph_rag`` tool modules are all ported and register
-    successfully even without a data-access layer — that is the point
-    of the graceful-degrade contract (Requirement 1.7). Unported
-    modules (``operational`` here — the task's designated
-    "still-unported" fixture for B7; note that ``ee2_compliance`` and
-    ``github_tools`` are also still unported alphabetically-earlier)
-    still fail with ``ModuleNotFoundError``.
+    As of Phase B8 the ``utility``, ``semantic_search``, ``code_analysis``,
+    ``graph_rag``, and ``ee2_compliance`` tool modules are all ported
+    and register successfully even without a data-access layer — that
+    is the point of the graceful-degrade contract (Requirement 1.7).
+    Unported modules (``github_tools`` here — the task's designated
+    "still-unported" fixture for B8; note that ``operational`` and
+    ``sdd_workflow`` / ``workflow_info`` are also still unported) still
+    fail with ``ModuleNotFoundError``.
     """
     cfg = load_config(
         env={
             "MCP_ENABLED_MODULES": (
-                "semantic_search,utility,code_analysis,graph_rag,operational"
+                "semantic_search,utility,code_analysis,graph_rag,"
+                "ee2_compliance,github_tools"
             )
         },
     )
@@ -172,15 +173,22 @@ def test_initialize_degraded_mode_when_data_access_missing():
         "utility",
         "code_analysis",
         "graph_rag",
-        "operational",
+        "ee2_compliance",
+        "github_tools",
     ]
     by_name = {r.name: r for r in results}
-    # operational is still unported -> registration failed.
-    assert by_name["operational"].registered is False
-    assert "No module named" in (by_name["operational"].error or "")
-    # utility, semantic_search, code_analysis, and graph_rag are ported
-    # and work in degraded mode.
-    for module_name in ("utility", "semantic_search", "code_analysis", "graph_rag"):
+    # github_tools is still unported -> registration failed.
+    assert by_name["github_tools"].registered is False
+    assert "No module named" in (by_name["github_tools"].error or "")
+    # utility, semantic_search, code_analysis, graph_rag, and
+    # ee2_compliance are ported and work in degraded mode.
+    for module_name in (
+        "utility",
+        "semantic_search",
+        "code_analysis",
+        "graph_rag",
+        "ee2_compliance",
+    ):
         assert by_name[module_name].registered is True, (
             f"{module_name} should register successfully in degraded mode"
         )
