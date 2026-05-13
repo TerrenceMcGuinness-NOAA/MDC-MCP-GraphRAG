@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import importlib
 import logging
+import os
 import sys
 from dataclasses import dataclass
 from typing import Any
@@ -238,7 +239,25 @@ def main(argv: list[str] | None = None) -> int:
         config.port,
     )
     # Synchronous — FastMCP.run() manages its own event loop.
-    mcp.run(transport="streamable-http", host=config.host, port=config.port)
+    # ``stateless_http=True`` is REQUIRED for AgentCore Runtime MCP protocol
+    # mode (per runtime-mcp-protocol-contract):
+    #   * AgentCore generates its own ``Mcp-Session-Id`` header per request
+    #     and expects the server to accept it instead of generating its own.
+    #   * Stateful mode rejects the platform-provided ID with HTTP 400, which
+    #     AgentCore surfaces to the client as a 500-class runtime error.
+    #   * Load balancing / microVM affinity is handled by the platform, so
+    #     stateless on the server side is the correct default.
+    # Set ``MCP_STATELESS_HTTP=false`` to opt into stateful mode for local
+    # development when you want multi-turn elicitation / sampling.
+    stateless = os.environ.get("MCP_STATELESS_HTTP", "true").strip().lower() not in (
+        "false", "0", "no", "off"
+    )
+    mcp.run(
+        transport="streamable-http",
+        host=config.host,
+        port=config.port,
+        stateless_http=stateless,
+    )
     return 0
 
 

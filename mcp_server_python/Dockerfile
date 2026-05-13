@@ -48,5 +48,9 @@ COPY --chown=app:app pyproject.toml ./
 USER app
 EXPOSE 8000
 
-# Streamable HTTP entrypoint (Requirement 1.1)
-CMD ["python", "-m", "src.mcp_server"]
+# Streamable HTTP entrypoint (Requirement 1.1).
+# Phase B4+B11 smoke-test deployment: boot with only the utility module
+# registered (4 tools: get_server_info, mcp_health_check, get_health_trend,
+# get_quality_metrics). Degraded-mode-safe — no Neptune / OpenSearch
+# connectivity required for these tools to return HEALTHY.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility"]

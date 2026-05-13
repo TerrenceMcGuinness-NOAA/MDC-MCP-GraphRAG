@@ -258,6 +258,96 @@ original slot.
   explicitly out of scope for this session per the user's instruction
   ("do not deploy anything").
 
+### Post-Commit Smoke Test — Deployed 2026-05-12T23:54Z
+
+Following the `[8.13.0]` code landing, the utility-only image was built,
+pushed to ECR, and deployed to a **new** staging AgentCore Runtime named
+`mdc_mcp_rag_server_python` (ID `mdc_mcp_rag_server_python-v5K2F8BGrN`).
+The production Node.js runtime (`mdc_mcp_rag_server-TMXDllG2Wi` v10) was
+not modified.
+
+**Deployment artefacts:**
+- Image URI: `903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:python-utility-v1`
+- Final manifest digest (v2): `sha256:f02782c9b2cffe990878d9b478e2ca81fb5b5105d52493b94f538e2e104d6c7a`
+- Runtime ARN: `arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN`
+- Runtime version: `v2` (v1 was the initial deploy with FastMCP stateful
+  mode; v2 after the stateless fix described below)
+- VPC config: 2 subnets (`subnet-0e13af6b3a9a6416f` us-east-1a,
+  `subnet-04447750c61bd7e06` us-east-1b), `sg-096489a0876cc78c1`.
+- Lifecycle: 900 s idle, 28800 s max (matches Node.js runtime).
+
+**Build + deploy timing:**
+| Step | Duration |
+|---|---|
+| `docker build --platform linux/arm64` (v1) | 124 s |
+| `docker push` (v1) | 16 s |
+| `CreateAgentRuntime` → READY | 12 s |
+| Rebuild after stateless fix | 78 s |
+| Repush (v2) | 15 s |
+| `UpdateAgentRuntime` v1 → v2 → READY | 18 s |
+
+**Root-cause finding during the deploy (captured because it affects
+the code shipped in `[8.13.0]`):** FastMCP's `streamable-http` transport
+in version 3.2.4 defaults to **stateful** mode, which generates its own
+`Mcp-Session-Id` on initialize and rejects any other session ID with
+HTTP 400. AgentCore Runtime, per the [MCP protocol contract](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-mcp-protocol-contract.html),
+generates its **own** `Mcp-Session-Id` per request and expects the
+server to accept it. The 400 bubbles up as a 500-class error
+(`-32010 "Received error (500) from runtime"`). Fix in
+`mcp_server_python/src/mcp_server.py`:
+
+- `mcp.run(..., stateless_http=True)` is now the default.
+- An `MCP_STATELESS_HTTP=false` environment variable opts back into
+  stateful mode for local development that exercises multi-turn
+  elicitation / sampling.
+- 195/195 pytest suite still passes with the change.
+
+This change is an additive edit to the `[8.13.0]` ship — it is required
+to make the port deployable on AgentCore and is not a behaviour change
+for local unit tests.
+
+**Smoke-test results (verbatim):**
+
+`mcp_health_check({})` →
+
+```markdown
+# Server Health Check
+
+**Overall Status**: HEALTHY (2/3 components healthy)
+
+[OK] **Base Server**: healthy
+[OK] **Utility Tools**: healthy
+[OFF] **Data Access Layer**: disabled - No data access layer (degraded-mode boot)
+```
+
+`get_server_info({})` →
+
+```markdown
+# MDC MCP/RAG Server v1.0.0
+
+**Total Tools**: 4
+**Active Modules**: 1 of 9
+
+## Active Modules
+- `utility`
+
+## Registered Tools
+- `get_health_trend`
+- `get_quality_metrics`
+- `get_server_info`
+- `mcp_health_check`
+```
+
+Both match the documented acceptance criteria for a degraded-mode
+(utility-only) boot. Full report at
+`docs/reports/2026-05-12-python-server-smoke-test.md`. Progress log at
+`.kiro/steering/06-python-port-progress.md`.
+
+**Not touched during the deploy:** `mcp_server_node/`,
+`.kiro/settings/mcp.json` (still points at the Node.js runtime until the
+operator manually flips it), the ECR `latest` / `agentcore-v8` /
+`agentcore` tags, the Node.js runtime, Neptune, or OpenSearch.
+
 ## [8.12.0] - Phase B3: GGSR Traversal Engine and SDD Session Manager (May 12, 2026)
 
 ### Scope
