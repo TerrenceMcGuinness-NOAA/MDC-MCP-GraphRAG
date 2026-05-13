@@ -141,18 +141,19 @@ def test_register_module_register_fn_raises():
 def test_initialize_degraded_mode_when_data_access_missing():
     """Without a backend_selector module, initialize() runs in degraded mode.
 
-    As of Phase B6 the ``utility``, ``semantic_search``, and
-    ``code_analysis`` tool modules are all ported and register
+    As of Phase B7 the ``utility``, ``semantic_search``, ``code_analysis``,
+    and ``graph_rag`` tool modules are all ported and register
     successfully even without a data-access layer — that is the point
     of the graceful-degrade contract (Requirement 1.7). Unported
-    modules (``ee2_compliance`` here — the alphabetically-first module
-    still pending a port after B6) still fail with
-    ``ModuleNotFoundError``.
+    modules (``operational`` here — the task's designated
+    "still-unported" fixture for B7; note that ``ee2_compliance`` and
+    ``github_tools`` are also still unported alphabetically-earlier)
+    still fail with ``ModuleNotFoundError``.
     """
     cfg = load_config(
         env={
             "MCP_ENABLED_MODULES": (
-                "semantic_search,utility,code_analysis,ee2_compliance"
+                "semantic_search,utility,code_analysis,graph_rag,operational"
             )
         },
     )
@@ -170,20 +171,20 @@ def test_initialize_degraded_mode_when_data_access_missing():
         "semantic_search",
         "utility",
         "code_analysis",
-        "ee2_compliance",
+        "graph_rag",
+        "operational",
     ]
     by_name = {r.name: r for r in results}
-    # ee2_compliance is still unported -> registration failed.
-    assert by_name["ee2_compliance"].registered is False
-    assert "No module named" in (by_name["ee2_compliance"].error or "")
-    # utility, semantic_search, and code_analysis are ported and work
-    # in degraded mode.
-    assert by_name["utility"].registered is True
-    assert by_name["utility"].error is None
-    assert by_name["semantic_search"].registered is True
-    assert by_name["semantic_search"].error is None
-    assert by_name["code_analysis"].registered is True
-    assert by_name["code_analysis"].error is None
+    # operational is still unported -> registration failed.
+    assert by_name["operational"].registered is False
+    assert "No module named" in (by_name["operational"].error or "")
+    # utility, semantic_search, code_analysis, and graph_rag are ported
+    # and work in degraded mode.
+    for module_name in ("utility", "semantic_search", "code_analysis", "graph_rag"):
+        assert by_name[module_name].registered is True, (
+            f"{module_name} should register successfully in degraded mode"
+        )
+        assert by_name[module_name].error is None
 
 
 def test_initialize_registers_modules_when_data_access_available():

@@ -1,5 +1,216 @@
 # MCP Server Changelog
 
+## [8.16.0] - Phase B7: GraphRAGTools Port (May 13, 2026)
+
+### Scope
+
+Task 10 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 9 Node.js
+GraphRAGTools to Python and extend the parity framework to cover them. All
+code under `mcp_server_python/`. No deployments, no ECR pushes, no changes
+to `mcp_server_node/` or the live AgentCore runtimes. B7 is the first phase
+that drives both the B3 GraphGuidedRetrieval pipeline AND the B3 SessionManager
+lifecycle from a single tool module.
+
+### Tools Ported (`src/tools/graph_rag.py`, 1308 lines)
+
+All 9 tools; input schemas match `mcp_server_node/src/tools/GraphRAGTools.js`
+exactly (verified by two separate assertions — one in the unit-test module
+and a second in the parity module).
+
+**Graph / vector-backed tools** (5 — require a data-access layer):
+
+- `get_code_context(symbol, depth=2, include_community=true, token_budget=4000)` —
+  node lookup + fuzzy-match suggestions when symbol is missing, 1-hop
+  callers via CALLS/USES/IMPORTS/EXECUTES/INVOKES, GGSR weighted
+  neighborhood via `GraphGuidedRetrieval.get_code_context`, optional
+  Subsystem Context block from the `community-summaries` vector
+  collection (Phase 24 community detection). Side-effect: records the
+  examined symbol on the session.
+- `search_architecture(query, max_results=5)` — vector search against
+  `community-summaries` rendering community/subsystem summaries with
+  relevance scores and node-count metadata.
+- `find_similar_code(code_or_symbol, similarity_threshold=0.7, max_results=10)` —
+  vector search against `code-with-context-v8-0-0`, 2× over-fetch with
+  threshold filtering. Handles both the OpenSearch `score` shape and
+  the legacy ChromaDB `distance` shape (`similarity = 1 - distance`).
+- `get_change_impact(symbol, change_type='behavior', include_indirect=true)` —
+  direct-dependents query over CALLS/USES/IMPORTS/EXECUTES/INVOKES/SOURCES,
+  transitive indirect query (capped at `direct_count < 100` to bound
+  cost, matching Node.js), optional community-context snippet,
+  risk-score computation (HIGH/MEDIUM/LOW) with a bias table that
+  matches `typeScores` from the Node.js implementation verbatim
+  (`delete=0.3, signature=0.25, rename=0.2, behavior=0.1`), plus
+  change-type-specific recommendations.
+- `trace_data_flow(from_symbol, to_symbol?, max_depth=5)` — one-hop
+  fan-out over outgoing edges, optional `shortestPath` query when a
+  destination symbol is given (clamped to 10 hops).
+
+**Session tools** (4 — work in degraded mode via an injected
+SessionManager):
+
+- `mark_as_modified(file_path, change_type='content', description?)` —
+  delegates to `SessionManager.mark_modified`; best-effort attempt to
+  flag matching graph nodes as `_dirty` (failure is swallowed; the
+  local session state is the source of truth).
+- `get_session_context(include_dirty=true)` — aggregated summary
+  table with modifications / examined symbols / checkpoints.
+- `checkpoint_state(name, description?)` — snapshot of current
+  session state to a checkpoint JSON file.
+- `restore_checkpoint(checkpoint_id)` — rewinds the session;
+  invalid / unknown IDs return a clear `[ERROR]` rather than
+  crashing.
+
+### Entrypoint contract
+
+```python
+register(mcp, data, *, session_manager=None)
+```
+
+The new `session_manager` keyword takes an optional
+`SessionManager` instance. When `None`, the module constructs one
+against the standard `sdd_framework/execution_state` state directory
+so the module is self-sufficient at runtime. Tests inject a tmp-dir
+manager here to get an isolated lifecycle.
+
+Degraded-mode behaviour:
+
+- Graph / vector tools: `data=None` → `[ERROR]` with the
+  "Graph database unavailable" / "Vector database unavailable"
+  text, matching B5/B6 semantics.
+- Session tools: work as long as a `SessionManager` is reachable
+  (default or injected). No hard dependency on `data`.
+
+### Risk-score parity note
+
+`_compute_risk_score` is a byte-identical port of the Node.js
+`_computeRiskScore` formula — same bias table, same saturation cap
+(1.0), same bucket thresholds (HIGH > 0.7, MEDIUM > 0.4). This is
+asserted directly in unit tests via `_compute_risk_score` without
+needing a live graph.
+
+### Schema-enum parity note
+
+Two tools expose a `change_type` parameter but with **different** enum
+sets — this is easy to miss and has its own dedicated test
+(`test_change_type_and_modification_type_enums_differ`):
+
+- `get_change_impact.change_type` ∈ `{signature, behavior, delete, rename}`
+  (default `behavior`).
+- `mark_as_modified.change_type` ∈ `{content, signature, delete, rename}`
+  (default `content`).
+
+The single character difference: `behavior` vs `content`. The unit
+test asserts both sets match Node.js AND that they differ by exactly
+these two values.
+
+### Parity Framework Extensions (`tests/parity/test_graph_rag_parity.py`)
+
+- 8 hermetic tests always run (catalogue coverage, schema parity,
+  framework sanity, symbol-extractor dedupe, affected-symbols
+  section scoping, similarity-score tolerance, session structural
+  check).
+- 45 live-parity parametrized cases (5 per tool × 9 tools) gated
+  on `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`.
+- Reuses `AgentCoreToolCaller` from the B5 parity module via
+  direct import — no duplication of the SSE / boto3 transport.
+
+Per-tool projections:
+
+- `get_code_context` — `_extract_symbol_names` SET_EQUALITY (every
+  backtick-wrapped token in the response, deduplicated).
+- `search_architecture` — `_extract_community_titles` SET_EQUALITY
+  OR `_extract_relevance_scores` TOLERANCE for the relevance-drift
+  case.
+- `find_similar_code` — `_extract_symbol_names` SET_EQUALITY +
+  `_extract_similarity_scores` TOLERANCE on the score column.
+- `get_change_impact` — `_extract_affected_symbols` SET_EQUALITY
+  (Direct + Indirect sections only; Risk Factors / Recommendations
+  sections are excluded from the parity key).
+- `trace_data_flow` — `_extract_flow_node_names` SET_EQUALITY
+  (Outgoing + Shortest Path sections).
+- `mark_as_modified` / `get_session_context` / `checkpoint_state` /
+  `restore_checkpoint` — **structural-only** EXACT on a boolean
+  `has_block` check, since session state is non-deterministic
+  between the two runtimes. Every response must render the same
+  markdown block shape (header + expected fields), even though
+  the state inside may differ.
+
+### Unit Tests (`tests/unit/test_graph_rag_tools.py`, 74 tests)
+
+Schema parity (names / required / defaults / enums — dedicated
+test for the `change_type` enum divergence); degraded-mode split
+behaviour (parametrized across 5 graph-backed tools and 3 session
+tools); empty-argument validation (parametrized across 8 tools);
+`get_code_context` rendering including type/path/callers/GGSR
+neighborhood; fuzzy-match fallback on missing symbol; community
+section routing via `include_community`; `token_budget=0` suppresses
+the GGSR section; examined-symbol side effect; depth clamp (1..3);
+`search_architecture` rendering with community metadata and
+`max_results` clamp (1..10); `find_similar_code` threshold filtering,
+similarity-threshold clamp to [0, 1], 2× over-fetch behaviour,
+`max_results` clamp to 25; `get_change_impact` dependent tables,
+`include_indirect` flag, `change_type` routing (parametrized over
+all 4 enum values), indirect-query skip when direct ≥ 100,
+`_compute_risk_score` math parity; `trace_data_flow` outgoing list,
+shortestPath, no-path fallback, `max_depth` clamp to 10;
+session lifecycle round-trip (mark → checkpoint → more mods →
+restore → verify rollback); invalid checkpoint ID returns `[ERROR]`;
+graph-error propagation for all 5 data-backed tools; default
+SessionManager when none injected; helper coverage
+(`_clamp`, `CHANGE_TYPE_RISK_BIAS` table, `_generate_recommendations`).
+
+### Deployment Hook
+
+- `mcp_server_python/Dockerfile` CMD updated to
+  `--modules utility,semantic_search,code_analysis,graph_rag`
+  (26 tools: 4 + 7 + 6 + 9).
+- No rebuild or push in this phase — operator rolls a new
+  `python-graph-rag-v1` tag to the staging runtime per the rebuild
+  instructions in `.kiro/steering/06-python-port-progress.md` when
+  ready to run the live parity suite.
+
+### Test Update
+
+- `tests/unit/test_mcp_server.py::test_initialize_degraded_mode_when_data_
+  access_missing` — previously used `ee2_compliance` as the
+  "still unported" fixture. Now that `graph_rag` is ported, the
+  fixture list was extended to include `graph_rag` on the
+  register-successfully path and the "unported" marker was swapped
+  to `operational` per the task instruction. Note: alphabetically
+  `ee2_compliance` is still the first unported module after B7
+  (before `github_tools` / `operational`); the task author's choice
+  of `operational` is preserved as-is per the explicit instruction.
+  The assertion block now loops over the four ported modules rather
+  than hand-listing each.
+
+### Test Results
+
+- Full suite: 388 passed, 111 skipped (30 B6 + 36 B5 + 45 B7
+  live-parity cases), 0 failed.
+- Hermetic parity tests: 8/8 passed by default.
+- Schema parity: all 9 tool schemas match Node.js parameter names,
+  required fields, defaults, and enum values (asserted twice — in
+  the unit suite and in the parity module).
+
+### Schema-description discrepancy note
+
+The Phase B7 task description in the user prompt listed
+`get_change_impact.change_type` as `{'content', 'delete', 'rename',
+'interface'}` — this conflicts with the authoritative Node.js source,
+which uses `{'signature', 'behavior', 'delete', 'rename'}`. The port
+follows the Node.js source (the stated parity rule in the task header)
+and the unit + parity test schema assertions both cover this.
+
+### Next
+
+- **B8** (`ee2_compliance`, 5 tools) — compliance analyzer; exercises
+  semantic search over the `ee2-standards-v5-0-0-enhanced` collection
+  and the `analyze_ee2_compliance` multi-category check battery.
+- Operator action: rebuild the `mdc_mcp_rag_server_python` staging
+  runtime with the new Dockerfile CMD and run the live parity suite
+  to validate the 9 new tools against live Neptune + OpenSearch +
+  SessionManager state.
+
 ## [8.15.0] - Phase B6: CodeAnalysisTools Port (May 13, 2026)
 
 ### Scope

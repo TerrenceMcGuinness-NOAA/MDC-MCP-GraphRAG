@@ -49,12 +49,12 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B6 deployment: boot with utility + semantic_search + code_analysis
-# modules registered (4 + 7 + 6 = 17 tools). The code_analysis tools all
-# require a graph-database connection at call time; without one they
-# return clear [ERROR] messages rather than failing registration. The
-# semantic_search tools still operate in degraded mode for URL-listing
-# (list_ingested_urls / get_ingested_urls_array read the baked-in
-# documentation_sources.json), while the data-layer tools surface the
-# degraded state as an [ERROR] response.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis"]
+# Phase B7 deployment: boot with utility + semantic_search + code_analysis
+# + graph_rag modules registered (4 + 7 + 6 + 9 = 26 tools). The 5 graph /
+# vector-backed graph_rag tools require a data-access layer at call time;
+# the 4 session tools (mark_as_modified / get_session_context /
+# checkpoint_state / restore_checkpoint) need only a SessionManager and
+# work even in degraded-mode boot. Tools that need graph / vector data
+# surface the degraded state as an [ERROR] response rather than failing
+# registration.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag"]

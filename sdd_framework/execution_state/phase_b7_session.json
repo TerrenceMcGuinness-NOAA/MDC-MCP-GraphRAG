@@ -1,0 +1,76 @@
+{
+  "sessionId": "session_2026-05-13_python-mcp-server-port-b7-graph-rag",
+  "phase": "python-mcp-server-port-b7-graph-rag",
+  "startedAt": "2026-05-13T13:39:37.000Z",
+  "lastActivityAt": "2026-05-13T14:10:00.000Z",
+  "completedAt": "2026-05-13T14:10:00.000Z",
+  "status": "completed",
+  "totalSteps": 5,
+  "notes": "Task 10 (GraphRAGTools, Phase B7). Ports 9 Node.js GraphRAGTools to Python. First phase to exercise GraphGuidedRetrieval.get_code_context (B3) + SessionManager state tools (B3) together from the tool layer. No deployments, no ECR pushes, no AgentCore Runtime updates, no mcp_server_node/ changes.",
+  "completedSteps": [
+    {
+      "step": 1,
+      "name": "Task 10.1 - Implement src/tools/graph_rag.py (9 tools)",
+      "tag": "implement",
+      "completedAt": "2026-05-13T13:55:00.000Z",
+      "notes": "1308 lines. register(mcp, data, *, session_manager=None). Default SessionManager constructed against standard state_dir when not injected. 5 graph/vector-backed tools (get_code_context, search_architecture, find_similar_code, get_change_impact, trace_data_flow) require data; 4 session tools (mark_as_modified, get_session_context, checkpoint_state, restore_checkpoint) work in degraded mode via injected SessionManager. Schemas match Node.js GraphRAGTools.js exactly. CHANGE_TYPE_RISK_BIAS and _compute_risk_score are byte-identical ports of the Node.js _computeRiskScore formula. get_code_context uses GraphGuidedRetrieval.get_code_context (B3) for GGSR + semantic fusion; tool layer renders markdown (engine returns structured GGSRRetrievalResult). include_community adds a Subsystem Context block from the community-summaries vector collection. Change-type enum divergence: get_change_impact uses {signature, behavior, delete, rename}; mark_as_modified uses {content, signature, delete, rename} — only 'behavior' vs 'content' differs. Pytest after 10.1: 306 passed, 66 skipped, 0 failed."
+    },
+    {
+      "step": 2,
+      "name": "Task 10.3 - Unit tests in tests/unit/test_graph_rag_tools.py (74 tests)",
+      "tag": "validate",
+      "completedAt": "2026-05-13T14:00:00.000Z",
+      "notes": "1374 lines, 74 tests. Schema parity (names/required/defaults/enums); degraded-mode split (parametrized across 5 graph-backed + 3 session tools); empty-argument validation; per-tool happy-path rendering; get_code_context fuzzy-match fallback, include_community routing, token_budget=0 suppresses GGSR, examined-symbol side effect, depth clamp; search_architecture community rendering + max_results clamp; find_similar_code threshold filtering, similarity clamp to [0,1], 2x over-fetch, max_results clamp to 25; get_change_impact dependent tables, include_indirect flag, change_type routing (parametrized over all 4 values), indirect-query skip when direct>=100, _compute_risk_score math parity; trace_data_flow outgoing, shortestPath, max_depth clamp to 10; session lifecycle round-trip (mark -> checkpoint -> more mods -> restore); invalid checkpoint ID returns [ERROR]; graph-error propagation for all 5 data-backed tools; default SessionManager. Two iterations: (1) depth=2 triggers GGSR 2-hop cypher distinct from 1-hop — fixed by forcing depth=1 in the test; (2) community suppression test over-asserted on text that legitimately appears in Semantic Snippets — narrowed to the ## Subsystem Context heading only. Full suite: 380 passed, 66 skipped, 0 failed."
+    },
+    {
+      "step": 3,
+      "name": "Task 10.2 - Parity tests in tests/parity/test_graph_rag_parity.py (45 live cases)",
+      "tag": "validate",
+      "completedAt": "2026-05-13T14:05:00.000Z",
+      "notes": "1069 lines, 53 test nodes (8 hermetic + 45 live). Hermetic: catalogue coverage (>=5 per tool, >=45 total), schema parity against Node.js source, framework PASS/FAIL sanity, symbol-extractor dedupe, affected-symbols section scoping, similarity-score TOLERANCE, session structural check. 45 live cases gated on RUN_PARITY=1: get_code_context/get_change_impact/trace_data_flow/find_similar_code use SET_EQUALITY on _extract_symbol_names (backtick-wrapped tokens); search_architecture uses SET_EQUALITY on community titles + TOLERANCE on relevance scores; find_similar_code adds TOLERANCE on the similarity column. Session-mutating tools (mark_as_modified, get_session_context, checkpoint_state, restore_checkpoint) use EXACT on a structural boolean [has_block] — both runtimes may diverge on session state but must render the same block shape. restore_checkpoint accepts either '# Checkpoint Restored' or '[ERROR]' as valid shapes. AgentCoreToolCaller imported from test_semantic_search_parity via direct import (no duplication). One trivial bug: used seen.add() on a list — fixed to seen.append + separate set. Full suite: 388 passed, 111 skipped (30 B6 + 36 B5 + 45 B7), 0 failed."
+    },
+    {
+      "step": 4,
+      "name": "Task 10.4 + 10.5 - Dockerfile CMD + test_mcp_server.py fixture swap",
+      "tag": "configure",
+      "completedAt": "2026-05-13T14:08:00.000Z",
+      "notes": "Dockerfile CMD changed from --modules utility,semantic_search,code_analysis to --modules utility,semantic_search,code_analysis,graph_rag (26 tools total: 4+7+6+9). Comment block updated to reflect the graph_rag split degraded-mode contract (5 data-backed tools surface [ERROR]; 4 session tools work via SessionManager even without data). test_mcp_server.py::test_initialize_degraded_mode_when_data_access_missing swaps 'unported fixture' from ee2_compliance to operational per the task's explicit instruction (note: ee2_compliance is still alphabetically-first unported after B7, before github_tools and operational — the task author's choice of 'operational' is preserved as-is and documented in the CHANGELOG). graph_rag added to the list of modules asserted to register successfully in degraded mode; assertion block refactored to loop over the four ported modules."
+    },
+    {
+      "step": 5,
+      "name": "Add CHANGELOG [8.16.0], run full pytest, record completion",
+      "tag": "document",
+      "completedAt": "2026-05-13T14:10:00.000Z",
+      "notes": "CHANGELOG.md has a full [8.16.0] entry documenting scope, all 9 ported tools, the risk-score parity formula, the change-type enum divergence with dedicated test assertion, the parity test layout (including the structural-only approach for session-mutating tools), the unit test coverage, the Dockerfile CMD change, the test_mcp_server.py fixture swap with the alphabetical-order note, and the task-description vs Node.js schema discrepancy note (the Phase B7 task description listed get_change_impact.change_type as {'content','delete','rename','interface'} which conflicts with the authoritative Node.js enum {'signature','behavior','delete','rename'} — the port follows Node.js). Final pytest run: 388 passed, 111 skipped (30 code_analysis + 36 semantic_search + 45 graph_rag live-parity cases), 0 failed. +82 over the B6 baseline of 306: +74 new unit tests in test_graph_rag_tools.py, +8 new hermetic parity tests in test_graph_rag_parity.py."
+    }
+  ],
+  "pendingSteps": [],
+  "followUps": [
+    "Operator: rebuild the Docker image (python-graph-rag-v1 tag per .kiro/steering/06-python-port-progress.md), push to ECR, update AgentCore Runtime mdc_mcp_rag_server_python-v5K2F8BGrN to validate the 9 new tools against live Neptune + OpenSearch. No new IAM permissions required.",
+    "Once the staging runtime is redeployed, run the live parity suite: RUN_PARITY=1 AWS_REGION=us-east-1 NODEJS_RUNTIME_ID=arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server-TMXDllG2Wi PYTHON_RUNTIME_ID=arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN pytest mcp_server_python/tests/parity/test_graph_rag_parity.py -v. Session-mutating tool cases use structural-only comparisons so they should pass even on an empty staging session; graph-backed tool cases will give the first real validation of the GraphGuidedRetrieval + SessionManager integration end-to-end.",
+    "find_similar_code with include_source=true is accepted by the Node.js schema but the behaviour is not documented in the Node.js code; the Python port matches the Node.js rendering (no inline source block). Defer to a later polish pass if product feedback wants inline snippets.",
+    "get_session_context(include_dirty=false) currently only affects the markdown footer line since the Python port has no in-memory dirty-state view to suppress. If a future phase adds one, update the tool to filter modifications accordingly.",
+    "Task 12 (Phase B8: EE2ComplianceTools, 5 tools) is next in linear order. It exercises semantic search over the ee2-standards-v5-0-0-enhanced collection and the analyze_ee2_compliance multi-category check battery."
+  ],
+  "artifacts": {
+    "filesCreated": [
+      "mcp_server_python/src/tools/graph_rag.py",
+      "mcp_server_python/tests/parity/test_graph_rag_parity.py",
+      "mcp_server_python/tests/unit/test_graph_rag_tools.py",
+      "sdd_framework/execution_state/phase_b7_session.json"
+    ],
+    "filesUpdated": [
+      "mcp_server_python/Dockerfile",
+      "mcp_server_python/tests/unit/test_mcp_server.py",
+      "CHANGELOG.md"
+    ],
+    "totalLinesAdded": 3751,
+    "testResults": {
+      "unitTests": "74/74 passed (test_graph_rag_tools.py)",
+      "parityFrameworkHermetic": "8/8 passed (test_graph_rag_parity.py, RUN_PARITY unset)",
+      "parityLiveCases": "45 cases defined, skipped by default",
+      "fullSuite": "388 passed, 111 skipped, 0 failed",
+      "schemaParity": "all 9 tool schemas match Node.js parameter names, required fields, defaults, and enum values exactly; change_type enum divergence between get_change_impact and mark_as_modified is covered by a dedicated test"
+    }
+  }
+}
