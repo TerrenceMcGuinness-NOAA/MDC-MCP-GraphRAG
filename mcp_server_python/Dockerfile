@@ -49,8 +49,11 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B4+B11 smoke-test deployment: boot with only the utility module
-# registered (4 tools: get_server_info, mcp_health_check, get_health_trend,
-# get_quality_metrics). Degraded-mode-safe — no Neptune / OpenSearch
-# connectivity required for these tools to return HEALTHY.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility"]
+# Phase B5 deployment: boot with utility + semantic_search modules
+# registered (4 + 7 = 11 tools). semantic_search tools require a valid
+# data-access layer (OpenSearch + Neptune) to return results; without
+# one they return clear [ERROR] messages at call time rather than
+# failing registration. list_ingested_urls / get_ingested_urls_array
+# operate from the baked-in documentation_sources.json and work even
+# in degraded-mode boot.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search"]

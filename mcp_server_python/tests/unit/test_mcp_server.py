@@ -141,14 +141,14 @@ def test_register_module_register_fn_raises():
 def test_initialize_degraded_mode_when_data_access_missing():
     """Without a backend_selector module, initialize() runs in degraded mode.
 
-    As of Phase B11 (Task 17) the ``utility`` tool module is ported and
-    registers successfully even without a data-access layer — that is the
-    point of pulling utility forward in the port schedule, so the first
-    AgentCore smoke test has working tools. ``semantic_search`` still
-    fails because its module doesn't exist yet.
+    As of Phase B5 both the ``utility`` and ``semantic_search`` tool
+    modules are ported and register successfully even without a
+    data-access layer — that is the point of the graceful-degrade
+    contract (Requirement 1.7). Unported modules (``code_analysis``
+    here) still fail with ``ModuleNotFoundError``.
     """
     cfg = load_config(
-        env={"MCP_ENABLED_MODULES": "semantic_search,utility"},
+        env={"MCP_ENABLED_MODULES": "semantic_search,utility,code_analysis"},
     )
     mcp = mcp_server.build_server()
 
@@ -160,14 +160,16 @@ def test_initialize_degraded_mode_when_data_access_missing():
 
     assert data is None
     names = [r.name for r in results]
-    assert names == ["semantic_search", "utility"]
+    assert names == ["semantic_search", "utility", "code_analysis"]
     by_name = {r.name: r for r in results}
-    # semantic_search is still unported -> registration failed.
-    assert by_name["semantic_search"].registered is False
-    assert "No module named" in (by_name["semantic_search"].error or "")
-    # utility is ported and works in degraded mode.
+    # code_analysis is still unported -> registration failed.
+    assert by_name["code_analysis"].registered is False
+    assert "No module named" in (by_name["code_analysis"].error or "")
+    # utility and semantic_search are ported and work in degraded mode.
     assert by_name["utility"].registered is True
     assert by_name["utility"].error is None
+    assert by_name["semantic_search"].registered is True
+    assert by_name["semantic_search"].error is None
 
 
 def test_initialize_registers_modules_when_data_access_available():

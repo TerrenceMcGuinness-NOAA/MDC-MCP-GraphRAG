@@ -1,5 +1,113 @@
 # MCP Server Changelog
 
+## [8.14.0] - Phase B5: SemanticSearchTools Port (May 13, 2026)
+
+### Scope
+
+Task 8 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 7 Node.js
+SemanticSearchTools to Python and extend the parity framework to cover them.
+All code under `mcp_server_python/`. No deployments, no ECR pushes, no changes
+to `mcp_server_node/` or the live AgentCore runtimes.
+
+### Tools Ported (`src/tools/semantic_search.py`, 1566 lines)
+
+All 7 tools; input schemas match `mcp_server_node/src/tools/SemanticSearchTools.js`
+and the `UnifiedMCPServer.js` registrations exactly (verified by unit test):
+
+- `search_documentation(query, collection?, max_results=8, include_graph=true,
+  similarity_threshold=0.1)` — dual-mode: single-collection hybrid BM25+kNN
+  when `collection` is pinned, multi-collection fan-out otherwise. Optional
+  1-hop graph neighbour enrichment per hit.
+- `find_related_files(file_path, max_results=10, include_documentation=true)` —
+  resolves the seed file's IMPORTS/USES/SOURCES/INVOKES edges, then finds
+  other files sharing those modules.
+- `explain_with_context(topic, context_type='all', detail_level='intermediate')` —
+  collection selection from `context_type`, result count from `detail_level`
+  (basic=3 / intermediate=5 / advanced=8).
+- `get_knowledge_base_status(include_graph=true, include_vector=true)` — uses
+  the adapter's `health_check(deep=True)` path. Replacement for the currently-
+  failing Node.js tool; `opensearch-py` pools connections natively so the
+  `Max connection limit reached` failure mode should not repeat.
+- `list_ingested_urls(format='detailed', source_filter?)` — reads the bundled
+  `documentation_sources.json` baked into the image at
+  `src/config/documentation_sources.json`. Works in degraded-mode boot.
+- `get_ingested_urls_array(include_failed=false)` — same source, machine-
+  readable JSON output.
+- `check_knowledge_integrity(sample_size=50)` — Phase 43's four-check battery
+  (path consistency, orphaned graph nodes, stale embeddings, coverage gap)
+  using OpenSearch `scroll` sampling (no `get(limit, offset)` on OpenSearch,
+  so this diverges mechanically from the Node.js ChromaDB path while staying
+  outcome-equivalent).
+
+All tools return markdown `TextContent` matching the Node.js output shape.
+Degraded-mode (data=None) returns clear `[ERROR]` messages per tool rather
+than crashing.
+
+### Configuration
+
+- `src/config/documentation_sources.json` — copy of
+  `mcp_server_node/config/documentation_sources.json` (v8.1.0, 42 sources,
+  40 enabled) so the Docker image's `COPY src ./src` layer bakes it in.
+- Override via `MCP_DOCUMENTATION_SOURCES_PATH` env var. Developer fallback
+  searches the Node.js config too, so local dev keeps working without
+  duplication (TODO: drop this fallback once the Python runtime is the
+  only one).
+
+### Parity Framework Extensions (`tests/parity/test_semantic_search_parity.py`)
+
+- 6 hermetic tests always run (catalogue coverage, comparison-framework
+  sanity, extractor round-trip, HTTP-JSON-RPC caller importability).
+- 35 live-parity parametrized cases (5 per tool × 7 tools) gated on
+  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`.
+- `AgentCoreToolCaller` class inlined — wraps `boto3.bedrock-agentcore.
+  invoke_agent_runtime` with SSE parsing, independent of the Kiro proxy
+  code so the test surface stays self-contained.
+- Per-tool projections match the response shape:
+  - `search_documentation` — top-5 Source fields, `EXACT` match (fulfills
+    the spec's 'top-5 document ID match' requirement).
+  - `find_related_files` — bulleted paths, `SET_EQUALITY`.
+  - `explain_with_context` — markdown headings, `SET_EQUALITY` (body text
+    varies between runtimes; section structure is the stable key).
+  - `get_knowledge_base_status` — numeric counts, `TOLERANCE` (±10% —
+    cluster state drifts between calls).
+  - `list_ingested_urls` — markdown headings, `EXACT`.
+  - `get_ingested_urls_array` — parsed JSON `enabled` array, `SET_EQUALITY`.
+  - `check_knowledge_integrity` — check row names, `SET_EQUALITY` + no-error
+    smoke assertion.
+
+### Deployment Hook
+
+- `mcp_server_python/Dockerfile` CMD updated:
+  `--modules utility,semantic_search` (11 tools now boot by default).
+- No rebuild or push in this phase — operator will roll a new
+  `python-semantic-v1` tag to the staging runtime per the rebuild
+  instructions in `.kiro/steering/06-python-port-progress.md` when
+  ready to run the live parity suite.
+
+### Test Update
+
+- `tests/unit/test_mcp_server.py::test_initialize_degraded_mode_when_data_
+  access_missing` — previously expected `semantic_search` registration to
+  fail because the module didn't exist; now expects it to succeed in
+  degraded mode (Requirement 1.7). `code_analysis` takes over as the
+  "still unported" fixture. Mirrors the contract utility met in B11.
+
+### Test Results
+
+- Full suite: 244 passed, 36 skipped (live-parity cases), 0 failed.
+- Hermetic parity tests: 6/6 passed by default.
+- Schema parity: all 7 tools match Node.js parameter names, required
+  fields, defaults, and enum values (asserted by unit test).
+
+### Next
+
+- **B6** (`code_analysis`, 6 tools) — will exercise the GGSRTraversal
+  engine from B3 under real workloads (`find_callers_callees`,
+  `trace_full_execution_chain`, graph-heavy queries).
+- Operator action: rebuild the `mdc_mcp_rag_server_python` staging
+  runtime with the new Dockerfile CMD and run the live parity suite
+  to validate the 7 new tools against Neptune + OpenSearch.
+
 ## [8.13.0] - Phase B4 + Early B11: Parity Framework and Utility Tools Port (May 12, 2026)
 
 ### Scope
