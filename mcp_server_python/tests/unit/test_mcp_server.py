@@ -141,14 +141,20 @@ def test_register_module_register_fn_raises():
 def test_initialize_degraded_mode_when_data_access_missing():
     """Without a backend_selector module, initialize() runs in degraded mode.
 
-    As of Phase B5 both the ``utility`` and ``semantic_search`` tool
-    modules are ported and register successfully even without a
-    data-access layer — that is the point of the graceful-degrade
-    contract (Requirement 1.7). Unported modules (``code_analysis``
-    here) still fail with ``ModuleNotFoundError``.
+    As of Phase B6 the ``utility``, ``semantic_search``, and
+    ``code_analysis`` tool modules are all ported and register
+    successfully even without a data-access layer — that is the point
+    of the graceful-degrade contract (Requirement 1.7). Unported
+    modules (``ee2_compliance`` here — the alphabetically-first module
+    still pending a port after B6) still fail with
+    ``ModuleNotFoundError``.
     """
     cfg = load_config(
-        env={"MCP_ENABLED_MODULES": "semantic_search,utility,code_analysis"},
+        env={
+            "MCP_ENABLED_MODULES": (
+                "semantic_search,utility,code_analysis,ee2_compliance"
+            )
+        },
     )
     mcp = mcp_server.build_server()
 
@@ -160,16 +166,24 @@ def test_initialize_degraded_mode_when_data_access_missing():
 
     assert data is None
     names = [r.name for r in results]
-    assert names == ["semantic_search", "utility", "code_analysis"]
+    assert names == [
+        "semantic_search",
+        "utility",
+        "code_analysis",
+        "ee2_compliance",
+    ]
     by_name = {r.name: r for r in results}
-    # code_analysis is still unported -> registration failed.
-    assert by_name["code_analysis"].registered is False
-    assert "No module named" in (by_name["code_analysis"].error or "")
-    # utility and semantic_search are ported and work in degraded mode.
+    # ee2_compliance is still unported -> registration failed.
+    assert by_name["ee2_compliance"].registered is False
+    assert "No module named" in (by_name["ee2_compliance"].error or "")
+    # utility, semantic_search, and code_analysis are ported and work
+    # in degraded mode.
     assert by_name["utility"].registered is True
     assert by_name["utility"].error is None
     assert by_name["semantic_search"].registered is True
     assert by_name["semantic_search"].error is None
+    assert by_name["code_analysis"].registered is True
+    assert by_name["code_analysis"].error is None
 
 
 def test_initialize_registers_modules_when_data_access_available():

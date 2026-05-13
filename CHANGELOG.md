@@ -1,5 +1,148 @@
 # MCP Server Changelog
 
+## [8.15.0] - Phase B6: CodeAnalysisTools Port (May 13, 2026)
+
+### Scope
+
+Task 9 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 6 Node.js
+CodeAnalysisTools to Python and extend the parity framework to cover them.
+All code under `mcp_server_python/`. No deployments, no ECR pushes, no
+changes to `mcp_server_node/` or the live AgentCore runtimes. This is B6,
+the first phase that drives a real workload through the B3 GGSRTraversal
+engine.
+
+### Tools Ported (`src/tools/code_analysis.py`, 1425 lines)
+
+All 6 tools; input schemas match `mcp_server_node/src/tools/CodeAnalysisTools.js`
+exactly (verified by unit test and a second assertion in the parity module):
+
+- `analyze_code_structure(file_path, include_dependencies=true, depth=2,
+  token_budget=4000)` — file overview (function + class counts),
+  per-symbol detail blocks, optional upstream/downstream dependency
+  listing, Related Queries hint, and a GGSR weighted-context section
+  when `token_budget > 0`.
+- `find_dependencies(target, direction='both', max_depth=3,
+  token_budget=4000)` — upstream / downstream import traversal plus a
+  circular-dependency probe when `max_depth > 1`. `direction` matches
+  the Node.js enum (`upstream | downstream | both`).
+- `trace_execution_path(function_name, file_path?, max_depth=3,
+  include_callers=false, include_weights=true, token_budget=4000)` —
+  call-chain traversal with entity-type auto-detection (function /
+  python / fortran / shell). Shell scripts follow SOURCES/INVOKES/
+  EXECUTES edges; code functions follow CALLS. Optional callers block.
+- `find_callers_callees(function_name, file_path?, include_source=false,
+  token_budget=4000, cross_language=false)` — fan-in / fan-out analysis
+  with a complexity score, optional cross-language section (Shell →
+  Fortran / Shell → Python) traversed via SOURCES/INVOKES/EXECUTES/
+  CALLS/USES/DEFINES edges. `cross_language=true` routes the GGSR
+  scoring through `BRIDGE_DECAY_OVERRIDE` (0.8) instead of the default
+  `HOP_DECAY` (0.5) so execution-bridge edges decay more slowly.
+- `trace_full_execution_chain(start, direction='forward', max_depth=5,
+  languages?)` — flagship cross-language tool; renders an indented
+  tree of reachable nodes with language tags and bridge markers.
+  Supports `direction='forward'|'reverse'|'both'` and optional
+  `languages=['shell','fortran','python']` filter applied after the
+  graph walk.
+- `find_env_dependencies(variable_name, show_exports=true, limit=50,
+  token_budget=4000)` — queries `DEPENDS_ON_ENV` / `EXPORTS` edges
+  against `EnvironmentVariable` nodes, groups dependents by script
+  type, surfaces EE2-standard / HOMEmodel flags from the metadata
+  node, and computes a LOW / MEDIUM / HIGH impact bucket.
+
+All tools return markdown `TextContent` matching the Node.js output
+shape (`# Heading`, `## Section`, numbered indented call chains,
+fan-in/fan-out table, etc.). Degraded-mode (data=None) returns clear
+`[ERROR]` messages per tool rather than crashing — identical contract
+to B5.
+
+### GGSR Integration (first real B3 workload)
+
+`trace_execution_path`, `find_callers_callees`, `analyze_code_structure`,
+`find_dependencies`, and `find_env_dependencies` all call
+`GGSRTraversal.budget_aware_neighborhood` via the shared
+`_render_ggsr_section` helper. Budget trimming, weight matrix scoring,
+and the ``BRIDGE_DECAY_OVERRIDE`` cross-language override are exercised
+end-to-end by the unit tests (`_apply_bridge_decay` direct assertions)
+and end-to-end by the 30 live-parity cases when `RUN_PARITY=1`.
+
+### Parity Framework Extensions (`tests/parity/test_code_analysis_parity.py`)
+
+- 8 hermetic tests always run (catalogue coverage, schema-parity
+  assertion against the Node.js source, 6 framework sanity / extractor
+  round-trip tests).
+- 30 live-parity parametrized cases (5 per tool × 6 tools) gated on
+  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`.
+- Reuses `AgentCoreToolCaller` from the B5 parity module via direct
+  import — no code duplication.
+- Per-tool projections match the response shape:
+  - `analyze_code_structure` — markdown headings (SET_EQUALITY) plus
+    Dependencies-section entry count (TOLERANCE ±10%, because Neptune
+    and Neo4j may return slightly different neighbour counts under
+    concurrent writers).
+  - `find_dependencies` — bulleted path list (SET_EQUALITY).
+  - `trace_execution_path` — ordered function-name sequence (EXACT —
+    execution order IS the parity key here).
+  - `find_callers_callees` — union of caller + callee sections
+    (SET_EQUALITY).
+  - `trace_full_execution_chain` — chain-node names (SET_EQUALITY),
+    extracted only from Direction subsections to ignore the
+    Statistics block.
+  - `find_env_dependencies` — script paths from the dependents list
+    (SET_EQUALITY).
+
+### Unit Tests (`tests/unit/test_code_analysis_tools.py`, 54 tests)
+
+Schema parity (names / required / defaults / enums); degraded-mode
+error-message shape for all 6 tools (parametrized); empty-argument
+validation (parametrized); per-tool happy-path rendering against
+`MockUnifiedDataAccess` with canned graph rows; `token_budget=0` /
+negative clamping; direct `_apply_bridge_decay` math test covering
+the EXECUTES/INVOKES → `BRIDGE_DECAY_OVERRIDE` re-scoring path and
+confirming regular CALLS edges are untouched; `languages` filter on
+`trace_full_execution_chain`; `max_depth` bounds (clamped to 5 for
+function-scope tools, 10 for `trace_full_execution_chain`); `limit`
+clamping on `find_env_dependencies` including a Node.js-parity note
+that `limit=0` falls back to the default 50 (matches
+`parseInt(limit, 10) || 50`); graph-error propagation; `_label_to_language`
+and `_clamp` helper tests.
+
+### Deployment Hook
+
+- `mcp_server_python/Dockerfile` CMD updated:
+  `--modules utility,semantic_search,code_analysis` (17 tools now boot
+  by default: 4 + 7 + 6).
+- No rebuild or push in this phase — operator will roll a new
+  `python-code-analysis-v1` tag to the staging runtime per the rebuild
+  instructions in `.kiro/steering/06-python-port-progress.md` when
+  ready to run the live parity suite.
+
+### Test Update
+
+- `tests/unit/test_mcp_server.py::test_initialize_degraded_mode_when_data_
+  access_missing` — previously used `code_analysis` as the "still
+  unported" fixture. Now that `code_analysis` IS ported it registers
+  successfully in degraded mode. The test now uses `ee2_compliance`
+  (alphabetically-next unported module after B6) as the
+  "should-fail-to-import" fixture.
+
+### Test Results
+
+- Full suite: 305 passed, 66 skipped (30 + 36 live-parity cases), 0
+  failed.
+- Hermetic parity tests: 8/8 passed by default.
+- Schema parity: all 6 tool schemas match Node.js parameter names,
+  required fields, defaults, and enum values (asserted twice — in the
+  unit suite and again in the parity module).
+
+### Next
+
+- **B7** (`graph_rag`, 9 tools) — will further exercise the GGSR
+  + GraphGuidedRetrieval pipeline from B3 on higher-level graph
+  semantics (change impact, data flow, session context).
+- Operator action: rebuild the `mdc_mcp_rag_server_python` staging
+  runtime with the new Dockerfile CMD and run the live parity suite
+  to validate the 6 new tools against live Neptune.
+
 ## [8.14.0] - Phase B5: SemanticSearchTools Port (May 13, 2026)
 
 ### Scope

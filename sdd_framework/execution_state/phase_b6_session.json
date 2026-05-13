@@ -1,0 +1,76 @@
+{
+  "sessionId": "session_2026-05-13_python-mcp-server-port-b6-code-analysis",
+  "phase": "python-mcp-server-port-b6-code-analysis",
+  "startedAt": "2026-05-13T01:38:07.000Z",
+  "lastActivityAt": "2026-05-13T13:13:36.000Z",
+  "completedAt": "2026-05-13T13:13:36.000Z",
+  "status": "completed",
+  "totalSteps": 5,
+  "notes": "Task 9 (CodeAnalysisTools, Phase B6) from .kiro/specs/python-mcp-server-port/tasks.md. Ports the 6 Node.js CodeAnalysisTools to Python following the B5 semantic_search template. All code under mcp_server_python/. No deployments, no ECR pushes, no AgentCore Runtime updates, no mcp_server_node/ changes. Side-carried session file; active_session.json belongs to phase56 (blocked on user approval) and was not modified.",
+  "completedSteps": [
+    {
+      "step": 1,
+      "name": "Task 9.1 - Implement src/tools/code_analysis.py (6 tools)",
+      "tag": "implement",
+      "completedAt": "2026-05-13T12:57:57.000Z",
+      "notes": "1425 lines. register(mcp, data) registers 6 tools on the FastMCP instance. Input schemas match the Node.js CodeAnalysisTools.js registerWith() block exactly (verified via two separate assertions — one in tests/unit/test_code_analysis_tools.py, a second in tests/parity/test_code_analysis_parity.py): analyze_code_structure(file_path: str, include_dependencies: bool=True, depth: int=2, token_budget: int=4000); find_dependencies(target: str, direction: Literal['upstream','downstream','both']='both', max_depth: int=3, token_budget: int=4000); trace_execution_path(function_name: str, file_path: str|None=None, max_depth: int=3, include_callers: bool=False, include_weights: bool=True, token_budget: int=4000); find_callers_callees(function_name: str, file_path: str|None=None, include_source: bool=False, token_budget: int=4000, cross_language: bool=False); trace_full_execution_chain(start: str, direction: Literal['forward','reverse','both']='forward', max_depth: int=5, languages: list[Literal['shell','fortran','python']]|None=None); find_env_dependencies(variable_name: str, show_exports: bool=True, limit: int=50, token_budget: int=4000). All tools return markdown text matching the Node.js TextContent shape. Delegates to data.graph_db via the GraphDBProtocol.query() surface — backend-agnostic, so Neptune today and anything the protocol accepts tomorrow. Uses the B3 GGSRTraversal.budget_aware_neighborhood for the token-aware weighted-context section via a shared _render_ggsr_section helper. cross_language=True routes the GGSR scoring through BRIDGE_DECAY_OVERRIDE (0.8) on EXECUTES/INVOKES hops; other relationship types keep the default HOP_DECAY (0.5). The cross-language cypher expands the SOURCES/INVOKES/EXECUTES/CALLS/USES/DEFINES edge set in a single variable-length path query (depth-clamped to 1..10). The languages filter on trace_full_execution_chain is applied after the graph walk so one DB round-trip serves any language subset. Degraded-mode boot (data=None) returns clear [ERROR] messages per tool rather than crashing. BRIDGE_DECAY_OVERRIDE re-exported from src/graphrag/__init__.py so the tool module can import it alongside GGSRTraversal. No modifications to mcp_server_node/."
+    },
+    {
+      "step": 2,
+      "name": "Task 9.3 - Unit tests in tests/unit/test_code_analysis_tools.py",
+      "tag": "validate",
+      "completedAt": "2026-05-13T13:07:00.000Z",
+      "notes": "1179 lines, 54 tests. Schema parity assertions (parameter names, required flags, defaults, enum values for every tool); degraded-mode error-message shape parametrized across all 6 tools; empty-argument validation parametrized across all 6 tools; per-tool happy-path rendering against MockUnifiedDataAccess with add_response-seeded fragment matches; token_budget=0 suppresses the GGSR section; negative token_budget is silently clamped to zero; direct assertions on _apply_bridge_decay covering EXECUTES/INVOKES re-scoring via BRIDGE_DECAY_OVERRIDE (and confirming regular CALLS edges are untouched); languages filter on trace_full_execution_chain drops non-matching nodes while preserving matching ones; max_depth bounds — trace_execution_path clamped to 5, trace_full_execution_chain clamped to 10 (verified by inspecting the cypher string captured via a recording wrapper on graph_db.query); limit clamping on find_env_dependencies including the Node.js-parity note that limit=0 falls back to default 50 because `parseInt(limit, 10) || 50` treats 0 as falsy (initial test wrongly expected clamp to 1 — fixed in this phase to match Node.js behavior; negative values DO clamp to 1, upper-bound 99999 clamps to 500); graph-error propagation (raise_on_query → [ERROR] output); _label_to_language / _clamp helper tests."
+    },
+    {
+      "step": 3,
+      "name": "Task 9.2 - Parity tests in tests/parity/test_code_analysis_parity.py",
+      "tag": "validate",
+      "completedAt": "2026-05-13T13:04:00.000Z",
+      "notes": "967 lines, 38 test nodes. Layout: 8 hermetic tests (test_framework_wires_against_mock_callers, test_framework_detects_sequence_divergence, test_bulleted_path_extractor_accepts_bold_variant, test_caller_callee_union_splits_on_section_headings, test_chain_node_extractor_ignores_statistics_section, test_section_entry_counter_respects_section_boundary, test_catalogue_has_minimum_coverage, test_schema_parity_with_nodejs_source — all always-runs) + 30 live-parity parametrized cases (5 per tool × 6 tools) gated on RUN_PARITY=1. pytest.mark.parity applied to module. AgentCoreToolCaller imported directly from tests/parity/test_semantic_search_parity to avoid duplicating the SSE/boto3 transport. Per-tool projections: analyze_code_structure uses _extract_markdown_headings SET_EQUALITY (shape of sections is the stable key) plus _extract_dependencies_entry_count TOLERANCE ±10% (Dependencies-section bullet count, Node.js returns this from Neo4j and Python from Neptune so small drift is expected); find_dependencies uses _extract_bulleted_paths SET_EQUALITY (order-insensitive because the two graph backends have different result-ordering semantics); trace_execution_path uses _extract_function_sequence EXACT (call order IS the parity key); find_callers_callees uses _extract_caller_callee_union SET_EQUALITY (union of Callers + Callees sections, parsing stops at next ## heading so Complexity Analysis doesn't leak); trace_full_execution_chain uses _extract_chain_node_names SET_EQUALITY reading only Direction subsections (not the Statistics block); find_env_dependencies uses _extract_script_paths SET_EQUALITY on the DEPENDS_ON_ENV list. Live-test env vars: RUN_PARITY=1 (required), NODEJS_RUNTIME_ID (ARN of mdc_mcp_rag_server-TMXDllG2Wi), PYTHON_RUNTIME_ID (ARN of mdc_mcp_rag_server_python-v5K2F8BGrN), AWS_REGION (default us-east-1). Default pytest run (no env var) reports 8 passed + 30 skipped, consistent with the hermetic-by-default contract from B4/B5."
+    },
+    {
+      "step": 4,
+      "name": "Task 9.4 + 9.5 - Update Dockerfile CMD and verify utility.py markers",
+      "tag": "configure",
+      "completedAt": "2026-05-13T13:10:00.000Z",
+      "notes": "mcp_server_python/Dockerfile CMD changed from --modules utility,semantic_search to --modules utility,semantic_search,code_analysis. Comment block above CMD updated to reflect 17 tools total (4 utility + 7 semantic_search + 6 code_analysis) and the degraded-mode shape (code_analysis tools surface [ERROR] at call time when graph_db is unavailable; semantic_search URL-listing tools still work from the baked-in JSON). utility.py _infer_active_modules already had the correct canonical code_analysis tool-name list from B4+B11 work — no change needed. Verified via a smoke script that registering utility + code_analysis on the same server correctly reports 'code_analysis' among the active modules. No rebuild or push — operator handles deployment."
+    },
+    {
+      "step": 5,
+      "name": "Update test_mcp_server.py, add CHANGELOG [8.15.0], run full pytest, record completion",
+      "tag": "document",
+      "completedAt": "2026-05-13T13:13:36.000Z",
+      "notes": "tests/unit/test_mcp_server.py::test_initialize_degraded_mode_when_data_access_missing — swapped the 'unported' fixture from code_analysis to ee2_compliance (alphabetically-first still-unported module after B6). The assertion list now includes code_analysis alongside utility and semantic_search as modules that DO register successfully in degraded mode, and uses ee2_compliance as the expected ModuleNotFoundError target. CHANGELOG.md has a full [8.15.0] entry documenting scope, the 6 ported tools with their full signatures, the GGSR-integration exercise this phase represents (first real B3 workload), the unit and parity test layout including per-tool projection rationale, the Dockerfile CMD change, and the test-update swap. Final pytest run: 306 passed, 66 skipped (30 code_analysis + 36 semantic_search live-parity cases), 0 failed. The +62 over the B5 baseline of 244 breaks down as: +54 new unit tests in test_code_analysis_tools.py, +8 new hermetic parity tests in test_code_analysis_parity.py. The expected 1-test failure from earlier subtasks is now resolved."
+    }
+  ],
+  "pendingSteps": [],
+  "followUps": [
+    "Operator must rebuild the Docker image (python-code-analysis-v1 tag, per the rebuild instructions in .kiro/steering/06-python-port-progress.md), push to ECR, and update the AgentCore Runtime mdc_mcp_rag_server_python-v5K2F8BGrN to validate the 6 new tools against live Neptune. The Python staging runtime needs the same VPC/IAM connectivity as the production Node.js runtime (already in place since B11 smoke test); no new IAM permissions required.",
+    "Once the Python staging runtime is redeployed with code_analysis, run the live parity tests: RUN_PARITY=1 AWS_REGION=us-east-1 NODEJS_RUNTIME_ID=arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server-TMXDllG2Wi PYTHON_RUNTIME_ID=arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN pytest mcp_server_python/tests/parity/test_code_analysis_parity.py -v. Expected: 30 live-parity cases PASS; any divergences are surfaced as individual pytest failures with ParityResult.describe() output. Cross-language cases (find_callers_callees with cross_language=true, trace_full_execution_chain) will give the first real validation of the GGSR BRIDGE_DECAY_OVERRIDE path against live data.",
+    "The Python port's cross-language cypher (MATCH p = (start)-[:SOURCES|INVOKES|EXECUTES|CALLS|USES|DEFINES*1..N]->(n)) is a simpler formulation than Node.js's traceCrossLanguageChain helper. If live-parity reveals divergences on trace_full_execution_chain, the fix is likely in how we assign 'language' to each returned node — the current label-substring mapping (Python|Fortran|Shell|Rocoto|Job prefixes) may need augmentation to match the Node.js helper's explicit label lists.",
+    "Task 10 (Phase B7: GraphRAGTools) is next in linear order. It will reuse the parity framework and the GGSRTraversal/GraphGuidedRetrieval pipeline the same way B6 did. B7 tools (get_code_context, get_change_impact, trace_data_flow, mark_as_modified, get_session_context, checkpoint_state, restore_checkpoint, etc.) exercise higher-level graph semantics and the SessionManager from B3.",
+    "find_callers_callees with include_source=true is accepted by the schema but the Python port does not (yet) inline source snippets. Node.js reads from vector_db to attach a snippet; implementing this cleanly requires the vector_db fan-out pattern from semantic_search.py — defer to a B7 or B8 polish pass."
+  ],
+  "artifacts": {
+    "filesCreated": [
+      "mcp_server_python/src/tools/code_analysis.py",
+      "mcp_server_python/tests/parity/test_code_analysis_parity.py",
+      "mcp_server_python/tests/unit/test_code_analysis_tools.py"
+    ],
+    "filesUpdated": [
+      "mcp_server_python/src/graphrag/__init__.py",
+      "mcp_server_python/Dockerfile",
+      "mcp_server_python/tests/unit/test_mcp_server.py",
+      "CHANGELOG.md"
+    ],
+    "totalLinesAdded": 3571,
+    "testResults": {
+      "unitTests": "54/54 passed (test_code_analysis_tools.py)",
+      "parityFrameworkHermetic": "8/8 passed (test_code_analysis_parity.py, RUN_PARITY unset)",
+      "parityLiveCases": "30 cases defined, skipped by default (RUN_PARITY=1 to enable)",
+      "fullSuite": "306 passed, 66 skipped, 0 failed",
+      "schemaParity": "all 6 tool schemas match Node.js parameter names, required fields, defaults, and enum values exactly"
+    }
+  }
+}

@@ -49,11 +49,12 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B5 deployment: boot with utility + semantic_search modules
-# registered (4 + 7 = 11 tools). semantic_search tools require a valid
-# data-access layer (OpenSearch + Neptune) to return results; without
-# one they return clear [ERROR] messages at call time rather than
-# failing registration. list_ingested_urls / get_ingested_urls_array
-# operate from the baked-in documentation_sources.json and work even
-# in degraded-mode boot.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search"]
+# Phase B6 deployment: boot with utility + semantic_search + code_analysis
+# modules registered (4 + 7 + 6 = 17 tools). The code_analysis tools all
+# require a graph-database connection at call time; without one they
+# return clear [ERROR] messages rather than failing registration. The
+# semantic_search tools still operate in degraded mode for URL-listing
+# (list_ingested_urls / get_ingested_urls_array read the baked-in
+# documentation_sources.json), while the data-layer tools surface the
+# degraded state as an [ERROR] response.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis"]
