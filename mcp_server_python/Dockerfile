@@ -49,15 +49,14 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B8 deployment: boot with utility + semantic_search + code_analysis
-# + graph_rag + ee2_compliance modules registered (4 + 7 + 6 + 9 + 5 =
-# 31 tools). The EE2 module splits degraded-mode behaviour: only
-# search_ee2_standards requires the vector store; the other four tools
-# (analyze_ee2_compliance / generate_compliance_report /
-# scan_repository_compliance / extract_code_for_analysis) operate on
-# caller-supplied content and work even when the vector adapter is
-# unavailable. The two content-abstracted scanners (scan_repository_
-# compliance and extract_code_for_analysis) reject repository_path /
-# path arguments with a clear [ERROR] — the hosted Python port does
-# not read from the caller's filesystem.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance"]
+# Phase B9 deployment: boot with utility + semantic_search + code_analysis
+# + graph_rag + ee2_compliance + operational modules registered
+# (4 + 7 + 6 + 9 + 5 + 4 = 35 tools). The operational module requires
+# a data-access layer at call time (vector store + graph store) and
+# returns [ERROR] in degraded-mode boot — except list_job_scripts
+# called with a job_list parameter, which is the Node.js "remote MCP"
+# pass-through and works without backends. get_job_details is content-
+# abstracted: metadata is assembled from the graph store rather than
+# the legacy filesystem read; include_content=true surfaces an [INFO]
+# note rather than a script body.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational"]

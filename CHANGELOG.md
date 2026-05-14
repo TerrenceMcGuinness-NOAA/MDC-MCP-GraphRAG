@@ -1,5 +1,181 @@
 # MCP Server Changelog
 
+## [8.18.0] - Phase B9: OperationalTools Port (May 13, 2026)
+
+### Scope
+
+Task 13 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 4 Node.js
+OperationalTools to Python. All code under `mcp_server_python/`. No
+deployments, no ECR pushes, no changes to `mcp_server_node/` or the live
+AgentCore runtimes.
+
+### Tools Ported (`src/tools/operational.py`, 891 lines)
+
+All 4 tools; input schemas match `mcp_server_node/src/tools/OperationalTools.js`
+exactly (verified by two separate assertions — one in the unit-test module
+and a second in the parity module).
+
+- `get_operational_guidance(operation, platform='generic', urgency='routine')` —
+  semantic search against the `global-workflow-docs-v8-0-0` collection
+  with `include_graph=True`. Renders a platform-specific notes block
+  (HERA / HERCULES / ORION / WCOSS2 / GAEA / generic — ported verbatim
+  from the Node.js `platformNotes` dict). The `urgency='emergency'`
+  flag prepends a `[WARN]` banner with on-call escalation steps.
+  Falls back to a hardcoded "General Guidance" template when the
+  vector store returns no hits.
+
+- `explain_workflow_component(component, detail_level='detailed')` —
+  hybrid: vector_db query against the workflow-docs collection +
+  graph_db node lookup + dependency probe (`IMPORTS|SOURCES|USES`
+  one-hop). Detail levels route between three rendering paths
+  (`basic`, `detailed`, `expert` — only `expert` adds the Expert
+  Notes block).
+
+- `list_job_scripts(category?, search?, format='summary', job_list?, files?)` —
+  content-abstracted J-Job listing. Three input modes, prioritized:
+  caller-supplied `job_list` (names only) → caller-supplied `files`
+  (name+content) → graph_db fallback querying for J-prefixed nodes.
+  The `job_list` path is the only operational tool that works in
+  degraded-mode boot (matching the Node.js "remote MCP" mode). All
+  five Node.js category-filter regexes are ported verbatim
+  (`analysis`, `forecast`, `post`, `archive`, `verification`).
+  `format='json'` emits a JSON code-fence; `format='detailed'`
+  surfaces description lines from caller-supplied content.
+
+- `get_job_details(job_name, include_content=False, include_config=True, include_chromadb=True)` —
+  content-abstracted J-Job metadata. Queries the graph store for the
+  J-Job node and its relationships (`USES_CONFIG` / `SOURCES` /
+  `CALLS|INVOKES|EXECUTES` / `CONSUMES|READS` / `PRODUCES|WRITES` /
+  `DEPENDS_ON_ENV|EXPORTS`) plus the `jjobs-v8-0-0` vector
+  collection for related docs. `include_content=True` surfaces an
+  `[INFO]` note rather than a script body — the hosted Python port
+  has no filesystem access. Uses pure-function helpers
+  `_categorize_job` and `_extract_system` ported verbatim from
+  Node.js.
+
+### Degraded-Mode Contract (Requirement 1.7)
+
+All 4 tools require `data` and return `[ERROR]` when booted without a
+data-access layer — *except* `list_job_scripts` invoked with a
+caller-supplied `job_list`, which is the Node.js "remote MCP"
+pass-through and works on caller content alone. Registration always
+succeeds regardless of backend availability.
+
+### Tests Added
+
+`tests/unit/test_operational_tools.py` — 65 tests covering:
+
+- Schema parity (names / required / defaults / enums) across all 4
+  tools, including the array-of-enum and `anyOf[enum, null]` shapes
+  FastMCP emits for optional `Literal[...]` parameters.
+- Degraded-mode parametrized over all 4 tools (each surfaces `[ERROR]`
+  with `data=None`); plus the `list_job_scripts(job_list=...)` exception
+  that bypasses the data-access layer entirely.
+- `get_operational_guidance` per-platform parametrized rendering (6
+  cases — verifies each platform's hardcoded notes block matches the
+  Node.js dict), urgency emergency-block rendering, vector-query
+  collection / arg verification, no-hits fallback to General Guidance.
+- `explain_workflow_component` doc + graph + dependency rendering,
+  detail-level routing (`expert` adds notes; `basic` suppresses),
+  not-found rendering with empty backends, vector-collection assertion.
+- `list_job_scripts` J-prefix filtering, all 5 category regex cases
+  parametrized (verifying e.g. `JGDAS_FIT2OBS` only matches
+  `verification`, not `analysis`), search filter case-insensitive,
+  JSON format round-trip, `detailed` format using `files`-array
+  content_map, graph_db fallback when no input given, summary-format
+  category breakdown.
+- `get_job_details` not-found rendering, metadata-header assembly,
+  6 relationship-block rendering tests (configs / sources / calls /
+  inputs / outputs / env vars), `include_chromadb=True` queries the
+  jjobs collection while `include_chromadb=False` skips the vector
+  call entirely, `include_content=True` surfaces the `[INFO]`
+  unavailable notice, `include_config=False` suppresses the fallback
+  block, env-var truncation at 15 entries with "...and N more"
+  footer.
+- Pure-function tests for `_categorize_job` (10 parametrized cases
+  covering all 9 Node.js categories) and `_extract_system` (6 cases).
+
+`tests/parity/test_operational_parity.py` — 9 hermetic + 20 live
+cases (gated on `RUN_PARITY=1`):
+
+- Catalogue coverage (≥5 cases per tool, ≥20 total).
+- Schema parity against the authoritative Node.js source.
+- Framework PASS/FAIL sanity, TOLERANCE drift on guidance-item count.
+- Extractor unit tests (`_extract_h2_headings`,
+  `_extract_guidance_items`, `_extract_job_names` summary + JSON
+  formats, `_extract_metadata_fields`).
+- Per-tool live cases:
+  - `get_operational_guidance` — 4 cases SET_EQUALITY on H2
+    headings + 1 case TOLERANCE ±10 % on guidance-item count.
+  - `explain_workflow_component` — 5 cases SET_EQUALITY on H2
+    headings.
+  - `list_job_scripts` — 5 cases SET_EQUALITY on the job-name list
+    (`job_list` arguments shared between runtimes so both see
+    identical inputs).
+  - `get_job_details` — 5 cases SET_EQUALITY on metadata field
+    *names*. Field values may legitimately drift between Node.js
+    (filesystem read) and Python (graph query); the *set* of
+    metadata categories present is the stable parity invariant.
+
+### Dockerfile CMD
+
+Changed from `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance`
+(B8 baseline, 31 tools) to
+`--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational`
+(35 tools: 4 + 7 + 6 + 9 + 5 + 4). Comment block rewritten to document
+the operational module's degraded-mode behaviour and the
+content-abstraction gate on `get_job_details`.
+
+### `test_mcp_server.py` Fixture Swap
+
+`test_initialize_degraded_mode_when_data_access_missing` updated:
+
+- Unported fixture swapped from `github_tools` (B8) to
+  `sdd_workflow` (next alphabetical unported module after B9).
+- `operational` added to the list of modules asserted to register
+  successfully in degraded mode.
+- Module whitelist now covers 6 ported + 1 unported = 7 modules.
+
+### Verification
+
+Local pytest run (no AWS credentials required):
+
+- Unit tests: 521 passed (was 456 B8 baseline + 65 new operational).
+- Hermetic parity tests: 9 (8 smoke + 1 schema parity).
+- Live parity cases: 20 skipped by default (enable with
+  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
+- Full suite: **530 passed, 156 skipped, 0 failed.**
+
+### Iteration Notes
+
+1. The Node.js `categories` object uses different regexes per bucket
+   than `categorizeJob`. Most notably, `JGDAS_FIT2OBS` matches the
+   `verification` regex (`verf|fit2obs|cyclone|stat`) but NOT the
+   `analysis` regex (`atm|anl|anal|enkf|letkf`) — confirmed against
+   Node.js source and preserved.
+2. `dataAccess.hybridQuery` / `multiSourceSearch` / `vectorSearch` /
+   `graphDb.findFileImports` are high-level Node.js APIs not present
+   in the Python protocols. Composed equivalent behaviour from
+   `vector_db.query` + `graph_db.query` directly. Schema parity is
+   preserved; internal call shapes differ.
+3. The Node.js port reads J-Job scripts from disk in
+   `list_job_scripts` (filesystem walk) and `get_job_details`
+   (`fs.readFile` + `parseJJob`). The hosted Python port has no
+   filesystem; the port queries the graph store for already-ingested
+   metadata instead. `list_job_scripts` accepts `job_list` / `files`
+   for explicit override (already content-abstracted in Node.js for
+   "remote mode"); `get_job_details` falls back to graph-stored
+   relationships and surfaces an `[INFO]` note when
+   `include_content=True`.
+
+### Next Phase
+
+Task 14 (Phase B10 — `sdd_workflow` tools, 9 tools) is next in
+alphabetical order. After that, Task 15 (`workflow_info`, 3 tools) and
+Task 16 (`github_tools`, 4 tools) remain. Once those land, the Python
+runtime registers all 51 tools.
+
+
 ## [8.17.0] - Phase B8: EE2ComplianceTools Port (May 13, 2026)
 
 ### Scope
