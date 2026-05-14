@@ -37,7 +37,7 @@ import os
 VERSION = "8.0.0"
 
 # Collection name can be overridden via environment variable
-DEFAULT_COLLECTION_NAME = "global-workflow-docs-v8-1-0"
+DEFAULT_COLLECTION_NAME = "global-workflow-docs-v8-2-0"
 COLLECTION_NAME = os.getenv("DOCS_COLLECTION", DEFAULT_COLLECTION_NAME)
 
 # =============================================================================

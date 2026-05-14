@@ -20,7 +20,7 @@ NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASS = os.environ.get("NEO4J_PASSWORD", "gfsworkflow2025")
 CHROMADB_HOST = os.environ.get("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.environ.get("CHROMADB_PORT", "8080"))
-COLLECTION_NAME = "global-workflow-docs-v8-0-0"
+COLLECTION_NAME = "global-workflow-docs-v8-2-0"
 
 def main():
     parser = argparse.ArgumentParser(description="Phase 34D ChromaDB Linkage")

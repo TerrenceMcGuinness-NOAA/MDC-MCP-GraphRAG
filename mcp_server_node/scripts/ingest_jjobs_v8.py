@@ -3,7 +3,7 @@
 J-Job ChromaDB Ingestion v8.0.0
 Phase 27C: Ingest Global Workflow J-Jobs with structured metadata
 
-Creates ChromaDB collection 'jjobs-v8-0-0' with:
+Creates ChromaDB collection 'jjobs-v8-1-0' with:
 - Full J-Job content as searchable documents
 - Structured metadata (inputs, outputs, calls, configs, env vars)
 - Semantic chunking by script sections
@@ -50,7 +50,7 @@ EMBEDDING_DIMENSIONS = 768
 # ============================================================================
 
 VERSION = "8.0.0"
-COLLECTION_NAME = os.getenv("JJOB_COLLECTION", "jjobs-v8-0-0")
+COLLECTION_NAME = os.getenv("JJOB_COLLECTION", "jjobs-v8-1-0")
 CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
 

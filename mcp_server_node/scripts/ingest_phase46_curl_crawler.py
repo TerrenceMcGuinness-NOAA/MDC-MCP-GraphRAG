@@ -13,12 +13,12 @@ from datetime import datetime
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 
-os.environ['DOCS_COLLECTION'] = 'global-workflow-docs-v8-0-0'
+os.environ['DOCS_COLLECTION'] = 'global-workflow-docs-v8-2-0'
 
 import chromadb
 from ingestion_base import SemanticChunker
 
-COLLECTION_NAME = 'global-workflow-docs-v8-0-0'
+COLLECTION_NAME = 'global-workflow-docs-v8-2-0'
 DELAY = 3.0
 MAX_RETRIES = 3
 

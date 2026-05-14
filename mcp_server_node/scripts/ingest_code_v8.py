@@ -55,7 +55,7 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
-# Embedding model - MUST match jjobs-v8-0-0 and documentation
+# Embedding model - MUST match jjobs-v8-1-0 and documentation
 EMBEDDING_MODEL = "all-mpnet-base-v2"
 EMBEDDING_DIMENSIONS = 768
 

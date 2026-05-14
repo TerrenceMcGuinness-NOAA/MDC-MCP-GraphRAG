@@ -899,12 +899,12 @@ export class OperationalTools {
       // Use dataAccess if available (has embedding support)
       if (this.dataAccess && this.dataAccess.vectorSearch) {
         const results = await this.dataAccess.vectorSearch(jobName, {
-          collection: 'jjobs-v8-0-0',
+          collection: 'jjobs-v8-1-0',
           maxResults: 3
         });
         
         return results.map(r => ({
-          source: r.metadata?.source_file || 'jjobs-v8-0-0',
+          source: r.metadata?.source_file || 'jjobs-v8-1-0',
           summary: r.content?.substring(0, 100) + '...',
           relevance: (r.score || 0.5).toFixed(2)
         }));
@@ -917,7 +917,7 @@ export class OperationalTools {
           host: process.env.CHROMADB_HOST || 'localhost',
           port: parseInt(process.env.CHROMADB_PORT || '8080')
         });
-        const collection = await client.getCollection({ name: 'jjobs-v8-0-0' });
+        const collection = await client.getCollection({ name: 'jjobs-v8-1-0' });
         
         // First try exact match by metadata
         const exactResults = await collection.get({
@@ -927,7 +927,7 @@ export class OperationalTools {
 
         if (exactResults.documents && exactResults.documents.length > 0) {
           return exactResults.documents.map((doc, i) => ({
-            source: exactResults.metadatas?.[i]?.source_file || 'jjobs-v8-0-0',
+            source: exactResults.metadatas?.[i]?.source_file || 'jjobs-v8-1-0',
             summary: doc.substring(0, 150) + '...',
             relevance: '1.00',  // Exact match
             category: exactResults.metadatas?.[i]?.category || 'unknown',
@@ -940,7 +940,7 @@ export class OperationalTools {
 
         if (semanticResults.documents?.[0]?.length > 0) {
           return semanticResults.documents[0].map((doc, i) => ({
-            source: semanticResults.metadatas?.[0]?.[i]?.source_file || 'jjobs-v8-0-0',
+            source: semanticResults.metadatas?.[0]?.[i]?.source_file || 'jjobs-v8-1-0',
             summary: doc.substring(0, 150) + '...',
             relevance: semanticResults.distances?.[0]?.[i] 
               ? (1 - semanticResults.distances[0][i]).toFixed(2)  // Convert distance to similarity
@@ -951,8 +951,8 @@ export class OperationalTools {
         }
         
         return [{ 
-          source: 'jjobs-v8-0-0', 
-          summary: `No matches found for '${jobName}' in jjobs-v8-0-0 collection (700 documents).`,
+          source: 'jjobs-v8-1-0', 
+          summary: `No matches found for '${jobName}' in jjobs-v8-1-0 collection (859 documents).`,
           relevance: '0.00'
         }];
         

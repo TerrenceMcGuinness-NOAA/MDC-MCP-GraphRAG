@@ -5,7 +5,7 @@ MPNet 768-dim embeddings with v8 collection naming
 
 This is a v8 wrapper around the v7 ingestion logic with:
 - Explicit MPNet embeddings (768 dimensions)
-- v8 collection naming: global-workflow-docs-v8-0-0
+- v8 collection naming: global-workflow-docs-v8-2-0
 - Pre-computed embeddings for consistency
 
 Author: NOAA EMC Global Workflow MCP Team
@@ -18,7 +18,8 @@ import sys
 from datetime import datetime
 
 # Set v8 collection name before importing v7 module
-os.environ['DOCS_COLLECTION'] = 'global-workflow-docs-v8-0-0'
+# Allow override via DOCS_COLLECTION env var for version bumps (e.g. v8-2-0)
+os.environ.setdefault('DOCS_COLLECTION', 'global-workflow-docs-v8-2-0')
 
 # Import the v7 ingestion logic (uses ingestion_base with MPNet)
 from ingest_documentation_v7 import (
@@ -29,7 +30,7 @@ from ingest_documentation_v7 import (
 
 # V8 Configuration
 VERSION_V8 = "8.0.0"
-COLLECTION_NAME = "global-workflow-docs-v8-0-0"
+COLLECTION_NAME = os.environ['DOCS_COLLECTION']
 EMBEDDING_MODEL = "all-mpnet-base-v2"
 EMBEDDING_DIMENSIONS = 768
 
