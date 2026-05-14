@@ -1,5 +1,88 @@
 # MCP Server Changelog
 
+## [8.22.1] - Phase C-2a hot-fix: Issue B (chown) resolved (May 14, 2026)
+
+### Scope
+
+Patch on top of `[8.22.0]`. Fixes the Phase C-1 Issue B blocker —
+`graph_rag` and `sdd_workflow` failing to register on the AgentCore
+container because the runtime user `app` could not write to the
+root-owned `/app` WORKDIR. Issues A (Node.js production runtime
+unhealthy) and C (VPC security group) remain operator-side and
+continue to block cutover.
+
+### Code change (one line + supporting comment)
+
+`mcp_server_python/Dockerfile`:
+
+```dockerfile
+RUN groupadd --system --gid 1000 app \
+ && useradd  --system --uid 1000 --gid app --home /app app \
+ && chown -R app:app /app
+```
+
+The `chown -R app:app /app` line makes the WORKDIR fully writable
+for the runtime user, so `SessionManager._ensure_state_dir()` can
+create `/app/sdd_framework/execution_state/` instead of raising
+`PermissionError` during register().
+
+### Regression test
+
+`tests/unit/test_mcp_server.py::test_register_module_catches_session_manager_permission_error`
+documents the production failure mode and asserts that
+`_register_module` catches `PermissionError` from `SessionManager()`
+cleanly. The test monkey-patches `pathlib.Path.mkdir` to raise
+`PermissionError` for any path under `sdd_framework/` and verifies
+that both `graph_rag` and `sdd_workflow` modules return
+`registered=False` with the error preserved, instead of crashing
+the server bootstrap.
+
+### Deploy
+
+| Action | Outcome |
+|--------|---------|
+| Build with chown fix | Local image `sha256:63bd11f23ffa5131f786af52ac0169c28c18053d60d1b0c1ed30e6e49d6a946a` |
+| Local smoke test (running as user `app` inside the container) | **9/9 modules register with no errors** |
+| ECR push as `python-all-tools-v2` | Manifest digest `sha256:32763889d8bda4f1b317b1dfcf3a9cd7004ef7f7d79e4ae28f26d7db60e732f1` |
+| Rollback targets preserved | `python-utility-v1` AND `python-all-tools-v1` |
+| Staging runtime rotation `mdc_mcp_rag_server_python-v5K2F8BGrN` | v3 → **v4**, READY on second poll |
+| Proxy verification | `get_server_info` → **Total Tools: 51 / Active Modules: 9 of 9** (was 33/7) |
+| Health check | `HEALTHY (2/3 components healthy)` — Data Access Layer still disabled (Issue C) |
+
+### Suite count
+
+- Before: 688 passed / 209 skipped / 0 failed (B11 baseline `e325e61`)
+- After: **689 passed** / 209 skipped / 0 failed (+1 regression test)
+
+### What's still pending (operator-side)
+
+- **Issue A** — Node.js production runtime `mdc_mcp_rag_server-TMXDllG2Wi`
+  v10 still returns `RuntimeClientError` on every call.
+  Operator + AgentCore admin action required.
+- **Issue C** — VPC security group `sg-096489a0876cc78c1` still
+  doesn't permit egress to Neptune (8182) or OpenSearch (443).
+  Operator AWS console / CDK action required.
+
+When both are resolved, the existing parity suite at commit
+`e325e61`+ can be re-run as Phase C-2b for the meaningful comparison.
+
+### Files modified
+
+- `mcp_server_python/Dockerfile` — chown fix + reference comment
+- `mcp_server_python/tests/unit/test_mcp_server.py` — regression test
+- `docs/reports/2026-05-14-phase-c1-parity-assessment.md` — Post-Fix
+  Status section appended
+- `.kiro/steering/06-python-port-progress.md` — new 2026-05-14 Phase
+  C-2a section
+- `sdd_framework/execution_state/history.jsonl` — Issue-B-resolved
+  events appended to the C-1 session (status remains
+  `awaiting_cutover_approval`)
+
+Validates Requirements: 1.7 (graceful degradation on registration
+failure), 18.5 (deployment reproducibility — preserved rollback
+chain).
+
+
 ## [8.22.0] - Phase C-1: Task 25.3 Live Parity — assessment-only (May 14, 2026)
 
 ### Scope

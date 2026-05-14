@@ -329,3 +329,67 @@ aws bedrock-agentcore-control update-agent-runtime \
 (parity report generated, full divergence captured). **Task 25.2
 (cutover) explicitly deferred to Phase C-2** pending resolution of
 Issues A, B, and C.
+
+
+---
+
+## Post-Fix Status — Phase C-2a (Issue B resolved, 2026-05-14T17:42 UTC)
+
+### What changed
+
+**Issue B is resolved.** The Dockerfile chown fix from "Recommended
+remediation > Option 1" was applied as a hot-fix on top of `[8.22.0]`:
+
+```dockerfile
+RUN groupadd --system --gid 1000 app \
+ && useradd  --system --uid 1000 --gid app --home /app app \
+ && chown -R app:app /app
+```
+
+The `chown -R app:app /app` line makes the `WORKDIR` writable for the
+runtime user `app`, so `SessionManager._ensure_state_dir()` no longer
+raises `PermissionError` during `register()` for `graph_rag` and
+`sdd_workflow`.
+
+A regression test
+(`test_register_module_catches_session_manager_permission_error` in
+`mcp_server_python/tests/unit/test_mcp_server.py`) was added at the
+same time. It monkey-patches `pathlib.Path.mkdir` to raise
+`PermissionError` for any path under `sdd_framework/` — the exact
+production failure shape — and asserts that `_register_module`
+catches it cleanly for both modules. Future regressions in this code
+path will trip the test.
+
+### Deploy
+
+| Action | Outcome |
+|--------|---------|
+| Build with chown fix | Local image `sha256:63bd11f23ffa5131f786af52ac0169c28c18053d60d1b0c1ed30e6e49d6a946a`, tagged `python-all-tools-v2` |
+| Local container smoke test (running as user `app` inside the container) | 9/9 modules register cleanly, no errors |
+| ECR push | Manifest digest `sha256:32763889d8bda4f1b317b1dfcf3a9cd7004ef7f7d79e4ae28f26d7db60e732f1`; rollback targets preserved (`python-utility-v1` and `python-all-tools-v1`) |
+| Staging runtime rotation | `mdc_mcp_rag_server_python-v5K2F8BGrN` v3 → **v4**, status READY on second poll (~10 s) |
+| Proxy verification (`get_server_info`) | **Total Tools: 51 / Active Modules: 9 of 9** (was 33 / 7 of 9) |
+| Health check | `HEALTHY (2/3 components healthy)` — Base Server + Utility Tools healthy; Data Access Layer disabled (Issue C, expected, operator-side) |
+
+### What's still pending
+
+- **Issue A — Node.js production runtime is unhealthy** — operator-side
+  action; not addressed by this hot-fix.
+- **Issue C — VPC security group on `sg-096489a0876cc78c1`** — operator-side
+  action; not addressed by this hot-fix.
+
+### Updated recommendation
+
+**Cutover (Task 25.2) remains deferred.** Two of the three blockers
+identified in this assessment are still outstanding and both are
+operator-side. The Python staging runtime now has the correct shape
+(51/51 tools registered) and the registration robustness needed to
+survive the same class of bug in the future. When Issues A and C are
+resolved, re-run this exact parity suite for the meaningful
+comparison.
+
+### Suite count
+
+After the regression test addition, the hermetic test suite is now
+**689 passed** (was 688 at B11 baseline `e325e61`), 209 skipped, 0
+failed.

@@ -135,6 +135,81 @@ def test_register_module_register_fn_raises():
     assert "kaboom" in result.error
 
 
+def test_register_module_catches_session_manager_permission_error():
+    """Regression test for Phase C-1 Issue B (Dockerfile chown bug).
+
+    On the AgentCore staging deploy of ``python-all-tools-v1``, the
+    container's ``WORKDIR /app`` was root-owned while the runtime
+    process ran as user ``app``. ``SessionManager._ensure_state_dir()``
+    tried to create ``/app/sdd_framework/execution_state/`` and got
+    ``PermissionError``, which propagated out of the
+    ``register()`` calls in ``graph_rag`` and ``sdd_workflow`` (both
+    default-construct a ``SessionManager()`` with no explicit
+    ``state_dir``). The result was 7 of 9 modules registered (33 of
+    51 tools) instead of 51/51.
+
+    The hot-fix is in ``mcp_server_python/Dockerfile`` (``chown -R
+    app:app /app`` after ``useradd``). This regression test
+    documents the failure mode and asserts that
+    ``_register_module`` catches the ``PermissionError`` and reports
+    it as a clean ``ModuleLoadResult(registered=False, ...)`` rather
+    than letting the whole server bootstrap crash.
+
+    The test simulates the production failure mode by monkey-patching
+    ``Path.mkdir`` to raise ``PermissionError`` for any path under
+    ``sdd_framework/`` — exactly the path SessionManager targets by
+    default. The unit-test suite at commit ``e325e61`` (Phase B11
+    baseline) missed this issue because every test injects
+    ``SessionManager(state_dir=tmp_path)``; the default-state-dir
+    path was uncovered.
+
+    See ``docs/reports/2026-05-14-phase-c1-parity-assessment.md``
+    Issue B for full root-cause analysis.
+    """
+    import pathlib
+
+    real_mkdir = pathlib.Path.mkdir
+
+    def selectively_blocked_mkdir(self, *args, **kwargs):
+        # Only fail on the SessionManager default state path —
+        # other mkdir calls in the test stack (tmp_path setup, etc.)
+        # must continue to work normally.
+        if "sdd_framework" in self.as_posix():
+            raise PermissionError(
+                f"[Errno 13] Permission denied: '{self.as_posix()}'"
+            )
+        return real_mkdir(self, *args, **kwargs)
+
+    mcp = mcp_server.build_server()
+
+    # graph_rag and sdd_workflow are the two modules that
+    # default-construct ``SessionManager()`` during register().
+    # If the chown is missing, both fail; if the chown is in place,
+    # both register successfully (covered by
+    # ``test_initialize_degraded_mode_when_data_access_missing``).
+    # Here we explicitly inject the failure to verify the catch path.
+    failures: list[str] = []
+    with patch.object(
+        pathlib.Path, "mkdir", selectively_blocked_mkdir
+    ):
+        for module_name in ("graph_rag", "sdd_workflow"):
+            result = mcp_server._register_module(
+                mcp, module_name, data=None
+            )
+            if result.registered:
+                failures.append(
+                    f"{module_name} registered=True despite injected "
+                    f"PermissionError — _register_module did not catch it"
+                )
+            elif "Permission denied" not in (result.error or ""):
+                failures.append(
+                    f"{module_name} error did not surface the "
+                    f"PermissionError text; got: {result.error!r}"
+                )
+
+    assert not failures, "; ".join(failures)
+
+
 # ── initialize() end-to-end ──────────────────────────────────────────────
 
 

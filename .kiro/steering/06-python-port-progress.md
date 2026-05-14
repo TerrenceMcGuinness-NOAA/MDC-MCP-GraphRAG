@@ -6,6 +6,77 @@ Short-form progress log for the Python port of the Node.js MCP server
 port (`mcp_server_python/`) is validated module-by-module via parity
 tests before cutover.
 
+## 2026-05-14 — Phase C-2a: Issue B (chown) hot-fix deployed
+
+### Status
+
+- Phase C-1 surfaced 3 blockers; this update resolves the only one
+  the CLI could fix autonomously (**Issue B**).
+- Python staging runtime now reports **51/51 tools, 9/9 modules**
+  registered (was 33/51 before the fix).
+- `.kiro/settings/mcp.json` **untouched** — still points at the
+  Node.js runtime per the cutover-deferred decision.
+
+### Runtimes in play (unchanged from C-1, version updated)
+
+| Runtime | ID | Version | Image | Use |
+|---|---|---|---|---|
+| **Node.js (production)** | `mdc_mcp_rag_server-TMXDllG2Wi` | v10 | (unchanged) | **Issue A: data-plane unhealthy** — operator-side |
+| **Python (staging)** | `mdc_mcp_rag_server_python-v5K2F8BGrN` | **v4** | `python-all-tools-v2` | All 9 modules, 51 tools, `Data Access Layer: disabled` (Issue C still pending) |
+
+### What changed in this hot-fix
+
+Single-line Dockerfile change (`mcp_server_python/Dockerfile`):
+
+```dockerfile
+RUN groupadd --system --gid 1000 app \
+ && useradd  --system --uid 1000 --gid app --home /app app \
+ && chown -R app:app /app
+```
+
+Plus a regression test (`test_register_module_catches_session_manager_permission_error`)
+in `mcp_server_python/tests/unit/test_mcp_server.py` that simulates
+the production failure mode (monkey-patches `Path.mkdir` to raise
+`PermissionError` on `sdd_framework/` paths, asserts
+`_register_module` catches it cleanly for both `graph_rag` and
+`sdd_workflow`). Suite count: **689 passed** (was 688 at B11 baseline
+`e325e61`).
+
+### Deploy artifacts
+
+| Artifact | Value |
+|---|---|
+| Local image SHA | `sha256:63bd11f23ffa5131f786af52ac0169c28c18053d60d1b0c1ed30e6e49d6a946a` |
+| ECR manifest digest | `sha256:32763889d8bda4f1b317b1dfcf3a9cd7004ef7f7d79e4ae28f26d7db60e732f1` |
+| ECR tag (new) | `python-all-tools-v2` |
+| Rollback targets (preserved) | `python-utility-v1` (B4 baseline) and `python-all-tools-v1` (C-1, has chown bug) |
+| Deploy timestamp | 2026-05-14T17:42 UTC |
+| Smoke-test verification | proxy `get_server_info` → 51 tools, 9 active modules |
+| Health check | `HEALTHY (2/3 components healthy)` |
+
+### Still pending (operator-side, blocks cutover)
+
+- **Issue A — Node.js production runtime unhealthy**
+  (`mdc_mcp_rag_server-TMXDllG2Wi` v10). 732 health-check failures /
+  35 init-time-exceeded / 57 502s during the C-1 parity run. Either
+  needs restoration (operator + AgentCore admin) OR formal designation
+  of the Python staging runtime as the new reference.
+- **Issue C — VPC security group `sg-096489a0876cc78c1` does not
+  permit egress** to Neptune (8182) or OpenSearch (443) from the
+  AgentCore microVM. Pre-existing Phase 51b blocker; operator-side
+  AWS console / CDK action.
+
+When both are resolved, re-run the live parity suite (Phase C-2b)
+for the real comparison.
+
+### Reference
+
+- Full Phase C-1 assessment + Post-Fix Status section:
+  `docs/reports/2026-05-14-phase-c1-parity-assessment.md`
+- CHANGELOG: `[8.22.1]` (this hot-fix), `[8.22.0]` (C-1 deploy and
+  parity assessment).
+
+
 ## 2026-05-12 — Phase B4 + early B11 deployed (utility-only smoke test)
 
 ### Status

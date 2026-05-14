@@ -34,9 +34,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Non-root user per AgentCore guidance
+# Non-root user per AgentCore guidance.
+#
+# Phase C-1 hot-fix (Issue B from
+# docs/reports/2026-05-14-phase-c1-parity-assessment.md):
+# `WORKDIR /app` (above) creates `/app` owned by root. The runtime user
+# `app` then cannot write to `/app` itself — only to files copied with
+# `--chown=app:app`. That blocks `SessionManager._ensure_state_dir()`
+# from creating `/app/sdd_framework/execution_state/`, which causes
+# `graph_rag` and `sdd_workflow` register() calls to raise
+# PermissionError and surface as failed module registration on the
+# AgentCore container. The `chown -R app:app /app` line below makes
+# the WORKDIR fully writable for the runtime user, so all 9 modules
+# register cleanly. See `[8.22.1]` in CHANGELOG.md and the
+# Post-Fix Status section of the C-1 assessment.
 RUN groupadd --system --gid 1000 app \
- && useradd  --system --uid 1000 --gid app --home /app app
+ && useradd  --system --uid 1000 --gid app --home /app app \
+ && chown -R app:app /app
 
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/*.whl \
