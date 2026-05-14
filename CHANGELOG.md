@@ -1,5 +1,15 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 55 SDD draft (May 14, 2026)
+
+Drafted [sdd_framework/workflows/phase55_log_triage_tooling_gaps.md](sdd_framework/workflows/phase55_log_triage_tooling_gaps.md)
+consolidating 7 tool-quality gaps surfaced by the 2026-05-14 PR #4575
+log-triage exercise (G1 bash function modelling, G2 GitHub search filter,
+G3 `full_drift_scan` mode, G4 incident-report corpus + retrieval, G5
+`trace_execution_path.from_file` semantics, G6 `find_related_files`
+similarity floor, G7 bash `${VAR:-default}` env extraction). Status: In
+Progress. Origin evidence: [docs/log_reviews/PR4575_gcdas_fcst_seg0_failure_analysis.md](docs/log_reviews/PR4575_gcdas_fcst_seg0_failure_analysis.md).
+
 ## [8.5.0] - Phase 48 Local-First Doc Migration cutover (May 14, 2026)
 
 Replaces three URL crawls with on-disk submodule reads and adds the
