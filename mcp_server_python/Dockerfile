@@ -49,17 +49,26 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B10b deployment: boot with utility + semantic_search +
-# code_analysis + graph_rag + ee2_compliance + operational +
-# sdd_workflow + workflow_info modules registered (4 + 7 + 6 + 9 + 5
-# + 4 + 9 + 3 = 47 tools). The workflow_info module is intentionally
-# lightweight — pure-filesystem reads, no Neptune / OpenSearch
-# dependency. Catalogue tools (get_workflow_structure /
-# get_system_configs / describe_component) read the global-workflow
-# tree at MCP_WORKFLOW_ROOT (or HOMEgfs, or
-# supported_repos/global-workflow). On the AgentCore microVM where
-# that tree is not bind-mounted, get_workflow_structure still works
-# (the structure dict is fully static); the other two surface
-# helpful "file not found" + content-parameter hints. sdd_workflow
-# module retains the same data-access-free contract from B10a.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info"]
+#
+# Phase B11 deployment — feature-parity milestone. All 9 tool
+# modules are now ported (51 tools total: 4 + 7 + 6 + 9 + 5 + 4 +
+# 9 + 3 + 4 across utility, semantic_search, code_analysis,
+# graph_rag, ee2_compliance, operational, sdd_workflow,
+# workflow_info, and github_tools). Per-module degraded-mode
+# behaviour:
+#
+#   * utility, sdd_workflow, workflow_info — fully data-access-free;
+#     work with no Neptune/OpenSearch reachable.
+#   * semantic_search, code_analysis, graph_rag, ee2_compliance,
+#     operational — register successfully without the data layer
+#     and return [ERROR] markdown at call time when the layer is
+#     missing.
+#   * github_tools — also data-access-free; needs GITHUB_TOKEN at
+#     call time. Registration always succeeds; tool calls return
+#     "GitHub integration not available - no API access" when the
+#     token is unset.
+#
+# CMD lists all 9 modules explicitly so Docker history records the
+# full surface area; --modules can still be overridden at run time
+# for per-module deploy slices.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info,github_tools"]

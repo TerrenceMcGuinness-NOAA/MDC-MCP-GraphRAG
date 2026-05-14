@@ -141,23 +141,30 @@ def test_register_module_register_fn_raises():
 def test_initialize_degraded_mode_when_data_access_missing():
     """Without a backend_selector module, initialize() runs in degraded mode.
 
-    As of Phase B10b the ``utility``, ``semantic_search``,
-    ``code_analysis``, ``graph_rag``, ``ee2_compliance``,
-    ``operational``, ``sdd_workflow``, and ``workflow_info`` tool
-    modules are all ported and register successfully even without a
-    data-access layer — that is the point of the graceful-degrade
-    contract (Requirement 1.7). Only ``github_tools`` remains
-    unported.
+    As of Phase B11 ALL 9 tool modules are ported. Every module
+    registers successfully even without a data-access layer — that
+    is the point of the graceful-degrade contract (Requirement 1.7).
+    Per-module degraded-mode behaviour:
+
+    * ``utility`` / ``sdd_workflow`` / ``workflow_info`` — fully
+      data-access-free; work with no Neptune/OpenSearch reachable.
+    * ``semantic_search`` / ``code_analysis`` / ``graph_rag`` /
+      ``ee2_compliance`` / ``operational`` — register successfully
+      without the data layer and return ``[ERROR]`` markdown at
+      call time when the layer is missing.
+    * ``github_tools`` — also data-access-free; needs ``GITHUB_TOKEN``
+      at call time. Registration always succeeds; tool calls return
+      "GitHub integration not available - no API access" when the
+      token is unset.
+
+    There are no longer any "still-unported" modules — Phase B is
+    complete and the Python port has 51/51 tool parity with the
+    Node.js server.
     """
-    cfg = load_config(
-        env={
-            "MCP_ENABLED_MODULES": (
-                "semantic_search,utility,code_analysis,graph_rag,"
-                "ee2_compliance,operational,sdd_workflow,workflow_info,"
-                "github_tools"
-            )
-        },
-    )
+    # Use the canonical KNOWN_MODULES tuple to ensure every registered
+    # module is exercised; if a future port adds a module, this test
+    # picks it up automatically.
+    cfg = load_config(env={"MCP_ENABLED_MODULES": ",".join(KNOWN_MODULES)})
     mcp = mcp_server.build_server()
 
     async def _no_data(_cfg):
@@ -168,36 +175,19 @@ def test_initialize_degraded_mode_when_data_access_missing():
 
     assert data is None
     names = [r.name for r in results]
-    assert names == [
-        "semantic_search",
-        "utility",
-        "code_analysis",
-        "graph_rag",
-        "ee2_compliance",
-        "operational",
-        "sdd_workflow",
-        "workflow_info",
-        "github_tools",
-    ]
+    # All 9 modules in KNOWN_MODULES order.
+    assert names == list(KNOWN_MODULES)
     by_name = {r.name: r for r in results}
-    # github_tools is the only remaining unported module.
-    assert by_name["github_tools"].registered is False
-    assert "No module named" in (by_name["github_tools"].error or "")
-    # All other 8 modules register successfully in degraded mode.
-    for module_name in (
-        "utility",
-        "semantic_search",
-        "code_analysis",
-        "graph_rag",
-        "ee2_compliance",
-        "operational",
-        "sdd_workflow",
-        "workflow_info",
-    ):
+    # Every module registers successfully in degraded mode.
+    for module_name in KNOWN_MODULES:
         assert by_name[module_name].registered is True, (
-            f"{module_name} should register successfully in degraded mode"
+            f"{module_name} should register successfully in degraded "
+            f"mode (Phase B11 contract)"
         )
-        assert by_name[module_name].error is None
+        assert by_name[module_name].error is None, (
+            f"{module_name} surfaced unexpected error: "
+            f"{by_name[module_name].error}"
+        )
 
 
 def test_initialize_registers_modules_when_data_access_available():

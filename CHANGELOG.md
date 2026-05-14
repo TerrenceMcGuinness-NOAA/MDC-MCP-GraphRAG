@@ -1,5 +1,260 @@
 # MCP Server Changelog
 
+## [8.21.0] - Phase B11: GitHubTools Port — 51/51 FEATURE PARITY (May 14, 2026)
+
+### Milestone: Feature Parity with Node.js
+
+This release completes the Python port of every tool module. The
+Python runtime now registers **51 of 51 tools** across **all 9
+modules**, matching the Node.js production server one-for-one. Phase
+B (per-module porting) is complete.
+
+| Module | Tools | Phase |
+|--------|-------|-------|
+| `utility` | 4 | B11 (early) |
+| `semantic_search` | 7 | B5 |
+| `code_analysis` | 6 | B6 |
+| `graph_rag` | 9 | B7 |
+| `ee2_compliance` | 5 | B8 |
+| `operational` | 4 | B9 |
+| `sdd_workflow` | 9 | B10a |
+| `workflow_info` | 3 | B10b |
+| **`github_tools`** | **4** | **B11 (this release)** |
+| **Total** | **51** | |
+
+### Scope
+
+Task 16 from `.kiro/specs/python-mcp-server-port/tasks.md` — port
+the 4 Node.js GitHubTools to Python. All code under
+`mcp_server_python/`. No deployments, no ECR pushes, no changes to
+`mcp_server_node/` or the live AgentCore runtimes. The Python port
+now has feature parity; the next phase is Phase C (cutover +
+production deploy), not further per-module porting.
+
+### Tools Ported (`src/tools/github_tools.py`, 940 lines)
+
+All 4 tools; input schemas match
+`mcp_server_node/src/tools/GitHubTools.js` exactly (verified by
+two separate assertions — one in the unit-test module and a
+second in the parity module). The whole module is data-access-free
+— Neptune and OpenSearch are not consulted; `data=None` is fine
+at registration time.
+
+- `analyze_workflow_dependencies(component, analysis_type='all', include_external=False)` —
+  code-search-driven dependency analysis. Searches
+  `NOAA-EMC/global-workflow` for component references via
+  `/search/code` (with the `text-match` Accept variant for fragment
+  extraction), then renders four optional sections (Upstream /
+  Downstream / Circular / External) according to `analysis_type`.
+  `include_external=true` adds a cross-repo block looping over
+  `GSI`, `UFS_UTILS`, `GDASApp`, `wxflow` — the same external
+  repositories the Node.js source consults.
+
+- `search_issues(query, repository='global-workflow', state='open', labels=[])` —
+  wraps `/search/issues` with a `repo:NOAA-EMC/<repository>` prefix,
+  optional `state:` and `label:"<name>"` qualifiers, sorted by
+  `updated` desc, top 20.
+
+- `get_pull_requests(repository='global-workflow', state='open', limit=10)` —
+  wraps `/repos/NOAA-EMC/<repository>/pulls` sorted by `updated`
+  desc, capped at 50 (matching the Node.js `Math.min(limit, 50)`
+  behaviour).
+
+- `analyze_repository_structure(repositories=['global-workflow', 'GSI', 'UFS_UTILS'], analysis_depth='shallow')` —
+  multi-repo analysis. Per repo: metadata (description, language,
+  size, last update) + top-level directory listing.
+  `analysis_depth='deep'` adds an item-count breakdown for
+  `jobs / scripts / parm / src / sorc` when those directories exist.
+
+### HTTP Layer
+
+The module uses `httpx.AsyncClient` (already pinned in
+`pyproject.toml` from B1 — no new dependencies) instead of Octokit.
+A thin `_GitHubClient` wrapper:
+
+- Sends `Authorization: Bearer <token>`, `User-Agent:
+  global-workflow-mcp-server/2.0.0` (verbatim from Node.js for
+  parity), and `X-GitHub-Api-Version: 2022-11-28` on every request.
+- Tracks the most recent `X-RateLimit-Remaining` /
+  `X-RateLimit-Reset` headers across calls.
+- Raises a structured `GitHubAPIError` on non-2xx with the status
+  code and rate-limit metadata preserved for tool-level
+  classification.
+
+Tests inject a custom `httpx.AsyncClient` (with
+`httpx.MockTransport`) via the `http_client` keyword argument on
+`register()`, so unit tests run hermetically with no network.
+
+### Authentication (Requirement 11.4)
+
+Token sourcing precedence: explicit `register(...github_token=...)`
+arg → `GITHUB_TOKEN` env var. With neither set the module still
+registers (Requirement 1.7) but every tool returns a clear "GitHub
+integration not available - no API access" message at call time.
+The auth failure paths (`401`, `403` with `Remaining > 0`) surface
+as `[ERROR] GitHub authentication failed: HTTP <status>` rather
+than crashing; rate-limit exhaustion (`403` with `Remaining=0` or
+`X-RateLimit-Remaining=0` on a 200) prepends a `[WARN]` block with
+the reset timestamp.
+
+### Tests Added
+
+`tests/unit/test_github_tools.py` — 51 tests covering:
+
+- 4-tool registration parity (names, parameter sets, required
+  fields, state enums on `search_issues` and `get_pull_requests`,
+  `analysis_type` enum on `analyze_workflow_dependencies`,
+  `analysis_depth` enum on `analyze_repository_structure`,
+  `include_external` default, `repository` defaults,
+  `pull_requests.limit` default).
+- Module registers in degraded mode (no token); every tool returns
+  the "no API access" message at call time. Token-from-env
+  precedence verified.
+- `search_issues` happy path with full filter assembly: state
+  qualifier, multiple labels, default vs override repository, `state=all`
+  omits the qualifier, zero-results friendly message.
+- `get_pull_requests` happy path with branch arrow rendering, limit
+  cap at 50, `state=closed` empty-result message.
+- `analyze_workflow_dependencies`: all sections rendered with
+  default `analysis_type='all'`, upstream-only filter, `include_external`
+  loops over the 4 external repos and surfaces them.
+- `analyze_repository_structure`: shallow default with metadata +
+  directory listing, default repos trio invocation
+  (3 repos × 2 endpoints = 6 requests), deep branch with 5 key
+  directories where missing dirs are skipped.
+- Auth / rate-limit handling: `401` → `[ERROR]`, `403` with
+  `Remaining=0` → `[WARN]` rate-limit block, `403` with
+  `Remaining>0` → `[ERROR]` auth-failure (matches Node.js
+  classification), `X-RateLimit-Remaining=0` on a 200 still
+  short-circuits friendly empty-result text.
+- HTTP-header verification: `Authorization: Bearer ...`,
+  `User-Agent: global-workflow-mcp-server/2.0.0`,
+  `X-GitHub-Api-Version: 2022-11-28`, `Accept: application/vnd.github+json`.
+- Pure-function helpers: `_resolve_token` (4 cases including empty-
+  string-as-missing), `_build_issue_search_query` (2 cases),
+  `_extract_upstream_dependencies` (parity-correct ordering: pattern-1
+  `import \w+` matches `import gamma` inside `from beta import
+  gamma` before pattern-2 captures `beta`), `_truncate` (3 cases),
+  `_fmt_iso_to_date` (3), `_fmt_unix_to_iso` (2).
+- `GitHubAPIError` classification: 4 cases for `is_auth_failure` /
+  `is_rate_limited` (403+remaining → auth, 403+0 → rate, 401 →
+  auth, 500 → neither).
+
+`tests/parity/test_github_tools_parity.py` — 7 hermetic + 20 live
+cases (5 per tool × 4 tools, gated on `RUN_PARITY=1` AND
+`GITHUB_TOKEN`):
+
+- Catalogue coverage: exactly 5 cases per tool, 20 cases total
+  (the spec-mandated minimum).
+- Schema parity against the authoritative Node.js source — params,
+  required, defaults, enums for every tool.
+- Framework PASS / FAIL sanity (matching issue-number set passes;
+  missing issue trips SET_EQUALITY).
+- Extractor unit tests: `_extract_issue_numbers` (`#N` regex),
+  `_extract_pr_numbers` (alias), `_extract_dependency_names`
+  (Upstream/Downstream/External bullet scoping),
+  `_extract_top_level_dirs` (multi-repo `**Top-level directories**`
+  flatten).
+- Per-tool live cases:
+  - `search_issues` — 5 SET_EQUALITY cases on issue numbers
+    (forecast-all, build-open, config-closed, rocoto-bug-label,
+    wcoss2-default-repo).
+  - `get_pull_requests` — 5 SET_EQUALITY cases on PR numbers
+    (default, closed-5, all-20, GSI-default, UFS_UTILS-open).
+  - `analyze_workflow_dependencies` — 5 SET_EQUALITY cases on
+    dependency names (jgfs-forecast, enkf-anal-upstream,
+    exgfs-fcst-downstream, config-fcst-all,
+    atmos-post-include-external).
+  - `analyze_repository_structure` — 5 SET_EQUALITY cases on
+    top-level dirs (default-trio, single-global-workflow, GSI-deep,
+    UFS_UTILS-shallow, multi-deep).
+
+### Dockerfile CMD
+
+Now lists all 9 modules explicitly:
+`utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info,github_tools`
+— 51 tools total. Comment block rewritten to remove the "unported
+modules" caveat and document per-module degraded-mode behaviour
+across three categories: fully data-access-free (utility,
+sdd_workflow, workflow_info), `[ERROR]`-on-missing-data
+(semantic_search, code_analysis, graph_rag, ee2_compliance,
+operational), token-required (github_tools).
+
+### `test_mcp_server.py` Fixture Cleanup
+
+`test_initialize_degraded_mode_when_data_access_missing` no longer
+maintains an unported-module placeholder. The fixture now uses the
+canonical `KNOWN_MODULES` tuple directly so future module additions
+are picked up automatically. Every module is asserted to register
+successfully in degraded mode — there is no longer a single
+exception in the suite.
+
+### Verification
+
+Local pytest run (no AWS credentials, no GITHUB_TOKEN required):
+
+- Unit tests: **656 passed** (was 605 B10b baseline + 51 new
+  github_tools).
+- Hermetic parity tests: 7 new (5 framework/extractor + schema
+  parity + catalogue coverage).
+- Live parity cases: 20 skipped by default (enable with
+  `RUN_PARITY=1 GITHUB_TOKEN=... NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
+- Full suite: **688 passed, 209 skipped, 0 failed** (B10b 630 →
+  B11 688, +58).
+
+### Iteration Notes
+
+1. The Node.js port uses `@octokit/rest` whereas this Python port
+   uses `httpx.AsyncClient` directly. Octokit's rate-limit and
+   pagination conveniences are not needed for these 4 tools — the
+   raw REST API is straightforward and avoids pulling in another
+   dependency. Header parity (User-Agent, X-GitHub-Api-Version,
+   Authorization Bearer) is preserved exactly.
+
+2. The Node.js source has a register-signature side-channel: it
+   reads `process.env.GITHUB_TOKEN` in the constructor when no
+   explicit token is passed. The Python port mirrors the same
+   precedence in `_resolve_token` so callers behave identically
+   under `mcp_server._register_module(mcp, name, data)`.
+
+3. The `_extract_upstream_dependencies` regex set produces a
+   superset of the Node.js result for any given input —
+   specifically, `import \w+` matches `import gamma` inside the
+   line `from beta import gamma`. Both runtimes produce the same
+   final dependency set because the Node.js caller dedupes via a
+   `Set`; the Python port dedupes via `dict.fromkeys` at the
+   helper level. The order in which deps are first seen differs
+   between the two implementations but the *set* (which is what
+   the rendering and parity tests check) is identical.
+
+4. The `register()` signature kept `data` as a positional kwarg
+   (with `del data` to flag intent) instead of dropping it as the
+   spec proposed. This preserves the uniform contract that
+   `mcp_server._register_module(mcp, name, data)` invokes —
+   changing the signature for one module would have rippled into
+   the registration plumbing.
+
+### Phase B Complete — Next Steps
+
+With this release Phase B (per-module porting) is finished. The
+Python port has 51/51 tool parity with the Node.js server and a
+complete unit + parity test suite (688 passing tests, 209 live
+parity cases gated on AWS + GitHub credentials).
+
+Phase C (production cutover) is the next milestone:
+
+- Rebuild + push the AgentCore staging container with all 9
+  modules.
+- Run the live parity suite end-to-end against both runtimes.
+- Cut over `.kiro/settings/mcp.json` from the Node.js runtime to
+  the Python runtime once parity is green.
+- Retire the Node.js production runtime once the Python port has
+  served traffic for the agreed observation window.
+
+That work is outside the scope of this CHANGELOG entry — it lives
+in the deployment SDD spec.
+
+
 ## [8.20.0] - Phase B10b: WorkflowInfoTools Port (May 14, 2026)
 
 ### Scope
