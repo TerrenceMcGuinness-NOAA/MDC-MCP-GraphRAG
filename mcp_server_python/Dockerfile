@@ -49,14 +49,17 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B10 deployment: boot with utility + semantic_search + code_analysis
-# + graph_rag + ee2_compliance + operational + sdd_workflow modules
-# registered (4 + 7 + 6 + 9 + 5 + 4 + 9 = 44 tools). The sdd_workflow
-# module is data-access-free — its session lifecycle tools delegate to
-# the file-backed SessionManager (state under sdd_framework/execution_state)
-# and validate_sdd_compliance is pure-content. The workflow catalogue
-# tools (list_sdd_workflows / get_sdd_workflow) read from
-# sdd_framework/workflows/ on disk; on the AgentCore microVM where that
-# tree is not bind-mounted they degrade with an [INFO] block. Operational
-# module retains the same content-abstraction contract from B9.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow"]
+# Phase B10b deployment: boot with utility + semantic_search +
+# code_analysis + graph_rag + ee2_compliance + operational +
+# sdd_workflow + workflow_info modules registered (4 + 7 + 6 + 9 + 5
+# + 4 + 9 + 3 = 47 tools). The workflow_info module is intentionally
+# lightweight — pure-filesystem reads, no Neptune / OpenSearch
+# dependency. Catalogue tools (get_workflow_structure /
+# get_system_configs / describe_component) read the global-workflow
+# tree at MCP_WORKFLOW_ROOT (or HOMEgfs, or
+# supported_repos/global-workflow). On the AgentCore microVM where
+# that tree is not bind-mounted, get_workflow_structure still works
+# (the structure dict is fully static); the other two surface
+# helpful "file not found" + content-parameter hints. sdd_workflow
+# module retains the same data-access-free contract from B10a.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info"]

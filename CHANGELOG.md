@@ -1,5 +1,212 @@
 # MCP Server Changelog
 
+## [8.20.0] - Phase B10b: WorkflowInfoTools Port (May 14, 2026)
+
+### Scope
+
+Task 15 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 3
+Node.js WorkflowInfoTools to Python. All code under
+`mcp_server_python/`. No deployments, no ECR pushes, no changes to
+`mcp_server_node/` or the live AgentCore runtimes. The Python staging
+runtime now registers 47 of 51 tools (4 + 7 + 6 + 9 + 5 + 4 + 9 + 3
+across 8 ported modules); 4 tools remain in `github_tools`.
+
+### Tools Ported (`src/tools/workflow_info.py`, 712 lines)
+
+All 3 tools; input schemas match
+`mcp_server_node/src/tools/WorkflowInfoTools.js` exactly (verified by
+two separate assertions — one in the unit-test module and a second
+in the parity module). The whole module is data-access-free —
+`register(mcp, data, *, workflow_root=None)` ignores `data` and
+operates entirely on local filesystem reads.
+
+- `get_workflow_structure(component?, structure_data?)` — pure-static
+  rendering of the global-workflow layout (jobs / scripts / parm /
+  ush / sorc / env / docs). The `_STATIC_STRUCTURE` dict is ported
+  byte-for-byte from the Node.js source so the rendered text
+  matches under parity. `component={one of the seven}` focuses on a
+  single section; `structure_data` (object) overrides the default
+  dict for hosted callers driving the rendering with pre-computed
+  data. The component enum is `['jobs', 'scripts', 'parm', 'ush',
+  'sorc', 'docs', 'env']` (no `'all'`; omit the parameter for the
+  full overview).
+
+- `get_system_configs(platform?, config_type?, content?)` — read
+  per-platform HPC environment from disk. With `platform=hera|hercules
+  |orion|wcoss2|gaea` reads `{workflow_root}/env/{PLATFORM}.env` and
+  surfaces the first 2 KB inline. Note: the `gaea` enum value
+  preserves Node.js parity — there's no `GAEA.env` on disk (the
+  actual filename is `GAEAC6.env`) so the tool surfaces a
+  "Environment file not found" hint. With `platform="all"` or
+  `platform` omitted lists every `*.env` file. `content=...`
+  bypasses the filesystem entirely. `config_type=modules|resources
+  |paths|all` adds appendix blocks (`all` includes every block).
+
+- `describe_component(component, show_content?, content?, file_type?)` —
+  locate a component in the workflow tree by searching 12 priority-
+  ordered paths. The Phase 27A `dev/` layout takes precedence over
+  the legacy `jobs/scripts/ush/parm` paths. For files: surfaces
+  type, size, optional first-50-line preview when
+  `show_content=true`. For directories: surfaces the first-20-entry
+  contents listing. Caller-provided `content` bypasses the
+  filesystem (with `file_type` as a type hint) and triggers
+  language inference (Python / Bash/Shell / Unknown) plus a
+  Description / PURPOSE / Synopsis line extraction. The not-found
+  branch lists every searched path plus a `content=` hint.
+
+### Workflow-Root Resolution
+
+The constructor arg overrides everything; if absent it consults
+`MCP_WORKFLOW_ROOT` env var, then `HOMEgfs` env var, then
+`supported_repos/global-workflow` (the Node.js fallback). Same
+precedence order as the Node.js port.
+
+### Degraded-Mode Contract (Requirement 1.7)
+
+The whole module is data-access-free — `data=None` is fine for every
+tool. When the workflow_root is missing on the AgentCore microVM:
+
+- `get_workflow_structure` works fully (the structure is static).
+- `get_system_configs` returns "Could not read env directory" when
+  no platform / content is supplied; with `content=...` it works
+  with no filesystem at all.
+- `describe_component` returns the standard "Component not found" +
+  searched-paths + content-parameter hint; with `content=...` it
+  bypasses the filesystem entirely.
+
+### Tests Added
+
+`tests/unit/test_workflow_info_tools.py` — 46 tests covering:
+
+- 3-tool registration parity (names, parameter sets, required
+  fields, all 4 enum schemas: component / platform / config_type /
+  file_type).
+- Schema parity per tool: `get_workflow_structure.component` enum
+  matches the 7 component values, `get_system_configs.platform`
+  enum matches the 6 platform values, `get_system_configs.config_type`
+  enum matches the 4 values, `describe_component.file_type` enum
+  matches the 2 values, `describe_component.show_content` default
+  is False.
+- Module registers in degraded mode (`data=None`); every tool still
+  responds — including `get_workflow_structure` which works without
+  any filesystem at all.
+- `get_workflow_structure`: full overview rendering (each component
+  rendered as `### key/` heading), focused-component path with
+  Description / Pattern / Subdirectories / Platforms / Note fields,
+  caller-supplied `structure_data` override.
+- `get_system_configs`: per-platform filesystem read (HERA env
+  surfaces, code fenced), `gaea` produces "file not found" hint
+  (mirrors the on-disk `GAEAC6.env` reality), all-platforms listing
+  enumerates every `*.env` file, `content=` bypass, 2 KB content
+  truncation, `config_type` block routing (modules / resources /
+  paths / all), missing env_dir message.
+- `describe_component` filesystem search: dev/jobs priority over
+  legacy paths, dev/scripts, legacy `ush/` fallback, directory
+  listing with first-20 entries, `show_content=True` preview,
+  not-found path lists all 12 searched paths plus content hint.
+- `describe_component` content-driven mode: Python language
+  detection from imports, Bash language detection from shebang,
+  no-shebang → "Unknown" language, 150-line content truncates to
+  50 with "100 more lines" footer.
+- `_resolve_workflow_root` precedence: explicit arg > MCP_WORKFLOW_ROOT
+  > HOMEgfs > DEFAULT_WORKFLOW_ROOT.
+- Pure-function helpers: `_detect_language` (4 cases),
+  `_find_purpose_line` (4 cases), `_describe_search_paths` priority
+  order verification (12 paths), `_abbrev_path` replacement.
+
+`tests/parity/test_workflow_info_parity.py` — 8 hermetic + 15 live
+cases (gated on `RUN_PARITY=1`):
+
+- Catalogue coverage: 5 cases per tool, 15 cases total.
+- Schema parity against the authoritative Node.js source — params,
+  required, defaults, enums for every tool.
+- Framework PASS / FAIL sanity (matching component-listing set
+  passes; missing component trips SET_EQUALITY).
+- Extractor unit tests: `_extract_component_listing` (filters to
+  known component slugs + Component:Name focus form),
+  `_extract_directory_entries` (`- name` bullets scoped to the
+  Files/Directories block), `_extract_summary_block` (bold field
+  labels for Path / Type / Size / Language / Lines).
+- Per-tool live cases:
+  - `get_workflow_structure` — 5 SET_EQUALITY cases (full overview,
+    focus jobs / env / sorc / ush).
+  - `get_system_configs` — 5 SET_EQUALITY cases on H2 headings
+    (list-all, hera, wcoss2-modules, orion-all-config, paths-only).
+  - `describe_component` — 5 cases: 3 SET_EQUALITY on directory
+    entries (JGFS_FORECAST, ush, env), 2 EXACT on the summary
+    block (exgfs_forecast.sh with show_content=True, hermetic
+    content-driven Python).
+
+### Dockerfile CMD
+
+Changed from `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow`
+(B10a baseline, 44 tools) to
+`--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info`
+(47 tools: 4 + 7 + 6 + 9 + 5 + 4 + 9 + 3). Comment block rewritten
+to document the workflow_info module's pure-filesystem contract and
+the AgentCore microVM degraded-mode behaviour.
+
+### `test_mcp_server.py` Fixture Swap
+
+`test_initialize_degraded_mode_when_data_access_missing` updated:
+
+- Unported fixture swapped from `workflow_info` (B10a) to
+  `github_tools` (the only remaining unported module).
+- `workflow_info` added to the list of modules asserted to register
+  successfully in degraded mode.
+- Module whitelist now covers 8 ported + 1 unported = 9 modules
+  (the complete list).
+
+### Verification
+
+Local pytest run (no AWS credentials required):
+
+- Unit tests: 605 passed (was 559 B10a baseline + 46 new
+  workflow_info).
+- Hermetic parity tests: 8 new (5 framework/extractor + schema
+  parity + catalogue coverage).
+- Live parity cases: 15 skipped by default (enable with
+  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
+- Full suite: **630 passed, 189 skipped, 0 failed** (B10a baseline
+  576 → B10b 630, +54).
+
+### Iteration Notes
+
+1. The Node.js `getWorkflowStructure` source code does NOT read the
+   filesystem despite a stale unit-test in
+   `mcp_server_node/src/__tests__/WorkflowInfoTools.test.js`
+   asserting `JGLOBAL_FORECAST` content under the jobs component.
+   The static structure dict is the source of truth on both
+   runtimes; the stale test is unrelated to this port.
+
+2. `get_workflow_structure` ignores unknown component values and
+   falls back to the full overview rendering. FastMCP's Pydantic
+   layer enforces the Literal enum, so unknown values cannot reach
+   the handler via the tool layer — this is an improvement over
+   Node.js. The fallback path is still tested against the
+   `_tool_get_workflow_structure` helper directly so the behaviour
+   is explicitly preserved at the implementation level.
+
+3. The `gaea` platform value preserves Node.js parity even though
+   `GAEA.env` doesn't exist on disk (the actual filename is
+   `GAEAC6.env`). The tool surfaces a "Environment file not found"
+   hint exactly like the Node.js port. Adding `gaeac6` to the
+   schema would diverge from the Node.js public contract.
+
+4. The `structure_data` parameter accepts any JSON object shape
+   (FastMCP renders it as `dict[str, Any] | None`). The Node.js
+   handler does no validation either; both runtimes simply iterate
+   `Object.entries(structure_data)` and render whatever's there.
+   Tests cover the override path with both the focused-component
+   and full-overview rendering branches.
+
+### Next Phase
+
+Task 16 (Phase B11 — `github_tools`, 4 tools) is the final
+remaining module. Once that lands, the Python runtime registers
+all 51 tools and Phase B (per-module porting) is complete.
+
+
 ## [8.19.0] - Phase B10: SDDWorkflowTools Port (May 14, 2026)
 
 ### Scope
