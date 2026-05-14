@@ -13,10 +13,13 @@
 FROM node:20-slim
 
 # Install required tools for node-gyp (needed for some npm packages)
+# git is required by SemanticSearchTools git-aware staleness check (Phase 43a)
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && git config --system --add safe.directory '*'
 
 WORKDIR /app
 

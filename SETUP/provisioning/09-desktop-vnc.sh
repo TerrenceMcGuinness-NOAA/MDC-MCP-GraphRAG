@@ -273,6 +273,21 @@ logging:
 EOFKASM
     chown "${username}:${user_group}" "${vnc_dir}/kasmvnc.yaml"
     chmod 644 "${vnc_dir}/kasmvnc.yaml"
+
+    # Seed ~/.kasmpasswd so KasmVNC does not prompt on first start.
+    # Even with -disableBasicAuth, the Perl wrapper (TextUI.pm) prompts the user
+    # to "Create a new user with write access" when this file is absent, which
+    # hangs the systemd unit indefinitely. Pre-create with a default password
+    # (write+owner perms). Users can rotate it later with `kasmvncpasswd -u <user>`.
+    local kasmpasswd="${user_home}/.kasmpasswd"
+    if [[ ! -f "${kasmpasswd}" ]] && command -v kasmvncpasswd &>/dev/null; then
+        local default_pw="${KASMVNC_DEFAULT_PASSWORD:-mcp2025vnc}"
+        if su - "${username}" -c "echo -e '${default_pw}\n${default_pw}\n' | kasmvncpasswd -u '${username}' -wo '${kasmpasswd}'" &>/dev/null; then
+            log_info "Seeded ${kasmpasswd} (default password set; rotate with: kasmvncpasswd -u ${username})"
+        else
+            log_warning "Failed to seed ${kasmpasswd} for ${username}; service may hang awaiting interactive input"
+        fi
+    fi
 }
 
 install_kasmvnc_systemd_template() {
@@ -282,7 +297,7 @@ install_kasmvnc_systemd_template() {
 
     cat > /etc/systemd/system/kasmvnc@.service << 'EOF'
 [Unit]
-Description=KasmVNC (TigerVNC) Server for user %i
+Description=KasmVNC Server for user %i
 After=network.target
 
 [Service]
@@ -299,8 +314,13 @@ Environment=DEPTH=24
 
 EnvironmentFile=-/etc/kasmvnc/%i.conf
 
+# Flags must match ~/bin/vnc-start.sh:
+#   -disableBasicAuth : skip basic auth (still requires ~/.kasmpasswd to exist)
+#   -sslOnly 0        : allow plain HTTP (PW nginx wrapper expects this)
+#   -extension GLX    : backup NVIDIA EGL crash prevention
+#   -fg               : foreground (required for Type=simple)
 ExecStartPre=-/usr/bin/vncserver -kill ${VNCDISPLAY}
-ExecStart=/usr/bin/vncserver ${VNCDISPLAY} -geometry ${GEOMETRY} -depth ${DEPTH} -fg
+ExecStart=/usr/bin/vncserver ${VNCDISPLAY} -geometry ${GEOMETRY} -depth ${DEPTH} -disableBasicAuth -sslOnly 0 -extension GLX -fg
 ExecStop=/usr/bin/vncserver -kill ${VNCDISPLAY}
 
 Restart=on-failure
