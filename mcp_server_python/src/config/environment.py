@@ -3,14 +3,26 @@
 Single point of truth for environment variables consumed by the Python
 MCP server. Mirrors ``mcp_server_node/src/config/environment.js`` but
 adds the ``DB_BACKEND`` routing knob described in Requirement 1.8.
+
+Phase C-2c (Bedrock-native embedding swap) adds the
+``MCP_EMBEDDING_PROFILE`` env var (Requirement 7). The value is
+validated against
+:meth:`src.data.embedding_registry.EmbeddingModelRegistry.list_profiles`
+and surfaces as :pyattr:`ServerConfig.embedding_profile`. Selecting
+``mpnet768`` emits a one-shot ``[WARN]`` log line (Requirement 7.4)
+calling out that the legacy parity-debug fallback is active and that
+sentence-transformers is not installed in the runtime image.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 
 from .aws_config import DEFAULT_AWS_REGION, DEFAULT_HOST, DEFAULT_PORT
+
+log = logging.getLogger(__name__)
 
 # Modules that can be selectively enabled via ``MCP_ENABLED_MODULES`` or the
 # ``--modules`` CLI flag (Requirement 18.3). Kept here rather than in
@@ -48,6 +60,10 @@ class ServerConfig:
         OpenSearch HTTPS endpoint. Required when ``db_backend == "aws"``.
     aws_region
         AWS region used for SigV4 signing. Defaults to ``us-east-1``.
+    embedding_profile
+        Active embedding-model alias resolved from
+        ``MCP_EMBEDDING_PROFILE`` (Requirement 7). Defaults to
+        ``"titan1024"`` (the Phase 52 production target).
     github_token
         Optional token for the GitHubTools module (Requirement 11.4).
         ``None`` disables the module in degraded mode.
@@ -66,6 +82,7 @@ class ServerConfig:
     neptune_endpoint: str = ""
     opensearch_endpoint: str = ""
     aws_region: str = DEFAULT_AWS_REGION
+    embedding_profile: str = "titan1024"
     github_token: str | None = None
     sdd_state_dir: str = "sdd_framework/execution_state"
     host: str = DEFAULT_HOST
@@ -133,6 +150,65 @@ def _parse_modules(raw: str | None) -> tuple[str, ...]:
     return names
 
 
+# ── MCP_EMBEDDING_PROFILE parsing (Requirement 7) ───────────────────────
+
+
+# Module-level guard so the ``mpnet768`` warn line emits at most once
+# per process even if ``load_config`` is called repeatedly (e.g. by
+# tests that explicitly pass ``env=...``). Reset by tests via the
+# ``_reset_embedding_warn`` helper below.
+_MPNET_WARN_EMITTED: bool = False
+
+
+def _reset_embedding_warn() -> None:
+    """Reset the one-shot ``mpnet768`` warn guard.
+
+    Test-only helper; production code never calls this.
+    """
+    global _MPNET_WARN_EMITTED
+    _MPNET_WARN_EMITTED = False
+
+
+def _parse_embedding_profile(raw: str | None) -> str:
+    """Resolve ``MCP_EMBEDDING_PROFILE`` against the registry.
+
+    Defaults to ``"titan1024"`` when unset; raises :class:`ConfigError`
+    listing the six accepted profile names when set to anything not
+    registered with :class:`EmbeddingModelRegistry` (Requirement 7.3).
+    """
+    # Late import keeps ``environment.py`` importable in test contexts
+    # that don't want to pull in the registry (e.g. config-only tests).
+    from src.data.embedding_registry import EmbeddingModelRegistry
+
+    accepted = EmbeddingModelRegistry().list_profiles()
+    if not raw:
+        return "titan1024"
+    value = raw.strip()
+    if value not in accepted:
+        raise ConfigError(
+            f"MCP_EMBEDDING_PROFILE must be one of {accepted}, got {value!r}"
+        )
+    return value
+
+
+def _maybe_emit_mpnet_warn(profile: str) -> None:
+    """Emit the one-shot ``[WARN]`` log line on ``mpnet768``
+    (Requirement 7.4).
+
+    Guarded by :data:`_MPNET_WARN_EMITTED` so the line is emitted at
+    most once per process — repeated ``load_config`` calls are safe.
+    """
+    global _MPNET_WARN_EMITTED
+    if profile != "mpnet768" or _MPNET_WARN_EMITTED:
+        return
+    log.warning(
+        "[WARN] MCP_EMBEDDING_PROFILE=mpnet768 — legacy parity-debug "
+        "fallback active; sentence-transformers is not installed in "
+        "this image"
+    )
+    _MPNET_WARN_EMITTED = True
+
+
 def load_config(
     env: dict[str, str] | None = None,
     *,
@@ -164,6 +240,12 @@ def load_config(
             f"DB_BACKEND must be one of {VALID_BACKENDS}, got {backend!r}"
         )
 
+    # Parse + validate the embedding profile *before* the warn line so a
+    # ``ConfigError`` short-circuits the process before any warn fires
+    # (Requirement 7.4 — guard against unrelated warn noise on bad input).
+    embedding_profile = _parse_embedding_profile(source.get("MCP_EMBEDDING_PROFILE"))
+    _maybe_emit_mpnet_warn(embedding_profile)
+
     modules = (
         enabled_modules
         if enabled_modules is not None
@@ -176,6 +258,7 @@ def load_config(
         opensearch_endpoint=source.get("OPENSEARCH_ENDPOINT", "").strip(),
         aws_region=source.get("AWS_REGION", DEFAULT_AWS_REGION).strip()
         or DEFAULT_AWS_REGION,
+        embedding_profile=embedding_profile,
         github_token=(source.get("GITHUB_TOKEN") or None),
         sdd_state_dir=source.get("SDD_STATE_DIR", "sdd_framework/execution_state"),
         host=source.get("HOST", DEFAULT_HOST).strip() or DEFAULT_HOST,

@@ -14,7 +14,18 @@ Implements Requirements 2.1 – 2.7:
   (R2.5).
 * Exponential-backoff retry (1s → 2s → 4s, max 3 retries) on HTTP 429
   and 5xx (R2.6).
-* MPNet-768 default, configurable via ``embedding_function`` (R2.7).
+* Pluggable embedding via :class:`src.data.embedding_provider.EmbeddingProvider`,
+  defaulting to Bedrock Titan Embed Text V2 via
+  :data:`MCP_EMBEDDING_PROFILE=titan1024` (R2.7, Phase C-2c).
+
+Phase C-2c (Bedrock-native embedding swap) replaces the prior
+``sentence-transformers/all-mpnet-base-v2`` default with a
+:func:`src.data.embedding_provider.create_provider`-resolved provider
+selected by ``MCP_EMBEDDING_PROFILE``. The runtime image no longer
+ships ``sentence-transformers``, ``torch``, or ``transformers`` —
+selecting the legacy ``mpnet768`` profile in this image surfaces a
+clean ``OpenSearchQueryError`` from the first ``_generate_embedding``
+call (Requirement 9.3).
 
 The sync ``opensearch-py`` client is run in a worker thread so the
 adapter stays non-blocking when awaited from FastMCP handlers.
@@ -24,11 +35,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import random
 import time
 from typing import Any, Callable
 
 from src.config.aws_config import DEFAULT_AWS_REGION, resolve_index
+from src.data.embedding_provider import (
+    EmbeddingError,
+    EmbeddingProvider,
+    create_provider,
+)
+from src.data.embedding_registry import EmbeddingModelRegistry, ModelProfile
 
 log = logging.getLogger(__name__)
 
@@ -69,9 +87,15 @@ class OpenSearchAdapter:
         AWS region for SigV4 signing. Defaults to :data:`DEFAULT_AWS_REGION`.
     embedding_function
         Optional callable ``list[str] -> list[list[float]]`` used to
-        generate query-time embeddings. When unset the adapter falls
-        back to the Node.js-compatible ``all-mpnet-base-v2`` model, via
-        a lazy ``sentence-transformers`` import.
+        generate query-time embeddings. When unset the adapter resolves
+        the active embedding profile from ``MCP_EMBEDDING_PROFILE``
+        (default ``"titan1024"``) and builds the matching
+        :class:`src.data.embedding_provider.EmbeddingProvider`. If the
+        provider's constructor raises :class:`EmbeddingError` (e.g.
+        ``mpnet768`` in this image), the error is captured and surfaces
+        from the first :meth:`_generate_embedding` call as
+        :class:`OpenSearchQueryError` with ``status=None`` so MCP tool
+        handlers see a structured error.
     """
 
     def __init__(
@@ -89,6 +113,29 @@ class OpenSearchAdapter:
         self._endpoint = endpoint
         self._region = region
         self._embedding_function = embedding_function
+
+        # Always resolve the active profile so ``query`` can route to
+        # the matching ``mdc-{domain}-{profile}`` index, even when an
+        # ``embedding_function`` override is supplied (the index map is
+        # tied to the profile, not to the embedding source).
+        profile_name = os.getenv("MCP_EMBEDDING_PROFILE", "titan1024")
+        self._profile: ModelProfile = (
+            EmbeddingModelRegistry().get_profile(profile_name)
+        )
+
+        # Build the provider only when no explicit override was supplied.
+        # Catch ``EmbeddingError`` from the provider's constructor (e.g.
+        # ``LocalProvider`` import fail) so the error surfaces from the
+        # first ``_generate_embedding`` call rather than aborting
+        # adapter construction (Requirement 5.3, 9.3).
+        self._provider: EmbeddingProvider | None = None
+        self._provider_error: EmbeddingError | None = None
+        if embedding_function is None:
+            try:
+                self._provider = create_provider(self._profile)
+            except EmbeddingError as exc:
+                self._provider_error = exc
+
         self._client = None  # type: ignore[assignment]
         self._connected = False
         self._metrics: dict[str, Any] = {
@@ -138,7 +185,9 @@ class OpenSearchAdapter:
         if not 1 <= k <= 1000:
             raise ValueError(f"k must be between 1 and 1000, got {k}")
 
-        index = resolve_index(collection)
+        # Route to the index whose vector dimensionality matches the
+        # active embedding profile (Requirement 8.1, 5.3 of design).
+        index = resolve_index(collection, self._profile.short_name)
         embedding = await self._generate_embedding(query_text)
         body = self._build_hybrid_query(query_text, embedding, k, where)
 
@@ -308,36 +357,40 @@ class OpenSearchAdapter:
                 filters.append({"term": {field: value}})
         return filters
 
-    # ── embeddings (R2.7) ───────────────────────────────────────────────
+    # ── embeddings (R2.7, Phase C-2c) ───────────────────────────────────
 
     async def _generate_embedding(self, query_text: str) -> list[float]:
         """Return a dense-vector embedding for ``query_text``.
 
-        Uses ``self._embedding_function`` when set; otherwise falls back
-        to a lazy ``sentence-transformers`` MPNet-768 model.
+        Uses ``self._embedding_function`` when set; otherwise delegates
+        to the active provider built from ``MCP_EMBEDDING_PROFILE``.
+        Translates :class:`EmbeddingError` (raised by the provider, or
+        captured at adapter-construction time) into
+        :class:`OpenSearchQueryError` with ``status=None`` so MCP tool
+        handlers surface a structured error (Requirement 9.3).
         """
-        if self._embedding_function is not None:
-            embeddings = await asyncio.to_thread(
-                self._embedding_function, [query_text]
+        # If provider construction failed (e.g. ``mpnet768`` ``LocalProvider``
+        # import failure), surface the deferred error here on the first
+        # call rather than at adapter-construction time.
+        if self._provider_error is not None:
+            raise OpenSearchQueryError(
+                str(self._provider_error), status=None
+            ) from self._provider_error
+
+        fn = self._embedding_function or (
+            self._provider.embed if self._provider is not None else None
+        )
+        if fn is None:  # pragma: no cover — defense in depth
+            raise OpenSearchQueryError(
+                "OpenSearchAdapter: no embedding provider configured",
+                status=None,
             )
-            return list(embeddings[0])
 
-        return await self._default_mpnet_embedding(query_text)
-
-    async def _default_mpnet_embedding(self, text: str) -> list[float]:
-        """Lazy-load ``all-mpnet-base-v2`` and produce a 768-dim vector.
-
-        Kept in its own method so test doubles can stub it without
-        triggering the model download.
-        """
-        from sentence_transformers import SentenceTransformer  # type: ignore
-
-        def _embed() -> list[float]:
-            model = _mpnet_model()
-            vec = model.encode([text], normalize_embeddings=True)[0]
-            return vec.tolist() if hasattr(vec, "tolist") else list(vec)
-
-        return await asyncio.to_thread(_embed)
+        try:
+            embeddings = await asyncio.to_thread(fn, [query_text])
+        except EmbeddingError as exc:
+            raise OpenSearchQueryError(str(exc), status=None) from exc
+        return list(embeddings[0])
 
     # ── retry wrapper (R2.6) ────────────────────────────────────────────
 
@@ -435,19 +488,6 @@ class OpenSearchAdapter:
 
 
 # ── module-level helpers ────────────────────────────────────────────────
-
-
-_MPNET: Any | None = None
-
-
-def _mpnet_model() -> Any:
-    """Return a cached MPNet-768 encoder (shared across calls)."""
-    global _MPNET
-    if _MPNET is None:
-        from sentence_transformers import SentenceTransformer  # type: ignore
-
-        _MPNET = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
-    return _MPNET
 
 
 def _status_of(exc: BaseException) -> int | None:

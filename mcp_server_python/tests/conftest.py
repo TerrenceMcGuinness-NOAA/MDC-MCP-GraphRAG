@@ -507,6 +507,88 @@ def monotonic_wall_clock() -> Callable[[], float]:
     return time.monotonic
 
 
+# ── embedding provider fixtures (Phase C-2c, Req 11.6) ─────────────────
+
+
+class MockBedrockProvider:
+    """In-memory stand-in for
+    :class:`src.data.embedding_provider.BedrockProvider`.
+
+    Emits zero-vectors of length ``profile.dimensions`` without
+    touching boto3 or AWS. Used by ``OpenSearchAdapter`` tests after
+    the Phase C-2c swap so the same fixture works for ``titan1024``
+    (1024-dim) and any other profile (Nova at 256/512/1024/3072).
+
+    The class deliberately does not subclass ``BedrockProvider`` —
+    that would force a boto3 client construction at ``__init__``.
+    Duck-typing satisfies the
+    :class:`src.data.embedding_provider.EmbeddingProvider` protocol
+    everywhere the adapter touches.
+    """
+
+    def __init__(self, profile: Any) -> None:
+        self._profile = profile
+        self.calls: list[list[str]] = []
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(list(texts))
+        return [[0.0] * self._profile.dimensions for _ in texts]
+
+    @property
+    def dimensions(self) -> int:
+        return self._profile.dimensions
+
+
+@pytest.fixture()
+def mock_bedrock_provider() -> Callable[[Any], MockBedrockProvider]:
+    """Factory that builds a :class:`MockBedrockProvider` for a profile.
+
+    Tests that just want the provider object call this with the
+    profile they need. The ``OpenSearchAdapter`` does not consume the
+    profile from the provider directly, but the dimension comes from
+    the profile so the zero-vector matches the expected length.
+    """
+
+    def _build(profile: Any) -> MockBedrockProvider:
+        return MockBedrockProvider(profile)
+
+    return _build
+
+
+@pytest.fixture()
+def bedrock_provider_factory(monkeypatch: pytest.MonkeyPatch):
+    """Patch :func:`create_provider` to yield a :class:`MockBedrockProvider`.
+
+    Patches the import-bound name in
+    :mod:`src.data.opensearch_adapter` so the ``OpenSearchAdapter``
+    constructor pulls the mock provider for any profile, replacing
+    the real Bedrock client construction. Returns the patch handle so
+    individual tests can also pre-seed canned vectors via
+    :pyattr:`MockBedrockProvider.calls` introspection.
+
+    Notes
+    -----
+    Phase C-2c (Bedrock-native embedding swap) retires the prior
+    mpnet-stub fixtures that injected
+    ``embedding_function=lambda xs: [[0.0]*768 for _ in xs]`` into
+    ``OpenSearchAdapter``. The dimension is now derived from the
+    active profile (``profile.dimensions``) so the same fixture
+    works for ``titan1024`` (1024-dim) and the Nova family.
+    """
+    built: list[MockBedrockProvider] = []
+
+    def _factory(profile: Any) -> MockBedrockProvider:
+        provider = MockBedrockProvider(profile)
+        built.append(provider)
+        return provider
+
+    monkeypatch.setattr(
+        "src.data.opensearch_adapter.create_provider", _factory
+    )
+
+    return built
+
+
 # ── re-export everything tests might want to import ─────────────────────
 
 __all__ = [
@@ -515,6 +597,7 @@ __all__ = [
     "MockVectorDB",
     "MockGraphDB",
     "MockUnifiedDataAccess",
+    "MockBedrockProvider",
     "FakeClock",
     "make_deterministic_id_factory",
     "build_mock_tool_caller",

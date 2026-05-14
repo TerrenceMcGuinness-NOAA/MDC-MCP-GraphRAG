@@ -1,0 +1,161 @@
+{
+  "sessionId": "session_2026-05-14_phase_c2c",
+  "phase": "bedrock-native-embedding-swap-tasks-1-5",
+  "status": "awaiting_deploy_phase",
+  "startedAt": "2026-05-14T21:35:00.000Z",
+  "lastActivityAt": "2026-05-14T22:00:00.000Z",
+  "completedAt": "2026-05-14T22:00:00.000Z",
+  "totalSteps": 14,
+  "notes": "Phase C-2c (Bedrock-native embedding swap) — code-only foundation. Implements Tasks 1.1–5.5 (waves 0–8 of tasks.md): embedding_registry, embedding_provider (BedrockProvider + LocalProvider + create_provider factory), profile-aware aws_config resolver, MCP_EMBEDDING_PROFILE env var with one-shot warn, OpenSearchAdapter rewrite to drop sentence-transformers. Tasks 6–12 (deps verification, integration test, build, push, deploy, live validation, documentation, commit) are deferred to the next session. CHANGELOG entry [8.22.3] also deferred to Task 11.2. Full pytest suite: 832 passed (716 baseline + 116 new), 0 failed, 209 skipped (all skipped are RUN_PARITY=1-gated parity tests).",
+  "completedSteps": [
+    {
+      "step": 1,
+      "name": "Task 1.1 — Implement src/data/embedding_registry.py",
+      "tag": "implement",
+      "completedAt": "2026-05-14T21:38:00.000Z",
+      "notes": "Ported ModelProfile dataclass + EmbeddingModelRegistry singleton from mcp_server_node/scripts/embedding_registry.py. Six built-in profiles (mpnet768, titan1024, nova256, nova512, nova1024, nova3072) with verbatim model_id/provider/dimensions/provider_params. Default = titan1024 (vs mpnet768 in Node.js, per Requirement 1.3). 208 lines."
+    },
+    {
+      "step": 2,
+      "name": "Task 1.2 — Unit tests for the registry",
+      "tag": "validate",
+      "completedAt": "2026-05-14T21:40:00.000Z",
+      "notes": "Created tests/unit/test_embedding_registry.py with 17 tests covering profile lookup hits for all six built-ins, miss raises KeyError listing all registered names, get_default() returns titan1024, list_profiles() returns six names, register() round-trip, frozen dataclass behavior, singleton identity. All pass."
+    },
+    {
+      "step": 3,
+      "name": "Task 2.1 — Scaffold src/data/embedding_provider.py",
+      "tag": "implement",
+      "completedAt": "2026-05-14T21:43:00.000Z",
+      "notes": "EmbeddingError(RuntimeError), EmbeddingProvider ABC (embed + dimensions), BedrockProvider/LocalProvider classes, create_provider factory. Factory dispatches on profile.provider — bedrock/local/ValueError."
+    },
+    {
+      "step": 4,
+      "name": "Task 2.2 — BedrockProvider request body + response parsing",
+      "tag": "implement",
+      "completedAt": "2026-05-14T21:46:00.000Z",
+      "notes": "_build_body branches on 'nova' in model_id: Titan body = {inputText: text, **provider_params}; Nova body = full nova-multimodal-embed-v1 schema with embeddingDimension from profile.dimensions. _parse_response handles both response shapes. invoke_model uses contentType+accept=application/json. Vector length asserted against profile.dimensions."
+    },
+    {
+      "step": 5,
+      "name": "Task 2.3 — BedrockProvider retry/backoff",
+      "tag": "implement",
+      "completedAt": "2026-05-14T21:48:00.000Z",
+      "notes": "4-attempt loop with time.sleep(1.0/2.0/4.0) before attempts 2/3/4. _is_retryable inspects ClientError response['Error']['Code'] against {ThrottlingException, TooManyRequestsException, ServiceUnavailableException, InternalServerException} and HTTPStatusCode against {429,500,502,503,504}; falls back to duck-typed status_code/status. On exhaustion, raises EmbeddingError carrying model_id and the chained underlying exception."
+    },
+    {
+      "step": 6,
+      "name": "Task 2.4 — LocalProvider import-fail behavior",
+      "tag": "implement",
+      "completedAt": "2026-05-14T21:50:00.000Z",
+      "notes": "__init__ tries `import sentence_transformers`; on ImportError emits one [ERROR] log line + stderr line identifying mpnet768 profile, then raises EmbeddingError('sentence-transformers is not installed in the runtime image; mpnet768 is parity-debug-only on this runtime'). embed() body kept as stub raising EmbeddingError for parity with Node.js port."
+    },
+    {
+      "step": 7,
+      "name": "Task 2.5 — Unit tests for BedrockProvider request body shape",
+      "tag": "validate",
+      "completedAt": "2026-05-14T21:54:00.000Z",
+      "notes": "Created tests/unit/test_bedrock_provider.py with 12 tests covering AWS_REGION env var honored (defaults to us-east-1), Titan body has inputText + merged provider_params, Nova body has multimodal schema with right embeddingDimension for all four Nova profiles, one invoke_model call per text, response parsing for Titan vs Nova, dimensions property, dimension-mismatch raises EmbeddingError. All pass."
+    },
+    {
+      "step": 8,
+      "name": "Task 2.6 — Unit tests for retry schedule and LocalProvider",
+      "tag": "validate",
+      "completedAt": "2026-05-14T21:57:00.000Z",
+      "notes": "Created tests/unit/test_bedrock_provider_retry.py (11 tests via parametrize: three throttles then success → [1.0,2.0,4.0] sleep schedule, each retryable code retried, each retryable HTTP status retried, ValidationException + AccessDeniedException not retried, four failed attempts raise single EmbeddingError carrying model_id and chained __cause__) and tests/unit/test_local_provider.py (3 tests: construction raises EmbeddingError when dependency missing, exactly one [ERROR] log line emitted, EmbeddingError chains underlying ImportError). All 14 pass."
+    },
+    {
+      "step": 9,
+      "name": "Task 3.1 — Replace PRODUCTION_INDICES with profile-keyed structure",
+      "tag": "implement",
+      "completedAt": "2026-05-14T22:00:00.000Z",
+      "notes": "Removed module-level PRODUCTION_INDICES constant from src/config/aws_config.py. Added PRODUCTION_INDICES_BY_PROFILE: dict[str, dict[str, str]] with titan1024 map (five mdc-{domain}-titan1024 indices) + mpnet768 map (preserved prior values). get_production_indices(profile_short_name) returns inner map or {} for unregistered profiles (Nova family). Updated src/config/__init__.py to export new symbols (PRODUCTION_INDICES_BY_PROFILE, get_production_indices) and remove the old PRODUCTION_INDICES export."
+    },
+    {
+      "step": 10,
+      "name": "Task 3.2 — Extend resolve_index for profile routing",
+      "tag": "implement",
+      "completedAt": "2026-05-14T22:01:00.000Z",
+      "notes": "resolve_index signature: resolve_index(collection, profile_short_name='titan1024'). Default titan1024 preserves backward compatibility — single-arg callers automatically pick up the new production indices. Returns mapped index when both profile + collection registered, else collection unchanged."
+    },
+    {
+      "step": 11,
+      "name": "Task 3.3 — Unit tests for resolver routing",
+      "tag": "validate",
+      "completedAt": "2026-05-14T22:03:00.000Z",
+      "notes": "Created tests/unit/test_aws_config_resolver.py (41 tests) covering all five known collections under titan1024 + mpnet768, unknown-collection passthrough for both, all four Nova profiles (nova256/512/1024/3072) returning collection name unchanged, single-arg form defaults to titan1024, get_production_indices contents."
+    },
+    {
+      "step": 12,
+      "name": "Task 4.1 — Parse and validate MCP_EMBEDDING_PROFILE in environment.py",
+      "tag": "implement",
+      "completedAt": "2026-05-14T22:05:00.000Z",
+      "notes": "Added embedding_profile: str = 'titan1024' field to ServerConfig. _parse_embedding_profile() reads MCP_EMBEDDING_PROFILE, defaults to titan1024 when unset, validates against EmbeddingModelRegistry().list_profiles(); on bad value raises ConfigError listing all six accepted names. load_config now parses + validates the profile and threads it into ServerConfig."
+    },
+    {
+      "step": 13,
+      "name": "Task 4.2 — Emit one-shot [WARN] log line on mpnet768",
+      "tag": "implement",
+      "completedAt": "2026-05-14T22:06:00.000Z",
+      "notes": "_maybe_emit_mpnet_warn() guarded by module-level _MPNET_WARN_EMITTED flag so the line is emitted at most once per process. ConfigError short-circuits before any warn fires (validation runs first). _reset_embedding_warn() helper exposed for tests."
+    },
+    {
+      "step": 14,
+      "name": "Task 4.3 — Unit tests for env var parsing",
+      "tag": "validate",
+      "completedAt": "2026-05-14T22:08:00.000Z",
+      "notes": "Created tests/unit/test_environment_embedding_profile.py (18 tests via parametrize) covering unset → titan1024, empty string → titan1024, all six accepted values preserved, bogus value raises ConfigError listing all six accepted names, ConfigError short-circuits before any warn, mpnet768 emits exactly one [WARN] line per process across repeated load_config calls, titan1024 + Nova profiles do not warn, ServerConfig.embedding_profile field shape. All 49 environment tests pass (31 existing + 18 new)."
+    },
+    {
+      "step": 15,
+      "name": "Task 5.1 — Drop sentence-transformers default and _mpnet_model cache",
+      "tag": "implement",
+      "completedAt": "2026-05-14T22:10:00.000Z",
+      "notes": "Rewrote src/data/opensearch_adapter.py. Removed: lazy `from sentence_transformers import SentenceTransformer`, _default_mpnet_embedding method, module-level _MPNET cache + _mpnet_model() helper. No remaining sentence_transformers import at module load — verified via tests/unit/test_opensearch_adapter_embedding.py::test_module_does_not_import_sentence_transformers_at_load."
+    },
+    {
+      "step": 16,
+      "name": "Task 5.2 — Resolve provider in __init__ and rewrite _generate_embedding",
+      "tag": "implement",
+      "completedAt": "2026-05-14T22:11:00.000Z",
+      "notes": "OpenSearchAdapter.__init__ now resolves the profile via EmbeddingModelRegistry().get_profile(MCP_EMBEDDING_PROFILE, default titan1024) and stores self._profile. When embedding_function is not supplied, builds self._provider via create_provider(self._profile) inside a try/except that captures EmbeddingError on self._provider_error. _generate_embedding raises OpenSearchQueryError(status=None) for either the captured construction error or any EmbeddingError from provider.embed; otherwise calls asyncio.to_thread(fn, [query_text]) and returns embeddings[0]."
+    },
+    {
+      "step": 17,
+      "name": "Task 5.3 — Pass active profile through to resolve_index in query",
+      "tag": "implement",
+      "completedAt": "2026-05-14T22:12:00.000Z",
+      "notes": "OpenSearchAdapter.query now calls resolve_index(collection, self._profile.short_name) so a titan1024 query vector hits a titan1024 index. Hybrid BM25+kNN body, SigV4 transport, _search_with_retry, _format_hits all unchanged. multi_collection_query forwards through query() so it inherits the same routing."
+    },
+    {
+      "step": 18,
+      "name": "Task 5.4 — Update tests/conftest.py fixtures",
+      "tag": "validate",
+      "completedAt": "2026-05-14T22:14:00.000Z",
+      "notes": "Added MockBedrockProvider class (duck-typed EmbeddingProvider that returns [[0.0] * profile.dimensions] without touching boto3). Added bedrock_provider_factory fixture that monkey-patches src.data.opensearch_adapter.create_provider so OpenSearchAdapter constructor pulls the mock provider for any profile. Added mock_bedrock_provider factory fixture. No prior mpnet stubs to retire — search confirmed no existing test injected embedding_function=lambda."
+    },
+    {
+      "step": 19,
+      "name": "Task 5.5 — Create tests/unit/test_opensearch_adapter_embedding.py",
+      "tag": "validate",
+      "completedAt": "2026-05-14T22:18:00.000Z",
+      "notes": "Created tests/unit/test_opensearch_adapter_embedding.py (12 tests via parametrize) covering: module does not load sentence_transformers / does not expose _default_mpnet_embedding / _mpnet_model / _MPNET / SentenceTransformer; _generate_embedding returns first vector from provider.embed; active profile drives vector length for titan1024 + all four Nova profiles; EmbeddingError from provider becomes OpenSearchQueryError(status=None); MCP_EMBEDDING_PROFILE=mpnet768 + masked sentence_transformers → LocalProvider error captured at __init__ and surfaces as OpenSearchQueryError on first _generate_embedding; explicit embedding_function override skips provider construction; unset env var defaults to titan1024; query() passes self._profile.short_name to resolve_index. All pass."
+    },
+    {
+      "step": 20,
+      "name": "Run full pytest suite — confirm baseline + new tests pass",
+      "tag": "validate",
+      "completedAt": "2026-05-14T22:20:00.000Z",
+      "notes": "Full suite: 832 passed (716 baseline + 116 new), 0 failed, 209 skipped (all RUN_PARITY=1-gated). Per-file new test counts: test_embedding_registry.py 17 + test_bedrock_provider.py 12 + test_bedrock_provider_retry.py 11 + test_local_provider.py 3 + test_aws_config_resolver.py 41 + test_environment_embedding_profile.py 20 + test_opensearch_adapter_embedding.py 12 = 116."
+    }
+  ],
+  "deferredTasks": [
+    "Task 6 — Container deps verification (pyproject.toml runtime deps)",
+    "Task 7 — Integration test gated on RUN_INTEGRATION (real Bedrock smoke test)",
+    "Task 8 — Pre-deploy validation checkpoint",
+    "Task 9 — Build, push, deploy python-titan-v1 image to ECR + update-agent-runtime",
+    "Task 10 — Live validation against staging runtime (4 MCP tool calls)",
+    "Task 11 — Documentation: phase report, [8.22.3] CHANGELOG entry, steering update",
+    "Task 12 — Final checkpoint and single commit on develop_aws"
+  ]
+}
