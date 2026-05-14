@@ -1,5 +1,118 @@
 # MCP Server Changelog
 
+## [8.22.0] - Phase C-1: Task 25.3 Live Parity — assessment-only (May 14, 2026)
+
+### Scope
+
+Task 25.3 from `.kiro/specs/python-mcp-server-port/tasks.md` — run the
+full live-parity suite against both runtimes and generate the final
+parity report. Combined with the deploy mechanics from Task 25.1
+(build + ECR push + staging runtime rotation). **Task 25.2 (cutover)
+is explicitly deferred to Phase C-2** pending resolution of three
+blockers surfaced by this run.
+
+### Deploy mechanics — completed
+
+| Action | Outcome |
+|--------|---------|
+| Build all-modules ARM64 image | `sha256:f9f33e1a8e5f2ea204ff366a7e68bad4a7bbe19532fe58f9b7554b1a640a5914` |
+| ECR push as `python-all-tools-v1` | manifest digest `sha256:7f5878e0ff089c86f32ef31091c5a6acbe3e62f3ca3a756171a0a807ca626242` |
+| Rollback target preserved | `python-utility-v1` (unchanged) |
+| Staging runtime rotation `mdc_mcp_rag_server_python-v5K2F8BGrN` | v2 → v3, status READY on first poll |
+
+### Parity run — completed
+
+`RUN_PARITY=1 GITHUB_TOKEN=... NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...
+pytest tests/parity/` ran end-to-end (30 m 54 s, 273 cases including
+hermetic):
+
+- Hermetic tests: **64/64 pass** (unchanged from B11 baseline at
+  `e325e61`).
+- Live cases: **0/209 pass** — every divergence caused by Node.js
+  production runtime returning `RuntimeClientError` (init / health /
+  502) before the Python side could be compared.
+
+### Three blockers surfaced — none in the Python port
+
+1. **Node.js production runtime is unhealthy** (`mdc_mcp_rag_server-TMXDllG2Wi`
+   v10). 732 health-check failures, 35 init-time-exceeded errors,
+   57 502s logged. Matches the Phase 56 cold-start regression but worse
+   — init exceeds the 120 s AgentCore platform limit, leaving the
+   container in a state where health checks never recover. **No baseline
+   to compare against.**
+2. **Python staging registers only 7/9 modules** (33 of 51 tools).
+   `graph_rag` and `sdd_workflow` fail to register because both
+   instantiate a default `SessionManager()`, whose `_ensure_state_dir`
+   tries to mkdir `/app/sdd_framework/execution_state`. The Dockerfile
+   `WORKDIR /app` directive creates `/app` as root-owned; the runtime
+   user `app` cannot write to it. **Real port bug, fixable in the
+   Dockerfile** (chown WORKDIR after creating user, or set
+   `SDD_STATE_DIR=/var/sdd_state` to a pre-chowned path).
+3. **Python staging has no data layer** — the VPC security group
+   `sg-096489a0876cc78c1` does not permit egress to Neptune (8182) or
+   OpenSearch (443). Pre-existing Phase 51b blocker, not new to this
+   release. `mcp_health_check` reports `Data Access Layer: disabled`.
+
+The Python staging runtime ITSELF responded correctly on every
+successfully-registered tool — the divergences were caused by Node.js
+failing first (Issue 1) or by the missing data layer (Issue 3) producing
+expected degraded-mode responses on the Python side that the Node.js
+side could not contrast against because of Issue 1.
+
+### Rate-limit data (per the user's refinement)
+
+GitHub API rate-limit buckets were **untouched** (5000/5000 core,
+30/30 search, 10/10 code_search) before and after the run. The
+github_tools live cases all failed at the Node.js side before either
+runtime made a real GitHub API call. Rate-limit was NOT a confounding
+factor for any divergence.
+
+### Recommendation
+
+**Cutover (Task 25.2) deferred.** All three blockers must be resolved
+before a meaningful parity comparison is possible. Sequencing:
+
+1. Operator to investigate / restore Node.js runtime
+   `mdc_mcp_rag_server-TMXDllG2Wi` (or formally designate Python
+   staging as the new reference once 2 + 3 are fixed).
+2. Apply the Dockerfile fix for the SessionManager `/app` permissions
+   issue, rebuild as `python-all-tools-v2`, push, rotate.
+3. Resolve the VPC SG egress (Neptune 8182, OpenSearch 443) on
+   `sg-096489a0876cc78c1`.
+4. Re-run this exact parity suite as Phase C-2; at that point the
+   assessment can become a real parity report rather than a
+   ground-truth-unavailable diagnostic.
+
+The hermetic test suite (688 passing tests at `e325e61`) remains
+unaffected and is sufficient for code-only work in the meantime.
+
+### Files added
+
+- `docs/reports/2026-05-14-phase-c1-parity-assessment.md` — 331-line
+  full assessment, including step-by-step outcomes, per-issue root
+  cause + remediation, per-module pass/fail breakdown, sample
+  divergence shapes, rate-limit pre/post tables, and rollback
+  command.
+
+### SDD session
+
+`session_2026-05-14_python-mcp-server-port-c1-deploy-and-parity`
+ended with status `awaiting_cutover_approval`. No changes to
+`.kiro/settings/mcp.json`; the legacy MCP gateway remains the active
+target for Kiro.
+
+### Spec acceptance
+
+- ✅ Task 25.1 build/push/deploy mechanics: **verified end-to-end**.
+- ✅ Task 25.3 acceptance ("Run full parity test suite" + "Generate
+  final parity report"): **complete** (the report is the artifact;
+  it is a clear-eyed diagnostic rather than a parity-clean report,
+  but that is what the data dictated).
+- ⏸️ Task 25.2 (cutover): **explicitly deferred** to Phase C-2.
+
+Validates Requirements: 13.3, 13.5, 13.7, 18.1, 18.2, 18.3, 18.5.
+
+
 ## [8.21.0] - Phase B11: GitHubTools Port — 51/51 FEATURE PARITY (May 14, 2026)
 
 ### Milestone: Feature Parity with Node.js
