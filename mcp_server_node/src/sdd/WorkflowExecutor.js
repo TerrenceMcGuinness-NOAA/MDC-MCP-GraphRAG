@@ -562,7 +562,7 @@ export class WorkflowExecutor {
         scripts.push({
           name: 'ingest_documentation',
           script: 'ingest_documentation_v8.py',
-          collection: 'global-workflow-docs-v8-0-0'
+          collection: 'global-workflow-docs-v8-2-0'
         });
       }
       

@@ -1,5 +1,127 @@
 # MCP Server Changelog
 
+## [8.5.0] - Phase 48 Local-First Doc Migration cutover (May 14, 2026)
+
+Replaces three URL crawls with on-disk submodule reads and adds the
+`global-workflow.wiki` as net-new coverage. Live docs collection promoted
+from `global-workflow-docs-v8-1-0` (20,511 chunks) to
+**`global-workflow-docs-v8-2-0` (23,624 chunks, +3,113 net)**.
+
+### New collection (live)
+- `global-workflow-docs-v8-2-0`: clone of v8-1-0 with deprecated URL chunks
+  filtered out (517 skipped: `global-workflow`=219, `ecflow`=298, `rocoto`=0)
+  + 3,630 local-source chunks added in a single pass:
+  - `global-workflow-local`: 21 .rst files → **259 chunks**
+  - `rocoto-local`: 3 markdown + 7 roff manpages → **83 chunks**
+    (manpages rendered via `groff -mandoc -Tutf8`)
+  - `ecflow-local`: 393 .rst files (8 empty skipped) → **1,529 chunks**
+  - `global-workflow-wiki`: 108 markdown files → **1,759 chunks**
+    (net-new, never URL-crawled before)
+- Each chunk carries `source_type=local`, `submodule`, `submodule_commit`,
+  and repo-relative `file_path` for drift detection.
+
+### SPOT changes
+- `scripts/documentation_sources_config.py`:
+  added `LOCAL_DOCUMENTATION_SOURCES` (4 entries) +
+  `get_all_local_sources`, `get_local_source`,
+  `get_url_names_replaced_by_local`, `is_local_source` helpers.
+  Flipped `enabled: False` on URL entries `global-workflow`, `rocoto`,
+  `ecflow` with `SUPERSEDED by *-local (Phase 48)` descriptions.
+- New `scripts/lib/doc_parsers.py` registry: `sphinx_rst`, `markdown`,
+  `wiki_markdown` (handles `[[Page-Name|Display]]` linkrot), `plain_text`,
+  `yaml`, plus an extension-override dispatch to `parse_roff_man_file` for
+  `.1/.2/.3/.5/.7/.8` manpages.
+- New `scripts/ingest_local_docs_v8.py`: walks `paths` lists, dispatches via
+  `PARSER_REGISTRY` + `EXTENSION_OVERRIDES`, dedupes by SHA256-of-content,
+  upserts in batches of 100. Metadata schema includes both `source_name` and
+  `source` alias for back-compat with existing JS query patterns.
+- New `scripts/clone_collection_v8_1_to_v8_2.py`: pages v8-1-0 in batches of
+  500, drops chunks whose `source` ∈ deprecated set, upserts kept rows
+  (ids + docs + embeddings + metadatas) into v8-2-0 created with the
+  matching MPNet `SentenceTransformerEmbeddingFunction` so the persisted
+  embedding-fn config matches the local-ingest pass.
+
+### Live tool cutover (only `global-workflow-docs` collection — `jjobs-v8-1-0` unchanged)
+- `src/data/UnifiedDataAccess.js`: default + multi-source list +
+  module-doc query path → `v8-2-0`.
+- `src/data/VectorDatabase.js`: preferred-collections list → `v8-2-0`.
+- `src/tools/SemanticSearchTools.js`: tool description + status query path
+  → `v8-2-0`.
+- `src/sdd/WorkflowExecutor.js`: ingestion script registry → `v8-2-0`.
+- `src/__tests__/SemanticSearchTools.test.js`: fixture collection name +
+  count (23,624) updated; **12/12 tests pass** via `run_unit_tests`.
+- Docker image `eib-mcp-rag:latest` rebuilt; managed gateway recycled
+  (`systemctl restart mcp-rag mcp-gateway`); container healthy on new image.
+- Validated end-to-end: `get_knowledge_base_status` shows v8-2-0 at 23,624;
+  three `search_documentation` probes (`setup_expt.py`, `rocoto dryrun`,
+  `ecflow trigger expressions`) return chunks marked
+  `Source: global-workflow-local|rocoto-local|ecflow-local|global-workflow-wiki`;
+  `check_knowledge_integrity` — all four checks PASS.
+
+### Deferred (require explicit confirmation)
+- Drop legacy `global-workflow-docs-v8-1-0` and `phase48-scratch` collections.
+- Drop legacy `global-workflow-docs-v8-0-0` and `jjobs-v8-0-0`.
+- GraphRAG / `code-with-context` re-ingest.
+
+## [8.4.1] - Phase 48 SDD promoted to v1.0.0 (May 14, 2026)
+
+Doc-only change; no runtime code touched.
+
+- `sdd_framework/workflows/phase48_local_first_doc_migration.md`:
+  bumped header `0.1.0 DRAFT → 1.0.0`, status `Planned → In Progress`,
+  added `Updated:` line, removed DRAFT NOTICE blockquote.
+- §2.1 / §2.2 `paths` / `extensions` columns LOCKED against working tree
+  (Step 48-1 discovery): `global-workflow/docs/` (21 .rst), `rocoto/`
+  (3 root .md + `man/`), `ECFLOW/ecflow/docs/` (398 .rst),
+  `global-workflow.wiki/` (108 .md, flat).
+- §2.1 baseline column populated from direct ChromaDB v2 query against
+  `global-workflow-docs-v8-1-0`: `global-workflow`=219, `rocoto`=0,
+  `ecflow`=298 chunks. Rocoto URL crawl returns nothing — local migration
+  is **net new coverage**, not just a quality bump.
+- §2.2 scope locked: `global-workflow-wiki` IN; `evs-docs`,
+  `mcp-gateway-docs`, `parallel-works-mcp-docs` DEFERRED to v1.x.
+- §3.1 `LOCAL_DOCUMENTATION_SOURCES` skeleton fleshed out with concrete
+  entries for all 4 in-scope sources.
+- §4 Step 48-4 acceptance now carries projected chunk yields (~2865 total
+  local-source chunks vs 517 today, **+2348 net**).
+- §4 Step 48-5 target collection name LOCKED: `global-workflow-docs-v8-2-0`.
+- §5 validation table `Before` column populated from v8-1-0; `After` column
+  derived from §4 projections.
+- §8 Finalization Checklist: 5 of 6 items checked; only `start_sdd_session`
+  registration remains (kicks off when implementation begins).
+
+## [8.4.0] - v8-1-0 Documentation & J-Job Re-Ingest Cutover (May 14, 2026)
+
+Re-ingested both documentation and J-Job ChromaDB collections from current
+sources and flipped all live-tool references from `v8-0-0` to `v8-1-0`.
+The `code-with-context-v8-0-0` collection is intentionally **not** part of
+this cutover — GraphRAG re-ingest is tracked separately.
+
+### New collections (live)
+- `global-workflow-docs-v8-1-0`: 40 sources, 1,641 docs, **20,511 chunks** added (0 errors).
+- `jjobs-v8-1-0`: 92/92 J-Jobs, **859 documents** (was 700 in v8-0-0).
+
+### Cutover (docs + jjobs only — code-with-context untouched)
+- **SPOT defaults**: `documentation_sources_config.py`, `ingest_documentation_v8.py`,
+  `ingest_jjobs_v8.py`, `ingest_phase46_curl_crawler.py`, `link-nceplibs-chromadb.py`.
+- **Live tool code**: `UnifiedDataAccess.js` (default + multi-source list +
+  module-doc query), `VectorDatabase.js` (preferred-collections list),
+  `SemanticSearchTools.js` (tool description + status query path),
+  `OperationalTools.js` (J-Job lookup paths, doc-count message updated to 859),
+  `WorkflowExecutor.js` (ingestion script registry).
+- **Test fixture**: `__tests__/SemanticSearchTools.test.js` updated to v8-1-0
+  (12/12 tests pass via `run_unit_tests`).
+- **Docker image** `eib-mcp-rag:latest` rebuilt; gateway containers cycled so
+  the new code is served. Validated end-to-end via
+  `get_knowledge_base_status`, `search_documentation` (returns
+  `collection: global-workflow-docs-v8-1-0`), and `check_knowledge_integrity`
+  (all four checks PASS).
+
+### Deferred (require explicit confirmation)
+- Drop legacy `global-workflow-docs-v8-0-0` and `jjobs-v8-0-0` collections.
+- GraphRAG / `code-with-context` re-ingest.
+- Promote SDD Phase 48 (local-first doc migration) draft to v1.0.0.
+
 ## [8.3.0] - SDD Phase 53: Gateway Tool Quality Remediation (May 2, 2026)
 
 Fixes the 10 reproducible tool-output defects (D1–D10) catalogued in

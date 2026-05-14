@@ -81,7 +81,7 @@ export class UnifiedDataAccess {
     }
 
     const {
-      collection = 'global-workflow-docs-v8-0-0',  // v8.0.0: MPNet embeddings
+      collection = 'global-workflow-docs-v8-2-0',  // Phase 48: local-first docs (clone of v8-1-0 minus URL crawls + local submodules + wiki)
       nResults = 10,
       includeGraphContext = true,
       includeDependencies = true,
@@ -353,8 +353,8 @@ export class UnifiedDataAccess {
     }
 
     const {
-      // v8.0.0 for docs + jjobs, v5.0.0 for EE2 (all MPNet embeddings)
-      collections = ['global-workflow-docs-v8-0-0', 'jjobs-v8-0-0', 'ee2-standards-v5-0-0-enhanced'],
+      // v8.1.0 for docs + jjobs, v5.0.0 for EE2 (all MPNet embeddings)
+      collections = ['global-workflow-docs-v8-2-0', 'jjobs-v8-1-0', 'ee2-standards-v5-0-0-enhanced'],
       nResults = 10,
       enrichWithGraph = true
     } = options;
@@ -433,7 +433,7 @@ export class UnifiedDataAccess {
         // Search for documentation about these modules
         const docQuery = moduleNames.slice(0, 3).join(' ');
         documentation = await this.vectorDB.query(
-          'global-workflow-docs-v8-0-0',  // v8.0.0: MPNet embeddings
+          'global-workflow-docs-v8-2-0',  // Phase 48: local-first docs
           docQuery,
           { nResults: 5 }
         );

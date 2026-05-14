@@ -92,7 +92,7 @@ describe('SemanticSearchTools', () => {
       const result = await tools.searchDocumentation({
         query: 'test query',
         max_results: 3,
-        collection: 'global-workflow-docs-v8-0-0'
+        collection: 'global-workflow-docs-v8-2-0'
       });
 
       expect(mockDataAccess.hybridQuery).toHaveBeenCalled();
@@ -145,8 +145,8 @@ describe('SemanticSearchTools', () => {
         vector: {
           totalCollections: 6,
           collections: {
-            'global-workflow-docs-v8-0-0': 22498,
-            'code-with-context-v8-0-0': 60576
+            'global-workflow-docs-v8-2-0': 23624,
+            'code-with-context-v8-0-0': 60574
           }
         },
         graph: {

@@ -582,9 +582,9 @@ export class VectorDatabase {
           // Prefer known 768-dim collections (created with all-mpnet-base-v2)
           // v8.0.0 is the most current generation
           const preferredCollections = [
-            'global-workflow-docs-v8-0-0',
+            'global-workflow-docs-v8-2-0',
             'code-with-context-v8-0-0',
-            'jjobs-v8-0-0',
+            'jjobs-v8-1-0',
             'ee2-standards-v5-0-0-enhanced'
           ];
           

@@ -69,7 +69,7 @@ export class SemanticSearchTools {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Search query' },
-          collection: { type: 'string', description: 'Target specific collection (default: search all). Options: global-workflow-docs-v8-0-0, jjobs-v8-0-0, ee2-standards-v5-0-0-enhanced' },
+          collection: { type: 'string', description: 'Target specific collection (default: search all). Options: global-workflow-docs-v8-2-0, jjobs-v8-1-0, ee2-standards-v5-0-0-enhanced' },
           max_results: { type: 'number', default: 8, minimum: 1, maximum: 20 },
           include_graph: { type: 'boolean', default: true, description: 'Include graph enrichment' },
           similarity_threshold: { type: 'number', default: 0.1, minimum: 0, maximum: 1 }
@@ -534,7 +534,7 @@ export class SemanticSearchTools {
           
           if (stats.vector && stats.vector.collections) {
             // Get the v8 collection document count
-            const v8Count = stats.vector.collections['global-workflow-docs-v8-0-0'] || 0;
+            const v8Count = stats.vector.collections['global-workflow-docs-v8-2-0'] || 0;
             
             // Query the collection for source breakdown
             const chromaUrl = process.env.CHROMADB_URL || process.env.CHROMA_SERVER_URL || 'http://localhost:8080';
@@ -546,7 +546,7 @@ export class SemanticSearchTools {
             const collsResp = await fetch(`${baseUrl}/tenants/${tenant}/databases/${database}/collections`);
             if (collsResp.ok) {
               const collections = await collsResp.json();
-              const v8Coll = collections.find(c => c.name === 'global-workflow-docs-v8-0-0');
+              const v8Coll = collections.find(c => c.name === 'global-workflow-docs-v8-2-0');
               
               if (v8Coll) {
                 // Sample documents to get source breakdown
@@ -571,7 +571,7 @@ export class SemanticSearchTools {
                   }
                   
                   chromaStats = {
-                    collectionName: 'global-workflow-docs-v8-0-0',
+                    collectionName: 'global-workflow-docs-v8-2-0',
                     totalDocuments: v8Count,
                     sampledDocuments: sampleData.metadatas?.length || 0,
                     sourceBreakdown: sourceCounter
@@ -832,7 +832,9 @@ export class SemanticSearchTools {
       let staleCount = 0;
       const now = Date.now();
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      const repoBase = path.join(__dirname, '..', '..', '..', 'supported_repos', 'global-workflow');
+      // Prefer MCP_WORKFLOW_ROOT (set by Docker catalog); fall back to repo-relative path for native runs
+      const repoBase = process.env.MCP_WORKFLOW_ROOT
+        || path.join(__dirname, '..', '..', '..', 'supported_repos', 'global-workflow');
 
       // Determine if git-aware comparison is available
       let gitAvailable = false;
@@ -930,7 +932,8 @@ export class SemanticSearchTools {
         const graphFortranCount = graphResult?.[0]?.total || 0;
 
         // Count Fortran files in supported_repos
-        const repoBase = path.join(__dirname, '..', '..', '..', 'supported_repos', 'global-workflow');
+        const repoBase = process.env.MCP_WORKFLOW_ROOT
+          || path.join(__dirname, '..', '..', '..', 'supported_repos', 'global-workflow');
         let diskFortranCount = 0;
         try {
           const { execSync } = await import('child_process');

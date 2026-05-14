@@ -37,7 +37,7 @@ import os
 VERSION = "8.0.0"
 
 # Collection name can be overridden via environment variable
-DEFAULT_COLLECTION_NAME = "global-workflow-docs-v8-0-0"
+DEFAULT_COLLECTION_NAME = "global-workflow-docs-v8-1-0"
 COLLECTION_NAME = os.getenv("DOCS_COLLECTION", DEFAULT_COLLECTION_NAME)
 
 # =============================================================================
@@ -72,9 +72,9 @@ DOCUMENTATION_SOURCES = {
             'url': 'https://global-workflow.readthedocs.io/en/latest/',
             'type': 'readthedocs',
             'priority': 1,
-            'description': 'Main global-workflow documentation - GFS/GEFS/SFS operations',
+            'description': 'Main global-workflow documentation - SUPERSEDED by global-workflow-local (Phase 48)',
             'max_pages': 150,
-            'enabled': True
+            'enabled': False  # Phase 48: use global-workflow-local via ingest_local_docs_v8.py
         },
         {
             'name': 'ee2-standards',
@@ -123,18 +123,18 @@ DOCUMENTATION_SOURCES = {
             'url': 'https://christopherwharrop.github.io/rocoto/',
             'type': 'github_pages',
             'priority': 2,
-            'description': 'Rocoto workflow manager - XML-based job orchestration',
+            'description': 'Rocoto workflow manager - SUPERSEDED by rocoto-local (Phase 48; URL crawl returned 0 chunks)',
             'max_pages': 50,
-            'enabled': True
+            'enabled': False  # Phase 48: use rocoto-local via ingest_local_docs_v8.py
         },
         {
             'name': 'ecflow',
             'url': 'https://ecflow.readthedocs.io/en/latest/',
             'type': 'readthedocs',
             'priority': 2,
-            'description': 'ecFlow workflow scheduler (ECMWF) - suite definitions',
+            'description': 'ecFlow workflow scheduler (ECMWF) - SUPERSEDED by ecflow-local (Phase 48)',
             'max_pages': 150,
-            'enabled': True,
+            'enabled': False,  # Phase 48: use ecflow-local via ingest_local_docs_v8.py
             # URL patterns to exclude (ecFlow restructured docs in 2024)
             # Old flat structure moved to python_api/, ug/, client_api/ subdirs
             'exclude_url_patterns': [
@@ -571,8 +571,129 @@ def validate_sources():
     return errors
 
 
+# =============================================================================# LOCAL DOCUMENTATION SOURCES (Phase 48 - Local-First Migration)
 # =============================================================================
-# COMMAND LINE INTERFACE
+#
+# On-disk equivalents to the URL sources above. Consumed by
+# ingest_local_docs_v8.py. Each entry must declare its `parser`, which is
+# dispatched via mcp_server_node/scripts/lib/doc_parsers.py.
+#
+# Source Fields:
+#   name         : Unique identifier (used in chunk metadata + dedup)
+#   submodule    : Path under supported_repos/ (e.g. 'global-workflow',
+#                  'ECFLOW/ecflow', 'global-workflow.wiki')
+#   paths        : List of paths/files relative to the submodule root.
+#                  Directories are walked recursively.
+#   extensions   : File extensions to include (lowercase, with dot).
+#                  Use '' to include extensionless files (e.g. rocoto INSTALL).
+#   parser       : Parser key; must exist in lib/doc_parsers.py PARSER_REGISTRY.
+#                  Current keys: 'sphinx_rst', 'markdown', 'wiki_markdown',
+#                  'plain_text', 'roff_man', 'yaml'.
+#   priority     : 1 (critical) to 5 (reference)
+#   description  : Human-readable purpose
+#   replaces_url : Name in DOCUMENTATION_SOURCES this entry supersedes.
+#                  None for net-new local-only sources.
+#   enabled      : Set to False to skip during ingestion (default: True)
+#
+# =============================================================================
+
+LOCAL_DOCUMENTATION_SOURCES = {
+    'tier1_critical': [
+        {
+            'name': 'global-workflow-local',
+            'submodule': 'global-workflow',
+            'paths': ['docs/'],
+            'extensions': ['.rst', '.md'],
+            'parser': 'sphinx_rst',
+            'priority': 1,
+            'description': 'Global workflow Sphinx source (replaces RTD crawl)',
+            'replaces_url': 'global-workflow',
+            'enabled': True,
+        },
+        {
+            'name': 'rocoto-local',
+            'submodule': 'rocoto',
+            'paths': ['README.md', 'RELEASE_NOTES.md', 'TESTING.md', 'INSTALL', 'man/'],
+            'extensions': ['.md', '.1', ''],
+            'parser': 'markdown',  # manpages dispatched via roff_man at file level
+            'priority': 1,
+            'description': 'Rocoto README + manpages (URL crawl returns 0 chunks)',
+            'replaces_url': 'rocoto',
+            'enabled': True,
+        },
+        {
+            'name': 'ecflow-local',
+            'submodule': 'ECFLOW/ecflow',
+            'paths': ['docs/'],
+            'extensions': ['.rst'],
+            'parser': 'sphinx_rst',
+            'priority': 1,
+            'description': 'ecFlow Sphinx source (replaces RTD crawl)',
+            'replaces_url': 'ecflow',
+            'enabled': True,
+        },
+    ],
+    'tier2_new_coverage': [
+        {
+            'name': 'global-workflow-wiki',
+            'submodule': 'global-workflow.wiki',
+            'paths': ['./'],
+            'extensions': ['.md'],
+            'parser': 'wiki_markdown',
+            'priority': 2,
+            'description': 'Operator knowledge: run-books, post-mortems, platform notes',
+            'replaces_url': None,
+            'enabled': True,
+        },
+        # DEFERRED to v1.x (per Phase 48 SDD §2.2):
+        #   evs-docs, mcp-gateway-docs, parallel-works-mcp-docs
+    ],
+}
+
+
+def get_all_local_sources(enabled_only=True):
+    """Flatten LOCAL_DOCUMENTATION_SOURCES to a list with 'tier' added."""
+    out = []
+    for tier_name, sources in LOCAL_DOCUMENTATION_SOURCES.items():
+        for source in sources:
+            if enabled_only and not source.get('enabled', True):
+                continue
+            s = source.copy()
+            s['tier'] = tier_name
+            out.append(s)
+    return out
+
+
+def get_local_source_by_name(name):
+    """Find local source by name across tiers."""
+    for tier_name, sources in LOCAL_DOCUMENTATION_SOURCES.items():
+        for source in sources:
+            if source['name'] == name:
+                s = source.copy()
+                s['tier'] = tier_name
+                return s
+    return None
+
+
+def get_total_local_source_count(enabled_only=True):
+    """Return number of local sources."""
+    if enabled_only:
+        return len(get_all_local_sources(enabled_only=True))
+    return sum(len(sources) for sources in LOCAL_DOCUMENTATION_SOURCES.values())
+
+
+def get_url_names_replaced_by_local(enabled_only=True):
+    """Return set of URL source names that LOCAL entries supersede.
+
+    Used by ingest_documentation_v8.py to skip URLs whose content has been
+    migrated to a local submodule, without requiring a manual `enabled: False`
+    flip on every cutover.
+    """
+    return {s['replaces_url'] for s in get_all_local_sources(enabled_only=enabled_only)
+            if s.get('replaces_url')}
+
+
+# =============================================================================# COMMAND LINE INTERFACE
 # =============================================================================
 
 if __name__ == '__main__':

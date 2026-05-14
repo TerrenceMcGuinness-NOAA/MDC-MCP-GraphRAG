@@ -1,7 +1,7 @@
 # EIB MCP Knowledge Base — Complete Gap Analysis
 
-**Date:** March 13, 2026
-**Version:** 1.2.0 (Phase 46 update)
+**Date:** May 14, 2026
+**Version:** 1.3.0 (Phase 48 update)
 **Author:** EIB MCP Team  
 **Scope:** Full survey of ingestion scripts, current vector/graph state, submodule coverage, and external library gaps
 
@@ -9,13 +9,14 @@
 
 ## Executive Summary
 
-The EIB MCP knowledge base contains **~85,995 ChromaDB documents** across 6 collections and **~2,653,565 Neo4j relationships** covering Fortran, Python, Shell, config files, CI tests, Rocoto job DAGs, and documentation. Key status:
+The EIB MCP knowledge base contains **~134,617 ChromaDB documents** across 10 collections and **~2,653,565 Neo4j relationships** covering Fortran, Python, Shell, config files, CI tests, Rocoto job DAGs, and documentation. Key status:
 
 1. ~~**Neo4j Fortran graph covers only 5 of 14 sorc/ submodules**~~ **RESOLVED (Phase 39)** — fparser2 with CPP pipeline now covers 81.4% of UFS Fortran, yielding 13,320 subroutines, 2,186 modules
 2. ~~**ChromaDB vectors with inconsistent path prefixes**~~ **RESOLVED (Phase 38)** — 100% paths now correct
 3. ~~**Neo4j File nodes use absolute paths**~~ **RESOLVED (Phase 38)** — All 2,744 File nodes use correct relative paths
 4. ~~**149 config files, 78 CI YAML files not ingested**~~ **RESOLVED (Phase 40)** — 187 config files, 37 Jinja2 templates, 74 CI test cases, 595 Rocoto tasks, 1,297 EXPDIR configs all ingested
 5. ~~**External library documentation partially covered**~~ **RESOLVED (Phase 46)** — All 6 rate-limited ReadTheDocs sources (MOM6, CICE, GOCART, CCPP, UPP, METplus) ingested via curl-based crawler. 3 new sources added (pyioda, FMS, CMAQ). Total docs collection: 22,498 (+2,701)
+6. ~~**Local-first migration for in-tree submodule docs + global-workflow.wiki gap**~~ **RESOLVED (Phase 48)** — `global-workflow-docs-v8-2-0` (23,624 chunks) replaces the `global-workflow`, `rocoto`, and `ecflow` URL crawls (517 URL chunks dropped, 3,630 local chunks added). Net **+3,113 chunks**, including **net-new** `global-workflow-wiki` (1,759 chunks) and rocoto manpages (54 roff chunks via `groff`). Each chunk now carries `submodule_commit` for git-versus-collection drift detection.
 
 ---
 
@@ -25,13 +26,17 @@ The EIB MCP knowledge base contains **~85,995 ChromaDB documents** across 6 coll
 
 | Collection | Documents | Content |
 |-----------|-----------|---------|
-| `code-with-context-v8-0-0` | 60,282 | Code chunks (Fortran/Python/Shell/Config) with MPNet 768-dim embeddings |
-| `jjobs-v8-0-0` | 700 | J-Job scripts (dev/jobs/) |
+| `code-with-context-v8-0-0` | 60,574 | Code chunks (Fortran/Python/Shell/Config) with MPNet 768-dim embeddings |
+| `jjobs-v8-1-0` | 859 | J-Job scripts (dev/jobs/) — Phase 47 re-ingest |
+| `jjobs-v8-0-0` | 700 | Legacy J-Job collection (deferred drop) |
 | `community-summaries` | 2,113 | GraphRAG hierarchical community summaries (Phase 42 refresh) |
-| `global-workflow-docs-v8-0-0` | 22,498 | External documentation (44+ sources, 1,350+ URLs) |
+| `global-workflow-docs-v8-2-0` | **23,624** | **Live docs (Phase 48):** clone of v8-1-0 minus 3 URL crawls + local submodule reads + wiki |
+| `global-workflow-docs-v8-1-0` | 20,511 | Prior docs collection (deferred drop) |
+| `global-workflow-docs-v8-0-0` | 22,498 | Legacy docs collection (deferred drop) |
+| `phase48-scratch` | 3,630 | Scratch namespace from Phase 48 dry runs (deferred drop) |
 | `ci-test-cases-v1-0-0` | 74 | CI test case documentation (Phase 40) |
 | `ee2-standards-v5-0-0-enhanced` | 34 | EE2/NCO production standards |
-| **TOTAL** | **85,995** | |
+| **TOTAL** | **134,617** | |
 
 ### 1.2 Neo4j Graph Nodes
 
