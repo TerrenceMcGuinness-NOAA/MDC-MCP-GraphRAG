@@ -1,5 +1,154 @@
 # MCP Server Changelog
 
+## [8.22.2] - Phase C-2b hot-fix: Issue C resolved (data layer shipped) (May 14, 2026)
+
+### Scope
+
+Patch on top of `[8.22.1]`. Resolves **Issue C** from the Phase C-1
+parity assessment — Neptune + OpenSearch were unreachable from the
+Python staging runtime. Phase C-1 mis-diagnosed this as a VPC
+security-group blocker; the actual root cause was missing port code.
+Issues A (Node.js production runtime unhealthy) remains operator-side.
+
+### Root cause
+
+Three modules from the Phase B2 spec (Tasks 2.4 + 2.6) were never
+committed:
+
+| Module | Status before | Status after |
+|--------|---------------|--------------|
+| `src/data/neptune_adapter.py` | missing | shipped (328 lines) |
+| `src/data/unified_data_access.py` | missing | shipped (278 lines) |
+| `src/data/backend_selector.py` | missing | shipped (202 lines) |
+
+`src/mcp_server.py:111` imports `src.data.backend_selector` lazily; that
+import always raised `ModuleNotFoundError` and the server fell through
+to no-data-access mode. **Setting env vars on the runtime cannot help
+when the import fails before any env var is read.** The Phase C-1
+SG diagnosis was wrong — the security group `sg-096489a0876cc78c1`
+already permits Neptune (8182) and OpenSearch (443) egress.
+
+### Code changes
+
+- **`src/data/neptune_adapter.py`** (new) — `NeptuneAdapter` wraps
+  `aws_backend.NeptuneHTTPAdapter` to satisfy `GraphDBProtocol`. Sync
+  driver runs in `asyncio.to_thread` so the adapter is non-blocking
+  when awaited from FastMCP. Includes:
+  - Idempotent `connect()` / `close()`.
+  - `query(cypher, params)` with row-dict copy semantics (mutable
+    return value, no leak back into the adapter).
+  - `health_check()` issues `RETURN 1 AS ok` and grades the response.
+  - `get_statistics()` per-label counts (File / Function / Class /
+    Module + relationship total) for HealthChecker / framework_status
+    parity.
+  - `NeptuneAdapterError` translates `NeptuneQueryError` /
+    `NeptuneConnectionError` into one consistent type for tool layers.
+
+- **`src/data/unified_data_access.py`** (new) — `UnifiedDataAccess`
+  facade exposes `vector_db` and `graph_db` attributes that tool
+  modules read directly. Adds:
+  - Parallel `connect()` / `close()` via `asyncio.gather` so bootstrap
+    and shutdown are O(max) instead of O(sum).
+  - `health_check(deep, min_indices)` returning the
+    `HealthChecker.checkDatabases` shape (`status`, `vector`, `graph`)
+    consumed by `utility.mcp_health_check`.
+  - Either adapter slot may be `None` — disabled side reports
+    `status="disabled"`; tools that need the missing backend surface
+    their own `[ERROR]` markdown at call time.
+  - Falls back to `graph_db.get_statistics()` when the graph health
+    response doesn't carry node counts directly.
+
+- **`src/data/backend_selector.py`** (new) — `create_data_access(config)`
+  factory:
+  - Routes on `config.db_backend`: `aws` builds the AWS adapters;
+    `legacy` raises `UnsupportedBackendError`; anything else raises
+    too (catches typos early).
+  - Eager `connect()` with **graceful degrade per Requirement 1.7**:
+    when `vector_db.connect()` or `graph_db.connect()` raises, the
+    selector logs the failure, best-effort closes the adapter, nulls
+    the slot, and continues. Tools that need the missing backend will
+    surface `[ERROR]` markdown at call time.
+  - `vector_db=` / `graph_db=` kwargs let tests inject pre-built
+    adapters and bypass the AWS-wiring branch entirely.
+
+- **`src/mcp_server.py`** — refreshed the comment in
+  `_create_data_access` to reflect that `backend_selector` exists as
+  of this release. The `ModuleNotFoundError` branch is preserved for
+  backwards compatibility with old container images
+  (`python-utility-v1`, `python-all-tools-v1`, `python-all-tools-v2`)
+  that don't have the data layer.
+
+- **`tests/unit/test_mcp_server.py`** — refreshed the docstring on
+  `test_initialize_degraded_mode_when_data_access_missing` to reflect
+  that the test now forces degraded mode by patching
+  `_create_data_access` rather than relying on `backend_selector`
+  being absent.
+
+### Tests
+
+- **`tests/unit/test_data_layer.py`** (new) — 27 tests across the
+  three new modules:
+  - `NeptuneAdapter` (12) — endpoint validation, idempotent connect,
+    query result copy semantics, parameter passthrough, query/connection-
+    error translation, health-check happy + degraded + unhealthy paths,
+    `get_statistics` happy + per-label graceful-degrade, close
+    idempotence + close-without-connect.
+  - `UnifiedDataAccess` (8) — parallel connect, safe close (one
+    adapter raising does NOT block the other), four health-check
+    shapes (healthy / degraded / disabled / unhealthy),
+    exception-during-health-check, `get_statistics` fallback path
+    when graph health response lacks `nodes` key.
+  - `backend_selector` (7) — legacy backend rejected, unknown backend
+    rejected, injected adapters bypass config-driven construction,
+    empty endpoints disable adapters, connect failure nulls slot for
+    graceful degrade, real-adapter construction with monkey-patched
+    classes.
+
+### Deploy
+
+| Action | Outcome |
+|--------|---------|
+| Build with new data layer | Local image `sha256:9d085318b4c6d20b230a2000c1c20fad3857f7e1a8fc8c56eda23afe1a8f1b6a`, tagged `python-all-tools-v3` |
+| Local container smoke test (no env vars) | Backend selector loads cleanly, both adapter slots `None`, 9/9 modules register |
+| Local container smoke test (env vars set, no AWS creds) | Both adapters constructed (lazy connect), 9/9 modules register |
+| ECR push | Manifest digest `sha256:652bd658a4ae9c2b59791feb7bcb44b2eec4f575b6af3643b81f90ce9ae0d531` |
+| Rollback targets preserved | `python-utility-v1` (B4) / `python-all-tools-v1` (C-1) / `python-all-tools-v2` (C-2a) |
+| Staging runtime rotation | `mdc_mcp_rag_server_python-v5K2F8BGrN` v4 → **v5** with image `python-all-tools-v3`, READY on second poll |
+| Env vars set | `DB_BACKEND=aws`, `NEPTUNE_ENDPOINT=https://...`, `OPENSEARCH_ENDPOINT=https://...`, `AWS_REGION=us-east-1`, `MCP_STATELESS_HTTP=true`, `MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow` |
+| `mcp_health_check({deep:true, detailed:true})` | **`HEALTHY (4/4 components healthy)`** — Vector DB healthy with 5 indices, Graph DB healthy with **105 891 nodes / 2 941 593 relationships** |
+| `get_server_info` | Total Tools: 51, Active Modules: 9 of 9 |
+| `get_knowledge_base_status` | Returns real Neptune label breakdown (17 273 Files, 95 996 Functions, 27 941 FortranSubroutines, etc.) and rel counts (CALLS: 2 216 985, USES: 487 061, …) |
+
+### Suite count
+
+- Before: 689 passed / 209 skipped / 0 failed (C-2a baseline `55058b9`)
+- After: **716 passed** / 209 skipped / 0 failed (+27 data-layer tests)
+
+### Cosmetic follow-up (not a C-2b blocker)
+
+`get_knowledge_base_status` (`src/tools/semantic_search.py`) renders
+correct per-label / per-relationship-type breakdowns but the summary
+lines (`Total Nodes: 0`, `Total Relationships: 0`, `Collections: 0`)
+and the `Status` field underreport. The underlying data layer is
+healthy — this is a rendering-aggregation bug in the tool, not a
+data-layer bug. File a separate issue to fix the summary computation
+in that tool's render path.
+
+### What's still pending
+
+- **Issue A** — Node.js production runtime
+  `mdc_mcp_rag_server-TMXDllG2Wi` v10 still returns `RuntimeClientError`
+  on every call. Operator + AgentCore admin action required.
+
+When Issue A is resolved (or Python staging is formally designated
+as the new reference), the live-parity suite is ready to re-run for
+the meaningful comparison. The Python runtime is now in the correct
+shape — 51/51 tools, all backends reachable, real data on every
+query path.
+
+Validates Requirements: 1.6, 1.7, 1.8, 2.1, 3.1 – 3.7, 18.5.
+
+
 ## [8.22.1] - Phase C-2a hot-fix: Issue B (chown) resolved (May 14, 2026)
 
 ### Scope

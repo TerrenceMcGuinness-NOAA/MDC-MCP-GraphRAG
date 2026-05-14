@@ -393,3 +393,108 @@ comparison.
 After the regression test addition, the hermetic test suite is now
 **689 passed** (was 688 at B11 baseline `e325e61`), 209 skipped, 0
 failed.
+
+
+---
+
+## Post-Fix Status — Phase C-2b (Issue C resolved, 2026-05-14T18:54 UTC)
+
+### What changed
+
+**Issue C is resolved.** The root cause was NOT a VPC security-group
+gap (the SGs were already correctly configured). It was a missing
+piece of Phase B2 code: the Python port had `protocols.py`,
+`aws_backend.py` (low-level Neptune + OpenSearch clients), and
+`opensearch_adapter.py`, but the three modules that wire those
+primitives into the runtime were never committed:
+
+| File | Status before C-2b | Status after C-2b |
+|------|--------------------|-------------------|
+| `src/data/neptune_adapter.py` | missing | **328 lines, ports `aws_backend.NeptuneHTTPAdapter` to `GraphDBProtocol` via `asyncio.to_thread`** |
+| `src/data/unified_data_access.py` | missing | **278 lines, `UnifiedDataAccess` facade with parallel connect/close + HealthChecker-shaped `health_check`** |
+| `src/data/backend_selector.py` | missing | **202 lines, `create_data_access(config)` factory + `UnsupportedBackendError`** |
+
+`mcp_server.py:111` imports `src.data.backend_selector` lazily; before
+C-2b that import always raised `ModuleNotFoundError` and
+`_create_data_access` returned `None`. Setting any number of env
+vars on the AgentCore runtime would not have helped — the import
+fails before any env var is read.
+
+The Phase C-1 assessment's diagnosis of "VPC security group blocks
+egress" was incorrect. The actual SG rules on `sg-096489a0876cc78c1`
+already permit Neptune (8182) and OpenSearch (443) egress; the
+Python runtime simply had no code path to reach either backend.
+
+A regression test suite (`tests/unit/test_data_layer.py`, 27 tests
+across 3 test classes) covers the new modules and prevents the same
+gap from recurring:
+
+* `NeptuneAdapter`: 12 tests — endpoint validation, idempotent
+  connect, query result copy semantics, parameter passthrough,
+  query/connection-error translation, health check happy +
+  degraded + unhealthy paths, `get_statistics` happy + per-label
+  graceful-degrade, close idempotence + close-without-connect.
+* `UnifiedDataAccess`: 8 tests — parallel connect, safe close
+  (one adapter raising does NOT block the other), four
+  health-check shapes (healthy / degraded / disabled / unhealthy),
+  exception-during-health-check, `get_statistics` fallback.
+* `backend_selector`: 7 tests — legacy backend rejected,
+  unknown backend rejected, injected adapters bypass config,
+  empty endpoints disable adapters, connect failure nulls slot
+  for graceful degrade, real-adapter construction with monkey-
+  patched classes.
+
+### Deploy
+
+| Action | Outcome |
+|--------|---------|
+| Build with new data layer | Local image `sha256:9d085318b4c6d20b230a2000c1c20fad3857f7e1a8fc8c56eda23afe1a8f1b6a`, tagged `python-all-tools-v3` |
+| Local container smoke test (no env vars) | `db_backend=aws`, both endpoints empty, both adapter slots `None`, 9/9 modules register cleanly |
+| Local container smoke test (env vars set, no AWS creds) | Both adapters constructed (lazy connect — network round-trip on first query), 9/9 modules register |
+| ECR push | Manifest digest `sha256:652bd658a4ae9c2b59791feb7bcb44b2eec4f575b6af3643b81f90ce9ae0d531` |
+| Rollback targets preserved | `python-utility-v1` (B4 baseline) AND `python-all-tools-v1` (C-1 chown bug) AND `python-all-tools-v2` (C-2a chown fix, no data layer) |
+| Staging runtime rotation `mdc_mcp_rag_server_python-v5K2F8BGrN` | v4 → **v5** with image `python-all-tools-v3`, READY on second poll |
+| Env vars set via `--environment-variables` | `DB_BACKEND=aws`, `NEPTUNE_ENDPOINT=https://...`, `OPENSEARCH_ENDPOINT=https://...`, `AWS_REGION=us-east-1`, `MCP_STATELESS_HTTP=true`, `MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow` |
+| `mcp_health_check({deep:true, detailed:true})` | **`HEALTHY (4/4 components healthy)`** — Vector DB healthy with 5 indices, Graph DB healthy with 105 891 nodes / 2 941 593 relationships |
+| `get_server_info` | Total Tools: 51, Active Modules: 9 of 9 (unchanged from C-2a) |
+| `get_knowledge_base_status` | Returns real Neptune label breakdown (17 273 Files, 95 996 Functions, 27 941 FortranSubroutines, etc.) and relationship counts (CALLS: 2 216 985, USES: 487 061, DEFINES: 91 315, …) |
+
+### Cosmetic finding (not a C-2b blocker)
+
+`get_knowledge_base_status` (in `src/tools/semantic_search.py`) renders
+correct per-label and per-relationship-type breakdowns under Neptune,
+and lists the 5 indices under OpenSearch via `mcp_health_check`. But
+the **summary lines** show `Total Nodes: 0`, `Total Relationships: 0`,
+`Collections: 0`, `Total Documents: 0` and a stale `Status: [ERROR]
+Unhealthy` for both backends. The underlying data is reachable; the
+aggregation/status logic in the rendering path is the issue. This is
+a tool-level bug to fix separately — not part of Issue C scope.
+
+Recommendation: file a follow-up issue on `semantic_search.get_knowledge_base_status`
+to compute summary counts from the per-label / per-collection
+breakdowns and recompute the `Status` line based on whether ANY data
+is present rather than the stale flag it's currently reading.
+
+### What's still pending
+
+- **Issue A — Node.js production runtime is unhealthy**
+  (`mdc_mcp_rag_server-TMXDllG2Wi` v10). Operator-side; not
+  addressed by this hot-fix.
+
+When Issue A is resolved (or when Python staging is formally
+designated as the new reference), the live-parity suite at commit
+`<C-2b-sha>`+ can be re-run for the meaningful comparison. The
+Python runtime is now in the correct shape for that comparison —
+51/51 tools registered, all backend endpoints reachable, real data
+returned by every query path.
+
+### Updated recommendation
+
+**Cutover (Task 25.2) remains deferred** — Issue A is the only
+remaining blocker. The Python staging runtime is now demonstrably
+healthier than the Node.js production runtime (which still cannot
+respond to any InvokeAgentRuntime call). The cutover decision is no
+longer "can the Python port respond" — it's "is the operator ready
+to formally designate the Python runtime as the production target".
+
+That decision lives in the cutover spec, not this assessment.

@@ -6,6 +6,67 @@ Short-form progress log for the Python port of the Node.js MCP server
 port (`mcp_server_python/`) is validated module-by-module via parity
 tests before cutover.
 
+## 2026-05-14 — Phase C-2b: Issue C resolved (data layer connected)
+
+### Status
+
+- **Issue C resolved.** The Python staging runtime can now reach
+  Neptune and OpenSearch from inside the AgentCore microVM. Health
+  check reports `HEALTHY (4/4 components healthy)`.
+- Root cause was NOT a VPC SG gap (the SGs were already correct).
+  Three Phase B2 modules were never committed:
+  `src/data/neptune_adapter.py`, `src/data/unified_data_access.py`,
+  `src/data/backend_selector.py`. This update lands them.
+- 27 new unit tests cover the new modules; suite count
+  716 (was 689 at C-2a `55058b9`).
+- Staging runtime is now in the correct shape for live parity.
+  **Issue A (Node.js production runtime unhealthy)** is the only
+  remaining blocker to cutover.
+
+### Runtimes in play (post-C-2b)
+
+| Runtime | ID | Version | Image | Use |
+|---|---|---|---|---|
+| **Node.js (production)** | `mdc_mcp_rag_server-TMXDllG2Wi` | v10 | (unchanged) | **Issue A still pending** — operator-side |
+| **Python (staging)** | `mdc_mcp_rag_server_python-v5K2F8BGrN` | **v5** | `python-all-tools-v3` | All 9 modules, 51 tools, **3/3 components healthy** (Base + Utility + Vector + Graph DB), 105 891 nodes / 2 941 593 rels via Neptune, 5 OpenSearch indices |
+
+### Env vars set on the staging runtime
+
+| Var | Value |
+|---|---|
+| `DB_BACKEND` | `aws` |
+| `NEPTUNE_ENDPOINT` | `https://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182` |
+| `OPENSEARCH_ENDPOINT` | `https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com` |
+| `AWS_REGION` | `us-east-1` |
+| `MCP_STATELESS_HTTP` | `true` |
+| `MCP_WORKFLOW_ROOT` | `/app/supported_repos/global-workflow` |
+
+### Deploy artifacts
+
+| Artifact | Value |
+|---|---|
+| Local image SHA | `sha256:9d085318b4c6d20b230a2000c1c20fad3857f7e1a8fc8c56eda23afe1a8f1b6a` |
+| ECR manifest digest | `sha256:652bd658a4ae9c2b59791feb7bcb44b2eec4f575b6af3643b81f90ce9ae0d531` |
+| ECR tag (new) | `python-all-tools-v3` |
+| Rollback targets (preserved) | `python-utility-v1` (B4) / `python-all-tools-v1` (C-1, chown bug) / `python-all-tools-v2` (C-2a, no data layer) |
+| Deploy timestamp | 2026-05-14T18:54 UTC |
+
+### Cosmetic follow-up
+
+`get_knowledge_base_status` renders correct per-label / per-rel-type
+breakdowns but the summary lines and the `Status` flag underreport.
+The underlying data layer is healthy; this is a rendering-aggregation
+bug in `semantic_search.get_knowledge_base_status`. Not a C-2b
+blocker; track as a separate follow-up.
+
+### Reference
+
+- Full Phase C-2b Post-Fix Status:
+  `docs/reports/2026-05-14-phase-c1-parity-assessment.md`
+- CHANGELOG: `[8.22.2]` (this hot-fix), `[8.22.1]` (C-2a chown),
+  `[8.22.0]` (C-1 deploy + parity assessment).
+
+
 ## 2026-05-14 — Phase C-2a: Issue B (chown) hot-fix deployed
 
 ### Status

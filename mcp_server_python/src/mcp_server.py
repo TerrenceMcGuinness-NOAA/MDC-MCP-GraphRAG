@@ -106,13 +106,19 @@ async def _create_data_access(config: ServerConfig) -> Any | None:
     on that adapter.
     """
     try:
-        # Late import so ``mcp_server`` can be exercised by tests even
-        # before ``src.data.backend_selector`` lands in Phase B2.
+        # Late import — keeps the boto3/opensearch-py chain out of the
+        # ``mcp_server`` import graph so unit tests can exercise the
+        # CLI / registration layer without the heavy AWS deps. The
+        # module is shipped as of Phase C-2b; the ModuleNotFoundError
+        # branch below is preserved for backwards compatibility with
+        # older container images that have ``mcp_server.py`` but not
+        # the data layer (e.g. ``python-utility-v1`` and
+        # ``python-all-tools-v1`` pre-C-2b rollback targets).
         from src.data.backend_selector import create_data_access
     except ModuleNotFoundError:
         log.warning(
-            "[WARN] src.data.backend_selector not yet implemented — "
-            "starting in no-data-access mode"
+            "[WARN] src.data.backend_selector not available — "
+            "starting in no-data-access mode (legacy image?)"
         )
         return None
 

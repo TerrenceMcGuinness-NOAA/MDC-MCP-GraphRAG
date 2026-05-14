@@ -214,7 +214,16 @@ def test_register_module_catches_session_manager_permission_error():
 
 
 def test_initialize_degraded_mode_when_data_access_missing():
-    """Without a backend_selector module, initialize() runs in degraded mode.
+    """When ``_create_data_access`` returns None, initialize() runs in
+    degraded mode.
+
+    Phase C-2b shipped the previously-missing ``src.data.backend_selector``
+    module, so the import-time fallback that was the original degraded
+    path is no longer reachable. This test forces the same outcome by
+    patching ``_create_data_access`` to return None directly — it
+    documents the contract that any failure inside the data-access
+    layer (missing backend_selector, unreachable backends, network
+    errors during ``connect``) must NOT prevent tool-module registration.
 
     As of Phase B11 ALL 9 tool modules are ported. Every module
     registers successfully even without a data-access layer — that
