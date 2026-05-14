@@ -49,14 +49,14 @@ USER app
 EXPOSE 8000
 
 # Streamable HTTP entrypoint (Requirement 1.1).
-# Phase B9 deployment: boot with utility + semantic_search + code_analysis
-# + graph_rag + ee2_compliance + operational modules registered
-# (4 + 7 + 6 + 9 + 5 + 4 = 35 tools). The operational module requires
-# a data-access layer at call time (vector store + graph store) and
-# returns [ERROR] in degraded-mode boot — except list_job_scripts
-# called with a job_list parameter, which is the Node.js "remote MCP"
-# pass-through and works without backends. get_job_details is content-
-# abstracted: metadata is assembled from the graph store rather than
-# the legacy filesystem read; include_content=true surfaces an [INFO]
-# note rather than a script body.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational"]
+# Phase B10 deployment: boot with utility + semantic_search + code_analysis
+# + graph_rag + ee2_compliance + operational + sdd_workflow modules
+# registered (4 + 7 + 6 + 9 + 5 + 4 + 9 = 44 tools). The sdd_workflow
+# module is data-access-free — its session lifecycle tools delegate to
+# the file-backed SessionManager (state under sdd_framework/execution_state)
+# and validate_sdd_compliance is pure-content. The workflow catalogue
+# tools (list_sdd_workflows / get_sdd_workflow) read from
+# sdd_framework/workflows/ on disk; on the AgentCore microVM where that
+# tree is not bind-mounted they degrade with an [INFO] block. Operational
+# module retains the same content-abstraction contract from B9.
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow"]

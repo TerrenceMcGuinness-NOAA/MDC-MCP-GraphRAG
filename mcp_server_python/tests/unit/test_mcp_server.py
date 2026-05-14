@@ -141,20 +141,20 @@ def test_register_module_register_fn_raises():
 def test_initialize_degraded_mode_when_data_access_missing():
     """Without a backend_selector module, initialize() runs in degraded mode.
 
-    As of Phase B9 the ``utility``, ``semantic_search``, ``code_analysis``,
-    ``graph_rag``, ``ee2_compliance``, and ``operational`` tool modules
-    are all ported and register successfully even without a data-access
-    layer — that is the point of the graceful-degrade contract
-    (Requirement 1.7). Unported modules (``sdd_workflow`` here — the
-    task's designated "still-unported" fixture for B9; note that
-    ``github_tools`` and ``workflow_info`` are also still unported
-    alphabetically-later) still fail with ``ModuleNotFoundError``.
+    As of Phase B10 the ``utility``, ``semantic_search``, ``code_analysis``,
+    ``graph_rag``, ``ee2_compliance``, ``operational``, and ``sdd_workflow``
+    tool modules are all ported and register successfully even without
+    a data-access layer — that is the point of the graceful-degrade
+    contract (Requirement 1.7). Unported modules (``workflow_info`` here
+    — the task's designated "still-unported" fixture for B10; note that
+    ``github_tools`` is also still unported alphabetically-later) still
+    fail with ``ModuleNotFoundError``.
     """
     cfg = load_config(
         env={
             "MCP_ENABLED_MODULES": (
                 "semantic_search,utility,code_analysis,graph_rag,"
-                "ee2_compliance,operational,sdd_workflow"
+                "ee2_compliance,operational,sdd_workflow,workflow_info"
             )
         },
     )
@@ -176,14 +176,15 @@ def test_initialize_degraded_mode_when_data_access_missing():
         "ee2_compliance",
         "operational",
         "sdd_workflow",
+        "workflow_info",
     ]
     by_name = {r.name: r for r in results}
-    # sdd_workflow is still unported -> registration failed.
-    assert by_name["sdd_workflow"].registered is False
-    assert "No module named" in (by_name["sdd_workflow"].error or "")
+    # workflow_info is still unported -> registration failed.
+    assert by_name["workflow_info"].registered is False
+    assert "No module named" in (by_name["workflow_info"].error or "")
     # utility, semantic_search, code_analysis, graph_rag,
-    # ee2_compliance, and operational are ported and work in degraded
-    # mode.
+    # ee2_compliance, operational, and sdd_workflow are ported and
+    # work in degraded mode.
     for module_name in (
         "utility",
         "semantic_search",
@@ -191,6 +192,7 @@ def test_initialize_degraded_mode_when_data_access_missing():
         "graph_rag",
         "ee2_compliance",
         "operational",
+        "sdd_workflow",
     ):
         assert by_name[module_name].registered is True, (
             f"{module_name} should register successfully in degraded mode"

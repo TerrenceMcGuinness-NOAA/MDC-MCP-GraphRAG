@@ -1,5 +1,248 @@
 # MCP Server Changelog
 
+## [8.19.0] - Phase B10: SDDWorkflowTools Port (May 14, 2026)
+
+### Scope
+
+Task 14 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 9
+Node.js SDDWorkflowTools to Python. All code under
+`mcp_server_python/`. No deployments, no ECR pushes, no changes to
+`mcp_server_node/` or the live AgentCore runtimes. The Python staging
+runtime now registers 44 of 51 tools (4 + 7 + 6 + 9 + 5 + 4 + 9 across
+7 ported modules); 7 tools remain in `workflow_info` (3) and
+`github_tools` (4).
+
+### Tools Ported (`src/tools/sdd_workflow.py`, 1275 lines)
+
+All 9 tools; input schemas match
+`mcp_server_node/src/tools/SDDWorkflowTools.js` exactly (verified by
+two separate assertions — one in the unit-test module and a second
+in the parity module).
+
+Workflow catalogue (filesystem-backed):
+
+- `list_sdd_workflows(include_metadata=False)` — walk
+  `sdd_framework/workflows/` for `*.md` files. With
+  `include_metadata=true` parses each file's title + phase/step
+  counts. Missing directory degrades to a friendly `[INFO]` block
+  rather than `[ERROR]` (deviation from Node.js, documented in the
+  module docstring) — the AgentCore microVM does not bind-mount the
+  `sdd_framework/` tree so the missing-directory state is the
+  expected default.
+
+- `get_sdd_workflow(workflow_name)` — read and render one workflow
+  file's title, description, phases, steps, and YAML front-matter
+  metadata. Returns `[ERROR]` shape on truly missing files.
+
+Session lifecycle (delegates to `SessionManager` from B3):
+
+- `start_sdd_session(phase, notes?, total_steps?)` —
+  `SessionManager.start_session(phase, total_steps=, notes=)`. Emits
+  `started` event in `history.jsonl`.
+
+- `record_sdd_step(step, name, tag='implement', notes='')` —
+  `SessionManager.record_step`. Tag enum constrained to the SDD
+  vocabulary (`research`, `design`, `implement`, `configure`,
+  `validate`, `document`, `ingest`).
+
+- `get_sdd_session(resume=False)` —
+  `SessionManager.get_session_state` or `resume_session()` when
+  `resume=true`. Renders the active session card with bold field
+  labels (Session ID / Phase / Status / Started / Last Activity /
+  Progress) plus completed-steps and skipped-steps blocks.
+
+- `complete_sdd_session(summary='', abandon=False, reason='')` —
+  routes to `complete_session(summary)` or
+  `abandon_session(reason)`. Emits `completed` or `abandoned`
+  events in `history.jsonl`.
+
+History + analytics:
+
+- `get_sdd_execution_history(limit=10, workflow_name?, analytics=False)` —
+  reads `history.jsonl`, groups events by `sessionId`, renders
+  per-session cards with status icons (`[OK]` / `[!!]` / `[..]`).
+  With `analytics=true` adds Phases-by-Status table, step-tag
+  distribution (sorted descending), average/min/max session
+  duration, and recent velocity (last 10 sessions). Mirrors the
+  Node.js fetch-more-for-analytics quirk so totals don't get
+  truncated by `limit` in the analytics view.
+
+Compliance + status:
+
+- `validate_sdd_compliance(content?, target?, framework_version='4.0', content_type='auto')` —
+  pure-content SDD checks (Documentation, Error Handling,
+  Shebang, Entry Point, Type Hints, Naming Conventions, Path
+  Abstraction). Battery ported byte-for-byte from Node.js
+  `performSDDChecks`. Auto-detects bash / python / json / yaml /
+  markdown from content shape when `content_type='auto'`. The
+  `target` (file path) input is rejected with a `[ERROR]`
+  pointing callers at `content` — the hosted Python runtime has
+  no filesystem access and the Node.js `ContentResolver`
+  filesystem branch is not portable.
+
+- `get_sdd_framework_status(detailed=False)` — Components +
+  Active Session blocks (workflow count, total/completed/abandoned
+  session totals computed from `history.jsonl`, active session
+  progress). With `detailed=true` adds Session Tools list, Preserved
+  Infrastructure list, and a Recent Sessions tail (last 5).
+
+### Degraded-Mode Contract (Requirement 1.7)
+
+The whole `sdd_workflow` module is data-access-free — `data=None` is
+fine for every tool. The session lifecycle works because
+`SessionManager` is file-backed, and `validate_sdd_compliance` is
+pure-string. The catalogue tools `list_sdd_workflows` /
+`get_sdd_workflow` need only the on-disk workflows directory, which
+they degrade gracefully when missing.
+
+### Tests Added
+
+`tests/unit/test_sdd_workflow_tools.py` — 38 tests covering:
+
+- 9-tool registration parity (names + parameter sets) including
+  required flag and FastMCP enum/default rendering.
+- Schema parity per tool: `record_sdd_step.tag` default + 7-tag
+  enum, `validate_sdd_compliance.content_type` default + 6-value
+  enum, `validate_sdd_compliance.framework_version` default `4.0`,
+  `get_sdd_workflow` requires `workflow_name`.
+- Module registers in degraded mode (`data=None`); every tool still
+  responds — including `validate_sdd_compliance` which runs the full
+  SDD checks battery without any backend.
+- Full session lifecycle via the tool layer:
+  `start → record → record → get → complete`, plus the
+  abandon-with-reason path and the resume-emits-resumed-event path.
+- Error paths: record without active session, complete without
+  active session, start while another session is active.
+- State-file format compat with Node.js — asserts
+  `active_session.json` uses camelCase keys (`sessionId`, `phase`,
+  `startedAt`, `lastActivityAt`, `totalSteps`, `currentStep`,
+  `completedSteps`, `skippedSteps`) and step records carry
+  `{step, name, tag, completedAt, notes}`. Asserts `history.jsonl`
+  emits `started → step_completed → completed` events with
+  Node.js-shaped fields (sessionId, phase, event, timestamp; step
+  events carry step/name/tag/notes; completed events carry
+  `completedSteps` as int count + `summary` + `duration`).
+- Execution-history rendering: empty history, completed-session
+  formatting, workflow-name filter scoping, and the analytics block
+  (Phases-by-Status table, Step Tag Distribution, Velocity).
+- `validate_sdd_compliance` content checks: bash clean (4 pass),
+  bash failures (no shebang + hardcoded path → 2 fail), python with
+  type hints (Entry Point + Type Hints both pass), python missing
+  features (both warn), content-type auto-detect for python and
+  bash, error path when neither `content` nor `target` is supplied,
+  error path when only `target` is supplied.
+- Workflow-catalogue parsing: list with files, list with metadata,
+  list with missing directory ([INFO] block), get_workflow renders
+  Phases/Steps/Metadata sections, get_workflow not-found path.
+- Framework status: no active session, with active session
+  (1/5 progress), detailed mode adds Session Tools and Recent
+  Sessions sections.
+- Helper tests: `_parse_duration_minutes` for `15m` / `1h 22m` /
+  `2h` / empty / None / noise; `_session_status` for completed /
+  abandoned / in-progress event lists.
+
+`tests/parity/test_sdd_workflow_parity.py` — 8 hermetic + 18 live
+cases (gated on `RUN_PARITY=1`):
+
+- Catalogue coverage: all 9 SDD tools, ≥5 cases for the high-traffic
+  pure-content tool (`validate_sdd_compliance`), ≥18 cases total.
+- Schema parity against the authoritative Node.js source — params,
+  required, defaults, enums for every tool.
+- Framework PASS / FAIL sanity (matching check-name set passes;
+  missing check trips SET_EQUALITY).
+- Extractor unit tests: `_extract_check_names`,
+  `_extract_h2_headings` (status-icon-stripping for the
+  per-session `[OK]/[!!]/[..]` prefix), `_extract_workflow_names`
+  (filters by following `- **Path**` bullet),
+  `_extract_session_card_fields` (bold-field labels).
+- Per-tool live cases:
+  - `validate_sdd_compliance` — 5 cases SET_EQUALITY on check names
+    (bash-clean, bash-failures, python-clean, python-warns,
+    auto-detect).
+  - `list_sdd_workflows` — 2 cases SET_EQUALITY on workflow names
+    (default, with-metadata).
+  - `get_sdd_workflow` — 2 cases SET_EQUALITY on H2 section
+    headings (phase48, phase56).
+  - `get_sdd_framework_status` — 2 cases SET_EQUALITY on H2
+    section headings (default, detailed).
+  - `get_sdd_execution_history` — 3 cases SET_EQUALITY on H1/H2
+    headings (recent-5, analytics, phase48-filter).
+  - `get_sdd_session` — 1 case SET_EQUALITY on H1 titles
+    (no-active-session render is stable across both runtimes).
+  - Lifecycle (start / record / abandon) — 3 cases SET_EQUALITY on
+    H1 titles, run against a unique scratch phase
+    `phase_parity_scratch` so live runs don't disturb production
+    session state.
+
+### Dockerfile CMD
+
+Changed from `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational`
+(B9 baseline, 35 tools) to
+`--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow`
+(44 tools: 4 + 7 + 6 + 9 + 5 + 4 + 9). Comment block rewritten to
+document the SDD module's data-access-free contract and the
+filesystem-degraded behaviour of the catalogue tools on the
+AgentCore microVM.
+
+### `test_mcp_server.py` Fixture Swap
+
+`test_initialize_degraded_mode_when_data_access_missing` updated:
+
+- Unported fixture swapped from `sdd_workflow` (B9) to
+  `workflow_info` (next alphabetical unported module after B10).
+- `sdd_workflow` added to the list of modules asserted to register
+  successfully in degraded mode.
+- Module whitelist now covers 7 ported + 1 unported = 8 modules.
+
+### Verification
+
+Local pytest run (no AWS credentials required):
+
+- Unit tests: 559 passed (was 521 B9 baseline + 38 new sdd_workflow).
+- Hermetic parity tests: 8 new (6 framework/extractor + schema parity
+  + catalogue coverage).
+- Live parity cases: 18 skipped by default (enable with
+  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
+- Full suite: **576 passed, 174 skipped, 0 failed** in 9.98 s
+  (B9 baseline 530 → B10 576, +46).
+
+### Iteration Notes
+
+1. The Node.js `WorkflowExecutor` reads `sdd_framework/workflows/`
+   from disk via Node `fs` calls. The hosted Python port does the
+   same via `pathlib.Path` but treats a missing directory as the
+   expected state (returns `[INFO]` rather than `[ERROR]`) since
+   the AgentCore microVM does not bind-mount `sdd_framework/`.
+   Truly broken file reads still surface `[ERROR]`.
+
+2. Node.js `ContentResolver` (Phase 19A content-abstraction layer)
+   is not yet ported. The Python port handles only the `content`
+   argument directly and rejects `target` (file path) with an
+   actionable `[ERROR]` pointing callers at `content`. The
+   `_perform_sdd_checks` battery — the actual compliance logic —
+   is ported byte-for-byte; only the resolver's filesystem branch
+   is unported.
+
+3. The Node.js `getSessionSummaries()` helper does not exist on the
+   Python `SessionManager`; the framework-status tool computes the
+   same summaries directly from `history.jsonl` events grouped by
+   `sessionId`. Output shape is byte-compatible — the Components
+   block reports identical totals.
+
+4. `record_sdd_step.step` is `type: 'number'` in Node.js JSON
+   Schema; FastMCP renders Python `int` as `{"type": "integer"}`.
+   The schema-parity tests assert the parameter NAME and the
+   semantic type rather than the literal type string. Behaviour is
+   identical (the Python port wraps `int(step_number)` to coerce
+   any float input the same way Node.js does).
+
+### Next Phase
+
+Task 15 (Phase B10b — `workflow_info` tools, 3 tools) is next.
+Task 16 (`github_tools`, 4 tools) follows. Once those land, the
+Python runtime registers all 51 tools.
+
+
 ## [8.18.0] - Phase B9: OperationalTools Port (May 13, 2026)
 
 ### Scope
