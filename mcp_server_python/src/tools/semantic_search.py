@@ -77,6 +77,14 @@ from typing import Any, Iterable, Literal, Protocol
 
 from fastmcp import FastMCP
 
+from src.manifest import (
+    GapDetector,
+    GapReport,
+    ManifestRegistry,
+    SourceEntry,
+    SourceType,
+)
+
 log = logging.getLogger(__name__)
 
 
@@ -165,6 +173,7 @@ def register(
     mcp: FastMCP,
     data: Any = None,
     *,
+    manifest_registry: ManifestRegistry | None = None,
     documentation_sources_path: str | os.PathLike[str] | None = None,
     repo_base: str | os.PathLike[str] | None = None,
 ) -> None:
@@ -178,10 +187,17 @@ def register(
         ``UnifiedDataAccess``-shaped facade. ``None`` triggers
         degraded-mode — tools return error messages rather than
         crashing.
+    manifest_registry
+        Optional :class:`ManifestRegistry` carrying the unified ingest
+        manifest. When provided, ``list_all_sources``,
+        ``list_ingested_urls``, and ``get_ingested_urls_array`` read
+        from the registry; when ``None`` they fall back to the legacy
+        file-based resolver below (Requirements 4.1, 4.2, 6.1).
     documentation_sources_path
         Override for the path to ``documentation_sources.json``.
         Defaults to the ``MCP_DOCUMENTATION_SOURCES_PATH`` env var,
-        then to the bundled copy at ``src/config/``.
+        then to the bundled copy at ``src/config/``. Used as the
+        legacy fallback when ``manifest_registry`` is ``None``.
     repo_base
         Optional override for the path used by
         ``check_knowledge_integrity`` to count Fortran files on disk
@@ -295,6 +311,7 @@ def register(
     ) -> str:
         return await _tool_list_ingested_urls(
             data,
+            manifest_registry=manifest_registry,
             doc_sources_resolver=doc_sources_resolver,
             fmt=format,
             source_filter=source_filter,
@@ -309,8 +326,44 @@ def register(
     )
     async def get_ingested_urls_array(include_failed: bool = False) -> str:
         return _tool_get_ingested_urls_array(
+            manifest_registry=manifest_registry,
             doc_sources_resolver=doc_sources_resolver,
             include_failed=include_failed,
+        )
+
+    @mcp.tool(
+        name="list_all_sources",
+        description=(
+            "List every ingestion source declared in the unified manifest "
+            "across all 7 source types (url_crawl, on_disk_submodule, "
+            "code_parse, config_parse, standards, community_summary, "
+            "jjob_docs). Supports source_type / collection filters, "
+            "summary vs detailed output, and optional gap detection "
+            "comparing declared vs actual OpenSearch document counts."
+        ),
+    )
+    async def list_all_sources(
+        source_type: Literal[
+            "url_crawl",
+            "on_disk_submodule",
+            "code_parse",
+            "config_parse",
+            "standards",
+            "community_summary",
+            "jjob_docs",
+        ]
+        | None = None,
+        collection: str | None = None,
+        format: Literal["summary", "detailed"] = "summary",
+        include_gaps: bool = False,
+    ) -> str:
+        return await _tool_list_all_sources(
+            data,
+            manifest_registry=manifest_registry,
+            source_type=source_type,
+            collection=collection,
+            fmt=format,
+            include_gaps=include_gaps,
         )
 
     @mcp.tool(
@@ -334,7 +387,8 @@ def register(
         "registered semantic search tools: search_documentation, "
         "find_related_files, explain_with_context, "
         "get_knowledge_base_status, list_ingested_urls, "
-        "get_ingested_urls_array, check_knowledge_integrity"
+        "get_ingested_urls_array, list_all_sources, "
+        "check_knowledge_integrity"
     )
 
 
@@ -785,9 +839,6 @@ async def _render_graph_status_block(graph_db: Any) -> list[str]:
             "",
         ]
 
-    node_count = int(health.get("nodes") or 0)
-    rel_count = int(health.get("relationships") or 0)
-
     # Per-label / per-relationship counts — attempt to fetch when the
     # health payload doesn't already include them.
     label_counts: dict[str, int] = dict(health.get("labelBreakdown") or {})
@@ -799,6 +850,16 @@ async def _render_graph_status_block(graph_db: Any) -> list[str]:
         rel_breakdown = await _safe_relationship_counts(graph_db)
     except Exception:  # pragma: no cover - defensive
         rel_breakdown = []
+
+    # Compute totals from the per-label/per-rel breakdowns rather than
+    # relying on health_check() which may not include them (Neptune's
+    # health probe only runs ``RETURN 1 AS ok``).
+    node_count = int(health.get("nodes") or 0)
+    rel_count = int(health.get("relationships") or 0)
+    if node_count == 0 and label_counts:
+        node_count = sum(label_counts.values())
+    if rel_count == 0 and rel_breakdown:
+        rel_count = sum(int(r.get("count") or 0) for r in rel_breakdown)
 
     status_ok = (
         health.get("status") == "healthy"
@@ -976,17 +1037,14 @@ def _resolve_repo_base(override: str | os.PathLike[str] | None) -> Path:
 async def _tool_list_ingested_urls(
     data: Any,
     *,
+    manifest_registry: ManifestRegistry | None,
     doc_sources_resolver,
     fmt: str,
     source_filter: str | None,
 ) -> str:
-    path, config = doc_sources_resolver()
-    sources: list[dict[str, Any]] = (
-        config.get("sources") if isinstance(config, dict) else None
-    ) or []
-    config_version = (
-        config.get("version") if isinstance(config, dict) else None
-    ) or "unknown"
+    sources, config_version, source_path = _resolve_url_sources_view(
+        manifest_registry, doc_sources_resolver
+    )
 
     # Fetch actual ingestion status from the vector store's health
     # payload — opensearch-py pools connections natively so this is
@@ -1064,9 +1122,18 @@ async def _tool_list_ingested_urls(
     else:
         lines.append(
             f"No documentation sources configured "
-            f"(looked in: {path or 'default paths'})"
+            f"(looked in: {source_path or 'default paths'})"
         )
         lines.append("")
+
+    # Detailed format on a registry-backed call appends a summary of
+    # non-URL source counts so agents see that other sources exist
+    # (Requirement 4.5). The legacy file-backed path skips this
+    # because legacy data has no non-URL sources to report on.
+    if fmt == "detailed" and manifest_registry is not None:
+        non_url_summary = _summarize_non_url_sources(manifest_registry)
+        if non_url_summary:
+            lines.extend(non_url_summary)
 
     if fmt == "summary":
         # Drop the per-index table for summary mode.
@@ -1091,15 +1158,12 @@ async def _tool_list_ingested_urls(
 
 def _tool_get_ingested_urls_array(
     *,
+    manifest_registry: ManifestRegistry | None,
     doc_sources_resolver,
     include_failed: bool,
 ) -> str:
-    path, config = doc_sources_resolver()
-    sources: list[dict[str, Any]] = (
-        config.get("sources") if isinstance(config, dict) else None
-    ) or []
-    version = (
-        (config.get("version") if isinstance(config, dict) else None) or "unknown"
+    sources, version, _path = _resolve_url_sources_view(
+        manifest_registry, doc_sources_resolver
     )
 
     enabled = [s for s in sources if s.get("enabled")]
@@ -1161,6 +1225,305 @@ def _tool_get_ingested_urls_array(
         )
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+# ── list_all_sources (Requirements 3.1 – 3.6, 6.5) ────────────────────
+
+
+async def _tool_list_all_sources(
+    data: Any,
+    *,
+    manifest_registry: ManifestRegistry | None,
+    source_type: str | None,
+    collection: str | None,
+    fmt: str,
+    include_gaps: bool,
+) -> str:
+    """Render the unified manifest as a markdown report."""
+    if manifest_registry is None:
+        return _error_text(
+            "Unified manifest registry unavailable. The server is running "
+            "in legacy fallback mode — only url_crawl sources are visible. "
+            "Use list_ingested_urls instead, or set "
+            "MCP_UNIFIED_MANIFEST_PATH and restart."
+        )
+
+    # Filter (Requirements 3.2, 3.3). enabled_only=False so disabled
+    # entries still appear in the report — operators need to see them.
+    try:
+        entries = manifest_registry.get_sources(
+            source_type=source_type,
+            collection=collection,
+            enabled_only=False,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("list_all_sources: get_sources failed: %s", exc)
+        return _error_text(f"Failed to query manifest registry: {exc}")
+
+    # Resolve actual document counts for the indices we will reference
+    # so the report can show declared vs actual side-by-side
+    # (Requirement 3.6). Use the same health_check shape the URL tools
+    # use so we hit the cluster once.
+    actual_counts: dict[str, int] = {}
+    if data is not None and getattr(data, "vector_db", None) is not None:
+        try:
+            health = await data.vector_db.health_check(deep=True)
+            detail = health.get("indices_detail") or {}
+            if isinstance(detail, dict):
+                actual_counts = {str(k): int(v) for k, v in detail.items()}
+        except Exception as exc:
+            log.debug("list_all_sources: health_check failed: %s", exc)
+
+    lines: list[str] = [
+        "# Unified Ingest Manifest",
+        "",
+        f"**Generated**: {_iso_now()}",
+        f"**Manifest Version**: {manifest_registry.version}",
+        f"**Total Sources**: {manifest_registry.total_sources} "
+        f"({manifest_registry.enabled_sources} enabled)",
+        "",
+    ]
+    filter_bits: list[str] = []
+    if source_type:
+        filter_bits.append(f"source_type=`{source_type}`")
+    if collection:
+        filter_bits.append(f"collection=`{collection}`")
+    if filter_bits:
+        lines.append(f"**Filter**: {', '.join(filter_bits)}")
+        lines.append("")
+
+    if not entries:
+        lines.append("_No sources match the current filter._")
+        lines.append("")
+        return "\n".join(lines).rstrip() + "\n"
+
+    if fmt == "summary":
+        lines.extend(_render_summary(entries, actual_counts))
+    else:
+        lines.extend(_render_detailed(entries, actual_counts))
+
+    if include_gaps:
+        lines.append("")
+        lines.append("## Gap Detection")
+        lines.append("")
+        if data is None or getattr(data, "vector_db", None) is None:
+            lines.append("_Gap detection unavailable — no vector adapter._")
+        else:
+            try:
+                reports = await GapDetector().detect(
+                    manifest_registry, data.vector_db
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("list_all_sources: GapDetector failed: %s", exc)
+                reports = []
+            if not reports:
+                lines.append(
+                    "_Gap detection unavailable — could not query OpenSearch._"
+                )
+            else:
+                lines.extend(_render_gap_reports(reports))
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_summary(
+    entries: list[SourceEntry],
+    actual_counts: dict[str, int],
+) -> list[str]:
+    """Aggregated counts grouped by source_type and collection."""
+    lines: list[str] = []
+
+    # Group by source_type.
+    by_type: dict[str, list[SourceEntry]] = {}
+    for entry in entries:
+        by_type.setdefault(entry.source_type.value, []).append(entry)
+
+    lines.append("## By Source Type")
+    lines.append("")
+    lines.append("| Source Type | Sources | Enabled | Declared Docs |")
+    lines.append("|-------------|---------|---------|---------------|")
+    for stype in sorted(by_type):
+        bucket = by_type[stype]
+        enabled = sum(1 for e in bucket if e.enabled)
+        declared = sum(e.doc_count for e in bucket if e.enabled)
+        lines.append(
+            f"| {stype} | {len(bucket)} | {enabled} | {declared:,} |"
+        )
+    lines.append("")
+
+    # Group by collection_target.
+    by_collection: dict[str, list[SourceEntry]] = {}
+    for entry in entries:
+        by_collection.setdefault(entry.collection_target, []).append(entry)
+
+    lines.append("## By Collection Target")
+    lines.append("")
+    lines.append(
+        "| Collection | Sources | Enabled | Declared | Actual |"
+    )
+    lines.append("|------------|---------|---------|----------|--------|")
+    for coll in sorted(by_collection):
+        bucket = by_collection[coll]
+        enabled = sum(1 for e in bucket if e.enabled)
+        declared = sum(e.doc_count for e in bucket if e.enabled)
+        actual = _resolve_actual_for_collection(coll, bucket, actual_counts)
+        actual_str = f"{actual:,}" if actual is not None else "n/a"
+        lines.append(
+            f"| {coll} | {len(bucket)} | {enabled} | "
+            f"{declared:,} | {actual_str} |"
+        )
+    lines.append("")
+    return lines
+
+
+def _render_detailed(
+    entries: list[SourceEntry],
+    actual_counts: dict[str, int],
+) -> list[str]:
+    """Full SourceEntry metadata for each source."""
+    lines: list[str] = []
+    for entry in sorted(entries, key=lambda e: (e.source_type.value, e.name)):
+        status = "[ENABLED]" if entry.enabled else "[DISABLED]"
+        lines.append(f"## {entry.name} ({entry.source_type.value}) {status}")
+        lines.append("")
+        lines.append(f"- **Description**: {entry.description}")
+        lines.append(f"- **Collection**: `{entry.collection_target}`")
+        lines.append(f"- **Embedding Profile**: `{entry.embedding_profile}`")
+        lines.append(f"- **Declared Docs**: {entry.doc_count:,}")
+        lines.append(
+            f"- **Last Ingested**: {entry.last_ingested or '_never_'}"
+        )
+        if entry.ingestion_script:
+            lines.append(f"- **Ingestion Script**: `{entry.ingestion_script}`")
+        # Render type-specific fields in their declaration order so the
+        # output stays diffable when the manifest is regenerated.
+        if entry.type_fields:
+            lines.append("- **Type-Specific Fields**:")
+            for k, v in entry.type_fields.items():
+                lines.append(f"  - `{k}`: {v!r}")
+        lines.append("")
+    return lines
+
+
+def _render_gap_reports(reports: list[GapReport]) -> list[str]:
+    """Render :class:`GapReport` entries as a markdown table."""
+    lines = [
+        "| Collection | Status | Declared | Actual | Coverage | Issues |",
+        "|------------|--------|----------|--------|----------|--------|",
+    ]
+    for r in reports:
+        issues_bits: list[str] = []
+        if r.never_ingested:
+            issues_bits.append(
+                f"never: {', '.join(r.never_ingested)}"
+            )
+        if r.stale_sources:
+            issues_bits.append(
+                f"stale: {', '.join(r.stale_sources)}"
+            )
+        issues = "; ".join(issues_bits) or "—"
+        lines.append(
+            f"| {r.collection} | {r.status} | "
+            f"{r.declared_count:,} | {r.actual_count:,} | "
+            f"{r.coverage_pct * 100:.1f}% | {issues} |"
+        )
+    return lines
+
+
+def _resolve_actual_for_collection(
+    collection: str,
+    entries: list[SourceEntry],
+    actual_counts: dict[str, int],
+) -> int | None:
+    """Look up the OpenSearch doc count for ``collection``.
+
+    Mirrors the resolver logic in :class:`GapDetector` so the summary
+    table and the gap section agree on numbers. Returns ``None`` when
+    no actual data is available so the caller can render ``n/a``.
+    """
+    if not actual_counts:
+        return None
+    if collection in actual_counts:
+        return actual_counts[collection]
+    # Late import — avoid pulling AWS config into module load time.
+    from src.config.aws_config import resolve_index
+
+    for entry in entries:
+        try:
+            index_name = resolve_index(collection, entry.embedding_profile)
+        except Exception:  # pragma: no cover - defensive
+            continue
+        if index_name in actual_counts:
+            return actual_counts[index_name]
+    return 0
+
+
+def _summarize_non_url_sources(
+    registry: ManifestRegistry,
+) -> list[str]:
+    """Produce the "non-URL summary" section for ``list_ingested_urls``.
+
+    Returns an empty list when the registry only contains url_crawl
+    entries so the rendered output stays unchanged in legacy
+    deployments (Requirement 4.5).
+    """
+    by_type: dict[str, int] = {}
+    for entry in registry.get_sources(enabled_only=False):
+        if entry.source_type == SourceType.URL_CRAWL:
+            continue
+        by_type[entry.source_type.value] = (
+            by_type.get(entry.source_type.value, 0) + 1
+        )
+    if not by_type:
+        return []
+
+    lines = [
+        "## Other Knowledge Base Sources (non-URL)",
+        "",
+        (
+            "The unified manifest also declares the following non-URL "
+            "sources. Use `list_all_sources` to see them in detail."
+        ),
+        "",
+        "| Source Type | Count |",
+        "|-------------|-------|",
+    ]
+    for stype in sorted(by_type):
+        lines.append(f"| {stype} | {by_type[stype]} |")
+    lines.append("")
+    return lines
+
+
+def _resolve_url_sources_view(
+    manifest_registry: ManifestRegistry | None,
+    doc_sources_resolver,
+) -> tuple[list[dict[str, Any]], str, Path | None]:
+    """Return ``(legacy-shaped sources, version, source_path)``.
+
+    Prefers the registry view (Requirements 4.1, 4.2). Falls back to
+    the file-based resolver when the registry is None or yields no
+    url_crawl entries (so a server booted in legacy-fallback mode
+    still renders the existing sources).
+    """
+    if manifest_registry is not None:
+        legacy = manifest_registry.get_legacy_format()
+        sources = legacy.get("sources") or []
+        if sources:
+            return (
+                list(sources),
+                str(legacy.get("version") or "unknown"),
+                manifest_registry.source_path,
+            )
+
+    path, config = doc_sources_resolver()
+    if isinstance(config, dict):
+        return (
+            list(config.get("sources") or []),
+            str(config.get("version") or "unknown"),
+            path,
+        )
+    return [], "unknown", path
 
 
 # ── check_knowledge_integrity ───────────────────────────────────────────

@@ -235,7 +235,9 @@ class OpenSearchAdapter:
         """Return a snapshot of adapter + cluster health.
 
         When ``deep=True`` the adapter issues a ``cluster.health`` request
-        to OpenSearch in addition to reporting local metrics.
+        to OpenSearch in addition to reporting local metrics, and also
+        enumerates indices with document counts so that callers like
+        ``get_knowledge_base_status`` can render per-index breakdowns.
         """
         if not self._connected:
             try:
@@ -263,11 +265,40 @@ class OpenSearchAdapter:
             base["cluster_status"] = cluster.get("status")
             if cluster.get("status") == "red":
                 base["status"] = "unhealthy"
-            return base
         except Exception as exc:
             base["status"] = "degraded"
             base["error"] = str(exc)
             return base
+
+        # Enumerate indices and document counts for status reporting.
+        try:
+            cat_indices = await asyncio.to_thread(
+                self._raw_client().cat.indices,
+                format="json",
+            )
+            # Filter to mdc-* indices (our production indices) and
+            # exclude system indices (starting with .).
+            indices_detail: dict[str, int] = {}
+            total_docs = 0
+            for idx in cat_indices or []:
+                name = idx.get("index", "")
+                if name.startswith(".") or not name.startswith("mdc-"):
+                    continue
+                doc_count = int(idx.get("docs.count") or 0)
+                indices_detail[name] = doc_count
+                total_docs += doc_count
+            base["indices"] = list(indices_detail.keys())
+            base["indices_detail"] = indices_detail
+            base["total_documents"] = total_docs
+        except Exception as exc:
+            # Non-fatal — index enumeration is best-effort for status
+            # reporting. The adapter is still healthy for queries.
+            log.debug("cat.indices failed (non-fatal): %s", exc)
+            base["indices"] = []
+            base["indices_detail"] = {}
+            base["total_documents"] = 0
+
+        return base
 
     async def close(self) -> None:
         """Release sockets held by the underlying ``opensearch-py`` client."""

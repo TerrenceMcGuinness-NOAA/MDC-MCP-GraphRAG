@@ -57,7 +57,9 @@
         "get_server_info",
         "mcp_health_check",
         "get_health_trend",
-        "get_quality_metrics"
+        "get_quality_metrics",
+        "mcp-exec",
+        "mcp-exec"
       ],
       "disabled": false
     },
@@ -67,7 +69,7 @@
       "args": [
         "/mdc-mcp-rag/eib-mcp-rag-server/tools/agentcore-kiro-proxy.py",
         "--runtime-id",
-        "arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server-TMXDllG2Wi"
+        "arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN"
       ],
       "env": {
         "AWS_REGION": "us-east-1"

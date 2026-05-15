@@ -6,6 +6,56 @@ Short-form progress log for the Python port of the Node.js MCP server
 port (`mcp_server_python/`) is validated module-by-module via parity
 tests before cutover.
 
+## 2026-05-15 — Phase C-3: Bedrock IAM gap resolved
+
+### Status
+
+- **Bedrock `InvokeModel` permission added** to
+  `mdc-mcp-rag-ecs-task-role`. Admin applied the inline policy
+  `bedrock-invoke-titan-embed-v2` on 2026-05-15.
+- Resource ARN: `arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-*`
+  (admin chose wildcard over pinned `v2:0` — covers future Titan embed
+  versions).
+- Verified via `aws bedrock-runtime invoke-model` — returns 1024-dim
+  embedding vector successfully.
+- The semantic search path (`search_documentation` with titan1024
+  collections) is now unblocked on both the Node.js and Python
+  runtimes.
+- **All known IAM blockers are resolved.** Ready for live parity
+  testing.
+
+### What was blocking
+
+The AgentCore microVM assumed `mdc-mcp-rag-ecs-task-role` which had
+Neptune, OpenSearch, ECR, logs, X-Ray, secretsmanager, and ssm — but
+no `bedrock:InvokeModel`. Every `BedrockProvider` embedding call
+failed with `AccessDeniedException`. The sentence-transformers
+(mpnet768) path worked because it runs locally; the Titan (titan1024)
+path requires Bedrock API access.
+
+### Admin request doc
+
+`docs/bedrock-invoke-model-role-request.txt` — submitted and applied
+2026-05-15. Includes verbatim denial proof, exact CLI command, and
+rollback instructions.
+
+### Next
+
+Live parity testing (Phase C-4): run the parity suite comparing
+Node.js and Python runtimes now that both have full data-layer +
+embedding access.
+
+### Cutover
+
+**2026-05-15: `.kiro/settings/mcp.json` switched to Python runtime.**
+Both workspace and user configs now point `agentcore-mcp-rag` at
+`mdc_mcp_rag_server_python-v5K2F8BGrN`. The Node.js runtime
+(`mdc_mcp_rag_server-TMXDllG2Wi`) remains deployed but is no longer
+the active MCP target — it continues to exhibit Issue A
+(`RuntimeClientError` on health check).
+
+---
+
 ## 2026-05-14 — Phase C-2b: Issue C resolved (data layer connected)
 
 ### Status
