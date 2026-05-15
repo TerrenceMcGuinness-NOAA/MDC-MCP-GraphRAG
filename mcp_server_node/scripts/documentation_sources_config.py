@@ -34,7 +34,7 @@ import os
 # VERSION CONFIGURATION
 # =============================================================================
 
-VERSION = "8.0.0"
+VERSION = "8.1.0"
 
 # Collection name can be overridden via environment variable
 DEFAULT_COLLECTION_NAME = "global-workflow-docs-v8-2-0"
@@ -54,11 +54,15 @@ COLLECTION_NAME = os.getenv("DOCS_COLLECTION", DEFAULT_COLLECTION_NAME)
 # Source Fields:
 #   name        : Unique identifier (used in metadata and deduplication)
 #   url         : Base URL to crawl (include trailing slash for directories)
-#   type        : readthedocs | github_pages | single_page
+#   type        : readthedocs | github_pages | single_page | local
 #   priority    : 1 (critical) to 5 (reference)
 #   description : Human-readable purpose
 #   max_pages   : Crawl limit (default: 100)
 #   enabled     : Set to False to skip during ingestion (default: True)
+#   local_path  : (optional) Path relative to GW_REPO (supported_repos/global-workflow)
+#                 where RST/MD docs live on disk. When set, the ingester can read
+#                 local files instead of crawling the URL — faster, no 404s, always
+#                 in sync with the checked-out branch. URL is kept as fallback.
 #
 # =============================================================================
 
@@ -92,7 +96,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 1,
             'description': 'UFS utilities - chgres_cube, grid generation, preprocessing',
             'max_pages': 100,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/ufs_utils.fd',  # 50 RST/MD files
         },
         {
             'name': 'esmf-user-guide',
@@ -179,7 +184,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 2,
             'description': 'UFS Weather Model - atmospheric model documentation',
             'max_pages': 150,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/ufs_model.fd',  # 167 RST/MD files
         },
         {
             'name': 'jedi-docs',
@@ -188,7 +194,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 3,
             'description': 'JEDI - Joint Effort for Data Assimilation Integration',
             'max_pages': 150,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/gdas.cd',  # 64 RST/MD files
         },
         {
             'name': 'fv3-dynamical-core',
@@ -206,7 +213,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 2,
             'description': 'CMEPS Community Mediator - inter-model data exchange',
             'max_pages': 50,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/ufs_model.fd/CMEPS',  # 8 RST/MD files
         },
         {
             'name': 'mom6',
@@ -215,7 +223,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 2,
             'description': 'MOM6 Ocean Model - modular ocean model v6',
             'max_pages': 200,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/ufs_model.fd/MOM6',  # 38 RST/MD files — avoids RTD 404s
         },
         {
             'name': 'cice',
@@ -224,7 +233,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 2,
             'description': 'CICE Sea Ice Model - Los Alamos sea ice model',
             'max_pages': 150,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/ufs_model.fd/CICE',  # 9 RST/MD files
         },
         {
             'name': 'ww3-wiki',
@@ -233,7 +243,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 3,
             'description': 'WAVEWATCH III - wave model wiki',
             'max_pages': 50,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/ufs_model.fd/WW3',  # 12 RST/MD files
         },
         {
             'name': 'fv3-docs',
@@ -251,7 +262,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 4,
             'description': 'GEOS-Chem / GOCART - aerosol transport model',
             'max_pages': 100,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/ufs_model.fd/GOCART',  # 5 RST/MD files
         },
         {
             'name': 'pyioda',
@@ -260,7 +272,8 @@ DOCUMENTATION_SOURCES = {
             'priority': 4,
             'description': 'JEDI IODA - observation data access for DA (pyioda/ioda-converters)',
             'max_pages': 50,
-            'enabled': True
+            'enabled': True,
+            'local_path': 'sorc/gdas.cd',  # shares gdas.cd with jedi-docs
         },
         {
             'name': 'fms',
@@ -408,6 +421,27 @@ DOCUMENTATION_SOURCES = {
             'description': 'CCPP Common Community Physics Package - physics parameterization framework',
             'max_pages': 100,
             'enabled': True
+        },
+
+        # --- HPC Performance Portability ---
+        # Added 2026-04-14 - Kokkos C++ performance portability for HPC
+        {
+            'name': 'kokkos-api',
+            'url': 'https://kokkos.org/kokkos-core-wiki/api-references.html',
+            'type': 'github_pages',
+            'priority': 3,
+            'description': 'Kokkos API Reference - C++ performance portability for HPC (Views, parallel dispatch, memory spaces)',
+            'max_pages': 150,
+            'enabled': True
+        },
+        {
+            'name': 'kokkos-overview',
+            'url': 'https://kokkos.org/about/overview/',
+            'type': 'single_page',
+            'priority': 3,
+            'description': 'Kokkos Overview - HPC performance portability programming model (GPU/CPU abstraction)',
+            'max_pages': 10,
+            'enabled': True
         }
     ],
 
@@ -535,6 +569,29 @@ def get_sources_by_priority(max_priority=5, enabled_only=True):
     return [s for s in sources if s.get('priority', 5) <= max_priority]
 
 
+def get_local_sources(enabled_only=True):
+    """
+    Return sources that have a local_path (docs available on disk in sorc/).
+
+    These sources can be ingested from local RST/MD files instead of crawling
+    URLs — faster, no 404s, always in sync with the checked-out branch.
+
+    Returns:
+        List of source dicts that have a 'local_path' field set
+    """
+    return [s for s in get_all_sources(enabled_only=enabled_only) if s.get('local_path')]
+
+
+def get_url_only_sources(enabled_only=True):
+    """
+    Return sources that must be crawled from URLs (no local_path available).
+
+    Returns:
+        List of source dicts without a 'local_path' field
+    """
+    return [s for s in get_all_sources(enabled_only=enabled_only) if not s.get('local_path')]
+
+
 def validate_sources():
     """Validate source configuration"""
     errors = []
@@ -555,7 +612,7 @@ def validate_sources():
             names_seen.add(name)
             
             # Validate type
-            valid_types = ['readthedocs', 'github_pages', 'single_page']
+            valid_types = ['readthedocs', 'github_pages', 'single_page', 'github-wiki', 'local']
             if source.get('type') not in valid_types:
                 errors.append(f"{name}: Invalid type '{source.get('type')}' (must be one of {valid_types})")
             

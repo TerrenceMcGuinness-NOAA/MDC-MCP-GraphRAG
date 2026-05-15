@@ -49,6 +49,31 @@ NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "gfsworkflow2025")
 
+# Phase 48D: AWS backend support
+# Phase 49: Registry-driven model selection
+import sys as _sys
+try:
+    from ingestion_base import BaseIngester as _BaseIngester
+    _bi = _BaseIngester.__new__(_BaseIngester)
+    _bi.args = _BaseIngester._parse_common_args(_bi)
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from collection_namer import CollectionNamer as _CN
+    _profile = _Reg().get_profile(_bi.args.model)
+    _namer = _CN(_profile)
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    if "--backend" in _sys.argv:
+        _bidx = _sys.argv.index("--backend")
+        if _bidx + 1 < len(_sys.argv):
+            os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_graph_driver as _get_graph_driver, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
+
 WORKFLOW_ROOT = os.environ.get(
     "MCP_WORKFLOW_ROOT",
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
@@ -233,7 +258,11 @@ def parse_env_vars(file_path):
 # ===========================================================================
 
 def create_constraints(tx):
-    """Create uniqueness constraints for EnvironmentVariable nodes."""
+    """Create uniqueness constraints for EnvironmentVariable nodes.
+    
+    Skipped on Neptune (DB_BACKEND=aws) — Neptune auto-indexes all properties
+    and does not support CREATE CONSTRAINT syntax.
+    """
     tx.run("CREATE CONSTRAINT IF NOT EXISTS FOR (e:EnvironmentVariable) REQUIRE e.name IS UNIQUE")
 
 
@@ -422,7 +451,8 @@ def main():
     args = parser.parse_args()
 
     # Connect to Neo4j
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    driver = (_get_graph_driver() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+              else GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD)))
     
     try:
         driver.verify_connectivity()
@@ -518,14 +548,21 @@ def main():
     print(f"\n[OK] Starting Neo4j ingestion...")
     
     with driver.session() as session:
-        # Create constraints
-        session.execute_write(create_constraints)
-        print("[OK] Constraints created")
+        # Create constraints (skip on Neptune — auto-indexes all properties)
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+            print("[OK] Skipping constraint creation (Neptune auto-indexes all properties)")
+        else:
+            session.execute_write(create_constraints)
+            print("[OK] Constraints created")
 
         # Ingest each script
         total_counts = {"exports": 0, "sets": 0, "depends": 0}
         for i, parsed in enumerate(all_parsed):
-            counts = session.execute_write(ingest_script, parsed)
+            if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+                # Neptune adapter: call ingest_script directly with session
+                counts = ingest_script(session, parsed)
+            else:
+                counts = session.execute_write(ingest_script, parsed)
             total_counts["exports"] += counts["exports"]
             total_counts["sets"] += counts["sets"]
             total_counts["depends"] += counts["depends"]

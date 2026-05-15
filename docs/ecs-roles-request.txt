@@ -1,0 +1,179 @@
+ECS IAM ROLES REQUEST — Account 903050880929
+============================================================
+
+Date:       April 22, 2026
+Requestor:  Terry McGuinness (terry.mcguinness@noaa.gov)
+Account:    903050880929
+Region:     us-east-1
+Project:    MDC MCP RAG Server — Private ECS Deployment
+
+
+REQUEST
+-------
+
+Please create two IAM roles for ECS Fargate tasks. These roles allow
+the MCP server container to access Neptune, OpenSearch, Secrets Manager,
+and SSM Parameter Store — all within the VPC via VPC endpoints.
+
+
+ROLE 1: mdc-mcp-rag-ecs-task-role
+----------------------------------
+
+Trust Policy:
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": { "Service": "ecs-tasks.amazonaws.com" },
+        "Action": "sts:AssumeRole"
+      }]
+    }
+
+Permission Policy (inline, name: mdc-mcp-rag-task-policy):
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "SecretsManagerAccess",
+          "Effect": "Allow",
+          "Action": "secretsmanager:GetSecretValue",
+          "Resource": "arn:aws:secretsmanager:us-east-1:903050880929:secret:mdc-mcp-rag/*"
+        },
+        {
+          "Sid": "SSMParameterAccess",
+          "Effect": "Allow",
+          "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+          "Resource": "arn:aws:ssm:us-east-1:903050880929:parameter/mdc-mcp-rag/*"
+        },
+        {
+          "Sid": "NeptuneAccess",
+          "Effect": "Allow",
+          "Action": "neptune-db:connect",
+          "Resource": "arn:aws:neptune-db:us-east-1:903050880929:*/*"
+        },
+        {
+          "Sid": "OpenSearchAccess",
+          "Effect": "Allow",
+          "Action": [
+            "es:ESHttpGet",
+            "es:ESHttpPost",
+            "es:ESHttpPut",
+            "es:ESHttpDelete",
+            "es:ESHttpHead"
+          ],
+          "Resource": "arn:aws:es:us-east-1:903050880929:domain/mdc-mcp-rag-search/*"
+        }
+      ]
+    }
+
+
+ROLE 2: mdc-mcp-rag-ecs-execution-role
+---------------------------------------
+
+Trust Policy:
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": { "Service": "ecs-tasks.amazonaws.com" },
+        "Action": "sts:AssumeRole"
+      }]
+    }
+
+Managed Policy:
+    arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+
+WHY THIS REQUIRES ADMIN
+------------------------
+
+The PowerUser group policy includes PowerUserRestrictions which denies
+iam:CreateRole. When CDK attempts to deploy the MdcSecurityStack,
+CloudFormation (using the CDK execution role) fails with:
+
+    "User: arn:aws:sts::903050880929:assumed-role/
+     cdk-hnb659fds-cfn-exec-role-903050880929-us-east-1/AWSCloudFormation
+     is not authorized to perform: iam:CreateRole"
+
+This is the same constraint that required admin creation of the
+mdc-mcp-rag-neptune-s3-loader role (see docs/neptune-bulk-loader-role-request.txt).
+
+
+WHAT ALREADY EXISTS
+-------------------
+
+  VPC: vpc-055f30ffa3d661e6b (nihacio-nwspocaisofteng-vpc)
+    - 3 private subnets, no IGW, no NAT
+    - 10 VPC endpoints (S3, ECR, Secrets Manager, SSM, Logs, Execute API, etc.)
+
+  Neptune Cluster: mdc-mcp-rag-neptune
+    - 59,759 nodes, 2,633,374 relationships
+    - Running in private subnets
+
+  OpenSearch Domain: mdc-mcp-rag-search
+    - 85,921 documents across 17 indices (mpnet768 + titan1024 + nova1024)
+    - Running in private subnets
+
+  ECR Repository: mdc-mcp-rag (to be created via CDK or CLI)
+
+
+TARGET ARCHITECTURE
+-------------------
+
+  Client (Kiro IDE) → Private API Gateway → Internal ALB → ECS Fargate
+                                                            ↓
+                                              Neptune + OpenSearch (VPC)
+
+  - Private API Gateway: PRIVATE endpoint type, VPC resource policy
+  - Internal ALB: routes to ECS Fargate tasks on port 3000
+  - ECS Fargate: 1 vCPU / 2 GB, auto-scaling 1-4 tasks
+  - WAF: REGIONAL scope, rate limiting
+  - No internet exposure at any layer
+
+
+WHAT THIS DOES NOT DO
+---------------------
+
+  - Does NOT expose any services to the internet
+  - Does NOT create any new network resources (VPC, subnets, gateways)
+  - Does NOT modify existing Neptune or OpenSearch configurations
+  - Does NOT change any user permissions
+  - Does NOT create any public endpoints
+  - The roles can ONLY be assumed by ecs-tasks.amazonaws.com
+
+
+VERIFICATION
+------------
+
+After role creation, verify with:
+
+    aws iam get-role --role-name mdc-mcp-rag-ecs-task-role
+    aws iam get-role --role-name mdc-mcp-rag-ecs-execution-role
+
+Then proceed with CDK deployment:
+
+    cd infrastructure/cdk
+    npx cdk deploy MdcSecurityStack
+
+
+SECURITY SCOPE
+--------------
+
+Both roles follow least-privilege:
+  - Task role: read-only Secrets Manager + SSM, Neptune connect, OpenSearch HTTP
+  - Execution role: AWS managed policy for ECS task execution (ECR pull + CloudWatch Logs)
+  - Neither role grants internet access, S3 write, or IAM modification
+
+
+PRECEDENT
+---------
+
+This follows the same admin workflow used for the Neptune bulk loader role
+(mdc-mcp-rag-neptune-s3-loader), documented in docs/neptune-bulk-loader-role-request.txt.
+
+
+CONTACT
+-------
+
+Terry McGuinness — terry.mcguinness@noaa.gov
+Project: NOAA NWS POCAI Software Engineering — MDC MCP RAG Server

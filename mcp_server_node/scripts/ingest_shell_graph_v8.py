@@ -50,6 +50,32 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
+# Phase 48D: AWS backend support
+# Phase 49: Registry-driven model selection
+import sys as _sys
+try:
+    from ingestion_base import BaseIngester as _BaseIngester
+    _bi = _BaseIngester.__new__(_BaseIngester)
+    _bi.args = _BaseIngester._parse_common_args(_bi)
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from collection_namer import CollectionNamer as _CN
+    _profile = _Reg().get_profile(_bi.args.model)
+    _namer = _CN(_profile)
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    if "--backend" in _sys.argv:
+        _bidx = _sys.argv.index("--backend")
+        if _bidx + 1 < len(_sys.argv):
+            os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_graph_driver as _get_graph_driver, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
+
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
 
@@ -297,11 +323,9 @@ class Neo4jGraphClient:
     
     def __init__(self):
         try:
-            self.driver = GraphDatabase.driver(
-                NEO4J_URI,
-                auth=(NEO4J_USER, NEO4J_PASSWORD),
-                max_connection_lifetime=3600
-            )
+            self.driver = (_get_graph_driver() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+                           else GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD),
+                                                     max_connection_lifetime=3600))
             # Test connection
             with self.driver.session() as session:
                 session.run("RETURN 1")
@@ -328,7 +352,14 @@ class Neo4jGraphClient:
         print("[OK] Cleared existing shell script graph")
     
     def create_indexes(self):
-        """Create indexes for performance"""
+        """Create indexes for performance.
+        
+        Skipped on Neptune (DB_BACKEND=aws) — Neptune auto-indexes all properties.
+        """
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+            print("[OK] Skipping index creation (Neptune auto-indexes all properties)")
+            return
+        
         indexes = [
             "CREATE INDEX shell_script_name IF NOT EXISTS FOR (s:ShellScript) ON (s.name)",
             "CREATE INDEX shell_script_path IF NOT EXISTS FOR (s:ShellScript) ON (s.path)",
@@ -551,7 +582,7 @@ Examples:
                             help='Show per-script detail')
     arg_parser.add_argument('--version', action='version',
                             version=f'%(prog)s {VERSION}')
-    args = arg_parser.parse_args()
+    args, _ = arg_parser.parse_known_args()
     
     print("=" * 70)
     print("Phase 27B: Shell Script Graph Ingestion for Neo4j")

@@ -1,0 +1,42 @@
+# .bedrock_agentcore.yaml — Deployment config for the Python MCP server.
+#
+# NOTE: This file is a scaffold only. It is NOT used by the currently
+# deployed `agentcore-mcp-rag` runtime (which still uses the Node.js
+# entrypoint in mcp_server_node/). Deployment is deliberately deferred
+# until the parity test suite in Phase B14 signs off on cutover.
+#
+# Keep the agent name distinct from the production runtime to avoid
+# accidental overwrites of the live deployment.
+
+agents:
+  mdc_mcp_rag_python:
+    name: mdc_mcp_rag_python
+    description: Python port of the MDC MCP/RAG Server (FastMCP + Strands Agents)
+    entrypoint: src.mcp_server
+    container_runtime: docker
+    platform: linux/arm64
+    protocol_configuration:
+      server_protocol: MCP
+    network_configuration:
+      network_mode: VPC
+      vpc_config:
+        security_groups:
+          # Filled in at deploy time via CDK reference, e.g. sg-0abc...
+          - "REPLACE_WITH_SECURITY_GROUP_ID"
+        subnets:
+          - "REPLACE_WITH_PRIVATE_SUBNET_ID_A"
+          - "REPLACE_WITH_PRIVATE_SUBNET_ID_B"
+    request_header_allowlist:
+      - Authorization
+      - Content-Type
+      - Mcp-Session-Id
+    observability:
+      enabled: true
+    lifecycle_configuration:
+      idle_runtime_session_timeout: 900
+      max_lifetime: 28800
+    environment:
+      DB_BACKEND: aws
+      AWS_REGION: us-east-1
+      HOST: 0.0.0.0
+      PORT: "8000"

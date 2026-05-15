@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mdc-mcp-rag-python"
+version = "1.0.0"
+description = "Python port of the MDC MCP/RAG Server (FastMCP + Strands Agents)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+authors = [
+    { name = "NOAA MDC / Enterprise Infrastructure Branch" }
+]
+
+# Runtime dependencies — pinned per Requirement 18.6.
+# Versions tracked against the current AL2023 ARM64 EC2 host; update
+# together when bumping the Dockerfile base image.
+dependencies = [
+    "fastmcp==3.2.4",
+    "opensearch-py==3.2.0",
+    "boto3==1.42.70",
+    "botocore==1.42.70",
+    "urllib3==2.6.3",
+    "httpx==0.28.1",
+    "strands-agents==1.39.0",
+    "strands-agents-tools==0.5.2",
+    "opentelemetry-api==1.41.1",
+    "opentelemetry-sdk==1.41.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.4.2",
+    "pytest-asyncio==0.24.0",
+    "hypothesis==6.152.2",
+    "pytest-cov==7.1.0",
+]
+
+[project.scripts]
+mdc-mcp-rag = "src.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "property: property-based tests (Hypothesis)",
+    "parity: dual-server parity tests (requires Node.js + Python running)",
+    "unit: fast unit tests",
+]

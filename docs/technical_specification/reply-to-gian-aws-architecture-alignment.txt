@@ -1,0 +1,86 @@
+Hi Gian,
+
+Thank you for the clarification and for taking the time to outline the
+recommended architecture. This is exactly the guidance we needed, and I
+want to confirm that we are fully aligned with the approach you've
+described.
+
+First, I want to acknowledge that the initial ticket language around
+CloudFront and Internet Gateway was premature on our part. Those
+references came from an early CDK scaffold that was templated before we
+had full context on the NIH network security policies. We understand
+and fully support the requirement to operate behind the firewall
+without an Internet Gateway. That constraint is clear and we are
+designing around it.
+
+The private architecture you outlined is precisely what we need for the
+current phase of the port:
+
+  Client -> Private API Gateway -> Internal ALB -> MCP (ECS/Fargate)
+
+This maps directly to our updated CDK stack design. We have already
+refactored our infrastructure code to work within the existing VPC
+(vpc-055f30ffa3d661e6b) using only private subnets, with no Internet
+Gateway, no NAT Gateway, and no public subnets. All AWS service
+communication routes through the VPC endpoints that your team
+provisioned for us (Secrets Manager, SSM, CloudWatch Logs, ECR,
+Bedrock Runtime, SageMaker, and Execute API). That was a significant
+enabler and we appreciate the quick turnaround.
+
+On the IAM front, I also want to highlight the excellent work your
+admin team did in resolving our CloudFormation deployment blocker.
+Rather than granting broad permissions to the CDK execution role, they
+took the more secure approach of manually creating two scoped IAM
+service roles:
+
+  1. mdc-mcp-rag-ecs-task-role
+     - Scoped to our specific Secrets Manager, SSM, Neptune, and
+       OpenSearch resources only
+     - No network or IAM modification permissions
+
+  2. mdc-mcp-rag-ecs-execution-role
+     - Standard ECS task execution policy for ECR image pulls and
+       CloudWatch logging only
+
+Our CDK stacks now import these pre-created roles rather than
+attempting to create them through CloudFormation. This means
+CloudFormation operates within the existing PowerUser constraints and
+cannot create or modify IAM roles, VPC resources, or network
+configurations. The admin team maintains full control over the
+privilege boundary while we retain the ability to deploy our
+application-layer resources (Neptune, OpenSearch, S3, ECS, Cognito,
+WAF) through the standard CDK workflow.
+
+We have verified this end-to-end with a dry run (cdk diff) and
+confirmed that our deployment creates only the following resources:
+
+  - Amazon Neptune cluster (graph database, private subnets)
+  - Amazon OpenSearch domain (vector search, private subnets)
+  - Amazon S3 bucket (data migration staging)
+  - Amazon EFS filesystem (persistent storage)
+  - AWS Secrets Manager entries (database credentials)
+  - SSM Parameter Store entries (service endpoints)
+  - Cognito User Pool (authentication)
+  - WAF WebACL (rate limiting and common rule set)
+  - ECS Security Group (HTTPS 443 + Neptune 8182 egress only)
+
+No VPC, subnet, gateway, or IAM role resources are created by our
+deployment. The security boundary is maintained.
+
+Regarding future external access: we understand this will require a
+separate conversation and approval process. Our current focus is
+completing the internal port (migrating data from the legacy Parallel
+Works system to the AWS-native services listed above). Once the
+internal system is validated and operational, we will submit a separate
+request with specific requirements for controlled external access,
+and we look forward to working with your team on a compliant solution
+at that time.
+
+Thank you again to you and the admin team for the support. The
+collaboration has been excellent and we are confident in the path
+forward.
+
+Best regards,
+Terry McGuinness
+NOAA NWS POCAI Software Engineering
+MDC MCP RAG Server — AWS Infrastructure Port

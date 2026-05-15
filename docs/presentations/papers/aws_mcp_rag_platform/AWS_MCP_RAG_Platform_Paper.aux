@@ -1,0 +1,174 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyperFirstAtBeginDocument{\AtBeginDocument}
+\HyperFirstAtBeginDocument{\ifx\hyper@anchor\@undefined
+\global\let\oldcontentsline\contentsline
+\gdef\contentsline#1#2#3#4{\oldcontentsline{#1}{#2}{#3}}
+\global\let\oldnewlabel\newlabel
+\gdef\newlabel#1#2{\newlabelxx{#1}#2}
+\gdef\newlabelxx#1#2#3#4#5#6{\oldnewlabel{#1}{{#2}{#3}}}
+\AtEndDocument{\ifx\hyper@anchor\@undefined
+\let\contentsline\oldcontentsline
+\let\newlabel\oldnewlabel
+\fi}
+\fi}
+\global\let\hyper@last\relax 
+\gdef\HyperFirstAtBeginDocument#1{#1}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{4}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1}Motivation}{4}{subsection.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}System Evolution: 52 Phases in 6 Months}{4}{subsection.1.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Platform evolution milestones across 52 development phases.\relax }}{4}{table.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:evolution}{{1}{4}{Platform evolution milestones across 52 development phases.\relax }{table.caption.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.3}Paper Organization}{4}{subsection.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Legacy Architecture: Docker MCP Gateway Stack}{5}{section.2}\protected@file@percent }
+\newlabel{sec:legacy}{{2}{5}{Legacy Architecture: Docker MCP Gateway Stack}{section.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Legacy COTS architecture: Docker MCP Gateway bridging stdio to HTTP/SSE for multi-client access to the containerized MCP server with ChromaDB and Neo4j backends.\relax }}{5}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:legacy-arch}{{1}{5}{Legacy COTS architecture: Docker MCP Gateway bridging stdio to HTTP/SSE for multi-client access to the containerized MCP server with ChromaDB and Neo4j backends.\relax }{figure.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Component Inventory}{5}{subsection.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Legacy component inventory.\relax }}{5}{table.caption.4}\protected@file@percent }
+\newlabel{tab:legacy-components}{{2}{5}{Legacy component inventory.\relax }{table.caption.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Docker MCP Gateway: Protocol Bridge}{5}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Provisioning System}{6}{subsection.2.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}Provisioning script inventory (abbreviated).}{6}{lstlisting.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Limitations Driving the AWS Port}{6}{subsection.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}AWS-Native Target Architecture}{6}{section.3}\protected@file@percent }
+\newlabel{sec:aws-arch}{{3}{6}{AWS-Native Target Architecture}{section.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces AWS-native target architecture: Private API Gateway with VPC-only access, ECS Fargate hosting, Neptune graph database, and OpenSearch vector search. No Internet Gateway exists in this VPC.\relax }}{7}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:aws-arch}{{2}{7}{AWS-native target architecture: Private API Gateway with VPC-only access, ECS Fargate hosting, Neptune graph database, and OpenSearch vector search. No Internet Gateway exists in this VPC.\relax }{figure.caption.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Component Mapping: Legacy to AWS}{7}{subsection.3.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Legacy to AWS component mapping.\relax }}{7}{table.caption.6}\protected@file@percent }
+\newlabel{tab:component-mapping}{{3}{7}{Legacy to AWS component mapping.\relax }{table.caption.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}CDK Stack Decomposition}{7}{subsection.3.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces CDK stack decomposition with dependency chain.\relax }}{7}{table.caption.7}\protected@file@percent }
+\newlabel{tab:cdk-stacks}{{4}{7}{CDK stack decomposition with dependency chain.\relax }{table.caption.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Network Security: Zero Internet Exposure}{8}{subsection.3.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {2}API Gateway resource policy (Deny-first pattern).}{8}{lstlisting.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Adapter Pattern: Transparent Backend Switching}{8}{section.4}\protected@file@percent }
+\newlabel{sec:adapter}{{4}{8}{Adapter Pattern: Transparent Backend Switching}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Interface Contracts}{9}{subsection.4.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Adapter pattern: \texttt  {backend-selector.js} routes database calls based on \texttt  {DB\_BACKEND} environment variable. All 51 tools are unchanged.\relax }}{9}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:adapter-pattern}{{3}{9}{Adapter pattern: \texttt {backend-selector.js} routes database calls based on \texttt {DB\_BACKEND} environment variable. All 51 tools are unchanged.\relax }{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Vector Database Adapter Interface}{9}{subsection.4.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {3}VectorDatabaseAdapter interface (16 methods).}{9}{lstlisting.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Graph Database Adapter Interface}{9}{subsection.4.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4}GraphDatabaseAdapter interface (34 methods).}{9}{lstlisting.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Backend Selection Algorithm}{10}{subsection.4.4}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Database Backend Selection\relax }}{10}{algorithm.1}\protected@file@percent }
+\newlabel{alg:backend-select}{{1}{10}{Database Backend Selection\relax }{algorithm.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}APOC Procedure Transformation Engine}{10}{subsection.4.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces APOC to openCypher transformation rules.\relax }}{10}{table.caption.9}\protected@file@percent }
+\newlabel{tab:apoc-transforms}{{5}{10}{APOC to openCypher transformation rules.\relax }{table.caption.9}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Data Migration: S3 Staging Pipeline}{10}{section.5}\protected@file@percent }
+\newlabel{sec:migration}{{5}{10}{Data Migration: S3 Staging Pipeline}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Migration Pipeline}{11}{subsection.5.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Four-phase migration pipeline via S3 staging.\relax }}{11}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:migration-pipeline}{{4}{11}{Four-phase migration pipeline via S3 staging.\relax }{figure.caption.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Vector Migration: ChromaDB to OpenSearch}{11}{subsection.5.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces ChromaDB to OpenSearch migration results.\relax }}{11}{table.caption.11}\protected@file@percent }
+\newlabel{tab:vector-migration}{{6}{11}{ChromaDB to OpenSearch migration results.\relax }{table.caption.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Graph Migration: Neo4j to Neptune}{11}{subsection.5.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Graph migration parity results.\relax }}{11}{table.caption.12}\protected@file@percent }
+\newlabel{tab:graph-migration}{{7}{11}{Graph migration parity results.\relax }{table.caption.12}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Graph-Guided Semantic Retrieval (GGSR)}{12}{section.6}\protected@file@percent }
+\newlabel{sec:ggsr}{{6}{12}{Graph-Guided Semantic Retrieval (GGSR)}{section.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Algorithm Overview}{12}{subsection.6.1}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {2}{\ignorespaces Graph-Guided Semantic Retrieval\relax }}{12}{algorithm.2}\protected@file@percent }
+\newlabel{alg:ggsr}{{2}{12}{Graph-Guided Semantic Retrieval\relax }{algorithm.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Knowledge Graph Structure}{12}{subsection.6.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Knowledge graph schema showing major node types with counts and cross-language relationship types.\relax }}{12}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:graph-schema}{{5}{12}{Knowledge graph schema showing major node types with counts and cross-language relationship types.\relax }{figure.caption.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3}GGSR Traversal Weights}{12}{subsection.6.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces GGSR edge weights for graph-guided traversal.\relax }}{13}{table.caption.14}\protected@file@percent }
+\newlabel{tab:ggsr-weights}{{8}{13}{GGSR edge weights for graph-guided traversal.\relax }{table.caption.14}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Hierarchical Community Detection}{13}{subsection.6.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Multi-Model Embedding Pipeline}{13}{section.7}\protected@file@percent }
+\newlabel{sec:embeddings}{{7}{13}{Multi-Model Embedding Pipeline}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Embedding Model Registry}{13}{subsection.7.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Embedding model registry with 6 built-in profiles.\relax }}{13}{table.caption.15}\protected@file@percent }
+\newlabel{tab:embedding-models}{{9}{13}{Embedding model registry with 6 built-in profiles.\relax }{table.caption.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Model-Aware Collection Naming}{13}{subsection.7.2}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {5}Model-aware index naming examples.}{14}{lstlisting.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Hybrid Search: BM25 + Vector + RRF Fusion}{14}{subsection.7.3}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {3}{\ignorespaces Hybrid Search with Code Identifier Detection\relax }}{14}{algorithm.3}\protected@file@percent }
+\newlabel{alg:hybrid-search}{{3}{14}{Hybrid Search with Code Identifier Detection\relax }{algorithm.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Benchmark Results: Titan1024 vs MPNet768}{14}{subsection.7.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Bedrock Titan1024 benchmark results. Hybrid search significantly outperforms vector-only, validating the BM25+vector fusion approach.\relax }}{14}{table.caption.16}\protected@file@percent }
+\newlabel{tab:benchmark}{{10}{14}{Bedrock Titan1024 benchmark results. Hybrid search significantly outperforms vector-only, validating the BM25+vector fusion approach.\relax }{table.caption.16}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Private MCP Deployment}{14}{section.8}\protected@file@percent }
+\newlabel{sec:private}{{8}{14}{Private MCP Deployment}{section.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.1}Request Flow}{14}{subsection.8.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.2}ECS Task Definition}{15}{subsection.8.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces ECS Fargate task definition.\relax }}{15}{table.caption.17}\protected@file@percent }
+\newlabel{tab:ecs-task}{{11}{15}{ECS Fargate task definition.\relax }{table.caption.17}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3}IAM Least-Privilege Model}{15}{subsection.8.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4}What Was Removed}{15}{subsection.8.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces Components removed in the private deployment.\relax }}{15}{table.caption.18}\protected@file@percent }
+\newlabel{tab:removed-components}{{12}{15}{Components removed in the private deployment.\relax }{table.caption.18}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {9}Kiro Spec-Driven Development Methodology}{16}{section.9}\protected@file@percent }
+\newlabel{sec:kiro}{{9}{16}{Kiro Spec-Driven Development Methodology}{section.9}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.1}SDD Lifecycle}{16}{subsection.9.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Kiro Spec-Driven Development lifecycle: requirements $\rightarrow $ design $\rightarrow $ tasks $\rightarrow $ execution with feedback loop.\relax }}{16}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:sdd-lifecycle}{{6}{16}{Kiro Spec-Driven Development lifecycle: requirements $\rightarrow $ design $\rightarrow $ tasks $\rightarrow $ execution with feedback loop.\relax }{figure.caption.19}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2}Kiro Specifications for the AWS Port}{16}{subsection.9.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces Kiro specifications governing the AWS migration.\relax }}{16}{table.caption.20}\protected@file@percent }
+\newlabel{tab:kiro-specs}{{13}{16}{Kiro specifications governing the AWS migration.\relax }{table.caption.20}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.3}SDD MCP Tools}{16}{subsection.9.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces SDD MCP tools enabling AI-assisted development lifecycle management.\relax }}{16}{table.caption.21}\protected@file@percent }
+\newlabel{tab:sdd-tools}{{14}{16}{SDD MCP tools enabling AI-assisted development lifecycle management.\relax }{table.caption.21}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.4}Property-Based Testing in Specifications}{17}{subsection.9.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10}Advanced Capabilities on the Horizon}{17}{section.10}\protected@file@percent }
+\newlabel{sec:advanced}{{10}{17}{Advanced Capabilities on the Horizon}{section.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.1}Matryoshka Adaptive-Dimension Embeddings}{17}{subsection.10.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Nova Matryoshka embedding dimensions. A single 3072-dim embedding can be truncated to 256, 512, or 1024 dimensions at query time with 100\% result overlap on test queries.\relax }}{17}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:matryoshka}{{7}{17}{Nova Matryoshka embedding dimensions. A single 3072-dim embedding can be truncated to 256, 512, or 1024 dimensions at query time with 100\% result overlap on test queries.\relax }{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.2}Self-Improving Retrieval Loop}{17}{subsection.10.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Self-improving retrieval loop: query feedback $\rightarrow $ drift detection $\rightarrow $ graph-powered hard negative mining $\rightarrow $ domain-adaptive fine-tuning $\rightarrow $ model registry update.\relax }}{18}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:self-improving}{{8}{18}{Self-improving retrieval loop: query feedback $\rightarrow $ drift detection $\rightarrow $ graph-powered hard negative mining $\rightarrow $ domain-adaptive fine-tuning $\rightarrow $ model registry update.\relax }{figure.caption.23}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.3}SageMaker Compute Offloading}{18}{subsection.10.3}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {6}SageMaker job submission for embedding generation.}{18}{lstlisting.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.4}Graph-Augmented Retrieval}{18}{subsection.10.4}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {4}{\ignorespaces Graph-Augmented Retrieval\relax }}{19}{algorithm.4}\protected@file@percent }
+\newlabel{alg:graph-augment}{{4}{19}{Graph-Augmented Retrieval\relax }{algorithm.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {10.5}Comparative Multi-Model Queries}{19}{subsection.10.5}\protected@file@percent }
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {7}Comparative query across embedding models.}{19}{lstlisting.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11}Validation Results}{19}{section.11}\protected@file@percent }
+\newlabel{sec:validation}{{11}{19}{Validation Results}{section.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.1}Tool-by-Tool Validation}{19}{subsection.11.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Tool validation results: 45/45 non-GitHub tools pass with \texttt  {DB\_BACKEND=aws}. GitHub tools skipped (external API, rate limits).\relax }}{19}{table.caption.24}\protected@file@percent }
+\newlabel{tab:validation}{{15}{19}{Tool validation results: 45/45 non-GitHub tools pass with \texttt {DB\_BACKEND=aws}. GitHub tools skipped (external API, rate limits).\relax }{table.caption.24}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.2}Performance Metrics}{20}{subsection.11.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Performance metrics on AWS backends.\relax }}{20}{table.caption.25}\protected@file@percent }
+\newlabel{tab:performance}{{16}{20}{Performance metrics on AWS backends.\relax }{table.caption.25}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {11.3}Error Handling and Resilience}{20}{subsection.11.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {12}Lessons Learned}{20}{section.12}\protected@file@percent }
+\newlabel{sec:lessons}{{12}{20}{Lessons Learned}{section.12}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.1}Neptune openCypher Compatibility}{20}{subsection.12.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.2}Silent Failure Patterns}{20}{subsection.12.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.3}IAM Role Creation in Restricted Environments}{20}{subsection.12.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.4}VPC Endpoint Requirements}{21}{subsection.12.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {12.5}Docker CE vs Docker Desktop}{21}{subsection.12.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {13}Conclusion}{21}{section.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {A}Complete Tool Inventory (51 Tools)}{22}{appendix.A}\protected@file@percent }
+\newlabel{app:tools}{{A}{22}{Complete Tool Inventory (51 Tools)}{appendix.A}{}}
+\gdef \LT@i {\LT@entry 
+    {1}{47.86069pt}\LT@entry 
+    {7}{175.49269pt}\LT@entry 
+    {1}{162.49014pt}}
+\gdef \LT@ii {\LT@entry 
+    {4}{149.71721pt}\LT@entry 
+    {4}{114.26097pt}\LT@entry 
+    {4}{123.35556pt}\LT@entry 
+    {4}{58.46884pt}}
+\@writefile{toc}{\contentsline {section}{\numberline {B}OpenSearch Index Schema}{24}{appendix.B}\protected@file@percent }
+\newlabel{app:opensearch-schema}{{B}{24}{OpenSearch Index Schema}{appendix.B}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {8}OpenSearch index mapping (model-aware).}{24}{lstlisting.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {C}Provisioning Script Mapping: Legacy to AWS}{24}{appendix.C}\protected@file@percent }
+\newlabel{app:provisioning-mapping}{{C}{24}{Provisioning Script Mapping: Legacy to AWS}{appendix.C}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {D}Knowledge Graph Node Type Census}{25}{appendix.D}\protected@file@percent }
+\newlabel{app:graph-census}{{D}{25}{Knowledge Graph Node Type Census}{appendix.D}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {19}{\ignorespaces Knowledge graph node type census (Neptune, post-deduplication).\relax }}{25}{table.caption.28}\protected@file@percent }
+\newlabel{tab:graph-census}{{19}{25}{Knowledge graph node type census (Neptune, post-deduplication).\relax }{table.caption.28}{}}
+\gdef \@abspage@last{25}

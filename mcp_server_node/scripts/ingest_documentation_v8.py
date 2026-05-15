@@ -5,7 +5,7 @@ MPNet 768-dim embeddings with v8 collection naming
 
 This is a v8 wrapper around the v7 ingestion logic with:
 - Explicit MPNet embeddings (768 dimensions)
-- v8 collection naming: global-workflow-docs-v8-2-0
+- v8 collection naming: global-workflow-docs-v8-0-0
 - Pre-computed embeddings for consistency
 
 Author: NOAA EMC Global Workflow MCP Team
@@ -17,9 +17,30 @@ import os
 import sys
 from datetime import datetime
 
+# Phase 49: Registry-driven model selection
+try:
+    import sys as _sys
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from collection_namer import CollectionNamer as _CN
+    _args_model = "mpnet768"
+    for _i, _a in enumerate(_sys.argv):
+        if _a == "--model" and _i + 1 < len(_sys.argv):
+            _args_model = _sys.argv[_i + 1]
+    _profile = _Reg().get_profile(_args_model)
+    _namer = _CN(_profile)
+    EMBEDDING_MODEL = _profile.model_id
+    EMBEDDING_DIMENSIONS = _profile.dimensions
+    _REGISTRY_COLLECTION = _namer.get_name("global-workflow-docs", "v8-0-0")
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    EMBEDDING_MODEL = "all-mpnet-base-v2"
+    EMBEDDING_DIMENSIONS = 768
+    _REGISTRY_COLLECTION = None
+
 # Set v8 collection name before importing v7 module
-# Allow override via DOCS_COLLECTION env var for version bumps (e.g. v8-2-0)
-os.environ.setdefault('DOCS_COLLECTION', 'global-workflow-docs-v8-2-0')
+_col = _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
+os.environ['DOCS_COLLECTION'] = _col
 
 # Import the v7 ingestion logic (uses ingestion_base with MPNet)
 from ingest_documentation_v7 import (
@@ -30,9 +51,8 @@ from ingest_documentation_v7 import (
 
 # V8 Configuration
 VERSION_V8 = "8.0.0"
-COLLECTION_NAME = os.environ['DOCS_COLLECTION']
-EMBEDDING_MODEL = "all-mpnet-base-v2"
-EMBEDDING_DIMENSIONS = 768
+COLLECTION_NAME = _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
+# EMBEDDING_MODEL and EMBEDDING_DIMENSIONS set by registry block above
 
 
 class DocumentationIngesterV8(DocumentationIngesterV7):
@@ -71,7 +91,7 @@ def main():
     parser.add_argument('--delay', type=float, default=1.0,
                        help='Seconds between page fetches (default: 1.0, use 5+ for rate-limited sites)')
     
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     
     print("=" * 70)
     print("DOCUMENTATION INGESTION V8.0.0 - MPNet Embeddings")

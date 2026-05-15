@@ -54,6 +54,36 @@ COLLECTION_NAME = os.getenv("JJOB_COLLECTION", "jjobs-v8-1-0")
 CHROMADB_HOST = os.getenv("CHROMADB_HOST", "localhost")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8080"))
 
+# Phase 48D: AWS backend support
+# Phase 49: Registry-driven model selection
+import sys as _sys
+try:
+    from ingestion_base import BaseIngester as _BaseIngester
+    _bi = _BaseIngester.__new__(_BaseIngester)
+    _bi.args = _BaseIngester._parse_common_args(_bi)
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from embedding_provider import create_provider as _cp
+    from collection_namer import CollectionNamer as _CN
+    _profile = _Reg().get_profile(_bi.args.model)
+    _provider = _cp(_profile)
+    _namer = _CN(_profile)
+    EMBEDDING_MODEL = _profile.model_id
+    EMBEDDING_DIMENSIONS = _profile.dimensions
+    COLLECTION_NAME = _namer.get_name("jjobs", "v8-0-0")
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    if "--backend" in _sys.argv:
+        _bidx = _sys.argv.index("--backend")
+        if _bidx + 1 < len(_sys.argv):
+            os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_vector_client as _get_vector_client, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
+
 # Source paths
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
@@ -409,13 +439,18 @@ class JJobIngester:
     
     def __init__(self, host: str = CHROMADB_HOST, port: int = CHROMADB_PORT, 
                  workflow_root: str = WORKFLOW_ROOT):
-        self.client = chromadb.HttpClient(host=host, port=port)
+        self.client = (_get_vector_client() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+                       else chromadb.HttpClient(host=host, port=port))
         self.workflow_root = workflow_root
         self.extractor = JJobMetadataExtractor(self.workflow_root)
         self.stats = defaultdict(int)
         
         # Initialize embedding model
-        if HAS_SENTENCE_TRANSFORMERS:
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws" and _REGISTRY_AVAILABLE:
+            print(f"[OK] Loading embedding model: {EMBEDDING_MODEL} (via Bedrock auto-embed)")
+            self.model = None
+            self.embedding_fn = None
+        elif HAS_SENTENCE_TRANSFORMERS:
             print(f"[OK] Loading embedding model: {EMBEDDING_MODEL}")
             self.model = SentenceTransformer(EMBEDDING_MODEL)
             self.embedding_fn = None  # We'll compute manually
@@ -703,7 +738,7 @@ def main():
         help="Discover and parse but don't write to ChromaDB"
     )
     
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     
     # Use provided workflow root
     workflow_root = args.workflow_root

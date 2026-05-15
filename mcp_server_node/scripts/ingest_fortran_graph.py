@@ -51,6 +51,10 @@ import argparse
 import json
 import subprocess
 import tempfile
+import resource
+import time
+import gc
+import re
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple, Any
 from collections import defaultdict
@@ -82,6 +86,31 @@ VERSION = "1.2.0"
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
+
+# Phase 48D: AWS backend support — set DB_BACKEND=aws to write to Neptune
+# Phase 49: Registry-driven model selection
+import sys as _sys
+try:
+    from ingestion_base import BaseIngester as _BaseIngester
+    _bi = _BaseIngester.__new__(_BaseIngester)
+    _bi.args = _BaseIngester._parse_common_args(_bi)
+    from embedding_registry import EmbeddingModelRegistry as _Reg
+    from collection_namer import CollectionNamer as _CN
+    _profile = _Reg().get_profile(_bi.args.model)
+    _namer = _CN(_profile)
+    _REGISTRY_AVAILABLE = True
+except Exception:
+    _REGISTRY_AVAILABLE = False
+    if "--backend" in _sys.argv:
+        _bidx = _sys.argv.index("--backend")
+        if _bidx + 1 < len(_sys.argv):
+            os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+try:
+    from aws_backend import get_graph_driver as _get_graph_driver, BACKEND as _BACKEND
+    _AWS_BACKEND_AVAILABLE = True
+except ImportError:
+    _AWS_BACKEND_AVAILABLE = False
+    _BACKEND = "legacy"
 
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
     "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
@@ -124,6 +153,122 @@ SUBMODULE_PATHS = [
     # NOTE: femps does NOT exist on disk — omitted
     # NOTE: da-utils (0 F90), jcb (0 F90), jedicmake (CMake) — Python/CMake only
 ]
+
+
+# ============================================================================
+# SOURCE SANITIZATION (Phase 53 — fparser compatibility)
+# ============================================================================
+
+def _sanitize_fortran_source(file_path: str) -> Optional[str]:
+    """Fix Fortran source issues that cause fparser to fail.
+
+    Returns path to a sanitized temp file, or None if no fixes were needed.
+
+    Known issues fixed:
+    1. Dangling assignment continuations: ``VARIABLE = &`` followed by
+       blank/comment lines with no actual continuation value.  Common in CRTM
+       where CVS ``$Id$`` keywords were stripped by git.
+       Fix: replace the ``&`` with an empty string literal.
+
+    2. Dangling USE/ONLY continuations: ``USE Module, ONLY: X, &`` followed
+       by blank/comment lines.  Same CVS stripping root cause.
+       Fix: remove the trailing ``, &`` to close the ONLY list.
+
+    3. Non-standard write comma: ``write(6,*),`` — some compilers accept a
+       comma after the format specifier but fparser (strict F2003) rejects it.
+       Fix: remove the extra comma.
+
+    4. Git merge conflict markers: ``<<<<<<< variant A``, ``=======``,
+       ``>>>>>>> variant B`` left in source files.
+       Fix: comment them out.
+    """
+    try:
+        with open(file_path, 'r', errors='replace') as f:
+            lines = f.readlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    modified = False
+
+    # --- New statement keywords that signal "this is NOT a continuation" ---
+    _NEW_STMT = (
+        'TYPE', 'END', 'INTEGER', 'REAL', 'CHARACTER', 'LOGICAL',
+        'PUBLIC', 'PRIVATE', 'CONTAINS', 'SUBROUTINE', 'FUNCTION',
+        'MODULE', 'PROGRAM', 'USE ', 'IMPLICIT', 'INTERFACE', 'CALL ',
+        'IF ', 'IF(', 'DO ', 'SELECT', 'WRITE', 'READ', 'OPEN',
+        'CLOSE', 'ALLOCATE', 'DEALLOCATE', 'NULLIFY', 'CLASS',
+        'ABSTRACT', 'PROCEDURE', 'GENERIC', 'FINAL', 'DATA ',
+    )
+
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].rstrip()
+        code_part = stripped.lstrip()
+
+        # --- Fix 4: Git merge conflict markers ---
+        if code_part.startswith(('<<<<<<', '>>>>>>', '======= ')):
+            lines[i] = '! [SANITIZED merge marker] ' + lines[i]
+            modified = True
+            i += 1
+            continue
+
+        # --- Fix 3: Non-standard write comma ---
+        # write(6,*), or write(*,*), → remove the trailing comma
+        if re.match(r'.*\bwrite\s*\([^)]*\)\s*,', code_part, re.IGNORECASE):
+            new_line = re.sub(
+                r'(\bwrite\s*\([^)]*\))\s*,',
+                r'\1 ',
+                lines[i],
+                flags=re.IGNORECASE,
+            )
+            if new_line != lines[i]:
+                lines[i] = new_line
+                modified = True
+                i += 1
+                continue
+
+        # --- Fixes 1 & 2: Dangling continuations ---
+        if stripped.endswith('&') and not code_part.startswith('!'):
+            # Scan ahead past blank/comment lines
+            j = i + 1
+            while j < len(lines) and (
+                lines[j].strip() == '' or lines[j].strip().startswith('!')
+            ):
+                j += 1
+
+            dangling = False
+            if j >= len(lines):
+                dangling = True
+            elif j > i + 1:
+                # There's a gap (blank/comment lines) before the next code line
+                next_code = lines[j].strip().upper()
+                if any(next_code.startswith(kw) for kw in _NEW_STMT):
+                    dangling = True
+
+            if dangling:
+                # Fix 2: USE ... ONLY: X, &  →  USE ... ONLY: X
+                if re.search(r',\s*&\s*$', stripped):
+                    lines[i] = re.sub(r',\s*&\s*$', '\n', stripped) + '\n'
+                    modified = True
+                # Fix 1: VARIABLE = &  →  VARIABLE = ''
+                elif '=' in stripped:
+                    lines[i] = stripped[:-1] + "''\n"
+                    modified = True
+                else:
+                    # Generic dangling & — just remove it
+                    lines[i] = stripped[:-1] + '\n'
+                    modified = True
+        i += 1
+
+    if not modified:
+        return None
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.f90', delete=False, dir=tempfile.gettempdir()
+    )
+    tmp.writelines(lines)
+    tmp.close()
+    return tmp.name
 
 
 # ============================================================================
@@ -258,14 +403,26 @@ class FortranParser:
         
         Phase 39: Automatically preprocesses files containing CPP directives
         (#ifdef, #include, etc.) using cpp -traditional-cpp before parsing.
+        
+        Phase 53: Sanitizes dangling continuations (e.g. stripped CVS $Id$
+        keywords in CRTM) before parsing.  Sanitization runs first, then
+        CPP preprocessing if needed.
         """
         temp_path = None
+        sanitized_path = None
         actual_path = filepath
         
         try:
+            # Phase 53: Sanitize dangling continuations
+            sanitized_path = _sanitize_fortran_source(filepath)
+            if sanitized_path:
+                actual_path = sanitized_path
+                self.stats.setdefault('files_sanitized', 0)
+                self.stats['files_sanitized'] += 1
+            
             # Phase 39: Preprocess files with CPP directives
-            if needs_preprocessing(filepath):
-                temp_path = preprocess_fortran(filepath, self._include_dirs)
+            if needs_preprocessing(actual_path):
+                temp_path = preprocess_fortran(actual_path, self._include_dirs)
                 if temp_path:
                     actual_path = temp_path
                     self.stats['files_preprocessed'] += 1
@@ -288,11 +445,12 @@ class FortranParser:
             self.errors.append({'file': filepath, 'error': str(e)})
             return None
         finally:
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
+            for p in (temp_path, sanitized_path):
+                if p and os.path.exists(p):
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
     
     def _extract_structure(self, tree, filepath: str) -> Dict[str, Any]:
         """Extract modules, subroutines, functions, calls, uses from AST."""
@@ -495,7 +653,8 @@ class Neo4jIngester:
         
         if not dry_run and GraphDatabase:
             try:
-                self.driver = GraphDatabase.driver(uri, auth=(user, password))
+                self.driver = (_get_graph_driver() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
+                               else GraphDatabase.driver(uri, auth=(user, password)))
                 # Test connection
                 with self.driver.session() as session:
                     session.run("RETURN 1")
@@ -505,9 +664,16 @@ class Neo4jIngester:
                 self.driver = None
     
     def create_indexes(self):
-        """Create indexes for Fortran nodes."""
+        """Create indexes for Fortran nodes.
+        
+        Skipped on Neptune (DB_BACKEND=aws) — Neptune auto-indexes all properties.
+        """
         if self.dry_run or not self.driver:
             print("[DRY-RUN] Would create indexes for FortranModule, FortranSubroutine, etc.")
+            return
+        
+        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws":
+            print("[OK] Skipping index creation (Neptune auto-indexes all properties)")
             return
         
         indexes = [
@@ -730,7 +896,8 @@ def run_sample_test(sample_size: int = 100):
         print(f"  USES:  ~{projected_uses:,}")
 
 
-def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
+def run_full_ingestion(dry_run: bool = False, repo_name: str = None,
+                       skip: int = 0, limit: int = 0):
     """Run full ingestion of all Fortran files to Neo4j."""
     print(f"\n{'='*60}")
     print(f"Fortran Graph Ingestion v{VERSION}")
@@ -738,18 +905,36 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
         print(f"Repository: {repo_name}")
     print(f"{'='*60}")
     print(f"Mode: {'DRY-RUN (no Neo4j writes)' if dry_run else 'LIVE'}")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    if skip:
+        print(f"Skipping first {skip} files (resume mode)")
+    if limit:
+        print(f"Limiting to {limit} files")
+    sys.stdout.flush()
     
     # Find all files
     files = find_fortran_files(WORKFLOW_ROOT)
-    print(f"\n[INFO] Found {len(files)} Fortran files")
+    total_found = len(files)
+    print(f"\n[INFO] Found {total_found} Fortran files")
+    sys.stdout.flush()
     
     if not files:
         print("[ERROR] No Fortran files found!")
         return
     
+    # Apply skip/limit for resume and batching
+    if skip:
+        files = files[skip:]
+        print(f"[INFO] Skipped {skip}, {len(files)} files remaining")
+    if limit:
+        files = files[:limit]
+        print(f"[INFO] Limited to {len(files)} files")
+    sys.stdout.flush()
+    
     # Phase 39: Discover include directories for CPP preprocessing
     include_dirs = discover_include_dirs(WORKFLOW_ROOT)
     print(f"[INFO] Discovered {len(include_dirs)} include directories for CPP")
+    sys.stdout.flush()
     
     # Initialize
     parser = FortranParser()
@@ -761,26 +946,76 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     
     total_nodes = 0
     total_rels = 0
+    t_start = time.time()
+    
+    def _rss_mb():
+        """Current RSS in MB."""
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    
+    def _elapsed():
+        """Elapsed time as H:MM:SS."""
+        s = int(time.time() - t_start)
+        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+    
+    def _eta(i, total):
+        """Estimated time remaining."""
+        if i == 0:
+            return "calculating..."
+        elapsed = time.time() - t_start
+        rate = i / elapsed  # files per second
+        remaining = (total - i) / rate
+        s = int(remaining)
+        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+    
+    print(f"\n[INFO] Processing {len(files)} files (RSS: {_rss_mb():.0f} MB)")
+    print(f"[INFO] Progress logged every 50 files, per-file logging to stderr")
+    sys.stdout.flush()
     
     # Process files with progress
-    print(f"\n[INFO] Processing files...")
     for i, filepath in enumerate(files):
-        if (i + 1) % 500 == 0:
-            pct = (i + 1) / len(files) * 100
-            print(f"  Progress: {i+1}/{len(files)} ({pct:.0f}%) "
-                  f"[OK:{parser.stats['files_processed']} FAIL:{parser.stats['files_failed']} "
-                  f"CPP:{parser.stats['files_preprocessed']}]")
+        rel_path = os.path.relpath(filepath, WORKFLOW_ROOT)
+        
+        # Per-file logging to stderr (visible in real-time)
+        print(f"  [{i+1}/{len(files)}] PARSE {rel_path}", file=sys.stderr, end="", flush=True)
         
         result = parser.parse_file(filepath)
+        
         if result:
+            file_nodes = (len(result.get('modules', [])) + len(result.get('subroutines', [])) +
+                         len(result.get('functions', [])) + len(result.get('programs', [])))
+            file_rels = len(result.get('calls', [])) + len(result.get('uses', []))
+            
+            print(f" → INGEST ({file_nodes}n/{file_rels}r)", file=sys.stderr, end="", flush=True)
+            
             counts = ingester.ingest_file_result(result, repo_name=repo_name)
             total_nodes += counts['nodes']
             total_rels += counts['relationships']
+            
+            print(f" ✓", file=sys.stderr, flush=True)
+        else:
+            print(f" → SKIP (parse failed)", file=sys.stderr, flush=True)
+        
+        # Progress checkpoint every 50 files
+        if (i + 1) % 50 == 0 or (i + 1) == len(files):
+            # Force garbage collection to release fparser AST remnants
+            gc.collect()
+            rss = _rss_mb()
+            pct = (i + 1) / len(files) * 100
+            print(f"  Progress: {i+1}/{len(files)} ({pct:.0f}%) "
+                  f"[OK:{parser.stats['files_processed']} FAIL:{parser.stats['files_failed']} "
+                  f"CPP:{parser.stats['files_preprocessed']} "
+                  f"SAN:{parser.stats.get('files_sanitized', 0)}] "
+                  f"Nodes:{total_nodes:,} Rels:{total_rels:,} "
+                  f"RSS:{rss:.0f}MB Elapsed:{_elapsed()} ETA:{_eta(i+1, len(files))}")
+            sys.stdout.flush()
+            # Memory pressure warning
+            if rss > 4000:
+                print(f"  [WARN] RSS {rss:.0f}MB exceeds 4GB — memory pressure risk", flush=True)
     
     # Final summary
     summary = parser.get_summary()
     print(f"\n{'='*60}")
-    print("Ingestion Complete")
+    print(f"Ingestion Complete — {_elapsed()} elapsed")
     print(f"{'='*60}")
     print(f"  Files processed:    {summary['files']['processed']}")
     print(f"  Files failed:       {summary['files']['failed']}")
@@ -796,6 +1031,8 @@ def run_full_ingestion(dry_run: bool = False, repo_name: str = None):
     print(f"  Programs:    {summary['entities']['programs']}")
     print(f"  CALLS:       {summary['relationships']['calls']}")
     print(f"  USES:        {summary['relationships']['uses']}")
+    print(f"\nPeak RSS: {_rss_mb():.0f} MB")
+    sys.stdout.flush()
     
     if parser.errors and not dry_run:
         error_file = Path(WORKFLOW_ROOT).parent / 'fortran_parse_errors.json'
@@ -835,6 +1072,10 @@ Examples:
                         help='Number of files for sample validation')
     parser.add_argument('--dry-run', '-n', action='store_true',
                         help='Parse files but do not write to Neo4j')
+    parser.add_argument('--skip', type=int, default=0, metavar='N',
+                        help='Skip the first N files (for resuming after OOM)')
+    parser.add_argument('--limit', type=int, default=0, metavar='N',
+                        help='Process at most N files (0 = all)')
     parser.add_argument('--repo-name', metavar='NAME',
                         help='Tag all nodes with this repo name (e.g., nceplibs-bufr)')
     parser.add_argument('--root-dir', metavar='DIR',
@@ -859,7 +1100,8 @@ Examples:
     elif args.sample:
         run_sample_test(args.sample_size)
     else:
-        run_full_ingestion(dry_run=args.dry_run, repo_name=args.repo_name)
+        run_full_ingestion(dry_run=args.dry_run, repo_name=args.repo_name,
+                           skip=args.skip, limit=args.limit)
 
 
 if __name__ == '__main__':

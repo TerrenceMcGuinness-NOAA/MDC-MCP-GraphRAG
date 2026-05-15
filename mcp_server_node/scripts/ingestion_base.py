@@ -21,10 +21,13 @@ import re
 import time
 import json
 import hashlib
+import argparse
 import requests
+from abc import abstractmethod
+from dataclasses import dataclass, field as dc_field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Set
+from typing import List, Dict, Tuple, Optional, Set, Iterator
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup, NavigableString
 import chromadb
@@ -383,7 +386,20 @@ class ChromaDBClient:
         self.embedding_function = None
         
     def connect(self):
-        """Connect to ChromaDB"""
+        """Connect to ChromaDB or OpenSearch (DB_BACKEND=aws)"""
+        import sys as _sys
+        if "--backend" in _sys.argv:
+            _bidx = _sys.argv.index("--backend")
+            if _bidx + 1 < len(_sys.argv):
+                os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
+        _backend = os.environ.get("DB_BACKEND", "legacy")
+        if _backend == "aws":
+            try:
+                from aws_backend import get_vector_client
+                self.client = get_vector_client()
+                return self.client
+            except ImportError:
+                pass
         self.client = chromadb.HttpClient(
             host=self.host,
             port=self.port,
@@ -413,11 +429,15 @@ class ChromaDBClient:
         """Get existing collection or create new one"""
         if self.client is None:
             self.connect()
-        
+
+        # AWS backend: skip local embedding function (Bedrock handles embeddings)
+        _is_aws = os.environ.get("DB_BACKEND", "legacy") == "aws"
+        _ef = None if _is_aws else self.get_embedding_function()
+
         try:
             collection = self.client.get_collection(
                 name=name,
-                embedding_function=self.get_embedding_function()
+                embedding_function=_ef
             )
             print(f"[OK] Using existing collection: {name} ({collection.count()} documents)")
         except:
@@ -431,7 +451,7 @@ class ChromaDBClient:
             
             collection = self.client.create_collection(
                 name=name,
-                embedding_function=self.get_embedding_function(),
+                embedding_function=_ef,
                 metadata=metadata
             )
             print(f"[OK] Created new collection: {name}")
@@ -798,17 +818,42 @@ class MetadataEnricher:
         return metadata
 
 
+@dataclass
+class ContentChunk:
+    """A single chunk of content ready for embedding and storage."""
+    text: str
+    source: str
+    domain: str
+    version: str
+    index: int
+    metadata: dict = dc_field(default_factory=dict)
+    image_bytes: Optional[bytes] = None
+
+
 class BaseIngester:
     """
-    Base class for all specialized ingesters.
-    Provides common functionality and workflow.
+    Base class for all specialized ingesters (v2 — registry-driven).
+
+    Centralizes:
+      - CLI arg parsing (--model, --backend, --collections, --dry-run)
+      - Backend routing (legacy ChromaDB/Neo4j or AWS OpenSearch/Neptune)
+      - Deterministic document ID generation (SHA-256 content hash)
+      - Upsert semantics for vector writes
+      - MERGE semantics for graph writes
+      - Abstract extract_content() for subclasses
+
+    Preserves backward-compatible __init__(collection_name, version) signature
+    so existing callers continue to work.
+
+    Requirements: 6.1, 6.2, 6.4, 6.5, 7.1, 7.2, 7.4, 7.5, 8.1-8.5, 13.1-13.4
     """
-    
-    def __init__(self, collection_name: str, version: str):
+
+    def __init__(self, collection_name: str = "", version: str = ""):
+        # ── Legacy compat fields ──────────────────────────────────────────────
         self.collection_name = collection_name
         self.version = version
-        
-        # Initialize components
+
+        # ── Shared utility components (preserved from v1) ─────────────────────
         self.chunker = SemanticChunker()
         self.db_client = ChromaDBClient(
             host=os.getenv("CHROMADB_HOST", "localhost"),
@@ -817,78 +862,232 @@ class BaseIngester:
         self.crawler = URLCrawler()
         self.repo_parser = LocalRepoParser(self.chunker)
         self.enricher = MetadataEnricher()
-        
-        # State
+
+        # ── Registry-driven model selection ──────────────────────────────────
+        try:
+            from embedding_registry import EmbeddingModelRegistry
+            from embedding_provider import create_provider
+            from collection_namer import CollectionNamer
+            self.args = self._parse_common_args()
+            registry = EmbeddingModelRegistry()
+            self.profile = registry.get_profile(self.args.model)
+            self.provider = create_provider(self.profile)
+            self.namer = CollectionNamer(self.profile)
+            self.vector_client, self.graph_driver = self.get_clients()
+        except Exception:
+            # Graceful degradation: registry modules not yet available
+            self.args = None
+            self.profile = None
+            self.provider = None
+            self.namer = None
+            self.vector_client = None
+            self.graph_driver = None
+
+        # ── Legacy state ──────────────────────────────────────────────────────
         self.collection = None
-        self.seen_hashes = set()
-        self.stats = {
+        self.seen_hashes: Set[str] = set()
+        self.stats: Dict[str, int] = {
             'pages_processed': 0,
             'chunks_created': 0,
-            'duplicates_skipped': 0
+            'duplicates_skipped': 0,
         }
-    
+
+    # ── CLI arg parsing ───────────────────────────────────────────────────────
+
+    def _parse_common_args(self) -> argparse.Namespace:
+        """Parse --model, --backend, --collections, --dry-run centrally."""
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--model", default="mpnet768")
+        parser.add_argument(
+            "--backend",
+            default=os.environ.get("DB_BACKEND", "legacy"),
+        )
+        parser.add_argument("--collections", default=None)
+        parser.add_argument("--dry-run", action="store_true")
+        args, _ = parser.parse_known_args()
+        # Propagate backend to env so aws_backend.py picks it up
+        os.environ["DB_BACKEND"] = args.backend
+        return args
+
+    # ── Backend routing ───────────────────────────────────────────────────────
+
+    def get_clients(self) -> Tuple:
+        """Centralized backend routing — replaces inline boilerplate.
+
+        Returns (vector_client, graph_driver).
+        Requirements: 6.1, 6.2, 6.4, 6.5 (P8)
+        """
+        backend = (self.args.backend if self.args else
+                   os.environ.get("DB_BACKEND", "legacy"))
+        if backend == "aws":
+            from aws_backend import get_vector_client, get_graph_driver
+            return get_vector_client(), get_graph_driver()
+        elif backend == "legacy":
+            return self._legacy_vector_client(), self._legacy_graph_driver()
+        else:
+            raise ValueError(
+                f"Unknown backend '{backend}'. Expected 'legacy' or 'aws'."
+            )
+
+    def _legacy_vector_client(self):
+        host = os.getenv("CHROMADB_HOST", "localhost")
+        port = int(os.getenv("CHROMADB_PORT", "8080"))
+        return chromadb.HttpClient(host=host, port=port)
+
+    def _legacy_graph_driver(self):
+        from neo4j import GraphDatabase
+        uri  = os.getenv("NEO4J_URI",      "bolt://localhost:7687")
+        user = os.getenv("NEO4J_USER",     "neo4j")
+        pwd  = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
+        return GraphDatabase.driver(uri, auth=(user, pwd))
+
+    # ── Deterministic ID ──────────────────────────────────────────────────────
+
+    def deterministic_id(self, content: str, source: str, chunk_index: int = 0) -> str:
+        """SHA-256 of content|source|chunk_index|model_short_name, truncated to 32 hex chars.
+
+        Requirements: 7.1, 7.2, 7.6 (P6, P7)
+        """
+        model_suffix = self.profile.short_name if self.profile else "mpnet768"
+        payload = f"{content}|{source}|{chunk_index}|{model_suffix}"
+        return hashlib.sha256(payload.encode()).hexdigest()[:32]
+
+    # ── Vector writes ─────────────────────────────────────────────────────────
+
+    def upsert_document(
+        self,
+        collection_name: str,
+        doc_id: str,
+        content: str,
+        embedding: List[float],
+        metadata: dict,
+    ) -> None:
+        """Upsert a document into the vector backend (insert-or-update by ID).
+
+        Requirements: 8.1, 8.2
+        """
+        if self.args and self.args.dry_run:
+            return
+        client = self.vector_client or self._legacy_vector_client()
+        col = client.get_or_create_collection(collection_name)
+        col.upsert(
+            ids=[doc_id],
+            documents=[content],
+            embeddings=[embedding],
+            metadatas=[metadata],
+        )
+
+    # ── Graph writes ──────────────────────────────────────────────────────────
+
+    def merge_graph_node(self, label: str, properties: dict) -> None:
+        """MERGE a node into the graph backend.
+
+        Requirements: 8.3
+        """
+        if self.args and self.args.dry_run:
+            return
+        driver = self.graph_driver or self._legacy_graph_driver()
+        key_field = list(properties.keys())[0]
+        cypher = (
+            f"MERGE (n:{label} {{{key_field}: $props.{key_field}}}) "
+            f"SET n += $props"
+        )
+        with driver.session() as session:
+            session.run(cypher, props=properties)
+
+    def merge_graph_relationship(
+        self,
+        from_label: str,
+        from_key: dict,
+        to_label: str,
+        to_key: dict,
+        rel_type: str,
+        properties: dict = None,
+    ) -> None:
+        """MERGE a relationship into the graph backend.
+
+        Requirements: 8.5
+        """
+        if self.args and self.args.dry_run:
+            return
+        driver = self.graph_driver or self._legacy_graph_driver()
+        fk = list(from_key.keys())[0]
+        tk = list(to_key.keys())[0]
+        props_clause = "SET r += $props" if properties else ""
+        cypher = (
+            f"MATCH (a:{from_label} {{{fk}: $fv}}) "
+            f"MATCH (b:{to_label} {{{tk}: $tv}}) "
+            f"MERGE (a)-[r:{rel_type}]->(b) "
+            f"{props_clause}"
+        )
+        with driver.session() as session:
+            session.run(cypher, fv=from_key[fk], tv=to_key[tk], props=properties or {})
+
+    # ── Abstract interface ────────────────────────────────────────────────────
+
+    @abstractmethod
+    def extract_content(self) -> Iterator[ContentChunk]:
+        """Subclasses implement content extraction logic."""
+
+    # ── Main loop ─────────────────────────────────────────────────────────────
+
+    def run(self) -> None:
+        """Main entry point: extract → embed → deterministic_id → upsert/merge."""
+        if self.provider is None:
+            raise RuntimeError("BaseIngester.run() requires registry modules to be available")
+        for chunk in self.extract_content():
+            embedding = self.provider.embed([chunk.text])[0]
+            doc_id = self.deterministic_id(chunk.text, chunk.source, chunk.index)
+            col_name = self.namer.get_name(chunk.domain, chunk.version)
+            self.upsert_document(col_name, doc_id, chunk.text, embedding, chunk.metadata)
+            self.stats['chunks_created'] += 1
+
+    # ── Legacy helpers (preserved from v1) ───────────────────────────────────
+
     def initialize(self, metadata: Dict = None):
-        """Initialize database connection and collection"""
+        """Initialize database connection and collection (legacy compat)."""
         self.db_client.connect()
-        
         if metadata is None:
             metadata = {
-                "description": f"MCP Documentation Collection",
+                "description": "MCP Documentation Collection",
                 "version": self.version,
                 "created": datetime.now().isoformat(),
                 "embedding_model": EMBEDDING_MODEL,
-                "embedding_dimensions": "768"
+                "embedding_dimensions": "768",
             }
-        
         self.collection = self.db_client.get_or_create_collection(
-            self.collection_name,
-            metadata
+            self.collection_name, metadata
         )
-    
+
     def process_chunks(self, chunks: List[Dict], source_metadata: Dict):
-        """Process and add chunks to collection"""
-        documents = []
-        metadatas = []
-        ids = []
-        
+        """Process and add chunks to collection (legacy compat)."""
+        documents, metadatas, ids = [], [], []
         for i, chunk in enumerate(chunks):
-            # Skip duplicates
             if chunk['hash'] in self.seen_hashes:
                 self.stats['duplicates_skipped'] += 1
                 continue
-            
             self.seen_hashes.add(chunk['hash'])
-            
-            # Enrich metadata
             metadata = self.enricher.enrich_chunk(chunk, source_metadata)
-            
-            # Create ID
             doc_id = f"{source_metadata.get('source', 'unknown')}_{chunk['hash']}_{i}"
-            
             documents.append(chunk['content'])
             metadatas.append(metadata)
             ids.append(doc_id)
             self.stats['chunks_created'] += 1
-        
-        # Batch add to collection
         if documents:
             self.db_client.add_documents_batch(
-                self.collection,
-                documents,
-                metadatas,
-                ids
+                self.collection, documents, metadatas, ids
             )
-    
+
     def print_stats(self):
-        """Print ingestion statistics"""
-        print("\n" + "="*60)
+        """Print ingestion statistics."""
+        print("\n" + "=" * 60)
         print("INGESTION STATISTICS")
-        print("="*60)
+        print("=" * 60)
         for key, value in self.stats.items():
             print(f"  {key}: {value}")
         if self.collection:
             print(f"\nFinal collection size: {self.collection.count()} documents")
-        print("="*60)
+        print("=" * 60)
 
 
 class RSTDirectiveParser:
@@ -1230,8 +1429,9 @@ __all__ = [
     'LocalRepoParser',
     'MetadataEnricher',
     'BaseIngester',
+    'ContentChunk',
     'RSTDirectiveParser',
     'EMBEDDING_MODEL',
     'DEFAULT_MIN_CHUNK_SIZE',
-    'DEFAULT_MAX_CHUNK_SIZE'
+    'DEFAULT_MAX_CHUNK_SIZE',
 ]

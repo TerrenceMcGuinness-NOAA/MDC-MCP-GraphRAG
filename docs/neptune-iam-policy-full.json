@@ -1,0 +1,54 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "secretsmanager",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:us-east-1:903050880929:secret:mdc-mcp-rag/*"
+    },
+    {
+      "Sid": "ssm",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+      "Resource": "arn:aws:ssm:us-east-1:903050880929:parameter/mdc-mcp-rag/*"
+    },
+    {
+      "Sid": "neptune",
+      "Effect": "Allow",
+      "Action": [
+        "neptune-db:connect",
+        "neptune-db:ReadDataViaQuery",
+        "neptune-db:WriteDataViaQuery",
+        "neptune-db:DeleteDataViaQuery",
+        "neptune-db:GetQueryStatus",
+        "neptune-db:CancelQuery"
+      ],
+      "Resource": "arn:aws:neptune-db:us-east-1:903050880929:cluster-WVIKLHKJQGRZJK5ZYOL3M4ZO2U/*"
+    },
+    {
+      "Sid": "es",
+      "Effect": "Allow",
+      "Action": ["es:ESHttpGet", "es:ESHttpPost", "es:ESHttpPut"],
+      "Resource": "arn:aws:es:us-east-1:903050880929:domain/mdc-mcp-rag-search/*"
+    },
+    {
+      "Sid": "agentcoreEcr",
+      "Effect": "Allow",
+      "Action": ["ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "agentcoreLogs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:us-east-1:903050880929:log-group:/aws/bedrock-agentcore/*"
+    },
+    {
+      "Sid": "agentcoreXray",
+      "Effect": "Allow",
+      "Action": ["xray:PutTraceSegments", "xray:PutTelemetryRecords"],
+      "Resource": "*"
+    }
+  ]
+}

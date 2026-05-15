@@ -1,0 +1,64 @@
+\contentsline {section}{\numberline {1}Introduction}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Motivation}{4}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}System Evolution: 52 Phases in 6 Months}{4}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Paper Organization}{4}{subsection.1.3}%
+\contentsline {section}{\numberline {2}Legacy Architecture: Docker MCP Gateway Stack}{5}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Component Inventory}{5}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Docker MCP Gateway: Protocol Bridge}{5}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Provisioning System}{6}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Limitations Driving the AWS Port}{6}{subsection.2.4}%
+\contentsline {section}{\numberline {3}AWS-Native Target Architecture}{6}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Component Mapping: Legacy to AWS}{7}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}CDK Stack Decomposition}{7}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Network Security: Zero Internet Exposure}{8}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Adapter Pattern: Transparent Backend Switching}{8}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Interface Contracts}{9}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Vector Database Adapter Interface}{9}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Graph Database Adapter Interface}{9}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Backend Selection Algorithm}{10}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}APOC Procedure Transformation Engine}{10}{subsection.4.5}%
+\contentsline {section}{\numberline {5}Data Migration: S3 Staging Pipeline}{10}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Migration Pipeline}{11}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Vector Migration: ChromaDB to OpenSearch}{11}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Graph Migration: Neo4j to Neptune}{11}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Graph-Guided Semantic Retrieval (GGSR)}{12}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Algorithm Overview}{12}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Knowledge Graph Structure}{12}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}GGSR Traversal Weights}{12}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Hierarchical Community Detection}{13}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Multi-Model Embedding Pipeline}{13}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Embedding Model Registry}{13}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Model-Aware Collection Naming}{13}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Hybrid Search: BM25 + Vector + RRF Fusion}{14}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Benchmark Results: Titan1024 vs MPNet768}{14}{subsection.7.4}%
+\contentsline {section}{\numberline {8}Private MCP Deployment}{14}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Request Flow}{14}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}ECS Task Definition}{15}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}IAM Least-Privilege Model}{15}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}What Was Removed}{15}{subsection.8.4}%
+\contentsline {section}{\numberline {9}Kiro Spec-Driven Development Methodology}{16}{section.9}%
+\contentsline {subsection}{\numberline {9.1}SDD Lifecycle}{16}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Kiro Specifications for the AWS Port}{16}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}SDD MCP Tools}{16}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}Property-Based Testing in Specifications}{17}{subsection.9.4}%
+\contentsline {section}{\numberline {10}Advanced Capabilities on the Horizon}{17}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Matryoshka Adaptive-Dimension Embeddings}{17}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Self-Improving Retrieval Loop}{17}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}SageMaker Compute Offloading}{18}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}Graph-Augmented Retrieval}{18}{subsection.10.4}%
+\contentsline {subsection}{\numberline {10.5}Comparative Multi-Model Queries}{19}{subsection.10.5}%
+\contentsline {section}{\numberline {11}Validation Results}{19}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Tool-by-Tool Validation}{19}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Performance Metrics}{20}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.3}Error Handling and Resilience}{20}{subsection.11.3}%
+\contentsline {section}{\numberline {12}Lessons Learned}{20}{section.12}%
+\contentsline {subsection}{\numberline {12.1}Neptune openCypher Compatibility}{20}{subsection.12.1}%
+\contentsline {subsection}{\numberline {12.2}Silent Failure Patterns}{20}{subsection.12.2}%
+\contentsline {subsection}{\numberline {12.3}IAM Role Creation in Restricted Environments}{20}{subsection.12.3}%
+\contentsline {subsection}{\numberline {12.4}VPC Endpoint Requirements}{21}{subsection.12.4}%
+\contentsline {subsection}{\numberline {12.5}Docker CE vs Docker Desktop}{21}{subsection.12.5}%
+\contentsline {section}{\numberline {13}Conclusion}{21}{section.13}%
+\contentsline {section}{\numberline {A}Complete Tool Inventory (51 Tools)}{22}{appendix.A}%
+\contentsline {section}{\numberline {B}OpenSearch Index Schema}{24}{appendix.B}%
+\contentsline {section}{\numberline {C}Provisioning Script Mapping: Legacy to AWS}{24}{appendix.C}%
+\contentsline {section}{\numberline {D}Knowledge Graph Node Type Census}{25}{appendix.D}%

@@ -94,7 +94,7 @@ export class GGSRTraversalPrototypes {
 
     const cypher = `
       MATCH (n)-[r]-(hop1)
-      WHERE n.name =~ $pattern
+      WHERE toLower(n.name) CONTAINS toLower($baseName)
       RETURN n.name AS source,
              labels(n) AS sourceLabels,
              type(r) AS relType,
@@ -106,7 +106,7 @@ export class GGSRTraversalPrototypes {
 
     const { pattern, fileType, baseName } = this._buildFlexiblePattern(entityName);
     const results = await this.graphDB.query(cypher, {
-      pattern
+      baseName
     });
 
     const scored = results
@@ -158,7 +158,7 @@ export class GGSRTraversalPrototypes {
 
     const cypher = `
       MATCH (n)-[r1]-(hop1)
-      WHERE n.name =~ $pattern
+      WHERE toLower(n.name) CONTAINS toLower($baseName)
       OPTIONAL MATCH (hop1)-[r2]-(hop2)
       WHERE hop2 <> n
       RETURN n.name AS source,
@@ -174,7 +174,7 @@ export class GGSRTraversalPrototypes {
     `;
 
     const { pattern, fileType, baseName } = this._buildFlexiblePattern(entityName);
-    const results = await this.graphDB.query(cypher, { pattern });
+    const results = await this.graphDB.query(cypher, { baseName });
 
     // Deduplicate and score
     const neighborMap = new Map();
@@ -253,20 +253,20 @@ export class GGSRTraversalPrototypes {
     const callsCypher = `
       MATCH (start)
       WHERE (start:FortranSubroutine OR start:FortranFunction OR start:FortranProgram)
-        AND start.name =~ $pattern
+        AND toLower(start.name) CONTAINS toLower($baseName)
       MATCH path = (start)-[:CALLS*1..${depthInt}]->(called)
       RETURN start.name AS source,
              called.name AS target,
              called.filepath AS targetPath,
-             labels(called)[0] AS targetType,
-             length(path) AS depth
-      ORDER BY length(path)
+             head(labels(called)) AS targetType,
+             size(nodes(path))-1 AS depth
+      ORDER BY size(nodes(path))
     `;
 
     // USES chain with weights
     const usesCypher = `
       MATCH (user)-[:USES]->(mod:FortranModule)
-      WHERE user.name =~ $pattern
+      WHERE toLower(user.name) CONTAINS toLower($baseName)
       RETURN user.name AS source,
              mod.name AS target,
              mod.filepath AS targetPath,
@@ -277,8 +277,8 @@ export class GGSRTraversalPrototypes {
     const { pattern, fileType, baseName } = this._buildFlexiblePattern(entityName);
 
     const [callsResults, usesResults] = await Promise.all([
-      this.graphDB.query(callsCypher, { pattern }),
-      this.graphDB.query(usesCypher, { pattern })
+      this.graphDB.query(callsCypher, { baseName }),
+      this.graphDB.query(usesCypher, { baseName })
     ]);
 
     // Apply weights with hop decay
@@ -524,7 +524,7 @@ export class GGSRTraversalPrototypes {
   _buildFlexiblePattern(entityName) {
     const parsed = this._normalizeEntityName(entityName);
     const escaped = this._escapeRegex(parsed.name);
-    // Match: entity name optionally followed by any common extension
+    // For Neo4j: regex pattern. For Neptune: use baseName with CONTAINS.
     return {
       pattern: `(?i).*${escaped}(\\\\.(py|sh|f90|F90|f|F|c|h))?.*`,
       fileType: parsed.fileType,
@@ -547,13 +547,14 @@ export class GGSRTraversalPrototypes {
   async crossLanguageTrace(entityName, options = {}) {
     const { maxDepth = 3, limit = 30 } = options;
     const start = Date.now();
-    const { pattern } = this._buildFlexiblePattern(entityName);
+    const { pattern, baseName } = this._buildFlexiblePattern(entityName);
     const limitVal = Math.floor(Math.min(limit, 100));
 
-    // Query 1: Shell → Fortran → CALLS chain
+    // Query 1: Shell → Fortran → CALLS chain (Neptune-compatible: no =~)
     const fortranTraceQuery = `
       MATCH (shell:File)-[:EXECUTES]->(prog:FortranProgram)
-      WHERE shell.absolutePath =~ $pattern OR prog.name =~ $pattern
+      WHERE toLower(shell.absolutePath) CONTAINS toLower($baseName)
+         OR toLower(prog.name) CONTAINS toLower($baseName)
       OPTIONAL MATCH (prog)-[:CALLS*1..${Math.floor(maxDepth)}]->(callee)
       RETURN shell.absolutePath AS shellPath,
              prog.name AS program, prog.file_path AS progPath,
@@ -561,11 +562,12 @@ export class GGSRTraversalPrototypes {
       LIMIT ${limitVal}
     `;
 
-    // Query 2: Shell → Python → DEFINES/CALLS chain
+    // Query 2: Shell → Python → DEFINES/CALLS chain (Neptune-compatible: no =~)
     const pythonTraceQuery = `
       MATCH (shell:File)-[:INVOKES]->(py:PythonModule)
-      WHERE shell.absolutePath =~ $pattern OR py.name =~ $pattern
-             OR py.file_path =~ $pattern
+      WHERE toLower(shell.absolutePath) CONTAINS toLower($baseName)
+         OR toLower(py.name) CONTAINS toLower($baseName)
+         OR toLower(py.file_path) CONTAINS toLower($baseName)
       OPTIONAL MATCH (py)-[:DEFINES]->(func:PythonFunction)
       OPTIONAL MATCH (func)-[:CALLS]->(callee:PythonFunction)
       RETURN shell.absolutePath AS shellPath,
@@ -577,8 +579,8 @@ export class GGSRTraversalPrototypes {
 
     try {
       const [fortranResults, pythonResults] = await Promise.all([
-        this.graphDB.query(fortranTraceQuery, { pattern }),
-        this.graphDB.query(pythonTraceQuery, { pattern })
+        this.graphDB.query(fortranTraceQuery, { baseName }),
+        this.graphDB.query(pythonTraceQuery, { baseName })
       ]);
 
       const traces = [];

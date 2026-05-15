@@ -72,13 +72,14 @@ class UnifiedMCPServer {
     this.dataAccess = new UnifiedDataAccess();
 
     // Initialize tool modules (Week 2 consolidated architecture)
+    // Pass shared dataAccess to all modules to avoid duplicate connections
     this.workflowInfoTools = new WorkflowInfoTools();
-    this.codeAnalysisTools = new CodeAnalysisTools();
+    this.codeAnalysisTools = new CodeAnalysisTools(this.dataAccess);
     
     if (this.options.enableRAG) {
-      this.semanticSearchTools = new SemanticSearchTools();
+      this.semanticSearchTools = new SemanticSearchTools(this.dataAccess);
       this.ee2ComplianceTools = new EE2ComplianceTools();
-      this.operationalTools = new OperationalTools();
+      this.operationalTools = new OperationalTools(this.dataAccess);
     }
     
     if (this.options.enableGitHub) {
@@ -94,7 +95,7 @@ class UnifiedMCPServer {
     );
 
     // Initialize GraphRAG Tools (Phase 24H: Agentic tool surface)
-    this.graphRAGTools = new GraphRAGTools(null, this.sessionManager);
+    this.graphRAGTools = new GraphRAGTools(this.dataAccess, this.sessionManager);
 
     this.registerAllTools();
   }
@@ -414,32 +415,42 @@ class UnifiedMCPServer {
       details: '4 graph-based tools available'
     });
 
-    // Semantic search tools check WITH DATA VALIDATION
+    // Semantic search + graph DB check WITH DATA VALIDATION (Requirements 11.1, 11.2)
     if (this.options.enableRAG && this.semanticSearchTools) {
       try {
         if (this.semanticSearchTools.isInitialized && this.semanticSearchTools.dataAccess) {
-          // Run empirical validation on vector database
-          const vectorHealth = await this.semanticSearchTools.dataAccess.vectorDB.healthCheck({
-            deep: deep,
-            minCollections: 1,
-            minDocuments: 100
+          const { checkDatabases } = await import('./health/HealthChecker.js');
+          const da = this.semanticSearchTools.dataAccess;
+          const dbHealth = await checkDatabases(da.vectorDB, da.graphDB, { minIndices: 5 });
+
+          // Use vectorDB.healthCheck() for dataValidation — it returns { validation: {...} }
+          // which the Data Validation formatting section requires.
+          // checkDatabases() only returns { status, vector, graph } (no .validation property).
+          dataValidation = await da.vectorDB.healthCheck({ deep, minCollections: 5, minDocuments: 100 });
+
+          checks.push({
+            component: 'Vector Database',
+            status: dbHealth.vector.ok ? 'healthy' : 'degraded',
+            details: dbHealth.vector.ok
+              ? `${dbHealth.vector.indexCount} indices available`
+              : (dbHealth.vector.reason || 'unavailable'),
           });
-          
-          dataValidation = vectorHealth;
-          
-          // Status based on actual data validation, not just connectivity
-          let ragStatus = vectorHealth.status;
-          let ragDetails = vectorHealth.statusReason;
-          
-          if (vectorHealth.status === 'healthy') {
-            ragDetails = `${vectorHealth.totalDocuments} docs in ${vectorHealth.collections?.length || 0} collections`;
-          }
-          
+
+          checks.push({
+            component: 'Graph Database',
+            status: dbHealth.graph.ok ? 'healthy' : 'degraded',
+            details: dbHealth.graph.ok
+              ? `${dbHealth.graph.nodeCount} nodes`
+              : (dbHealth.graph.reason || 'unavailable'),
+          });
+
+          // Semantic search tools status follows vector DB
           checks.push({
             component: 'Semantic Search Tools',
-            status: ragStatus,
-            details: ragDetails,
-            validation: vectorHealth.validation
+            status: dbHealth.vector.ok ? 'healthy' : 'degraded',
+            details: dbHealth.vector.ok
+              ? `${dbHealth.vector.indexCount} indices ready`
+              : `degraded — ${dbHealth.vector.reason}`,
           });
         } else if (this.semanticSearchTools.isInitialized) {
           checks.push({
@@ -598,21 +609,31 @@ class UnifiedMCPServer {
       status += `## Data Validation\n\n`;
       const v = dataValidation.validation;
       
-      status += `| Check | Status | Details |\n`;
-      status += `|-------|--------|--------|\n`;
-      status += `| Heartbeat | ${v.heartbeat.passed ? '[OK]' : '[FAIL]'} | ${v.heartbeat.details} |\n`;
-      status += `| Collections | ${v.collections.passed ? '[OK]' : '[FAIL]'} | ${v.collections.count} found (min: ${v.collections.expected}) |\n`;
-      status += `| Documents | ${v.documents.passed ? '[OK]' : '[FAIL]'} | ${v.documents.count} total (min: ${v.documents.expected}) |\n`;
-      if (!v.sampleQuery.skipped) {
-        status += `| Sample Query | ${v.sampleQuery.passed ? '[OK]' : '[FAIL]'} | ${v.sampleQuery.details} |\n`;
-      }
-      status += '\n';
-      
-      if (v.documents.perCollection && detailed) {
-        status += `### Documents per Collection\n\n`;
-        for (const [name, count] of Object.entries(v.documents.perCollection)) {
-          status += `- **${name}**: ${count}\n`;
+      if (v) {
+        status += `| Check | Status | Details |\n`;
+        status += `|-------|--------|--------|\n`;
+        if (v.heartbeat) status += `| Heartbeat | ${v.heartbeat.passed ? '[OK]' : '[FAIL]'} | ${v.heartbeat.details} |\n`;
+        if (v.collections) status += `| Collections | ${v.collections.passed ? '[OK]' : '[FAIL]'} | ${v.collections.count} found (min: ${v.collections.expected}) |\n`;
+        if (v.documents) status += `| Documents | ${v.documents.passed ? '[OK]' : '[FAIL]'} | ${v.documents.count} total (min: ${v.documents.expected}) |\n`;
+        if (v.sampleQuery && !v.sampleQuery.skipped) {
+          status += `| Sample Query | ${v.sampleQuery.passed ? '[OK]' : '[FAIL]'} | ${v.sampleQuery.details} |\n`;
         }
+        status += '\n';
+        
+        if (v.documents?.perCollection && detailed) {
+          status += `### Documents per Collection\n\n`;
+          for (const [name, count] of Object.entries(v.documents.perCollection)) {
+            status += `- **${name}**: ${count}\n`;
+          }
+          status += '\n';
+        }
+      } else {
+        // AWS backend (OpenSearch) — show available info
+        status += `| Check | Status | Details |\n`;
+        status += `|-------|--------|--------|\n`;
+        status += `| Connection | ${dataValidation.connected ? '[OK]' : '[FAIL]'} | ${dataValidation.connected ? 'Connected' : 'Disconnected'} |\n`;
+        if (dataValidation.clusterStatus) status += `| Cluster | [OK] | Status: ${dataValidation.clusterStatus} |\n`;
+        if (dataValidation.indices) status += `| Indices | [OK] | ${dataValidation.indices.length} indices |\n`;
         status += '\n';
       }
     }
@@ -631,7 +652,7 @@ class UnifiedMCPServer {
       });
       
       // Add specific troubleshooting for data issues
-      if (dataValidation && dataValidation.status !== 'healthy') {
+      if (dataValidation && dataValidation.status !== 'healthy' && dataValidation.validation) {
         status += `\n### Troubleshooting Data Issues\n\n`;
         if (!dataValidation.validation.collections.passed) {
           status += `**Collections not found**: Check ChromaDB Docker mount path.\n`;
@@ -1325,28 +1346,41 @@ class UnifiedMCPServer {
   async start() {
     console.error('[MCP] Starting Unified MCP Server (Week 2 architecture)...');
     
-    // Initialize RAG components BEFORE starting server
+    // Connect shared data access layer ONCE (all tool modules share this instance)
     if (this.options.enableRAG) {
-      if (this.semanticSearchTools) {
-        console.error('[MCP] Initializing semantic search tools (blocking)...');
-        try {
-          await this.semanticSearchTools.initialize();
-          console.error('[MCP] [OK] Semantic search tools initialized');
-        } catch (error) {
-          console.error(`[ERROR] Semantic search initialization failed: ${error.message}`);
-          console.error('[WARN] Semantic search tools will be unavailable');
+      console.error('[MCP] Connecting shared data access layer...');
+      try {
+        await this.dataAccess.connect();
+        console.error('[MCP] [OK] Shared data access layer connected');
+
+        // Initialize GGSR for graph-dependent tools
+        if (this.dataAccess.graphDB) {
+          const { GGSRTraversalPrototypes } = await import('./graphrag/GGSRTraversalPrototypes.js');
+          const { GraphGuidedRetrieval } = await import('./graphrag/GraphGuidedRetrieval.js');
+          const ggsr = new GGSRTraversalPrototypes(this.dataAccess.graphDB);
+          const retrieval = new GraphGuidedRetrieval({
+            dataAccess: this.dataAccess,
+            ggsr,
+            vectorDB: this.dataAccess.vectorDB || null,
+          });
+          if (this.codeAnalysisTools) {
+            this.codeAnalysisTools.ggsr = ggsr;
+            this.codeAnalysisTools.retrieval = retrieval;
+            this.codeAnalysisTools.isInitialized = true;
+          }
+          if (this.graphRAGTools) {
+            this.graphRAGTools.ggsr = ggsr;
+            this.graphRAGTools.retrieval = retrieval;
+            this.graphRAGTools.isInitialized = true;
+          }
         }
-      }
-      
-      if (this.operationalTools) {
-        console.error('[MCP] Initializing operational tools (blocking)...');
-        try {
-          await this.operationalTools.initialize();
-          console.error('[MCP] [OK] Operational tools initialized');
-        } catch (error) {
-          console.error(`[ERROR] Operational tools initialization failed: ${error.message}`);
-          console.error('[WARN] Operational tools will be unavailable');
-        }
+
+        // Mark tool modules as initialized
+        if (this.semanticSearchTools) this.semanticSearchTools.isInitialized = true;
+        if (this.operationalTools) this.operationalTools.isInitialized = true;
+      } catch (error) {
+        console.error(`[ERROR] Shared data access connection failed: ${error.message}`);
+        console.error('[WARN] RAG tools will be unavailable');
       }
     }
 
