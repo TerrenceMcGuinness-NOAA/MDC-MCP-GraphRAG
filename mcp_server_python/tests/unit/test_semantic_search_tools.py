@@ -56,7 +56,7 @@ async def _call_tool(
 # ── registration parity ───────────────────────────────────────────────
 
 
-async def test_register_exposes_seven_tools_with_matching_names() -> None:
+async def test_register_exposes_eight_tools_with_matching_names() -> None:
     mcp = _make_server()
     tools = await mcp.list_tools(run_middleware=False)
     names = sorted(t.name for t in tools)
@@ -68,6 +68,7 @@ async def test_register_exposes_seven_tools_with_matching_names() -> None:
             "get_knowledge_base_status",
             "list_ingested_urls",
             "get_ingested_urls_array",
+            "list_all_sources",
             "check_knowledge_integrity",
         ]
     )
@@ -93,6 +94,12 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
         "get_knowledge_base_status": {"include_graph", "include_vector"},
         "list_ingested_urls": {"format", "source_filter"},
         "get_ingested_urls_array": {"include_failed"},
+        "list_all_sources": {
+            "source_type",
+            "collection",
+            "format",
+            "include_gaps",
+        },
         "check_knowledge_integrity": {"sample_size"},
     }
     for name, params in expected.items():
@@ -112,6 +119,7 @@ async def test_required_fields_match_nodejs() -> None:
         "get_knowledge_base_status",
         "list_ingested_urls",
         "get_ingested_urls_array",
+        "list_all_sources",
         "check_knowledge_integrity",
     ):
         req = tools[opt_tool].parameters.get("required") or []

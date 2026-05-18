@@ -1,802 +1,802 @@
 [
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmAbsorption/CRTM_AtmAbsorption_Define.f90",
-    "error": "at line 50\n>>>  TYPE :: CRTM_AtmAbsorption_type\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_atmosphere/dynamics/mpas_atm_time_integration.F",
+    "error": "at line 6809\n>>>                                                real(nRelaxZone)/(10.*dt*meshScalingRegionalEdge(iEdge))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmAbsorption/ODCAPS/ODCAPS_AtmAbsorption.f90",
-    "error": "at line 189\n>>>  TYPE :: AAVariables_type\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_atmosphere/mpas_atm_core.F",
+    "error": "at line 559\n>>>      call mpas_log_write('min/max of meshScalingDel2 = $r $r', ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmAbsorption/ODCAPS/ODCAPS_Predictor.f90",
-    "error": "at line 181\n>>>  TYPE :: APVariables_type\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_atmosphere/physics/mpas_atmphys_initialize_real.F",
+    "error": "at line 454\n>>>                                                  intArgs=(/iSoil,ifgSoil/), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmAbsorption/ODCAPS/ODCAPS_Predictor_Define.f90",
-    "error": "at line 134\n>>>  REAL( fp ), PRIVATE, PARAMETER :: ZERO = 0.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_atmosphere/physics/mpas_atmphys_interface.F",
+    "error": "at line 456\n>>>          call mpas_log_write('$i $i $i $r $r $r $r $r $r $r $r', intArgs=(/j,i,k/),''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmOptics/CRTM_AtmOptics_Inspect/CRTM_AtmOptics_Inspect.f90",
-    "error": "at line 36\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_atmosphere/physics/physics_wrf/module_cu_kfeta.F",
+    "error": "at line 2302\n>>>        ' CAPE=',0PF7.1)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmOptics/Test/Adjoint/Test_Adjoint.f90",
-    "error": "at line 191\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_atmosphere/physics/physics_wrf/module_mp_thompson.F",
+    "error": "at line 1218\n>>>             call mpas_log_write('--- WARNING, negative qc $r at i,j,k = $i $i $i ', ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmOptics/Test/Tangent_Linear/Test_Tangent_Linear.f90",
-    "error": "at line 59\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_init_atmosphere/mpas_atmphys_initialize_real.F",
+    "error": "at line 454\n>>>                                                  intArgs=(/iSoil,ifgSoil/), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/AtmScatter/CRTM_AtmScatter_Define.f90",
-    "error": "at line 49\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_init_atmosphere/mpas_gsl_oro_data_lg_scale.F",
+    "error": "at line 88\n>>>real (c_float), dimension(:,:,:), pointer, contiguous :: tile\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Atmosphere/Aerosol_Rewrite/Aerosol_Rewrite.f90",
-    "error": "at line 95\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_init_atmosphere/mpas_gsl_oro_data_sm_scale.F",
+    "error": "at line 86\n>>>real (c_float), dimension(:,:,:), pointer, contiguous :: tile\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Atmosphere/AtmProfile2Atmosphere/AtmProfile2Atmosphere.f90",
-    "error": "at line 24\n>>>  USE AtmProfile_netCDF_IO\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_init_atmosphere/mpas_init_atm_gwd.F",
+    "error": "at line 554\n>>>      real (c_float), dimension(:,:,:), pointer, contiguous :: tile\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Atmosphere/Atmosphere_Rewrite/Atmosphere_Rewrite.f90",
-    "error": "at line 40\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_init_atmosphere/mpas_init_atm_static.F",
+    "error": "at line 144\n>>> real(kind=c_float),dimension(:,:,:),pointer,contiguous :: rarray\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Atmosphere/CRTM_Atmosphere_Inspect/CRTM_Atmosphere_Inspect.f90",
-    "error": "at line 37\n>>>  CHARACTER(256) :: filename, msg\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_landice/mode_forward/mpas_li_advection.F",
+    "error": "at line 375\n>>>                     call mpas_log_write(\"$i $i $r $r\", intArgs=(/iCell, indexToCellID(iCell)/), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Atmosphere/Cloud/Cloud_Fraction/Cloud_Fraction.f90",
-    "error": "at line 31\n>>>  LOGICAL , PARAMETER :: QUIET = .TRUE.\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_landice/mode_forward/mpas_li_calving.F",
+    "error": "at line 1069\n>>>            call mpas_log_write(\"eigencalvingParameter (m s) value range: Min=$r, Max=$r\", ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Atmosphere/tg_ASG_Rewrite/tg_ASG_Rewrite.f90",
-    "error": "at line 48\n>>>  INTEGER, PARAMETER :: N_ABSORBERS = 2  ! H2O and O3\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_landice/mode_forward/mpas_li_subglacial_hydro.F",
+    "error": "at line 1050\n>>>            call mpas_log_write(\"deltatSGH: used=$r, advec=$r, diffu=$r, pressure=$r, advecChannel=$r, diffuChannel=$r\", ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/ChannelInfo/CRTM_ChannelInfo.f90",
-    "error": "at line 172\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_landice/mode_forward/mpas_li_thermal.F",
+    "error": "at line 1238\n>>>                        call mpas_log_write('flux for bottom melting =$r', ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/ACCoeff/ACCoeff_ASC2NC/ACCoeff_ASC2NC.f90",
-    "error": "at line 46\n>>>  CHARACTER(*), PARAMETER :: SENSORINFO_FILENAME = 'SensorInfo'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_field_1d.F",
+    "error": "at line 56\n>>>  end if\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/ACCoeff/ACCoeff_IO.f90",
-    "error": "at line 199\n>>>  RESULT( err_stat )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_field_nd.F",
+    "error": "at line 80\n>>>  end if\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/ACCoeff/ACCoeff_Inspect/ACCoeff_Inspect.f90",
-    "error": "at line 35\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_avg.F",
+    "error": "at line 21\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/ACCoeff/ACCoeff_NC2BIN/ACCoeff_NC2BIN.f90",
-    "error": "at line 35\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_avg1d.F",
+    "error": "at line 21\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/AerosolCoeff/AerosolCoeff_Inspect/AerosolCoeff_Inspect.f90",
-    "error": "at line 35\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_max.F",
+    "error": "at line 8\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/AerosolCoeff/Create_AerosolCoeff/Create_AerosolCoeff.f90",
-    "error": "at line 33\n>>>  CHARACTER(*), PARAMETER :: INPUT_FILENAME  = 'Aerosol_Optical_Properties_IR.dat'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_max1d.F",
+    "error": "at line 8\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/AerosolCoeff/R2/AerosolCoeff_Define_R2.f90",
-    "error": "at line 51\n>>>  INTEGER,      PARAMETER :: SL = 20\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_min.F",
+    "error": "at line 8\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/AerosolCoeff/R2/AerosolCoeff_R2_to_R3.f90",
-    "error": "at line 19\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_min1d.F",
+    "error": "at line 8\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/AerosolCoeff/R2/AerosolCoeff_netCDF_IO_R2.f90",
-    "error": "at line 51\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_start.F",
+    "error": "at line 56\n>>>\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/Assemble_Coefficient_File/Assemble_Coefficient_File.f90",
-    "error": "at line 62\n>>>  INTEGER,      PARAMETER :: N_ASSEMBLY_TYPES = 3\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_sumsos.F",
+    "error": "at line 21\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/BeCoeff/BeCoeff_ASC2NC/BeCoeff_ASC2NC.f90",
-    "error": "at line 13\n>>>  CHARACTER(*), PARAMETER :: INPUT_FILE   = 'Be_LUT.2007.txt'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_op_sumsos1d.F",
+    "error": "at line 21\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/BeCoeff/BeCoeff_Binary_IO.f90",
-    "error": "at line 45\n>>>  CHARACTER(*), PARAMETER :: WRITE_ERROR_STATUS = 'DELETE'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_opvert_avg.F",
+    "error": "at line 25\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/BeCoeff/BeCoeff_Define.f90",
-    "error": "at line 66\n>>>  INTEGER, PARAMETER :: BeCOEFF_RELEASE = 1  ! This determines object and file formats.\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_opvert_max.F",
+    "error": "at line 10\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/BeCoeff/BeCoeff_IO.f90",
-    "error": "at line 176\n>>>  RESULT( err_stat )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_opvert_min.F",
+    "error": "at line 10\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/BeCoeff/BeCoeff_NC2BIN/BeCoeff_NC2BIN.f90",
-    "error": "at line 39\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_opvert_start.F",
+    "error": "at line 57\n>>>        vertical_mask, 1)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/BeCoeff/BeCoeff_netCDF_IO.f90",
-    "error": "at line 54\n>>>  INTEGER, PARAMETER :: ML = 1024\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/regional_stats_inc/regional_opvert_sumsos.F",
+    "error": "at line 25\n>>>    end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/CRTM_BeCoeff.f90",
-    "error": "at line 55\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_0d_0d.F",
+    "error": "at line 25\n>>>  if (stack(stack_pointer) % symbol_type == IS_TEMPORARY) then\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/CloudCoeff/CloudCoeff_Inspect/CloudCoeff_Inspect.f90",
-    "error": "at line 38\n>>>  LOGICAL, PARAMETER :: DEFAULT_PAUSE = .FALSE.\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_0d_1d.F",
+    "error": "at line 26\n>>>    top_iter => top_iter % next\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/CloudCoeff/R2/CloudCoeff_Define_R2.f90",
-    "error": "at line 50\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_0d_2d.F",
+    "error": "at line 26\n>>>    top_iter => top_iter % next\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/CloudCoeff/R2/CloudCoeff_R2_to_R3.f90",
-    "error": "at line 19\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_1d_0d.F",
+    "error": "at line 26\n>>>    second_iter => second_iter % next\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/CloudCoeff/R2/CloudCoeff_netCDF_IO_R2.f90",
-    "error": "at line 51\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_1d_1d_diff.F",
+    "error": "at line 53\n>>>  stack(stack_pointer) % number_of_dims = 2\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/EmisCoeff/EmisCoeff_Binary_IO.f90",
-    "error": "at line 152\n>>>                                   RESULT ( Error_Status )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_1d_1d_same.F",
+    "error": "at line 25\n>>>    top_iter => top_iter % next\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/EmisCoeff/EmisCoeff_Define.f90",
-    "error": "at line 55\n>>>  REAL(Double),  PARAMETER :: FP_INIT = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_1d_2d_first.F",
+    "error": "at line 49\n>>>  stack(stack_pointer) % number_of_dims = 2\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/EmisCoeff/EmisCoeff_NC2BIN/EmisCoeff_NC2BIN.f90",
-    "error": "at line 41\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_1d_2d_second.F",
+    "error": "at line 50\n>>>  stack(stack_pointer) % number_of_dims = 2\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/EmisCoeff/EmisCoeff_netCDF_IO.f90",
-    "error": "at line 52\n>>>  CHARACTER(*), PARAMETER :: TITLE_GATTNAME   = 'title'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_2d_0d.F",
+    "error": "at line 27\n>>>    second_iter => second_iter % next\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/EmisCoeff/Test_EmisCoeff/Test_EmisCoeff.f90",
-    "error": "at line 39\n>>>  CHARACTER( * ), PARAMETER ::  NC_FILENAME = 'Test.EmisCoeff.nc'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_2d_1d_first.F",
+    "error": "at line 49\n>>>  stack(stack_pointer) % number_of_dims = 2\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/MW_Snow/MWsnowCoeff_Define.f90",
-    "error": "at line 59\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_2d_1d_second.F",
+    "error": "at line 50\n>>>  stack(stack_pointer) % number_of_dims = 2\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/MW_Water/MWwaterCoeff_CreateFile/MWwaterCoeff_CreateFile.f90",
-    "error": "at line 41\n>>>  INTEGER     , PARAMETER :: N_MODELS = 3\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_2d_2d.F",
+    "error": "at line 25\n>>>    top_iter => top_iter % next\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/MW_Water/MWwaterCoeff_CreateFile/MWwaterCoeff_FASTEM4.f90",
-    "error": "at line 29\n>>>  INTEGER , PARAMETER :: N_STOKES = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/binary_op_dispatch.F",
+    "error": "at line 130\n>>>  end if\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/MW_Water/MWwaterCoeff_CreateFile/MWwaterCoeff_FASTEM5.f90",
-    "error": "at line 32\n>>>  INTEGER , PARAMETER :: N_STOKES = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/field_0d_from_1d.F",
+    "error": "at line 26\n>>>  end if\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/MW_Water/MWwaterCoeff_CreateFile/MWwaterCoeff_FASTEM6.f90",
-    "error": "at line 30\n>>>  INTEGER , PARAMETER :: N_STOKES = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/field_1d_from_2d.F",
+    "error": "at line 59\n>>>  end if\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/MW_Water/MWwaterLUT/MWwaterLUT_CreateFile/MWwaterLUT_CreateFile.f90",
-    "error": "at line 17\n>>>  INTEGER :: N_point_used, N_variables_used,i,j,k,N1,i1,N2\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/field_2d_from_1ds.F",
+    "error": "at line 70\n>>>  end if\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/SEcategory/SEcategory_CreateFile/Modules/IRVISiceCoeff_Module.f90",
-    "error": "at line 34\n>>>  CHARACTER(*), PARAMETER :: SURFACE_TYPE_NAME = 'ice'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/reduce_op_1d.F",
+    "error": "at line 20\n>>>  do while (associated(top_iter))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/SEcategory/SEcategory_CreateFile/Modules/IRVISlandCoeff_Module.f90",
-    "error": "at line 34\n>>>  CHARACTER(*), PARAMETER :: SURFACE_TYPE_NAME = 'land'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/reduce_op_2d.F",
+    "error": "at line 22\n>>>  do while (associated(top_iter))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/SEcategory/SEcategory_CreateFile/Modules/IRVISsnowCoeff_Module.f90",
-    "error": "at line 34\n>>>  CHARACTER(*), PARAMETER :: SURFACE_TYPE_NAME = 'snow'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/rpn_calc_inc/reduce_op_dispatch.F",
+    "error": "at line 42\n>>>  end if\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/SEcategory/SEcategory_CreateFile/Modules/VISwaterCoeff_Module.f90",
-    "error": "at line 34\n>>>  CHARACTER(*), PARAMETER :: SURFACE_TYPE_NAME = 'water'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/time_series_inc/copy_field.F",
+    "error": "at line 20\n>>>  call mpas_pool_add_field(amPool, dst % fieldName, dst)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/EmisCoeff/SEcategory/SEcategory_CreateFile/SEcategory_CreateFile.f90",
-    "error": "at line 38\n>>>                        '$Revision$' )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/analysis_members/time_series_inc/operate.F",
+    "error": "at line 35\n>>>  end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/FitCoeff/FitCoeff_Inspect/FitCoeff_Inspect.f90",
-    "error": "at line 40\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/shared/mpas_ocn_init_routines.F",
+    "error": "at line 474\n>>>                       intArgs=(/iCell, maxLevelCell(iCell) /), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/NLTECoeff/NLTECoeff_AIRSsplit/NLTECoeff_AIRSsplit.f90",
-    "error": "at line 39\n>>>  INTEGER, PARAMETER :: M1B_CHANNEL_BEGIN = 2015\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_ocean/shared/mpas_ocn_vmix_cvmix.F",
+    "error": "at line 523\n>>>                        real( surfaceAverageIndex(kIndexOBL), kind=RKIND)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/NLTECoeff/NLTECoeff_IO.f90",
-    "error": "at line 226\n>>>  RESULT( err_stat )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/analysis_members/time_series_inc/copy_field.F",
+    "error": "at line 20\n>>>  call mpas_pool_add_field(amPool, dst % fieldName, dst)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/NLTECoeff/NLTECoeff_Inspect/NLTECoeff_Inspect.f90",
-    "error": "at line 35\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/analysis_members/time_series_inc/operate.F",
+    "error": "at line 35\n>>>  end do\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/NLTECoeff/NLTECoeff_NC2BIN/NLTECoeff_NC2BIN.f90",
-    "error": "at line 35\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/column/ice_colpkg.F90",
+    "error": "at line 365\n>>>                  real(nilyr,kind=dbl_kind)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/NLTECoeff/NLTECoeff_OLD2NEW/NLTECoeff_OLD2NEW.f90",
-    "error": "at line 45\n>>>  CHARACTER(*), PARAMETER :: SENSORINFO_FILE = 'SensorInfo'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/column/ice_kinds_mod.F90",
+    "error": "at line 21\n>>>                            int_kind  = selected_int_kind(6), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/NLTECoeff/NLTECoeff_OLD2NEW/OLD_modules/NLTE_Binary_IO.f90",
-    "error": "at line 48\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/column/ice_therm_mushy.F90",
+    "error": "at line 969\n>>>    integer (kind=int_kind), intent(in) :: ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/NLTECoeff/NLTECoeff_OLD2NEW/OLD_modules/NLTE_Define.f90",
-    "error": "at line 55\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/shared/mpas_seaice_advection_incremental_remap.F",
+    "error": "at line 2987\n>>>                        intArgs=(/iCell, indexToCellID(iCell)/), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/AntCorr/AAPP_AMSU_AntCorr_ASC2NC/AAPP_AMSU_AntCorr_ASC2NC.f90",
-    "error": "at line 43\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/shared/mpas_seaice_forcing.F",
+    "error": "at line 1041\n>>>                   real(S_n,RKIND)/real(S_d,RKIND)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/AntCorr/AntCorr_Application.f90",
-    "error": "at line 78\n>>>  REAL(fp), PARAMETER :: INVALID = -1.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_seaice/shared/mpas_seaice_testing.F",
+    "error": "at line 741\n>>>    character(len=*), intent(in) :: ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/AntCorr/AntCorr_Binary_IO.f90",
-    "error": "at line 49\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/core_test/mpas_test_core_streams.F",
+    "error": "at line 134\n>>>                                         filenameInterval=\"0001-00-00_00:00:00\", ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/AntCorr/AntCorr_Define.f90",
-    "error": "at line 48\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/external/esmf_time_f90/ESMF_TimeIntervalMod.F90",
+    "error": "at line 525\n>>>               REAL( 86400_ESMF_KIND_I8, ESMF_KIND_R8 )\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/AntCorr/AntCorr_netCDF_IO.f90",
-    "error": "at line 54\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/framework/mpas_block_creator.F",
+    "error": "at line 1627\n>>>                           real1DField % dimSizes(iDim) = tempDim + mpas_dimension_num_garbage_elements( ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/AntCorr/NESDIS_AMSUA_AntCorr_ASC2NC/NESDIS_AMSUA_AntCorr_ASC2NC.f90",
-    "error": "at line 37\n>>>  INTEGER, PARAMETER :: N_FOVS     = 30\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/framework/mpas_derived_types.F",
+    "error": "at line 614\n>>>        integer, dimension(:,:), contiguous, pointer :: nSendLists => null()     ! (3,nSendEndpoints) 3 is assumed max halos\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/Create_FTS_SpcCoeff/Create_FTS_SpcCoeff.f90",
-    "error": "at line 65\n>>>  INTEGER, PARAMETER :: SL = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/framework/mpas_halo.F",
+    "error": "at line 525\n>>>        integer, dimension(:,:), contiguous, pointer :: nSendLists\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/Create_SpcCoeff/Create_SpcCoeff.f90",
-    "error": "at line 74\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/framework/mpas_log.F",
+    "error": "at line 394\n>>>            sequential=sequentialSetting, formatted=formattedSetting, iostat=err_tmp)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/Extract_AIRS_SpcCoeff_Subset/Extract_AIRS_SpcCoeff_Subset.f90",
-    "error": "at line 62\n>>>  INTEGER, PARAMETER :: SL = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/framework/mpas_timekeeping.F",
+    "error": "at line 1614\n>>>              real(seconds, RKIND) + (real(sn, RKIND) / real(sd, RKIND))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/Extract_CrIS_SpcCoeff_Subset/Extract_CrIS_SpcCoeff_Subset.f90",
-    "error": "at line 62\n>>>  INTEGER, PARAMETER :: SL = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/MPAS-Model/src/operators/mpas_tracer_advection_mono.F",
+    "error": "at line 413\n>>>                call mpas_log_write('Minimum out of bounds on tracer. iTracer=$i, min=$r, new=$r ', MPAS_LOG_WARN, intArgs=(/iTracer/), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/Extract_IASI_SpcCoeff_Subset/Extract_IASI_SpcCoeff_Subset.f90",
-    "error": "at line 65\n>>>  INTEGER, PARAMETER :: SL = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/atmos_model.F90",
+    "error": "at line 243\n>>>    allocate(Cfg%input_nml_file, mold=input_nml_file)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Convert/OLD_modules/AntCorr_Binary_IO_old.f90",
-    "error": "at line 49\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/module_fcst_grid_comp.F90",
+    "error": "at line 196\n>>>          open(newunit=io_unit, file='INPUT/coupler.res', status='old', action='read', err=998)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Convert/OLD_modules/AntCorr_Define_old.f90",
-    "error": "at line 48\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/mpas/ufs_mpas_subdriver.F90",
+    "error": "at line 1534\n>>>      procedure :: add_stream_attribute_0d\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Convert/OLD_modules/AntCorr_netCDF_IO_old.f90",
-    "error": "at line 54\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/BOUND.f",
+    "error": "at line 38\n>>>!     DECLARE VARIABLES.\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Convert/OLD_modules/SpcCoeff_Binary_IO_old.f90",
-    "error": "at line 49\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/CALDWP.f",
+    "error": "at line 28\n>>>!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Convert/OLD_modules/SpcCoeff_Define_old.f90",
-    "error": "at line 133\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/CALVIS_GSD.f",
+    "error": "at line 331\n>>>            c_z = max(C_r * exp(-1.55*((0.05628*ustar(i,j))**-0.544 - z**-0.544)),1e-15)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Convert/OLD_modules/SpcCoeff_netCDF_IO_old.f90",
-    "error": "at line 58\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/GEO_ZENITH_ANGLE.f",
+    "error": "at line 48\n>>>        REAL*8 DTR/0.017453293 /   ! degrees to radians\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Convert/SpcCoeff_Convert.f90",
-    "error": "at line 49\n>>>  INTEGER, PARAMETER :: N_CONVERSIONS = 2\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/GRIDSPEC.f",
+    "error": "at line 9\n>>>! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Edit/SpcCoeff_Edit.f90",
-    "error": "at line 36\n>>>  INTEGER     , PARAMETER :: N_EDITABLE_COMPONENTS = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/MASKS_mod.f",
+    "error": "at line 7\n>>>      REAL, ALLOCATABLE :: HBM2(:,:) &         !< _____?\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_Inspect/SpcCoeff_Inspect.f90",
-    "error": "at line 35\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/PARA_RANGE.f",
+    "error": "at line 47\n>>>\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/SpcCoeff/SpcCoeff_NC2BIN/SpcCoeff_NC2BIN.f90",
-    "error": "at line 36\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/PMICRPH.f",
+    "error": "at line 12\n>>>\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/Extract_AIRS_TauCoeff_Subset/Extract_AIRS_TauCoeff_Subset.f90",
-    "error": "at line 48\n>>>  INTEGER,      PARAMETER :: N_VALID_SETS = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/SOIL_mod.f",
+    "error": "at line 7\n>>>      real, allocatable :: STC(:,:,:) &  !< Soil temperature\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/Extract_CrIS_TauCoeff_Subset/ODAS/Extract_CrIS_TauCoeff_Subset.f90",
-    "error": "at line 62\n>>>  INTEGER,      PARAMETER :: N_VALID_SUBSETS = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/VRBLS3D_mod.f",
+    "error": "at line 21\n>>>      real, allocatable :: UH(:,:,:) &    !< U-component wind (U at P-points including 2 row halo)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/Extract_CrIS_TauCoeff_Subset/ODPS/Extract_CrIS_TauCoeff_Subset.f90",
-    "error": "at line 53\n>>>  INTEGER, PARAMETER :: SL = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/kinds_mod.F",
+    "error": "at line 77\n>>>       integer_byte_sizes( default_integer )\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/Extract_IASI_TauCoeff_Subset/Extract_IASI_TauCoeff_Subset.f90",
-    "error": "at line 49\n>>>  INTEGER,      PARAMETER :: N_VALID_SETS = 5\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/UFSATM/upp/sorc/ncep_post.fd/machine.f",
+    "error": "at line 8\n>>>      integer kind_io4 &    !< 4-byte I/O variables ?\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODAS/ODAS_NC2BIN/ODAS_NC2BIN.f90",
-    "error": "at line 38\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/SCRIP/scrip_remap_conservative.F",
+    "error": "at line 80\n>>>      integer (SCRIP_i4), save ::\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODAS/TauCoeff2ODAS/TauCoeff2ODAS.f90",
-    "error": "at line 40\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3dispmd.F90",
+    "error": "at line 922\n>>>         '     NO SOLUTION FOUND AFTER ',I4,' ITERATIONS.')\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODAS/Test_ODAS/Test_ODAS.f90",
-    "error": "at line 39\n>>>  CHARACTER(*), PARAMETER ::  NC_FILENAME = 'Test.ODAS.nc'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3gridmd.F90",
+    "error": "at line 3221\n>>>4961 FORMAT ('  &LMPN LMPENABLED = ',L, 'SDTAIL = ', L, ' HSLMODE = ', I2 '/' )\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_Binary_IO.f90",
-    "error": "at line 142\n>>>  INTEGER, PRIVATE, PARAMETER :: UNSET = 0\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3initmd.F90",
+    "error": "at line 183\n>>>       __WW3_SWITCHES__\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_Define.f90",
-    "error": "at line 401\n>>>  INTEGER,      PARAMETER :: IP_INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3iogomd.F90",
+    "error": "at line 355\n>>>         ' with proper bounds' )\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_ODAS_Binary_IO.f90",
-    "error": "at line 113\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3nmlshelmd.F90",
+    "error": "at line 321\n>>>      OPEN (newunit=NDSN, file=TRIM(INFILE)//'.log', form='formatted', iostat=IERR)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_ODAS_Define.f90",
-    "error": "at line 175\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3pro1md.F90",
+    "error": "at line 752\n>>>             REAL(NTLOC-ITLOC)/REAL(NTLOC)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_Subset_Binary_IO.f90",
-    "error": "at line 127\n>>>  INTEGER, PRIVATE, PARAMETER :: UNSET = 0\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3pro2md.F90",
+    "error": "at line 899\n>>>             REAL(NTLOC-ITLOC)/REAL(NTLOC)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_Subset_Define.f90",
-    "error": "at line 223\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3pro3md.F90",
+    "error": "at line 1189\n>>>             REAL(NTLOC-ITLOC)/REAL(NTLOC)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_TauCoeff.f90",
-    "error": "at line 72\n>>>  TYPE(ODCAPS_TauCoeff_type), SAVE, ALLOCATABLE, TARGET :: TC(:)\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3ref1md.F90",
+    "error": "at line 417\n>>>                             +REAL(REFLD(4))*R2*CG(IK)*ABS(ESIN(ITH2Y)/DELY)*FAC1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_TraceGas_Binary_IO.f90",
-    "error": "at line 128\n>>>  INTEGER, PRIVATE, PARAMETER :: UNSET = 0\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3src6md.F90",
+    "error": "at line 1012\n>>>         'TAUV_XY,TAU_SCALAR): ',A,F6.1,2F7.4,E10.3,4F7.4,F7.3  )\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/ODCAPS_TraceGas_Define.f90",
-    "error": "at line 190\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/w3strkmd.F90",
+    "error": "at line 1901\n>>>          ind2(ii) = FINDFIRST(REAL(allInd),SIZE(allInd), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/TauCoeff2ODCAPS.f90",
-    "error": "at line 42\n>>>  INTEGER, PARAMETER :: N_SENSOR_TYPES     = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/wav_comp_nuopc.F90",
+    "error": "at line 458\n>>>        open (newunit=stdout, file=trim(diro)//\"/\"//trim(logfile))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/TauCoeff_SARTA_Binary_IO.f90",
-    "error": "at line 142\n>>>  INTEGER, PRIVATE, PARAMETER :: UNSET = 0\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/wav_shel_inp.F90",
+    "error": "at line 259\n>>>      open(newunit=ndsi, file=trim(fnmpre)//\"ww3_shel.nml\", status='old', iostat=ierr)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/TauCoeff_SARTA_Define.f90",
-    "error": "at line 395\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/wav_shr_mod.F90",
+    "error": "at line 107\n>>>       __FILE__\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/TauCoeff_SARTA_Subset_Binary_IO.f90",
-    "error": "at line 127\n>>>  INTEGER, PRIVATE, PARAMETER :: UNSET = 0\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/wav_wrapper_mod.F90",
+    "error": "at line 70\n>>>    open (newunit=nunit, file=trim(filename))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/TauCoeff_SARTA_Subset_Define.f90",
-    "error": "at line 223\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/wmesmfmd.F90",
+    "error": "at line 1531\n>>>        impField(i) = ESMF_FieldCreate( impMesh, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/TauCoeff_SARTA_TraceGas_Binary_IO.f90",
-    "error": "at line 128\n>>>  INTEGER, PRIVATE, PARAMETER :: UNSET = 0\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/wmgridmd.F90",
+    "error": "at line 749\n>>>                EDIST=W3DIST(FLAGLL, REAL(GRIDS(I)%XGRD(1,IM1)), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/TauCoeff_SARTA_TraceGas_Define.f90",
-    "error": "at line 190\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/wmunitmd.F90",
+    "error": "at line 566\n>>>    CHARACTER(LEN=3), INTENT(IN), OPTIONAL ::                       ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/Tau_OPTRAN_SARTA_Coeff_Binary_IO.f90",
-    "error": "at line 113\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/ww3_gspl.F90",
+    "error": "at line 2711\n>>>         '     SPLITTING NOT YET IMPLEMENTED '/)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODCAPS/TauCoeff2ODCAPS/Tau_OPTRAN_SARTA_Coeff_Define.f90",
-    "error": "at line 175\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/ww3_ounp.F90",
+    "error": "at line 1269\n>>>       I10, 'out of ', I10, ' pass ', I4)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODPS/Extract_AIRS_TauCoeff_Subset/Extract_AIRS_TauCoeff_Subset.f90",
-    "error": "at line 50\n>>>  INTEGER, PARAMETER :: SL = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/model/src/ww3_prnc.F90",
+    "error": "at line 1987\n>>>       '     M4 MS4 MN4 M6 2MS6 2MN6'/)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODPS/Extract_IASI_TauCoeff_Subset/Extract_IASI_TauCoeff_Subset.f90",
-    "error": "at line 52\n>>>  INTEGER, PARAMETER :: SL = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/regtests/ww3_tp2.14/input/toy/read_dimgrid.F90",
+    "error": "at line 23\n>>>  CALL hdlerr(NF90_OPEN(data_filename, NF90_NOWRITE, il_file_id), __LINE__,__FILE__ )\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODPS/ODPS_BIN2NC/ODPS_BIN2NC.f90",
-    "error": "at line 38\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/regtests/ww3_tp2.14/input/toy/read_forcing.F90",
+    "error": "at line 36\n>>>  CALL HDLERR(NF90_OPEN(DATA_FILENAME, NF90_NOWRITE, NCID),__LINE__,__FILE__)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODPS/ODPS_ExtractAndCombine/ODPS_ExtractAndCombine.f90",
-    "error": "at line 29\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/WW3/regtests/ww3_tp2.14/input/toy/read_grid.F90",
+    "error": "at line 32\n>>>  CALL hdlerr(NF90_OPEN(data_filename, NF90_NOWRITE, il_file_id), __LINE__,__FILE__ )\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODPS/ODPS_NC2BIN/ODPS_NC2BIN.f90",
-    "error": "at line 41\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/driver/initialize_mod.F90",
+    "error": "at line 72\n>>>        open (newunit = unit_out, file = 'latlons_c.dat')\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODPS/Test_ODPS/Test_ODPS.f90",
-    "error": "at line 40\n>>>  CHARACTER(*), PARAMETER ::  NC_FILENAME = 'Test.ODPS.nc'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/io/namelist_mod.F90",
+    "error": "at line 20\n>>>      integer :: start_year = -1, start_month = -1, start_day = -1, start_hour = -1, start_minute = -1, start_second = -1, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODPS/oODPS_IO.f90",
-    "error": "at line 41\n>>>  REAL(Double), PARAMETER :: ZERO = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/io/wrf_mod.F90",
+    "error": "at line 627\n>>>        open (newunit = unit1, file = \"latlons_wrf_mass.dat\")\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODSSU/ODASNC2ODSSUBIN/ODASNC2ODSSUBIN.f90",
-    "error": "at line 42\n>>>  INTEGER, PARAMETER :: n_absorbers = 3\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/nuopc/esm.F90",
+    "error": "at line 50\n>>>      return  ! bail out\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODSSU/ODPSNC2ODSSUBIN/ODPSNC2ODSSUBIN.f90",
-    "error": "at line 42\n>>>  INTEGER, PARAMETER :: n_absorbers = 3\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/nuopc/esmApp.F90",
+    "error": "at line 36\n>>>    call ESMF_Finalize(endflag=ESMF_END_ABORT)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODSSU/TauCoeff2ODSSU/TauCoeff2ODSSU.f90",
-    "error": "at line 41\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/nuopc/fire_behavior_nuopc.F90",
+    "error": "at line 366\n>>>       ungriddedUBound=(/grid%kfde - 1/), ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODSSU/TauCoeff2ODSSU/TauCoeff_Binary_IO_ssu.f90",
-    "error": "at line 174\n>>>                                  RESULT ( Error_Status )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/nuopc/wrf_nuopc.F90",
+    "error": "at line 360\n>>>    field = ESMF_FieldCreate(name=\"hflx_fire\", grid=grid, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/ODSSU/TauCoeff2ODSSU/TauCoeff_Define_ssu.f90",
-    "error": "at line 74\n>>>  REAL(Double), PARAMETER :: FP_INIT = 0.0_Double\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/fire_behavior/share/datetime_mod.F90",
+    "error": "at line 19\n>>>      procedure :: Add_seconds_int, Add_seconds_real\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/TauCoeff_Binary_IO.f90",
-    "error": "at line 170\n>>>                                  RESULT ( Error_Status )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_model.fd/ufs_tracing/ufs_trace_mod.F90",
+    "error": "at line 28\n>>>      open(newunit=unit, file=trim(fname))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/TauCoeff_Compare/TauCoeff_Compare.f90",
-    "error": "at line 38\n>>>  INTEGER, PARAMETER :: N_FORMATS = 2\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/CONV/SAMF/samfdeepcnv.f",
+    "error": "at line 147\n>>>      real(kind=kind_phys) clamd,   tkemx,   tkemn,   dtke,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/TauCoeff_Generation/Source_Code/GenTransCoef.f90",
-    "error": "at line 168\n>>>  real(fp_kind),allocatable ::  p_lev(:)                      ! lev           ! pressure (hPa)\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/CONV/SAMF/samfshalcnv.f",
+    "error": "at line 110\n>>>      real(kind=kind_phys) dellat,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/TauCoeff_NC2BIN/TauCoeff_NC2BIN.f90",
-    "error": "at line 38\n>>>  INTEGER :: Error_Status\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/CONV/SAS/sascnvn.F",
+    "error": "at line 92\n>>>      subroutine sascnvn_run(\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/TauCoeff/TauCoeff_netCDF_IO.f90",
-    "error": "at line 50\n>>>  CHARACTER(*), PARAMETER :: TITLE_GATTNAME         = 'title'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/CONV/SAS/shalcnv.F",
+    "error": "at line 132\n>>>      real(kind=kind_phys) dellat,  delta,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/Test/Test_CRTM_SpcCoeff/Test_CRTM_SpcCoeff.f90",
-    "error": "at line 29\n>>>  INTEGER, PARAMETER :: NSENSORS=4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/GWD/gwdc.f",
+    "error": "at line 193\n>>>      real(kind=kind_phys), allocatable :: tauctxl(:), tauctyl(:),\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Coefficients/Test/Test_CRTM_TauCoeff/Test_CRTM_TauCoeff.f90",
-    "error": "at line 29\n>>>  INTEGER, PARAMETER :: NSENSORS=4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/GWD/gwdc_post.f",
+    "error": "at line 54\n>>>     &                  wd)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/GeometryInfo/CRTM_Geometry_Inspect/CRTM_Geometry_Inspect.f90",
-    "error": "at line 36\n>>>  INTEGER :: err_stat, alloc_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/GWD/gwdps.f",
+    "error": "at line 340\n>>>     &,                    efmax,hpmax,hpmin, rad_to_deg, deg_to_rad\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/FTS_SensorData/FTS_SensorData_Define.f90",
-    "error": "at line 48\n>>>  INTEGER, PARAMETER :: SL = 20\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/GWD/rayleigh_damp.f",
+    "error": "at line 83\n>>>     &,                    ENG0, ENG1, tem1, tem2, dti, hfbcpdt, rtrd\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Info_SAT2SENSOR/Info_SAT2SENSOR.f90",
-    "error": "at line 33\n>>>  INTEGER, PARAMETER :: maxChannels = 5000\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Interstitials/UFS_SCM_NEPTUNE/dcyc2t3.f",
+    "error": "at line 338\n>>>     &                        + (one - sfcemis_lnd(i)) * adjsfcdlw(i)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/AIRS/AIRS_ChannelProperties.f90",
-    "error": "at line 116\n>>>    '(i5,f9.3,1x,a5,i5,f7.4,f6.3,f8.4,2f8.1,f6.3,i3,i3,i3,1x,a8)'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Interstitials/UFS_SCM_NEPTUNE/gcycle.F90",
+    "error": "at line 255\n>>>        errmsg = 'ERROR(gcycle): namelist file: ',trim(fn_nml),' does not exist.'\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/AIRS/AIRS_ChannelProperties_Define.f90",
-    "error": "at line 196\n>>>  INTEGER, PRIVATE, PARAMETER :: ML = 5\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Interstitials/UFS_SCM_NEPTUNE/sfcsub.F",
+    "error": "at line 18\n>>>      integer kpdtsf,kpdwet,kpdsno,kpdzor,kpdais,kpdtg3,kpdplr,kpdgla,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/AIRS/AIRS_Define.f90",
-    "error": "at line 46\n>>>  INTEGER, PARAMETER :: N_AIRS_BANDS    = 17\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/MP/Morrison_Gettelman/aer_cloud.F",
+    "error": "at line 42\n>>>     &,                             fdust, fsoot, forg\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/AIRS/AIRS_Subset.f90",
-    "error": "at line 47\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/MP/Morrison_Gettelman/cldmacro.F",
+    "error": "at line 35\n>>>     &,           FR_LS_WAT, FR_LS_ICE,   FR_AN_WAT, FR_AN_ICE\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/AIRS/Display_AIRS_Subset/Display_AIRS_Subset.f90",
-    "error": "at line 33\n>>>  INTEGER,      PARAMETER :: N_VALID_SETS = 3\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/MP/Morrison_Gettelman/cldwat2m_micro.F",
+    "error": "at line 84\n>>>     &,                   cons6,  cons7,  cons8,  cons9,  cons10\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/AIRS/Test_ChannelProperties/Test_ChannelProperties.f90",
-    "error": "at line 32\n>>>  CHARACTER( * ), PARAMETER :: OUTPUT_FILE = 'L2.ChannelProperties.Test'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/MP/TEMPO/TEMPO/module_mp_tempo_main.F90",
+    "error": "at line 2686\n>>>                nc1d(k) = min(ccg(1,nu_c)*ocg2(nu_c)*qc1d(k)/am_r*lamc**bm_r,''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/AIRS/Write_AIRS_SensorInfo/Write_AIRS_SensorInfo.f90",
-    "error": "at line 39\n>>>  INTEGER,      PARAMETER :: N_VALID_SETS = 4\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/MP/Thompson/module_mp_thompson.F90",
+    "error": "at line 4204\n>>>            nc1d(k) = min(ccg(1,nu_c)*ocg2(nu_c)*qc1d(k)/am_r*lamc**bm_r,''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/Channel_Subset_Define.f90",
-    "error": "at line 50\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/MP/Zhao_Carr/zhaocarr_gscond.f",
+    "error": "at line 103\n>>>     &,                     tp1(:,:),  qp1(:,:),  psp1(:)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/CrIS/CrIS_Define.f90",
-    "error": "at line 66\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/MP/Zhao_Carr/zhaocarr_precpd.f",
+    "error": "at line 149\n>>>     &,                     d00\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/CrIS/CrIS_Subset.f90",
-    "error": "at line 47\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/PBL/HEDMF/hedmf.f",
+    "error": "at line 39\n>>>             write(errmsg,'(*(a))') 'Logic error: moninq_fac == 0',\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/IASI/IASI_Define.f90",
-    "error": "at line 56\n>>>  REAL(fp), PARAMETER :: ZERO      = 0.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/PBL/SATMEDMF/mfscu.f",
+    "error": "at line 53\n>>>      real(kind=kind_phys) dt2,     dz,      ce0,     cm,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/IASI/IASI_Subset.f90",
-    "error": "at line 48\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/PBL/SATMEDMF/satmedmfvdif.F",
+    "error": "at line 15\n>>>      subroutine satmedmfvdif_init (satmedmf,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/Instruments/IASI/Write_IASI_SensorInfo/Write_IASI_SensorInfo.f90",
-    "error": "at line 42\n>>>  INTEGER,      PARAMETER :: N_SETS = 8\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/PBL/SATMEDMF/satmedmfvdifq.F",
+    "error": "at line 67\n>>>        write(errmsg,fmt='(*(a))') 'Logic error: satmedmfvdif is ',\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/MW_SensorData/Display_MW_SensorData/Display_MW_SensorData.f90",
-    "error": "at line 39\n>>>  CHARACTER(80) :: Sensor_ID\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/PBL/SHOC/moninshoc.f",
+    "error": "at line 44\n>>>      subroutine moninshoc_run (im,km,ntrac,ntcw,ncnd,dv,du,tau,rtg,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/AIRS_SRF_Define.f90",
-    "error": "at line 80\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/PBL/mfpbl.f",
+    "error": "at line 71\n>>>c  local variables and arrays\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/AIRS_SRF_netCDF_Reader.f90",
-    "error": "at line 104\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/PBL/mfpblt.f",
+    "error": "at line 46\n>>>c  local variables and arrays\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/AVHRRJM_SRF_ASCII2NC/AVHRRJM_SRF_ASCII2NC.f90",
-    "error": "at line 51\n>>>  REAL(fp), PARAMETER :: ZERO         = 0.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/all-sky/mo_load_cloud_coefficients.F90",
+    "error": "at line 182\n>>>        error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/Average_SRFs/Average_SRFs.f90",
-    "error": "at line 126\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/all-sky/rrtmgp_allsky.F90",
+    "error": "at line 544\n>>>      error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/Create_MW_SRF/Create_MW_SRF.f90",
-    "error": "at line 44\n>>>  CHARACTER( * ), PARAMETER :: PROGRAM_NAME = 'Create_MW_SRF'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/mo_garand_atmos_io.F90",
+    "error": "at line 154\n>>>      error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_ASCII2NC/SRF_ASCII2NC.f90",
-    "error": "at line 63\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/mo_load_coefficients.F90",
+    "error": "at line 41\n>>>      error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_ASCII_IO.f90",
-    "error": "at line 64\n>>>  INTEGER, PARAMETER :: UNSET = 0\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/mo_simple_netcdf.F90",
+    "error": "at line 409\n>>>      error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_ASCII_IO_Test/SRF_ASCII_IO_Test.f90",
-    "error": "at line 96\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/rfmip-clear-sky/mo_rfmip_io.F90",
+    "error": "at line 481\n>>>      error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_Define.f90",
-    "error": "at line 76\n>>>  INTEGER,  PARAMETER :: ML = 256 ! msg length\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/rfmip-clear-sky/rrtmgp_rfmip_lw.F90",
+    "error": "at line 32\n>>>    error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_Define_old.f90",
-    "error": "at line 229\n>>>  INTEGER, PRIVATE, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/examples/rfmip-clear-sky/rrtmgp_rfmip_sw.F90",
+    "error": "at line 32\n>>>    error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_NEW2OLD/SRF_NEW2OLD.f90",
-    "error": "at line 36\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/tests/check_equivalence.F90",
+    "error": "at line 21\n>>>      error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_Utility.f90",
-    "error": "at line 50\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/tests/check_variants.F90",
+    "error": "at line 21\n>>>    error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_netCDF_IO.f90",
-    "error": "at line 60\n>>>  INTEGER, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/tests/mo_testing_utils.F90",
+    "error": "at line 151\n>>>      error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_netCDF_IO_Test/SRF_netCDF_IO_Test.f90",
-    "error": "at line 94\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/tests/rte_lw_solver_unit_tests.F90",
+    "error": "at line 230\n>>>  if(.not. passed) error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SRF_netCDF_IO_old.f90",
-    "error": "at line 119\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/tests/rte_sw_solver_unit_tests.F90",
+    "error": "at line 206\n>>>  if(.not. passed) error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/SSU_SRF_ASCII2NC/SSU_SRF_ASCII2NC.f90",
-    "error": "at line 47\n>>>  REAL(fp), PARAMETER :: ONE = 1.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/RRTMGP/rte-rrtmgp/tests/test_zenith_angle_spherical_correction.F90",
+    "error": "at line 8\n>>>    error stop 1\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SRF/Test_SRF/Test_SRF.f90",
-    "error": "at line 34\n>>>  CHARACTER(*), PARAMETER :: NC_FILENAME  = 'Test.SRF.nc'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/mersenne_twister.f",
+    "error": "at line 238\n>>>              if(stat%mti.lt.0.or.stat%mti.gt.n.or.any(stat%mt.eq.0).or.\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SensorInfo/SensorInfo_Define.f90",
-    "error": "at line 75\n>>>  REAL(fp), PARAMETER :: ZERO = 0.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/radiation_aerosols.f",
+    "error": "at line 393\n>>>     &      .94, .95, .96, .97, .98, .99 /\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SensorInfo/SensorInfo_IO.f90",
-    "error": "at line 53\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/radiation_clouds.f",
+    "error": "at line 519\n>>>     &     imp_physics,                 ! Flag for MP scheme\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/SensorInfo/SensorInfo_LinkedList.f90",
-    "error": "at line 47\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/Radiation/radiation_surface.f",
+    "error": "at line 246\n>>>          errmsg = 'module_radiation_surface: surface emissivity\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/oSRF/IR_SRF2oSRF/IR_SRF2oSRF.f90",
-    "error": "at line 48\n>>>  CHARACTER( * ), PARAMETER :: PROGRAM_NAME = 'IR_SRF2oSRF'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Layer/UFS/sfc_diag.f",
+    "error": "at line 234\n>>> 100    format (\";;; \",a,i4,a,2f14.7/(4(a10,'='es11.4)))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/oSRF/MW_SensorData2oSRF/MW_SensorData2oSRF.f90",
-    "error": "at line 48\n>>>  CHARACTER( * ), PARAMETER :: PROGRAM_NAME = 'MW_SensorData2oSRF'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Layer/UFS/sfc_diff.f",
+    "error": "at line 138\n>>>      real(kind=kind_phys) :: rat, tv1, thv1, restar, wind10m,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/oSRF/PtrArr_Utility/PtrArr_Define.f90",
-    "error": "at line 26\n>>>  INTEGER , PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/Land/Noah/lsm_noah.f",
+    "error": "at line 24\n>>>      subroutine lsm_noah_init(lsm, lsm_noah, me, isot, ivegsrc, nlunit,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/oSRF/oSRF_Define.f90",
-    "error": "at line 107\n>>>  INTEGER,  PARAMETER :: ML = 256 ! Message length\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/Land/Noah/set_soilveg.f",
+    "error": "at line 40\n>>>     &  BB, DRYSMC, F11, MAXSMC, REFSMC, SATPSI, SATDK, SATDW,\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/oSRF/oSRF_File_Define.f90",
-    "error": "at line 80\n>>>  INTEGER, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/Land/Noah/sflx.f",
+    "error": "at line 319\n>>>      logical, intent(in) :: lheatstrg, exticeden\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/oSRF/oSRF_Inspect/oSRF_Inspect.f90",
-    "error": "at line 36\n>>>  INTEGER :: err_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/Land/RUC/lsm_ruc.F90",
+    "error": "at line 910\n>>> 100      format (\";;; \",a,i4,a,2f14.7/(4(a10,'='es9.2)))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/InstrumentInfo/oSRF/oSRF_Parameters.f90",
-    "error": "at line 27\n>>>  INTEGER, PUBLIC, PARAMETER :: N_PLANCK_COEFFS = 2\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/Land/RUC/module_sf_ruclsm.F90",
+    "error": "at line 1178\n>>> 100      format (\";;; \",a,i4,a,2f14.7/(4(a10,'='es14.7)))\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/NLTE/Compute_TrainSet/Apodize_RadSpc_with_IRF/Apodize_RadSpc_with_IRF.f90",
-    "error": "at line 73\n>>>  REAL(fp), PARAMETER :: DEFAULT_FILTER_WIDTH = 20.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/Ocean/UFS/sfc_ocean.F",
+    "error": "at line 29\n>>>     &       prsl1, prslki, wet, use_lake_model, wind,                  &,  ! --- inputs\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/NLTE/Compute_TrainSet/Concat/Cat_TrainSet.f90",
-    "error": "at line 37\n>>>  TYPE(TrainSet_type) :: TrainSet1, TrainSet2, TrainSet_out\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/SeaIce/CICE/sfc_cice.f",
+    "error": "at line 31\n>>>     &       errmsg, errflg\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/NLTE/Compute_TrainSet/Merge_files/Merge_files.f90",
-    "error": "at line 30\n>>>  INTEGER, PARAMETER :: RELEASE_NUMBER = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/SFC_Models/SeaIce/CICE/sfc_sice.f",
+    "error": "at line 46\n>>>     &       errmsg, errflg\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/NLTE/Compute_TrainSet/TrainSet_define/DeltaRadTrainSet_netCDF_IO.f90",
-    "error": "at line 47\n>>>  INTEGER,      PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/ccpp-physics/physics/hooks/machine.F",
+    "error": "at line 18\n>>>     &,                     kind_grid = kind_dbl_prec\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/NLTE/Compute_TrainSet/TrainSet_define/DeltaRad_TrainSet_Define.f90",
-    "error": "at line 48\n>>>  INTEGER,  PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/atm_input_data.F90",
+    "error": "at line 135\n>>> ps_input_grid = ESMF_FieldCreate(input_grid, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Options/CRTM_Options_Inspect/CRTM_Options_Inspect.f90",
-    "error": "at line 37\n>>>  INTEGER :: err_stat, alloc_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/atmosphere.F90",
+    "error": "at line 176\n>>>      call error_handler(\"IN FieldSMMStore\", rc)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/RTSolution/CRTM_RTSolution_Inspect/CRTM_RTSolution_Inspect.f90",
-    "error": "at line 36\n>>>  INTEGER :: err_stat, alloc_stat\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/chgres.F90",
+    "error": "at line 58\n>>>    call error_handler(\"INITIALIZING ESMF\", ierr)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/RTSolution/RTSolution_Rewrite/RTSolution_Rewrite.f90",
-    "error": "at line 40\n>>>  INTEGER, PARAMETER :: ML = 256\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/model_grid.F90",
+    "error": "at line 245\n>>> latitude_input_grid = ESMF_FieldCreate(input_grid, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/RTSolution/UWisc_SOI/SOI_CRTM_Forward_Module.f90",
-    "error": "at line 211\n>>>                             RESULT( Error_Status )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/msis2.1.fd/msis_constants.F90",
+    "error": "'utf-8' codec can't decode byte 0xae in position 79: invalid start byte"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/RTSolution/UWisc_SOI/SOI_CRTM_RTSolution.f90",
-    "error": "at line 254\n>>>                                  RESULT ( Error_Status )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/nst_input_data.F90",
+    "error": "at line 76\n>>> c_d_input_grid = ESMF_FieldCreate(input_grid, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/RTSolution/UWisc_SOI/Test_Forward.f90",
-    "error": "at line 91\n>>>  '**********************************************************'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/sfc_input_data.F90",
+    "error": "at line 1010\n>>>     soil_temp_input_grid = ESMF_FieldCreate(input_grid, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SensorInfo/Create_SensorInfo_Code/Create_SensorInfo_Code.f90",
-    "error": "at line 33\n>>>  CHARACTER(*), PARAMETER :: SENSORINFO_FILENAME='SensorInfo'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/static_data.F90",
+    "error": "at line 82\n>>>      call error_handler(\"IN FieldGather\", error)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SensorInfo/Test/Test_CRTM_SensorInfo.f90",
-    "error": "at line 33\n>>>  CHARACTER(*), PARAMETER :: SENSORINFO_FILENAME='SensorInfo'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/surface.F90",
+    "error": "at line 407\n>>>    call error_handler(\"IN FieldRegridStore\", rc)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/BRDF/CRTM_BRDF_SfcOptics.f90",
-    "error": "at line 58\n>>>                                    RESULT ( Error_Status )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/thompson_mp_climo_data.F90",
+    "error": "at line 80\n>>>    call error_handler(\"IN VMGetGlobal\", rc)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/IR_Land/IRLSEM/CRTM_surface_ir_emissivity.f90",
-    "error": "at line 43\n>>>                                     surface_type)     ! OPTIONAL INPUT, surface type (1 - 24)\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/chgres_cube.fd/write_data.F90",
+    "error": "at line 661\n>>>      call error_handler(\"IN FieldGather\", error)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/IR_Land/IRLSEM/GrELS/GrELS_Binary_IO.f90",
-    "error": "at line 45\n>>>  CHARACTER(*), PARAMETER :: WRITE_ERROR_STATUS = 'DELETE'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/cpld_gridgen.fd/gen_fixgrid.F90",
+    "error": "at line 85\n>>>       line=__LINE__, file=__FILE__)) call ESMF_Finalize(endflag=ESMF_END_ABORT)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/IR_Land/IRLSEM/GrELS/GrELS_Define.f90",
-    "error": "at line 66\n>>>  INTEGER, PARAMETER :: GrELS_RELEASE = 1  ! This determines object and file formats.\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/cpld_gridgen.fd/inputnml.F90",
+    "error": "at line 44\n>>>    open (action='read', file=trim(fname), iostat=rc, newunit=iounit)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/IR_Land/IRLSEM/GrELS/GrELS_IO.f90",
-    "error": "at line 194\n>>>  RESULT( err_stat )\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/cpld_gridgen.fd/postwgts.F90",
+    "error": "at line 93\n>>>               line=__LINE__, file=__FILE__)) call ESMF_Finalize(endflag=ESMF_END_ABORT)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/IR_Land/IRLSEM/GrELS/GrELS_netCDF_IO.f90",
-    "error": "at line 54\n>>>  INTEGER, PARAMETER :: ML = 1024\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/fre-nctools.fd/shared_lib/grid.F90",
+    "error": "at line 52\n>>>character(len=*), parameter :: ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/FASTEM_MWSSEM/CRTM_Fastem3.f90",
-    "error": "at line 76\n>>>  REAL(fp), PARAMETER :: HUNDRED = 100.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/grid_tools.fd/filter_topo.fd/utils.F90",
+    "error": "at line 121\n>>>   error stop 'Stopped'\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/FASTEM_MWSSEM/Retrieve_Emissivity_Module.f90",
-    "error": "at line 57\n>>>  REAL(fp), PARAMETER :: ZERO = 0.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/ocnice_prep.fd/init_mod.F90",
+    "error": "at line 81\n>>>       open (action='read', file=trim(fname), iostat=ierr, newunit=iounit)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/LowFrequency_MWSSEM/CRTM_OceanEM_AMSRE.f90",
-    "error": "'String argument '(' in class Kind_Selector method match() is too short to be valid.'. Please report this to the authors."
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/ocnice_prep.fd/ocniceprep.F90",
+    "error": "at line 63\n>>>  character(len=*), parameter :: u_FILE_u = __FILE__\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/LowFrequency_MWSSEM/LF_MWSSEMCoeff_Binary_IO.f90",
-    "error": "at line 47\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/ocnice_prep.fd/utils_esmf_mod.F90",
+    "error": "at line 43\n>>>  character(len=*), parameter :: u_FILE_u = __FILE__   !< a character string\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/LowFrequency_MWSSEM/LF_MWSSEMCoeff_Define.f90",
-    "error": "at line 50\n>>>  REAL(fp), PARAMETER :: ZERO = 0.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/orog_mask_tools.fd/orog_gsl.fd/module_gsl_oro_data_lg_scale.f90",
+    "error": "at line 604\n>>>         convexity(cell_count) = min( sum4 / ( var**2 *                    ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/LowFrequency_MWSSEM/Transpose_LF_MWSSEMCoeff/Transpose_LF_MWSSEMCoeff.f90",
-    "error": "at line 29\n>>>  CHARACTER(*), PARAMETER :: PROGRAM_NAME   = 'Transpose_LF_MWSSEMCoeff'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/orog_mask_tools.fd/orog_gsl.fd/module_gsl_oro_data_sm_scale.f90",
+    "error": "at line 549\n>>>         convexity(cell_count) = min( sum4 / ( var**2 *                    ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/LowFrequency_MWSSEM/Write_LF_MWSSEMCoeff/Write_LF_MWSSEMCoeff.f90",
-    "error": "at line 20\n>>>  CHARACTER(*), PARAMETER :: PROGRAM_NAME   = 'Write_LF_MWSSEMCoeff'\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/regrid_sfc.fd/grids_IO.F90",
+    "error": "at line 88\n>>> mask_field(1,1) = ESMF_FieldCreate(mod_grid, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/MW_Water/Ocean_Permittivity/Ocean_Permittivity.f90",
-    "error": "at line 81\n>>>END MODULE Ocean_Permittivity\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/regrid_sfc.fd/regridStates.F90",
+    "error": "at line 90\n>>>    call error_handler(\"INITIALIZING ESMF\", ierr)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/SfcOptics/NESDIS_Emissivity/NESDIS_OCEANEM_Module.f90",
-    "error": "at line 27\n>>>  REAL(fp), PARAMETER :: zero = 0.0_fp\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/sfc_climo_gen.fd/driver.F90",
+    "error": "at line 50\n>>>    call error_handler(\"INITIALIZING ESMF\", rc)\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Statistics/CRTMstats/CRTMstats_Define.f90",
-    "error": "at line 367\n>>>  INTEGER, PRIVATE, PARAMETER :: INVALID = -1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/sfc_climo_gen.fd/interp.F90",
+    "error": "at line 52\n>>> data_field_src = ESMF_FieldCreate(grid_src, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Statistics/CRTMstats/CRTMstats_netCDF_IO.f90",
-    "error": "at line 114\n>>>  REAL( fp_kind ), PRIVATE, PARAMETER :: ZERO = 0.0_fp_kind\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/sfc_climo_gen.fd/interp_frac_cats.F90",
+    "error": "at line 81\n>>> data_field_src = ESMF_FieldCreate(grid_src, ''\n"
   },
   {
-    "file": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow/sorc/gdas.cd/sorc/crtm/src/Statistics/FitStats/FitStats_ASCII2NC/FitStats_ASCII2NC.f90",
-    "error": "at line 48\n>>>  INTEGER, PARAMETER :: SET = 1\n"
+    "file": "/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow/sorc/ufs_utils.fd/sorc/sfc_climo_gen.fd/model_grid.F90",
+    "error": "at line 165\n>>>    call error_handler(\"IN GridCreateMosaic\", rc)\n"
   }
 ]

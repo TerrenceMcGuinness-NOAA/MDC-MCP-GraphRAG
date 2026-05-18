@@ -49,11 +49,21 @@ def _import_tool_module(name: str) -> Any:
     return importlib.import_module(f"src.tools.{name}")
 
 
-def _register_module(mcp: FastMCP, name: str, data: Any) -> ModuleLoadResult:
+def _register_module(
+    mcp: FastMCP,
+    name: str,
+    data: Any,
+    extra_kwargs: dict[str, Any] | None = None,
+) -> ModuleLoadResult:
     """Import and register a single tool module.
 
     Returns a :class:`ModuleLoadResult` rather than raising so one broken
     module cannot take the whole server down (Requirement 1.7).
+
+    ``extra_kwargs`` lets the caller pass module-specific keyword
+    arguments without requiring every module's ``register()`` to share
+    a uniform signature. Currently used to plumb the unified-manifest
+    ``ManifestRegistry`` into ``semantic_search.register()``.
     """
     try:
         mod = _import_tool_module(name)
@@ -76,7 +86,7 @@ def _register_module(mcp: FastMCP, name: str, data: Any) -> ModuleLoadResult:
         )
 
     try:
-        register(mcp, data)
+        register(mcp, data, **(extra_kwargs or {}))
     except Exception as exc:
         log.exception("[ERROR] tool module %r register() failed", name)
         return ModuleLoadResult(name, registered=False, error=str(exc))
@@ -158,8 +168,19 @@ async def initialize(
     reporting.
     """
     data = await _create_data_access(config)
+    manifest_registry = _load_manifest_registry()
+
+    # Per-module register() kwargs. Only semantic_search needs the
+    # manifest registry today; other modules accept (mcp, data) and
+    # ignore extras.
+    extra_kwargs: dict[str, dict[str, Any]] = {}
+    if manifest_registry is not None:
+        extra_kwargs["semantic_search"] = {
+            "manifest_registry": manifest_registry,
+        }
+
     results = [
-        _register_module(mcp, name, data)
+        _register_module(mcp, name, data, extra_kwargs.get(name))
         for name in _modules_to_register(config)
     ]
 
@@ -174,6 +195,45 @@ async def initialize(
         )
 
     return data, results
+
+
+def _load_manifest_registry() -> Any | None:
+    """Load the unified manifest, returning ``None`` if loading fails.
+
+    Failure here is non-fatal — the server still boots, just without
+    the new ``list_all_sources`` tool's data and with the legacy
+    ``documentation_sources.json`` resolver as a fallback for
+    URL-listing tools (Requirements 8.3, 8.5).
+    """
+    try:
+        # Late import — keeps the manifest module out of the
+        # ``mcp_server`` import graph for unit tests that patch
+        # ``_register_module`` directly.
+        from src.manifest.loader import load_manifest
+
+        registry = load_manifest()
+    except ModuleNotFoundError as exc:
+        log.warning(
+            "[WARN] src.manifest not available — running without unified "
+            "manifest registry (legacy image?): %s",
+            exc,
+        )
+        return None
+    except Exception as exc:
+        log.exception(
+            "[ERROR] manifest load failed — running without unified "
+            "manifest registry: %s",
+            exc,
+        )
+        return None
+
+    log.info(
+        "[OK] manifest registry loaded (version=%s, sources=%d, enabled=%d)",
+        registry.version,
+        registry.total_sources,
+        registry.enabled_sources,
+    )
+    return registry
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────
