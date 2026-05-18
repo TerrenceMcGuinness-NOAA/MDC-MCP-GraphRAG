@@ -286,13 +286,15 @@ def _build_known_sources() -> list[SourceEntry]:
 async def _populate_actual_counts(
     sources: list[SourceEntry],
 ) -> list[SourceEntry]:
-    """Best-effort: query OpenSearch and overwrite ``doc_count`` per index.
+    """Best-effort: query OpenSearch and populate ``doc_count`` per source.
+
+    Uses two strategies:
+    1. For indices with a single source → assign the full index doc count.
+    2. For shared indices (multiple sources target the same index) →
+       run a ``metadata.source`` terms aggregation to get per-source counts.
 
     Skips silently when the data layer fails to initialize (no creds,
-    no network) — the script must keep working offline. The first
-    SourceEntry per (collection, embedding_profile) gets the actual
-    count; subsequent ones in the same collection keep their hand-
-    written placeholders so totals don't double-count.
+    no network) — the script must keep working offline.
     """
     try:
         from src.config import load_config
@@ -322,20 +324,77 @@ async def _populate_actual_counts(
 
     from src.config.aws_config import resolve_index
 
-    seen_indices: set[str] = set()
-    new_sources: list[SourceEntry] = []
-    for entry in sources:
+    # Build a map of index_name → list of source entries targeting it
+    index_to_sources: dict[str, list[int]] = {}
+    source_indices: list[str | None] = []
+    for i, entry in enumerate(sources):
         try:
             index_name = resolve_index(
                 entry.collection_target, entry.embedding_profile
             )
         except Exception:
+            index_name = None
+        source_indices.append(index_name)
+        if index_name and index_name in indices_detail:
+            index_to_sources.setdefault(index_name, []).append(i)
+
+    # For shared indices, query per-source breakdown via aggregation
+    per_source_counts: dict[str, dict[str, int]] = {}
+    for index_name, source_idxs in index_to_sources.items():
+        if len(source_idxs) <= 1:
+            continue
+        # This index has multiple sources — run aggregation
+        try:
+            raw_client = data.vector_db._raw_client()
+            import asyncio
+            agg_body = {
+                "size": 0,
+                "aggs": {
+                    "sources": {
+                        "terms": {"field": "metadata.source.keyword", "size": 200}
+                    }
+                },
+            }
+            resp = await asyncio.to_thread(
+                raw_client.search, index=index_name, body=agg_body
+            )
+            buckets = resp.get("aggregations", {}).get("sources", {}).get("buckets", [])
+            per_source_counts[index_name] = {
+                b["key"]: b["doc_count"] for b in buckets
+            }
+            log.info(
+                "aggregation for %s: %d sources, %d total docs",
+                index_name,
+                len(buckets),
+                sum(b["doc_count"] for b in buckets),
+            )
+        except Exception as exc:
+            log.warning("aggregation for %s failed: %s", index_name, exc)
+
+    # Now assign counts
+    new_sources: list[SourceEntry] = []
+    for i, entry in enumerate(sources):
+        index_name = source_indices[i]
+        if not index_name or index_name not in indices_detail:
             new_sources.append(entry)
             continue
 
-        if index_name in indices_detail and index_name not in seen_indices:
-            actual = int(indices_detail[index_name])
-            seen_indices.add(index_name)
+        # Determine the doc_count for this source
+        doc_count = 0
+        source_idxs = index_to_sources.get(index_name, [])
+
+        if len(source_idxs) == 1:
+            # Sole owner of this index — gets the full count
+            doc_count = int(indices_detail[index_name])
+        elif index_name in per_source_counts:
+            # Shared index — look up by source name in the aggregation
+            agg = per_source_counts[index_name]
+            doc_count = agg.get(entry.name, 0)
+        else:
+            # Shared index but aggregation failed — leave at 0
+            pass
+
+        if doc_count > 0 or entry.doc_count == 0:
             replacement = SourceEntry(
                 name=entry.name,
                 source_type=entry.source_type,
@@ -345,12 +404,13 @@ async def _populate_actual_counts(
                 description=entry.description,
                 last_ingested=entry.last_ingested,
                 ingestion_script=entry.ingestion_script,
-                doc_count=actual,
+                doc_count=doc_count if doc_count > 0 else entry.doc_count,
                 type_fields=dict(entry.type_fields),
             )
             new_sources.append(replacement)
         else:
             new_sources.append(entry)
+
     return new_sources
 
 
