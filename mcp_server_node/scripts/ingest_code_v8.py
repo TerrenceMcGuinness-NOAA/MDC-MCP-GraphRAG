@@ -55,39 +55,9 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
-# Phase 48D: AWS backend support
-# Phase 49: Registry-driven model selection (replaces hardcoded EMBEDDING_MODEL)
-import sys as _sys
-try:
-    from ingestion_base import BaseIngester as _BaseIngester
-    _bi = _BaseIngester.__new__(_BaseIngester)
-    _bi.args = _BaseIngester._parse_common_args(_bi)
-    from embedding_registry import EmbeddingModelRegistry as _Reg
-    from embedding_provider import create_provider as _cp
-    from collection_namer import CollectionNamer as _CN
-    _profile = _Reg().get_profile(_bi.args.model)
-    _provider = _cp(_profile)
-    _namer = _CN(_profile)
-    EMBEDDING_MODEL = _profile.model_id
-    EMBEDDING_DIMENSIONS = _profile.dimensions
-    COLLECTION_NAME = _namer.get_name("code-with-context", "v8-0-0")
-    _REGISTRY_AVAILABLE = True
-except Exception:
-    _REGISTRY_AVAILABLE = False
-    if "--backend" in _sys.argv:
-        _bidx = _sys.argv.index("--backend")
-        if _bidx + 1 < len(_sys.argv):
-            os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
-try:
-    from aws_backend import get_graph_driver as _get_graph_driver, get_vector_client as _get_vector_client, BACKEND as _BACKEND
-    _AWS_BACKEND_AVAILABLE = True
-except ImportError:
-    _AWS_BACKEND_AVAILABLE = False
-    _BACKEND = "legacy"
-
-if not _REGISTRY_AVAILABLE:
-    EMBEDDING_MODEL = "all-mpnet-base-v2"
-    EMBEDDING_DIMENSIONS = 768
+# Embedding model - MUST match jjobs-v8-1-0 and documentation
+EMBEDDING_MODEL = "all-mpnet-base-v2"
+EMBEDDING_DIMENSIONS = 768
 
 # Source paths (use submodule)
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
@@ -395,9 +365,11 @@ class GraphDatabaseClient:
     
     def __init__(self):
         try:
-            self.driver = (_get_graph_driver() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
-                           else GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD),
-                                                     max_connection_lifetime=3600))
+            self.driver = GraphDatabase.driver(
+                NEO4J_URI,
+                auth=(NEO4J_USER, NEO4J_PASSWORD),
+                max_connection_lifetime=3600
+            )
             # Test connection
             with self.driver.session() as session:
                 session.run("RETURN 1")
@@ -492,17 +464,13 @@ class CodeIngesterV8:
         self.graph = GraphDatabaseClient()
         
         # Initialize ChromaDB with MPNet embedding function
-        self.chroma = (_get_vector_client() if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws"
-                       else chromadb.HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT))
+        self.chroma = chromadb.HttpClient(host=CHROMADB_HOST, port=CHROMADB_PORT)
         
-        # Create embedding function (skip for aws backend — handled by auto-embed)
+        # Create embedding function
         print(f"[OK] Loading embedding model: {EMBEDDING_MODEL}")
-        if _AWS_BACKEND_AVAILABLE and _BACKEND == "aws" and _REGISTRY_AVAILABLE:
-            self.embedding_fn = None
-        else:
-            self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name=EMBEDDING_MODEL
-            )
+        self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=EMBEDDING_MODEL
+        )
         
         # Get or create collection with MPNet
         try:
@@ -747,7 +715,7 @@ def main():
     parser.add_argument('--dry-run', action='store_true',
                        help='Show what would be processed without ingesting')
     
-    args, _ = parser.parse_known_args()
+    args = parser.parse_args()
     
     print("=" * 70)
     print("CODE INGESTION V8.0.0 - MPNet Embeddings")

@@ -14,7 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Log file location
-const LOG_FILE = process.env.MCP_LOG_FILE || '/mdc-mcp-rag/mcp_server_node/logs/mcp-console.log';
+const LOG_FILE = process.env.MCP_LOG_FILE || '/mcp_rag_eib/mcp_server_node/logs/mcp-console.log';
 
 // Ensure log directory exists
 const logDir = path.dirname(LOG_FILE);

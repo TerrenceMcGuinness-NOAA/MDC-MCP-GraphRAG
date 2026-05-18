@@ -68,29 +68,6 @@ else
     log_warning "Neo4j may not be fully ready yet"
 fi
 
-# Install cypher-shell CLI (matches Neo4j 5.x in Docker)
-log_info "Installing cypher-shell CLI..."
-if command_exists cypher-shell; then
-    log_info "cypher-shell already installed: $(cypher-shell --version 2>&1)"
-else
-    rpm --import https://debian.neo4j.com/neotechnology.gpg.key 2>/dev/null || true
-    if [[ ! -f /etc/yum.repos.d/neo4j.repo ]]; then
-        cat > /etc/yum.repos.d/neo4j.repo <<'REPO'
-[neo4j]
-name=Neo4j RPM Repository
-baseurl=https://yum.neo4j.com/stable/5
-enabled=1
-gpgcheck=1
-gpgkey=https://debian.neo4j.com/neotechnology.gpg.key
-REPO
-    fi
-    if dnf install -y cypher-shell &>/dev/null; then
-        log_success "cypher-shell installed: $(cypher-shell --version 2>&1)"
-    else
-        log_warning "Failed to install cypher-shell - manual install may be required"
-    fi
-fi
-
 ################################################################################
 # n8n Workflow Automation (Replaced LangFlow - January 2026)
 # Reason: LangFlow had bugs in workflow import; n8n has superior JSON API

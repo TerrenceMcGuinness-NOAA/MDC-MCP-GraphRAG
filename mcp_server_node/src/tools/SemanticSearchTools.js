@@ -639,8 +639,7 @@ export class SemanticSearchTools {
 
       // Report on SPOT configuration sources
       if (spotSources.length > 0) {
-        const spotVersion = config.version || 'unknown';
-        response += `## Configured Documentation Sources (SPOT v${spotVersion})\n\n`;
+        response += `## Configured Documentation Sources (SPOT v7.0.0)\n\n`;
         response += `| Source | URL | Status |\n`;
         response += `|--------|-----|--------|\n`;
         

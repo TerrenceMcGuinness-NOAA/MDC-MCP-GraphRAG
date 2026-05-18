@@ -69,41 +69,6 @@ python3 -m pip install --user chromadb sentence-transformers lxml beautifulsoup4
 | `lxml` | gcc-runtime hash conflict with py-pydantic |
 | `beautifulsoup4` | Depends on lxml |
 
-## Ruby / Rocoto Dependencies
-
-Rocoto (workflow manager in `supported_repos/rocoto`) requires Ruby and several gems.
-System packages are installed by `02-system-deps.sh`; gems by `05-python-spack.sh`.
-
-### System Packages (dnf)
-
-| Package | Purpose |
-|---------|---------|
-| `ruby` | Ruby interpreter (3.0+) |
-| `ruby-devel` | Headers for building native gem extensions |
-| `sqlite-devel` | SQLite headers (already in dev libs) |
-| `libxml2-devel` | libxml2 headers for libxml-ruby gem |
-
-### Ruby Gems (gem install --user-install)
-
-| Gem | Purpose |
-|-----|---------|
-| `sqlite3` | Rocoto workflow database |
-| `libxml-ruby` | XML workflow parsing |
-| `open4` | Process management (job submission) |
-| `lockfile` | Workflow lock files |
-
-### Verification
-
-```bash
-ruby -e "require 'sqlite3'; puts '[OK] sqlite3'"
-ruby -e "require 'libxml'; puts '[OK] libxml-ruby'"
-ruby -e "require 'open4'; puts '[OK] open4'"
-ruby -e "require 'lockfile'; puts '[OK] lockfile'"
-
-# Smoke test
-cd supported_repos/rocoto && bash test/rocoto_full_smoke.sh
-```
-
 ## Verification
 
 After installation, verify with:

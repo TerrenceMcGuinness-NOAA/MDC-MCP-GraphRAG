@@ -50,22 +50,6 @@ dnf install -y \
     nodejs \
     npm
 
-# Install cypher-shell for Neo4j CLI access
-if ! command -v cypher-shell &>/dev/null; then
-    rpm --import https://debian.neo4j.com/neotechnology.gpg.key 2>/dev/null || true
-    if [[ ! -f /etc/yum.repos.d/neo4j.repo ]]; then
-        cat > /etc/yum.repos.d/neo4j.repo <<'REPO'
-[neo4j]
-name=Neo4j RPM Repository
-baseurl=https://yum.neo4j.com/stable/5
-enabled=1
-gpgcheck=1
-gpgkey=https://debian.neo4j.com/neotechnology.gpg.key
-REPO
-    fi
-    dnf install -y cypher-shell
-fi
-
 # Step 3: Setup Node.js environment
 log_info "Setting up Node.js environment..."
 # Reset any existing nodejs module

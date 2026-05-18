@@ -124,46 +124,6 @@ else
     log_warning "sentence-transformers import failed"
 fi
 
-################################################################################
-# Ruby Gems (Rocoto Dependencies)
-################################################################################
-
-log_subsection "Ruby Gems (Rocoto Dependencies)"
-
-if command_exists ruby; then
-    log_info "Ruby: $(ruby --version)"
-
-    RUBY_GEMS=(
-        "sqlite3"
-        "libxml-ruby"
-        "open4"
-        "lockfile"
-    )
-
-    for gem_name in "${RUBY_GEMS[@]}"; do
-        if gem list --local -i "${gem_name}" &>/dev/null; then
-            log_info "  Already installed: ${gem_name}"
-        else
-            log_info "  Installing ${gem_name}..."
-            gem install "${gem_name}" --user-install --no-document || log_warning "Failed to install gem ${gem_name}"
-        fi
-    done
-
-    # Verify critical gems
-    for gem_name in "${RUBY_GEMS[@]}"; do
-        ruby_require="${gem_name}"
-        # libxml-ruby loads as 'libxml'
-        [[ "${gem_name}" == "libxml-ruby" ]] && ruby_require="libxml"
-        if ruby -e "require '${ruby_require}'" 2>/dev/null; then
-            log_success "  gem ${gem_name}: OK"
-        else
-            log_warning "  gem ${gem_name}: require failed"
-        fi
-    done
-else
-    log_warning "Ruby not installed — skipping Rocoto gem setup"
-fi
-
 log_success "Python and Spack setup complete"
 
 exit 0

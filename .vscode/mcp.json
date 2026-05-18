@@ -9,10 +9,10 @@
     // │ Task                           │ Use Server           │ Tools Available │
     // ├─────────────────────────────────────────────────────────────────────────┤
     // │ GFS/GEFS code structure        │ global-workflow-core │ 16 (Neo4j)      │
-    // │ Weather documentation (RAG)    │ eib-mcp-gateway      │ 35 (full)       │
-    // │ EE2 compliance checking        │ eib-mcp-gateway      │ 35 (full)       │
-    // │ HPC operational guidance       │ eib-mcp-gateway      │ 35 (full)       │
-    // │ GitHub issues/PRs              │ eib-mcp-gateway      │ 35 (full)       │
+    // │ Weather documentation (RAG)    │ eib-mcp-gateway      │ 49 (full)       │
+    // │ EE2 compliance checking        │ eib-mcp-gateway      │ 49 (full)       │
+    // │ HPC operational guidance       │ eib-mcp-gateway      │ 49 (full)       │
+    // │ GitHub issues/PRs              │ eib-mcp-gateway      │ 49 (full)       │
     // └─────────────────────────────────────────────────────────────────────────┘
     //
     // TWO DOMAINS:
@@ -57,7 +57,7 @@
     //       }
     // },
 
-    // GATEWAY MODE: Docker container with full 35 tools via Streamable HTTP
+    // GATEWAY MODE: Docker container with full 49 tools via Streamable HTTP
     // Use when: Remote access, multi-client (LangFlow, Claude Desktop, n8n)
     // Transport: Streamable HTTP (bidirectional - MCP spec 2025-06-18)
     // Start with: sudo systemctl start mcp-gateway
@@ -67,7 +67,7 @@
     // Verify tools: docker mcp tools ls
     "eib-mcp-gateway": {
       "type": "http",
-      "url": "https://27gs01wv-18888.use.devtunnels.ms/.use.devtunnels.ms/mcp",
+      "url": "https://xpjldqf6-18888.use.devtunnels.ms/mcp",
       "headers": {
         "Authorization": "Bearer eib-mcp-gateway-token-2025"
       }

@@ -45,11 +45,6 @@ PACKAGES=(
     python3-devel
     python3-pip
     
-    # Ruby / Rocoto build dependencies
-    ruby
-    ruby-devel
-    libxml2-devel
-    
     # Module system
     lmod
     

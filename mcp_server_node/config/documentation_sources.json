@@ -1,438 +1,108 @@
 {
-  "version": "8.1.0",
-  "description": "Documentation sources for MCP RAG ingestion. AUTO-GENERATED from scripts/documentation_sources_config.py \u2014 DO NOT EDIT.",
-  "generated_by": "scripts/generate-documentation-sources-json.py",
-  "total_sources": 42,
-  "enabled_sources": 40,
+  "version": "7.0.0",
+  "description": "Documentation sources for MCP RAG ingestion - baked into container image",
   "sources": [
     {
       "name": "global-workflow",
       "url": "https://global-workflow.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier1_critical",
-      "priority": 1,
-      "description": "Main global-workflow documentation - GFS/GEFS/SFS operations",
-      "max_pages": 150,
       "enabled": true
-    },
-    {
-      "name": "ee2-standards",
-      "url": "https://nws-hpc-standards.readthedocs.io/en/latest/",
-      "type": "readthedocs",
-      "tier": "tier1_critical",
-      "priority": 1,
-      "description": "NOAA EE2 HPC standards - USE LOCAL RST via ingest_ee2_v7.py instead",
-      "max_pages": 100,
-      "enabled": false
     },
     {
       "name": "ufs-utils",
       "url": "https://noaa-emcufs-utils.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier1_critical",
-      "priority": 1,
-      "description": "UFS utilities - chgres_cube, grid generation, preprocessing",
-      "max_pages": 100,
-      "enabled": true,
-      "local_path": "sorc/ufs_utils.fd"
-    },
-    {
-      "name": "esmf-user-guide",
-      "url": "https://earthsystemmodeling.org/docs/release/latest/ESMF_usrdoc/",
-      "type": "readthedocs",
-      "tier": "tier1_critical",
-      "priority": 1,
-      "description": "ESMF User Guide - Earth System Modeling Framework (coupling backbone)",
-      "max_pages": 250,
-      "enabled": true
-    },
-    {
-      "name": "nuopc-layer-reference",
-      "url": "https://earthsystemmodeling.org/docs/release/latest/NUOPC_refdoc/",
-      "type": "readthedocs",
-      "tier": "tier1_critical",
-      "priority": 1,
-      "description": "NUOPC Layer Reference - component model interface standard",
-      "max_pages": 150,
       "enabled": true
     },
     {
       "name": "rocoto",
       "url": "https://christopherwharrop.github.io/rocoto/",
-      "type": "github_pages",
       "tier": "tier2_workflow",
-      "priority": 2,
-      "description": "Rocoto workflow manager - XML-based job orchestration",
-      "max_pages": 50,
       "enabled": true
     },
     {
       "name": "ecflow",
       "url": "https://ecflow.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier2_workflow",
-      "priority": 2,
-      "description": "ecFlow workflow scheduler (ECMWF) - suite definitions",
-      "max_pages": 150,
       "enabled": true
     },
     {
       "name": "wxflow",
       "url": "https://wxflow.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier2_workflow",
-      "priority": 2,
-      "description": "wxflow Python library - workflow execution utilities",
-      "max_pages": 100,
       "enabled": true
     },
     {
       "name": "pyflow",
       "url": "https://pyflow-workflow-generator.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier2_workflow",
-      "priority": 2,
-      "description": "Pyflow - Python ecFlow workflow generator",
-      "max_pages": 100,
       "enabled": true
     },
     {
       "name": "ufs-weather-model",
       "url": "https://ufs-weather-model.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier3_models",
-      "priority": 2,
-      "description": "UFS Weather Model - atmospheric model documentation",
-      "max_pages": 150,
-      "enabled": true,
-      "local_path": "sorc/ufs_model.fd"
+      "enabled": true
     },
     {
       "name": "jedi-docs",
       "url": "https://jointcenterforsatellitedataassimilation-jedi-docs.readthedocs-hosted.com/en/latest/",
-      "type": "readthedocs",
       "tier": "tier3_models",
-      "priority": 3,
-      "description": "JEDI - Joint Effort for Data Assimilation Integration",
-      "max_pages": 150,
-      "enabled": true,
-      "local_path": "sorc/gdas.cd"
+      "enabled": true
     },
     {
       "name": "fv3-dynamical-core",
       "url": "https://www.gfdl.noaa.gov/fv3/",
-      "type": "single_page",
       "tier": "tier3_models",
-      "priority": 3,
-      "description": "FV3 Dynamical Core - GFDL cubed sphere atmospheric dynamics (superseded by fv3-docs)",
-      "max_pages": 10,
-      "enabled": false
-    },
-    {
-      "name": "cmeps",
-      "url": "https://escomp.github.io/CMEPS/",
-      "type": "github_pages",
-      "tier": "tier3_models",
-      "priority": 2,
-      "description": "CMEPS Community Mediator - inter-model data exchange",
-      "max_pages": 50,
-      "enabled": true,
-      "local_path": "sorc/ufs_model.fd/CMEPS"
-    },
-    {
-      "name": "mom6",
-      "url": "https://mom6.readthedocs.io/en/main/",
-      "type": "readthedocs",
-      "tier": "tier3_models",
-      "priority": 2,
-      "description": "MOM6 Ocean Model - modular ocean model v6",
-      "max_pages": 200,
-      "enabled": true,
-      "local_path": "sorc/ufs_model.fd/MOM6"
-    },
-    {
-      "name": "cice",
-      "url": "https://cice-consortium-cice.readthedocs.io/en/latest/",
-      "type": "readthedocs",
-      "tier": "tier3_models",
-      "priority": 2,
-      "description": "CICE Sea Ice Model - Los Alamos sea ice model",
-      "max_pages": 150,
-      "enabled": true,
-      "local_path": "sorc/ufs_model.fd/CICE"
-    },
-    {
-      "name": "ww3-wiki",
-      "url": "https://github.com/NOAA-EMC/WW3/wiki",
-      "type": "github_pages",
-      "tier": "tier3_models",
-      "priority": 3,
-      "description": "WAVEWATCH III - wave model wiki",
-      "max_pages": 50,
-      "enabled": true,
-      "local_path": "sorc/ufs_model.fd/WW3"
-    },
-    {
-      "name": "fv3-docs",
-      "url": "https://github.com/NOAA-GFDL/GFDL_atmos_cubed_sphere/wiki",
-      "type": "github_pages",
-      "tier": "tier3_models",
-      "priority": 3,
-      "description": "FV3 Dynamical Core - GFDL cubed-sphere atmospheric dynamics (expanded)",
-      "max_pages": 50,
-      "enabled": true
-    },
-    {
-      "name": "gocart",
-      "url": "https://geos-chem.readthedocs.io/en/latest/",
-      "type": "readthedocs",
-      "tier": "tier3_models",
-      "priority": 4,
-      "description": "GEOS-Chem / GOCART - aerosol transport model",
-      "max_pages": 100,
-      "enabled": true,
-      "local_path": "sorc/ufs_model.fd/GOCART"
-    },
-    {
-      "name": "pyioda",
-      "url": "https://jointcenterforsatellitedataassimilation-jedi-docs.readthedocs-hosted.com/en/latest/inside/jedi-components/ioda/index.html",
-      "type": "readthedocs",
-      "tier": "tier3_models",
-      "priority": 4,
-      "description": "JEDI IODA - observation data access for DA (pyioda/ioda-converters)",
-      "max_pages": 50,
-      "enabled": true,
-      "local_path": "sorc/gdas.cd"
-    },
-    {
-      "name": "fms",
-      "url": "https://github.com/NOAA-GFDL/FMS/wiki",
-      "type": "github-wiki",
-      "tier": "tier3_models",
-      "priority": 4,
-      "description": "GFDL FMS/MPP - Flexible Modeling System infrastructure library",
-      "max_pages": 50,
-      "enabled": true
-    },
-    {
-      "name": "cmaq",
-      "url": "https://github.com/USEPA/CMAQ/wiki",
-      "type": "github-wiki",
-      "tier": "tier3_models",
-      "priority": 4,
-      "description": "EPA CMAQ - Community Multiscale Air Quality Model",
-      "max_pages": 50,
       "enabled": true
     },
     {
       "name": "spack-stack",
       "url": "https://spack-stack.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier4_build",
-      "priority": 2,
-      "description": "spack-stack - HPC software stack (NOAA/NASA/Navy)",
-      "max_pages": 150,
       "enabled": true
     },
     {
       "name": "spack",
       "url": "https://spack.readthedocs.io/en/latest/",
-      "type": "readthedocs",
       "tier": "tier4_build",
-      "priority": 3,
-      "description": "Spack package manager - LLNL HPC package management",
-      "max_pages": 100,
       "enabled": true
     },
     {
-      "name": "nceplibs-bufr",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-bufr/",
-      "type": "github_pages",
+      "name": "hpc-stack",
+      "url": "https://hpc-stack.readthedocs.io/en/latest/",
       "tier": "tier4_build",
-      "priority": 3,
-      "description": "NCEPLIBS-bufr - BUFR format encoding/decoding (300+ subroutines, Python API)",
-      "max_pages": 100,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-ip",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-ip/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "NCEPLIBS-ip - General interpolation library (6 methods, spectral transforms)",
-      "max_pages": 80,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-w3emc",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-w3emc/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "NCEPLIBS-w3emc - GRIB1 decoder/encoder, date/time, bit manipulation",
-      "max_pages": 80,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-g2",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-g2/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "NCEPLIBS-g2 - GRIB2 encoding/decoding, file API, utilities",
-      "max_pages": 80,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-bacio",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-bacio/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "NCEPLIBS-bacio - Binary I/O for NCEP models",
-      "max_pages": 30,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-g2tmpl",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-g2tmpl/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "NCEPLIBS-g2tmpl - GRIB2 template utilities",
-      "max_pages": 40,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-nemsio",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-nemsio/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "NCEPLIBS-nemsio - I/O for NCEP models using NEMS",
-      "max_pages": 40,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-sfcio",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-sfcio/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 4,
-      "description": "NCEPLIBS-sfcio - Surface files I/O",
-      "max_pages": 20,
-      "enabled": true
-    },
-    {
-      "name": "nceplibs-sigio",
-      "url": "https://noaa-emc.github.io/NCEPLIBS-sigio/",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 4,
-      "description": "NCEPLIBS-sigio - Sigma restart file I/O for global spectral model",
-      "max_pages": 20,
-      "enabled": true
-    },
-    {
-      "name": "wgrib2",
-      "url": "https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/",
-      "type": "single_page",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "wgrib2 - GRIB2 file utility (most loaded NCEP module on Hera/Jet)",
-      "max_pages": 30,
-      "enabled": true
-    },
-    {
-      "name": "ccpp-techdoc",
-      "url": "https://ccpp-techdoc.readthedocs.io/en/latest/",
-      "type": "readthedocs",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "CCPP Common Community Physics Package - physics parameterization framework",
-      "max_pages": 100,
-      "enabled": true
-    },
-    {
-      "name": "kokkos-api",
-      "url": "https://kokkos.org/kokkos-core-wiki/api-references.html",
-      "type": "github_pages",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "Kokkos API Reference - C++ performance portability for HPC (Views, parallel dispatch, memory spaces)",
-      "max_pages": 150,
-      "enabled": true
-    },
-    {
-      "name": "kokkos-overview",
-      "url": "https://kokkos.org/about/overview/",
-      "type": "single_page",
-      "tier": "tier4_build",
-      "priority": 3,
-      "description": "Kokkos Overview - HPC performance portability programming model (GPU/CPU abstraction)",
-      "max_pages": 10,
       "enabled": true
     },
     {
       "name": "google-shell-style",
       "url": "https://google.github.io/styleguide/shellguide.html",
-      "type": "single_page",
       "tier": "tier5_standards",
-      "priority": 4,
-      "description": "Google Shell Style Guide - bash best practices",
-      "max_pages": 1,
       "enabled": true
     },
     {
       "name": "pep8",
       "url": "https://peps.python.org/pep-0008/",
-      "type": "single_page",
       "tier": "tier5_standards",
-      "priority": 4,
-      "description": "PEP 8 - Python Style Guide",
-      "max_pages": 1,
       "enabled": true
     },
     {
       "name": "numpy-docstrings",
       "url": "https://numpydoc.readthedocs.io/en/latest/format.html",
-      "type": "single_page",
       "tier": "tier5_standards",
-      "priority": 4,
-      "description": "NumPy docstring format - Python documentation standard",
-      "max_pages": 1,
       "enabled": true
     },
     {
       "name": "fortran-best-practices",
       "url": "https://fortran-lang.org/learn/best_practices/",
-      "type": "single_page",
       "tier": "tier5_standards",
-      "priority": 4,
-      "description": "Fortran best practices - modern Fortran guidelines",
-      "max_pages": 10,
       "enabled": true
     },
     {
-      "name": "upp",
-      "url": "https://upp.readthedocs.io/en/latest/",
-      "type": "readthedocs",
-      "tier": "tier5_standards",
-      "priority": 3,
-      "description": "Unified Post Processor - model output post-processing",
-      "max_pages": 100,
-      "enabled": true
-    },
-    {
-      "name": "metplus",
-      "url": "https://metplus.readthedocs.io/en/latest/",
-      "type": "readthedocs",
-      "tier": "tier5_standards",
-      "priority": 3,
-      "description": "METplus Verification Framework - model verification and diagnostics",
-      "max_pages": 250,
-      "enabled": true
+      "name": "ee2-standards",
+      "url": "https://nws-hpc-standards.readthedocs.io/en/latest/",
+      "tier": "tier1_critical",
+      "enabled": false
     }
   ]
 }

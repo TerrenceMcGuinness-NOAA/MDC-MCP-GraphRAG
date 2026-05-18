@@ -1,3068 +1,349 @@
 # MCP Server Changelog
 
-## [8.22.2] - Phase C-2b hot-fix: Issue C resolved (data layer shipped) (May 14, 2026)
-
-### Scope
-
-Patch on top of `[8.22.1]`. Resolves **Issue C** from the Phase C-1
-parity assessment — Neptune + OpenSearch were unreachable from the
-Python staging runtime. Phase C-1 mis-diagnosed this as a VPC
-security-group blocker; the actual root cause was missing port code.
-Issues A (Node.js production runtime unhealthy) remains operator-side.
-
-### Root cause
-
-Three modules from the Phase B2 spec (Tasks 2.4 + 2.6) were never
-committed:
-
-| Module | Status before | Status after |
-|--------|---------------|--------------|
-| `src/data/neptune_adapter.py` | missing | shipped (328 lines) |
-| `src/data/unified_data_access.py` | missing | shipped (278 lines) |
-| `src/data/backend_selector.py` | missing | shipped (202 lines) |
-
-`src/mcp_server.py:111` imports `src.data.backend_selector` lazily; that
-import always raised `ModuleNotFoundError` and the server fell through
-to no-data-access mode. **Setting env vars on the runtime cannot help
-when the import fails before any env var is read.** The Phase C-1
-SG diagnosis was wrong — the security group `sg-096489a0876cc78c1`
-already permits Neptune (8182) and OpenSearch (443) egress.
-
-### Code changes
-
-- **`src/data/neptune_adapter.py`** (new) — `NeptuneAdapter` wraps
-  `aws_backend.NeptuneHTTPAdapter` to satisfy `GraphDBProtocol`. Sync
-  driver runs in `asyncio.to_thread` so the adapter is non-blocking
-  when awaited from FastMCP. Includes:
-  - Idempotent `connect()` / `close()`.
-  - `query(cypher, params)` with row-dict copy semantics (mutable
-    return value, no leak back into the adapter).
-  - `health_check()` issues `RETURN 1 AS ok` and grades the response.
-  - `get_statistics()` per-label counts (File / Function / Class /
-    Module + relationship total) for HealthChecker / framework_status
-    parity.
-  - `NeptuneAdapterError` translates `NeptuneQueryError` /
-    `NeptuneConnectionError` into one consistent type for tool layers.
-
-- **`src/data/unified_data_access.py`** (new) — `UnifiedDataAccess`
-  facade exposes `vector_db` and `graph_db` attributes that tool
-  modules read directly. Adds:
-  - Parallel `connect()` / `close()` via `asyncio.gather` so bootstrap
-    and shutdown are O(max) instead of O(sum).
-  - `health_check(deep, min_indices)` returning the
-    `HealthChecker.checkDatabases` shape (`status`, `vector`, `graph`)
-    consumed by `utility.mcp_health_check`.
-  - Either adapter slot may be `None` — disabled side reports
-    `status="disabled"`; tools that need the missing backend surface
-    their own `[ERROR]` markdown at call time.
-  - Falls back to `graph_db.get_statistics()` when the graph health
-    response doesn't carry node counts directly.
-
-- **`src/data/backend_selector.py`** (new) — `create_data_access(config)`
-  factory:
-  - Routes on `config.db_backend`: `aws` builds the AWS adapters;
-    `legacy` raises `UnsupportedBackendError`; anything else raises
-    too (catches typos early).
-  - Eager `connect()` with **graceful degrade per Requirement 1.7**:
-    when `vector_db.connect()` or `graph_db.connect()` raises, the
-    selector logs the failure, best-effort closes the adapter, nulls
-    the slot, and continues. Tools that need the missing backend will
-    surface `[ERROR]` markdown at call time.
-  - `vector_db=` / `graph_db=` kwargs let tests inject pre-built
-    adapters and bypass the AWS-wiring branch entirely.
-
-- **`src/mcp_server.py`** — refreshed the comment in
-  `_create_data_access` to reflect that `backend_selector` exists as
-  of this release. The `ModuleNotFoundError` branch is preserved for
-  backwards compatibility with old container images
-  (`python-utility-v1`, `python-all-tools-v1`, `python-all-tools-v2`)
-  that don't have the data layer.
-
-- **`tests/unit/test_mcp_server.py`** — refreshed the docstring on
-  `test_initialize_degraded_mode_when_data_access_missing` to reflect
-  that the test now forces degraded mode by patching
-  `_create_data_access` rather than relying on `backend_selector`
-  being absent.
-
-### Tests
-
-- **`tests/unit/test_data_layer.py`** (new) — 27 tests across the
-  three new modules:
-  - `NeptuneAdapter` (12) — endpoint validation, idempotent connect,
-    query result copy semantics, parameter passthrough, query/connection-
-    error translation, health-check happy + degraded + unhealthy paths,
-    `get_statistics` happy + per-label graceful-degrade, close
-    idempotence + close-without-connect.
-  - `UnifiedDataAccess` (8) — parallel connect, safe close (one
-    adapter raising does NOT block the other), four health-check
-    shapes (healthy / degraded / disabled / unhealthy),
-    exception-during-health-check, `get_statistics` fallback path
-    when graph health response lacks `nodes` key.
-  - `backend_selector` (7) — legacy backend rejected, unknown backend
-    rejected, injected adapters bypass config-driven construction,
-    empty endpoints disable adapters, connect failure nulls slot for
-    graceful degrade, real-adapter construction with monkey-patched
-    classes.
-
-### Deploy
-
-| Action | Outcome |
-|--------|---------|
-| Build with new data layer | Local image `sha256:9d085318b4c6d20b230a2000c1c20fad3857f7e1a8fc8c56eda23afe1a8f1b6a`, tagged `python-all-tools-v3` |
-| Local container smoke test (no env vars) | Backend selector loads cleanly, both adapter slots `None`, 9/9 modules register |
-| Local container smoke test (env vars set, no AWS creds) | Both adapters constructed (lazy connect), 9/9 modules register |
-| ECR push | Manifest digest `sha256:652bd658a4ae9c2b59791feb7bcb44b2eec4f575b6af3643b81f90ce9ae0d531` |
-| Rollback targets preserved | `python-utility-v1` (B4) / `python-all-tools-v1` (C-1) / `python-all-tools-v2` (C-2a) |
-| Staging runtime rotation | `mdc_mcp_rag_server_python-v5K2F8BGrN` v4 → **v5** with image `python-all-tools-v3`, READY on second poll |
-| Env vars set | `DB_BACKEND=aws`, `NEPTUNE_ENDPOINT=https://...`, `OPENSEARCH_ENDPOINT=https://...`, `AWS_REGION=us-east-1`, `MCP_STATELESS_HTTP=true`, `MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow` |
-| `mcp_health_check({deep:true, detailed:true})` | **`HEALTHY (4/4 components healthy)`** — Vector DB healthy with 5 indices, Graph DB healthy with **105 891 nodes / 2 941 593 relationships** |
-| `get_server_info` | Total Tools: 51, Active Modules: 9 of 9 |
-| `get_knowledge_base_status` | Returns real Neptune label breakdown (17 273 Files, 95 996 Functions, 27 941 FortranSubroutines, etc.) and rel counts (CALLS: 2 216 985, USES: 487 061, …) |
-
-### Suite count
-
-- Before: 689 passed / 209 skipped / 0 failed (C-2a baseline `55058b9`)
-- After: **716 passed** / 209 skipped / 0 failed (+27 data-layer tests)
-
-### Cosmetic follow-up (not a C-2b blocker)
-
-`get_knowledge_base_status` (`src/tools/semantic_search.py`) renders
-correct per-label / per-relationship-type breakdowns but the summary
-lines (`Total Nodes: 0`, `Total Relationships: 0`, `Collections: 0`)
-and the `Status` field underreport. The underlying data layer is
-healthy — this is a rendering-aggregation bug in the tool, not a
-data-layer bug. File a separate issue to fix the summary computation
-in that tool's render path.
-
-### What's still pending
-
-- **Issue A** — Node.js production runtime
-  `mdc_mcp_rag_server-TMXDllG2Wi` v10 still returns `RuntimeClientError`
-  on every call. Operator + AgentCore admin action required.
-
-When Issue A is resolved (or Python staging is formally designated
-as the new reference), the live-parity suite is ready to re-run for
-the meaningful comparison. The Python runtime is now in the correct
-shape — 51/51 tools, all backends reachable, real data on every
-query path.
-
-Validates Requirements: 1.6, 1.7, 1.8, 2.1, 3.1 – 3.7, 18.5.
-
-
-## [8.22.1] - Phase C-2a hot-fix: Issue B (chown) resolved (May 14, 2026)
-
-### Scope
-
-Patch on top of `[8.22.0]`. Fixes the Phase C-1 Issue B blocker —
-`graph_rag` and `sdd_workflow` failing to register on the AgentCore
-container because the runtime user `app` could not write to the
-root-owned `/app` WORKDIR. Issues A (Node.js production runtime
-unhealthy) and C (VPC security group) remain operator-side and
-continue to block cutover.
-
-### Code change (one line + supporting comment)
-
-`mcp_server_python/Dockerfile`:
-
-```dockerfile
-RUN groupadd --system --gid 1000 app \
- && useradd  --system --uid 1000 --gid app --home /app app \
- && chown -R app:app /app
-```
-
-The `chown -R app:app /app` line makes the WORKDIR fully writable
-for the runtime user, so `SessionManager._ensure_state_dir()` can
-create `/app/sdd_framework/execution_state/` instead of raising
-`PermissionError` during register().
-
-### Regression test
-
-`tests/unit/test_mcp_server.py::test_register_module_catches_session_manager_permission_error`
-documents the production failure mode and asserts that
-`_register_module` catches `PermissionError` from `SessionManager()`
-cleanly. The test monkey-patches `pathlib.Path.mkdir` to raise
-`PermissionError` for any path under `sdd_framework/` and verifies
-that both `graph_rag` and `sdd_workflow` modules return
-`registered=False` with the error preserved, instead of crashing
-the server bootstrap.
-
-### Deploy
-
-| Action | Outcome |
-|--------|---------|
-| Build with chown fix | Local image `sha256:63bd11f23ffa5131f786af52ac0169c28c18053d60d1b0c1ed30e6e49d6a946a` |
-| Local smoke test (running as user `app` inside the container) | **9/9 modules register with no errors** |
-| ECR push as `python-all-tools-v2` | Manifest digest `sha256:32763889d8bda4f1b317b1dfcf3a9cd7004ef7f7d79e4ae28f26d7db60e732f1` |
-| Rollback targets preserved | `python-utility-v1` AND `python-all-tools-v1` |
-| Staging runtime rotation `mdc_mcp_rag_server_python-v5K2F8BGrN` | v3 → **v4**, READY on second poll |
-| Proxy verification | `get_server_info` → **Total Tools: 51 / Active Modules: 9 of 9** (was 33/7) |
-| Health check | `HEALTHY (2/3 components healthy)` — Data Access Layer still disabled (Issue C) |
-
-### Suite count
-
-- Before: 688 passed / 209 skipped / 0 failed (B11 baseline `e325e61`)
-- After: **689 passed** / 209 skipped / 0 failed (+1 regression test)
-
-### What's still pending (operator-side)
-
-- **Issue A** — Node.js production runtime `mdc_mcp_rag_server-TMXDllG2Wi`
-  v10 still returns `RuntimeClientError` on every call.
-  Operator + AgentCore admin action required.
-- **Issue C** — VPC security group `sg-096489a0876cc78c1` still
-  doesn't permit egress to Neptune (8182) or OpenSearch (443).
-  Operator AWS console / CDK action required.
-
-When both are resolved, the existing parity suite at commit
-`e325e61`+ can be re-run as Phase C-2b for the meaningful comparison.
-
-### Files modified
-
-- `mcp_server_python/Dockerfile` — chown fix + reference comment
-- `mcp_server_python/tests/unit/test_mcp_server.py` — regression test
-- `docs/reports/2026-05-14-phase-c1-parity-assessment.md` — Post-Fix
-  Status section appended
-- `.kiro/steering/06-python-port-progress.md` — new 2026-05-14 Phase
-  C-2a section
-- `sdd_framework/execution_state/history.jsonl` — Issue-B-resolved
-  events appended to the C-1 session (status remains
-  `awaiting_cutover_approval`)
-
-Validates Requirements: 1.7 (graceful degradation on registration
-failure), 18.5 (deployment reproducibility — preserved rollback
-chain).
-
-
-## [8.22.0] - Phase C-1: Task 25.3 Live Parity — assessment-only (May 14, 2026)
-
-### Scope
-
-Task 25.3 from `.kiro/specs/python-mcp-server-port/tasks.md` — run the
-full live-parity suite against both runtimes and generate the final
-parity report. Combined with the deploy mechanics from Task 25.1
-(build + ECR push + staging runtime rotation). **Task 25.2 (cutover)
-is explicitly deferred to Phase C-2** pending resolution of three
-blockers surfaced by this run.
-
-### Deploy mechanics — completed
-
-| Action | Outcome |
-|--------|---------|
-| Build all-modules ARM64 image | `sha256:f9f33e1a8e5f2ea204ff366a7e68bad4a7bbe19532fe58f9b7554b1a640a5914` |
-| ECR push as `python-all-tools-v1` | manifest digest `sha256:7f5878e0ff089c86f32ef31091c5a6acbe3e62f3ca3a756171a0a807ca626242` |
-| Rollback target preserved | `python-utility-v1` (unchanged) |
-| Staging runtime rotation `mdc_mcp_rag_server_python-v5K2F8BGrN` | v2 → v3, status READY on first poll |
-
-### Parity run — completed
-
-`RUN_PARITY=1 GITHUB_TOKEN=... NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...
-pytest tests/parity/` ran end-to-end (30 m 54 s, 273 cases including
-hermetic):
-
-- Hermetic tests: **64/64 pass** (unchanged from B11 baseline at
-  `e325e61`).
-- Live cases: **0/209 pass** — every divergence caused by Node.js
-  production runtime returning `RuntimeClientError` (init / health /
-  502) before the Python side could be compared.
-
-### Three blockers surfaced — none in the Python port
-
-1. **Node.js production runtime is unhealthy** (`mdc_mcp_rag_server-TMXDllG2Wi`
-   v10). 732 health-check failures, 35 init-time-exceeded errors,
-   57 502s logged. Matches the Phase 56 cold-start regression but worse
-   — init exceeds the 120 s AgentCore platform limit, leaving the
-   container in a state where health checks never recover. **No baseline
-   to compare against.**
-2. **Python staging registers only 7/9 modules** (33 of 51 tools).
-   `graph_rag` and `sdd_workflow` fail to register because both
-   instantiate a default `SessionManager()`, whose `_ensure_state_dir`
-   tries to mkdir `/app/sdd_framework/execution_state`. The Dockerfile
-   `WORKDIR /app` directive creates `/app` as root-owned; the runtime
-   user `app` cannot write to it. **Real port bug, fixable in the
-   Dockerfile** (chown WORKDIR after creating user, or set
-   `SDD_STATE_DIR=/var/sdd_state` to a pre-chowned path).
-3. **Python staging has no data layer** — the VPC security group
-   `sg-096489a0876cc78c1` does not permit egress to Neptune (8182) or
-   OpenSearch (443). Pre-existing Phase 51b blocker, not new to this
-   release. `mcp_health_check` reports `Data Access Layer: disabled`.
-
-The Python staging runtime ITSELF responded correctly on every
-successfully-registered tool — the divergences were caused by Node.js
-failing first (Issue 1) or by the missing data layer (Issue 3) producing
-expected degraded-mode responses on the Python side that the Node.js
-side could not contrast against because of Issue 1.
-
-### Rate-limit data (per the user's refinement)
-
-GitHub API rate-limit buckets were **untouched** (5000/5000 core,
-30/30 search, 10/10 code_search) before and after the run. The
-github_tools live cases all failed at the Node.js side before either
-runtime made a real GitHub API call. Rate-limit was NOT a confounding
-factor for any divergence.
-
-### Recommendation
-
-**Cutover (Task 25.2) deferred.** All three blockers must be resolved
-before a meaningful parity comparison is possible. Sequencing:
-
-1. Operator to investigate / restore Node.js runtime
-   `mdc_mcp_rag_server-TMXDllG2Wi` (or formally designate Python
-   staging as the new reference once 2 + 3 are fixed).
-2. Apply the Dockerfile fix for the SessionManager `/app` permissions
-   issue, rebuild as `python-all-tools-v2`, push, rotate.
-3. Resolve the VPC SG egress (Neptune 8182, OpenSearch 443) on
-   `sg-096489a0876cc78c1`.
-4. Re-run this exact parity suite as Phase C-2; at that point the
-   assessment can become a real parity report rather than a
-   ground-truth-unavailable diagnostic.
-
-The hermetic test suite (688 passing tests at `e325e61`) remains
-unaffected and is sufficient for code-only work in the meantime.
-
-### Files added
-
-- `docs/reports/2026-05-14-phase-c1-parity-assessment.md` — 331-line
-  full assessment, including step-by-step outcomes, per-issue root
-  cause + remediation, per-module pass/fail breakdown, sample
-  divergence shapes, rate-limit pre/post tables, and rollback
-  command.
-
-### SDD session
-
-`session_2026-05-14_python-mcp-server-port-c1-deploy-and-parity`
-ended with status `awaiting_cutover_approval`. No changes to
-`.kiro/settings/mcp.json`; the legacy MCP gateway remains the active
-target for Kiro.
-
-### Spec acceptance
-
-- ✅ Task 25.1 build/push/deploy mechanics: **verified end-to-end**.
-- ✅ Task 25.3 acceptance ("Run full parity test suite" + "Generate
-  final parity report"): **complete** (the report is the artifact;
-  it is a clear-eyed diagnostic rather than a parity-clean report,
-  but that is what the data dictated).
-- ⏸️ Task 25.2 (cutover): **explicitly deferred** to Phase C-2.
-
-Validates Requirements: 13.3, 13.5, 13.7, 18.1, 18.2, 18.3, 18.5.
-
-
-## [8.21.0] - Phase B11: GitHubTools Port — 51/51 FEATURE PARITY (May 14, 2026)
-
-### Milestone: Feature Parity with Node.js
-
-This release completes the Python port of every tool module. The
-Python runtime now registers **51 of 51 tools** across **all 9
-modules**, matching the Node.js production server one-for-one. Phase
-B (per-module porting) is complete.
-
-| Module | Tools | Phase |
-|--------|-------|-------|
-| `utility` | 4 | B11 (early) |
-| `semantic_search` | 7 | B5 |
-| `code_analysis` | 6 | B6 |
-| `graph_rag` | 9 | B7 |
-| `ee2_compliance` | 5 | B8 |
-| `operational` | 4 | B9 |
-| `sdd_workflow` | 9 | B10a |
-| `workflow_info` | 3 | B10b |
-| **`github_tools`** | **4** | **B11 (this release)** |
-| **Total** | **51** | |
-
-### Scope
-
-Task 16 from `.kiro/specs/python-mcp-server-port/tasks.md` — port
-the 4 Node.js GitHubTools to Python. All code under
-`mcp_server_python/`. No deployments, no ECR pushes, no changes to
-`mcp_server_node/` or the live AgentCore runtimes. The Python port
-now has feature parity; the next phase is Phase C (cutover +
-production deploy), not further per-module porting.
-
-### Tools Ported (`src/tools/github_tools.py`, 940 lines)
-
-All 4 tools; input schemas match
-`mcp_server_node/src/tools/GitHubTools.js` exactly (verified by
-two separate assertions — one in the unit-test module and a
-second in the parity module). The whole module is data-access-free
-— Neptune and OpenSearch are not consulted; `data=None` is fine
-at registration time.
-
-- `analyze_workflow_dependencies(component, analysis_type='all', include_external=False)` —
-  code-search-driven dependency analysis. Searches
-  `NOAA-EMC/global-workflow` for component references via
-  `/search/code` (with the `text-match` Accept variant for fragment
-  extraction), then renders four optional sections (Upstream /
-  Downstream / Circular / External) according to `analysis_type`.
-  `include_external=true` adds a cross-repo block looping over
-  `GSI`, `UFS_UTILS`, `GDASApp`, `wxflow` — the same external
-  repositories the Node.js source consults.
-
-- `search_issues(query, repository='global-workflow', state='open', labels=[])` —
-  wraps `/search/issues` with a `repo:NOAA-EMC/<repository>` prefix,
-  optional `state:` and `label:"<name>"` qualifiers, sorted by
-  `updated` desc, top 20.
-
-- `get_pull_requests(repository='global-workflow', state='open', limit=10)` —
-  wraps `/repos/NOAA-EMC/<repository>/pulls` sorted by `updated`
-  desc, capped at 50 (matching the Node.js `Math.min(limit, 50)`
-  behaviour).
-
-- `analyze_repository_structure(repositories=['global-workflow', 'GSI', 'UFS_UTILS'], analysis_depth='shallow')` —
-  multi-repo analysis. Per repo: metadata (description, language,
-  size, last update) + top-level directory listing.
-  `analysis_depth='deep'` adds an item-count breakdown for
-  `jobs / scripts / parm / src / sorc` when those directories exist.
-
-### HTTP Layer
-
-The module uses `httpx.AsyncClient` (already pinned in
-`pyproject.toml` from B1 — no new dependencies) instead of Octokit.
-A thin `_GitHubClient` wrapper:
-
-- Sends `Authorization: Bearer <token>`, `User-Agent:
-  global-workflow-mcp-server/2.0.0` (verbatim from Node.js for
-  parity), and `X-GitHub-Api-Version: 2022-11-28` on every request.
-- Tracks the most recent `X-RateLimit-Remaining` /
-  `X-RateLimit-Reset` headers across calls.
-- Raises a structured `GitHubAPIError` on non-2xx with the status
-  code and rate-limit metadata preserved for tool-level
-  classification.
-
-Tests inject a custom `httpx.AsyncClient` (with
-`httpx.MockTransport`) via the `http_client` keyword argument on
-`register()`, so unit tests run hermetically with no network.
-
-### Authentication (Requirement 11.4)
-
-Token sourcing precedence: explicit `register(...github_token=...)`
-arg → `GITHUB_TOKEN` env var. With neither set the module still
-registers (Requirement 1.7) but every tool returns a clear "GitHub
-integration not available - no API access" message at call time.
-The auth failure paths (`401`, `403` with `Remaining > 0`) surface
-as `[ERROR] GitHub authentication failed: HTTP <status>` rather
-than crashing; rate-limit exhaustion (`403` with `Remaining=0` or
-`X-RateLimit-Remaining=0` on a 200) prepends a `[WARN]` block with
-the reset timestamp.
-
-### Tests Added
-
-`tests/unit/test_github_tools.py` — 51 tests covering:
-
-- 4-tool registration parity (names, parameter sets, required
-  fields, state enums on `search_issues` and `get_pull_requests`,
-  `analysis_type` enum on `analyze_workflow_dependencies`,
-  `analysis_depth` enum on `analyze_repository_structure`,
-  `include_external` default, `repository` defaults,
-  `pull_requests.limit` default).
-- Module registers in degraded mode (no token); every tool returns
-  the "no API access" message at call time. Token-from-env
-  precedence verified.
-- `search_issues` happy path with full filter assembly: state
-  qualifier, multiple labels, default vs override repository, `state=all`
-  omits the qualifier, zero-results friendly message.
-- `get_pull_requests` happy path with branch arrow rendering, limit
-  cap at 50, `state=closed` empty-result message.
-- `analyze_workflow_dependencies`: all sections rendered with
-  default `analysis_type='all'`, upstream-only filter, `include_external`
-  loops over the 4 external repos and surfaces them.
-- `analyze_repository_structure`: shallow default with metadata +
-  directory listing, default repos trio invocation
-  (3 repos × 2 endpoints = 6 requests), deep branch with 5 key
-  directories where missing dirs are skipped.
-- Auth / rate-limit handling: `401` → `[ERROR]`, `403` with
-  `Remaining=0` → `[WARN]` rate-limit block, `403` with
-  `Remaining>0` → `[ERROR]` auth-failure (matches Node.js
-  classification), `X-RateLimit-Remaining=0` on a 200 still
-  short-circuits friendly empty-result text.
-- HTTP-header verification: `Authorization: Bearer ...`,
-  `User-Agent: global-workflow-mcp-server/2.0.0`,
-  `X-GitHub-Api-Version: 2022-11-28`, `Accept: application/vnd.github+json`.
-- Pure-function helpers: `_resolve_token` (4 cases including empty-
-  string-as-missing), `_build_issue_search_query` (2 cases),
-  `_extract_upstream_dependencies` (parity-correct ordering: pattern-1
-  `import \w+` matches `import gamma` inside `from beta import
-  gamma` before pattern-2 captures `beta`), `_truncate` (3 cases),
-  `_fmt_iso_to_date` (3), `_fmt_unix_to_iso` (2).
-- `GitHubAPIError` classification: 4 cases for `is_auth_failure` /
-  `is_rate_limited` (403+remaining → auth, 403+0 → rate, 401 →
-  auth, 500 → neither).
-
-`tests/parity/test_github_tools_parity.py` — 7 hermetic + 20 live
-cases (5 per tool × 4 tools, gated on `RUN_PARITY=1` AND
-`GITHUB_TOKEN`):
-
-- Catalogue coverage: exactly 5 cases per tool, 20 cases total
-  (the spec-mandated minimum).
-- Schema parity against the authoritative Node.js source — params,
-  required, defaults, enums for every tool.
-- Framework PASS / FAIL sanity (matching issue-number set passes;
-  missing issue trips SET_EQUALITY).
-- Extractor unit tests: `_extract_issue_numbers` (`#N` regex),
-  `_extract_pr_numbers` (alias), `_extract_dependency_names`
-  (Upstream/Downstream/External bullet scoping),
-  `_extract_top_level_dirs` (multi-repo `**Top-level directories**`
-  flatten).
-- Per-tool live cases:
-  - `search_issues` — 5 SET_EQUALITY cases on issue numbers
-    (forecast-all, build-open, config-closed, rocoto-bug-label,
-    wcoss2-default-repo).
-  - `get_pull_requests` — 5 SET_EQUALITY cases on PR numbers
-    (default, closed-5, all-20, GSI-default, UFS_UTILS-open).
-  - `analyze_workflow_dependencies` — 5 SET_EQUALITY cases on
-    dependency names (jgfs-forecast, enkf-anal-upstream,
-    exgfs-fcst-downstream, config-fcst-all,
-    atmos-post-include-external).
-  - `analyze_repository_structure` — 5 SET_EQUALITY cases on
-    top-level dirs (default-trio, single-global-workflow, GSI-deep,
-    UFS_UTILS-shallow, multi-deep).
-
-### Dockerfile CMD
-
-Now lists all 9 modules explicitly:
-`utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info,github_tools`
-— 51 tools total. Comment block rewritten to remove the "unported
-modules" caveat and document per-module degraded-mode behaviour
-across three categories: fully data-access-free (utility,
-sdd_workflow, workflow_info), `[ERROR]`-on-missing-data
-(semantic_search, code_analysis, graph_rag, ee2_compliance,
-operational), token-required (github_tools).
-
-### `test_mcp_server.py` Fixture Cleanup
-
-`test_initialize_degraded_mode_when_data_access_missing` no longer
-maintains an unported-module placeholder. The fixture now uses the
-canonical `KNOWN_MODULES` tuple directly so future module additions
-are picked up automatically. Every module is asserted to register
-successfully in degraded mode — there is no longer a single
-exception in the suite.
-
-### Verification
-
-Local pytest run (no AWS credentials, no GITHUB_TOKEN required):
-
-- Unit tests: **656 passed** (was 605 B10b baseline + 51 new
-  github_tools).
-- Hermetic parity tests: 7 new (5 framework/extractor + schema
-  parity + catalogue coverage).
-- Live parity cases: 20 skipped by default (enable with
-  `RUN_PARITY=1 GITHUB_TOKEN=... NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
-- Full suite: **688 passed, 209 skipped, 0 failed** (B10b 630 →
-  B11 688, +58).
-
-### Iteration Notes
-
-1. The Node.js port uses `@octokit/rest` whereas this Python port
-   uses `httpx.AsyncClient` directly. Octokit's rate-limit and
-   pagination conveniences are not needed for these 4 tools — the
-   raw REST API is straightforward and avoids pulling in another
-   dependency. Header parity (User-Agent, X-GitHub-Api-Version,
-   Authorization Bearer) is preserved exactly.
-
-2. The Node.js source has a register-signature side-channel: it
-   reads `process.env.GITHUB_TOKEN` in the constructor when no
-   explicit token is passed. The Python port mirrors the same
-   precedence in `_resolve_token` so callers behave identically
-   under `mcp_server._register_module(mcp, name, data)`.
-
-3. The `_extract_upstream_dependencies` regex set produces a
-   superset of the Node.js result for any given input —
-   specifically, `import \w+` matches `import gamma` inside the
-   line `from beta import gamma`. Both runtimes produce the same
-   final dependency set because the Node.js caller dedupes via a
-   `Set`; the Python port dedupes via `dict.fromkeys` at the
-   helper level. The order in which deps are first seen differs
-   between the two implementations but the *set* (which is what
-   the rendering and parity tests check) is identical.
-
-4. The `register()` signature kept `data` as a positional kwarg
-   (with `del data` to flag intent) instead of dropping it as the
-   spec proposed. This preserves the uniform contract that
-   `mcp_server._register_module(mcp, name, data)` invokes —
-   changing the signature for one module would have rippled into
-   the registration plumbing.
-
-### Phase B Complete — Next Steps
-
-With this release Phase B (per-module porting) is finished. The
-Python port has 51/51 tool parity with the Node.js server and a
-complete unit + parity test suite (688 passing tests, 209 live
-parity cases gated on AWS + GitHub credentials).
-
-Phase C (production cutover) is the next milestone:
-
-- Rebuild + push the AgentCore staging container with all 9
-  modules.
-- Run the live parity suite end-to-end against both runtimes.
-- Cut over `.kiro/settings/mcp.json` from the Node.js runtime to
-  the Python runtime once parity is green.
-- Retire the Node.js production runtime once the Python port has
-  served traffic for the agreed observation window.
-
-That work is outside the scope of this CHANGELOG entry — it lives
-in the deployment SDD spec.
-
-
-## [8.20.0] - Phase B10b: WorkflowInfoTools Port (May 14, 2026)
-
-### Scope
-
-Task 15 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 3
-Node.js WorkflowInfoTools to Python. All code under
-`mcp_server_python/`. No deployments, no ECR pushes, no changes to
-`mcp_server_node/` or the live AgentCore runtimes. The Python staging
-runtime now registers 47 of 51 tools (4 + 7 + 6 + 9 + 5 + 4 + 9 + 3
-across 8 ported modules); 4 tools remain in `github_tools`.
-
-### Tools Ported (`src/tools/workflow_info.py`, 712 lines)
-
-All 3 tools; input schemas match
-`mcp_server_node/src/tools/WorkflowInfoTools.js` exactly (verified by
-two separate assertions — one in the unit-test module and a second
-in the parity module). The whole module is data-access-free —
-`register(mcp, data, *, workflow_root=None)` ignores `data` and
-operates entirely on local filesystem reads.
-
-- `get_workflow_structure(component?, structure_data?)` — pure-static
-  rendering of the global-workflow layout (jobs / scripts / parm /
-  ush / sorc / env / docs). The `_STATIC_STRUCTURE` dict is ported
-  byte-for-byte from the Node.js source so the rendered text
-  matches under parity. `component={one of the seven}` focuses on a
-  single section; `structure_data` (object) overrides the default
-  dict for hosted callers driving the rendering with pre-computed
-  data. The component enum is `['jobs', 'scripts', 'parm', 'ush',
-  'sorc', 'docs', 'env']` (no `'all'`; omit the parameter for the
-  full overview).
-
-- `get_system_configs(platform?, config_type?, content?)` — read
-  per-platform HPC environment from disk. With `platform=hera|hercules
-  |orion|wcoss2|gaea` reads `{workflow_root}/env/{PLATFORM}.env` and
-  surfaces the first 2 KB inline. Note: the `gaea` enum value
-  preserves Node.js parity — there's no `GAEA.env` on disk (the
-  actual filename is `GAEAC6.env`) so the tool surfaces a
-  "Environment file not found" hint. With `platform="all"` or
-  `platform` omitted lists every `*.env` file. `content=...`
-  bypasses the filesystem entirely. `config_type=modules|resources
-  |paths|all` adds appendix blocks (`all` includes every block).
-
-- `describe_component(component, show_content?, content?, file_type?)` —
-  locate a component in the workflow tree by searching 12 priority-
-  ordered paths. The Phase 27A `dev/` layout takes precedence over
-  the legacy `jobs/scripts/ush/parm` paths. For files: surfaces
-  type, size, optional first-50-line preview when
-  `show_content=true`. For directories: surfaces the first-20-entry
-  contents listing. Caller-provided `content` bypasses the
-  filesystem (with `file_type` as a type hint) and triggers
-  language inference (Python / Bash/Shell / Unknown) plus a
-  Description / PURPOSE / Synopsis line extraction. The not-found
-  branch lists every searched path plus a `content=` hint.
-
-### Workflow-Root Resolution
-
-The constructor arg overrides everything; if absent it consults
-`MCP_WORKFLOW_ROOT` env var, then `HOMEgfs` env var, then
-`supported_repos/global-workflow` (the Node.js fallback). Same
-precedence order as the Node.js port.
-
-### Degraded-Mode Contract (Requirement 1.7)
-
-The whole module is data-access-free — `data=None` is fine for every
-tool. When the workflow_root is missing on the AgentCore microVM:
-
-- `get_workflow_structure` works fully (the structure is static).
-- `get_system_configs` returns "Could not read env directory" when
-  no platform / content is supplied; with `content=...` it works
-  with no filesystem at all.
-- `describe_component` returns the standard "Component not found" +
-  searched-paths + content-parameter hint; with `content=...` it
-  bypasses the filesystem entirely.
-
-### Tests Added
-
-`tests/unit/test_workflow_info_tools.py` — 46 tests covering:
-
-- 3-tool registration parity (names, parameter sets, required
-  fields, all 4 enum schemas: component / platform / config_type /
-  file_type).
-- Schema parity per tool: `get_workflow_structure.component` enum
-  matches the 7 component values, `get_system_configs.platform`
-  enum matches the 6 platform values, `get_system_configs.config_type`
-  enum matches the 4 values, `describe_component.file_type` enum
-  matches the 2 values, `describe_component.show_content` default
-  is False.
-- Module registers in degraded mode (`data=None`); every tool still
-  responds — including `get_workflow_structure` which works without
-  any filesystem at all.
-- `get_workflow_structure`: full overview rendering (each component
-  rendered as `### key/` heading), focused-component path with
-  Description / Pattern / Subdirectories / Platforms / Note fields,
-  caller-supplied `structure_data` override.
-- `get_system_configs`: per-platform filesystem read (HERA env
-  surfaces, code fenced), `gaea` produces "file not found" hint
-  (mirrors the on-disk `GAEAC6.env` reality), all-platforms listing
-  enumerates every `*.env` file, `content=` bypass, 2 KB content
-  truncation, `config_type` block routing (modules / resources /
-  paths / all), missing env_dir message.
-- `describe_component` filesystem search: dev/jobs priority over
-  legacy paths, dev/scripts, legacy `ush/` fallback, directory
-  listing with first-20 entries, `show_content=True` preview,
-  not-found path lists all 12 searched paths plus content hint.
-- `describe_component` content-driven mode: Python language
-  detection from imports, Bash language detection from shebang,
-  no-shebang → "Unknown" language, 150-line content truncates to
-  50 with "100 more lines" footer.
-- `_resolve_workflow_root` precedence: explicit arg > MCP_WORKFLOW_ROOT
-  > HOMEgfs > DEFAULT_WORKFLOW_ROOT.
-- Pure-function helpers: `_detect_language` (4 cases),
-  `_find_purpose_line` (4 cases), `_describe_search_paths` priority
-  order verification (12 paths), `_abbrev_path` replacement.
-
-`tests/parity/test_workflow_info_parity.py` — 8 hermetic + 15 live
-cases (gated on `RUN_PARITY=1`):
-
-- Catalogue coverage: 5 cases per tool, 15 cases total.
-- Schema parity against the authoritative Node.js source — params,
-  required, defaults, enums for every tool.
-- Framework PASS / FAIL sanity (matching component-listing set
-  passes; missing component trips SET_EQUALITY).
-- Extractor unit tests: `_extract_component_listing` (filters to
-  known component slugs + Component:Name focus form),
-  `_extract_directory_entries` (`- name` bullets scoped to the
-  Files/Directories block), `_extract_summary_block` (bold field
-  labels for Path / Type / Size / Language / Lines).
-- Per-tool live cases:
-  - `get_workflow_structure` — 5 SET_EQUALITY cases (full overview,
-    focus jobs / env / sorc / ush).
-  - `get_system_configs` — 5 SET_EQUALITY cases on H2 headings
-    (list-all, hera, wcoss2-modules, orion-all-config, paths-only).
-  - `describe_component` — 5 cases: 3 SET_EQUALITY on directory
-    entries (JGFS_FORECAST, ush, env), 2 EXACT on the summary
-    block (exgfs_forecast.sh with show_content=True, hermetic
-    content-driven Python).
-
-### Dockerfile CMD
-
-Changed from `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow`
-(B10a baseline, 44 tools) to
-`--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info`
-(47 tools: 4 + 7 + 6 + 9 + 5 + 4 + 9 + 3). Comment block rewritten
-to document the workflow_info module's pure-filesystem contract and
-the AgentCore microVM degraded-mode behaviour.
-
-### `test_mcp_server.py` Fixture Swap
-
-`test_initialize_degraded_mode_when_data_access_missing` updated:
-
-- Unported fixture swapped from `workflow_info` (B10a) to
-  `github_tools` (the only remaining unported module).
-- `workflow_info` added to the list of modules asserted to register
-  successfully in degraded mode.
-- Module whitelist now covers 8 ported + 1 unported = 9 modules
-  (the complete list).
-
-### Verification
-
-Local pytest run (no AWS credentials required):
-
-- Unit tests: 605 passed (was 559 B10a baseline + 46 new
-  workflow_info).
-- Hermetic parity tests: 8 new (5 framework/extractor + schema
-  parity + catalogue coverage).
-- Live parity cases: 15 skipped by default (enable with
-  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
-- Full suite: **630 passed, 189 skipped, 0 failed** (B10a baseline
-  576 → B10b 630, +54).
-
-### Iteration Notes
-
-1. The Node.js `getWorkflowStructure` source code does NOT read the
-   filesystem despite a stale unit-test in
-   `mcp_server_node/src/__tests__/WorkflowInfoTools.test.js`
-   asserting `JGLOBAL_FORECAST` content under the jobs component.
-   The static structure dict is the source of truth on both
-   runtimes; the stale test is unrelated to this port.
-
-2. `get_workflow_structure` ignores unknown component values and
-   falls back to the full overview rendering. FastMCP's Pydantic
-   layer enforces the Literal enum, so unknown values cannot reach
-   the handler via the tool layer — this is an improvement over
-   Node.js. The fallback path is still tested against the
-   `_tool_get_workflow_structure` helper directly so the behaviour
-   is explicitly preserved at the implementation level.
-
-3. The `gaea` platform value preserves Node.js parity even though
-   `GAEA.env` doesn't exist on disk (the actual filename is
-   `GAEAC6.env`). The tool surfaces a "Environment file not found"
-   hint exactly like the Node.js port. Adding `gaeac6` to the
-   schema would diverge from the Node.js public contract.
-
-4. The `structure_data` parameter accepts any JSON object shape
-   (FastMCP renders it as `dict[str, Any] | None`). The Node.js
-   handler does no validation either; both runtimes simply iterate
-   `Object.entries(structure_data)` and render whatever's there.
-   Tests cover the override path with both the focused-component
-   and full-overview rendering branches.
-
-### Next Phase
-
-Task 16 (Phase B11 — `github_tools`, 4 tools) is the final
-remaining module. Once that lands, the Python runtime registers
-all 51 tools and Phase B (per-module porting) is complete.
-
-
-## [8.19.0] - Phase B10: SDDWorkflowTools Port (May 14, 2026)
-
-### Scope
-
-Task 14 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 9
-Node.js SDDWorkflowTools to Python. All code under
-`mcp_server_python/`. No deployments, no ECR pushes, no changes to
-`mcp_server_node/` or the live AgentCore runtimes. The Python staging
-runtime now registers 44 of 51 tools (4 + 7 + 6 + 9 + 5 + 4 + 9 across
-7 ported modules); 7 tools remain in `workflow_info` (3) and
-`github_tools` (4).
-
-### Tools Ported (`src/tools/sdd_workflow.py`, 1275 lines)
-
-All 9 tools; input schemas match
-`mcp_server_node/src/tools/SDDWorkflowTools.js` exactly (verified by
-two separate assertions — one in the unit-test module and a second
-in the parity module).
-
-Workflow catalogue (filesystem-backed):
-
-- `list_sdd_workflows(include_metadata=False)` — walk
-  `sdd_framework/workflows/` for `*.md` files. With
-  `include_metadata=true` parses each file's title + phase/step
-  counts. Missing directory degrades to a friendly `[INFO]` block
-  rather than `[ERROR]` (deviation from Node.js, documented in the
-  module docstring) — the AgentCore microVM does not bind-mount the
-  `sdd_framework/` tree so the missing-directory state is the
-  expected default.
-
-- `get_sdd_workflow(workflow_name)` — read and render one workflow
-  file's title, description, phases, steps, and YAML front-matter
-  metadata. Returns `[ERROR]` shape on truly missing files.
-
-Session lifecycle (delegates to `SessionManager` from B3):
-
-- `start_sdd_session(phase, notes?, total_steps?)` —
-  `SessionManager.start_session(phase, total_steps=, notes=)`. Emits
-  `started` event in `history.jsonl`.
-
-- `record_sdd_step(step, name, tag='implement', notes='')` —
-  `SessionManager.record_step`. Tag enum constrained to the SDD
-  vocabulary (`research`, `design`, `implement`, `configure`,
-  `validate`, `document`, `ingest`).
-
-- `get_sdd_session(resume=False)` —
-  `SessionManager.get_session_state` or `resume_session()` when
-  `resume=true`. Renders the active session card with bold field
-  labels (Session ID / Phase / Status / Started / Last Activity /
-  Progress) plus completed-steps and skipped-steps blocks.
-
-- `complete_sdd_session(summary='', abandon=False, reason='')` —
-  routes to `complete_session(summary)` or
-  `abandon_session(reason)`. Emits `completed` or `abandoned`
-  events in `history.jsonl`.
-
-History + analytics:
-
-- `get_sdd_execution_history(limit=10, workflow_name?, analytics=False)` —
-  reads `history.jsonl`, groups events by `sessionId`, renders
-  per-session cards with status icons (`[OK]` / `[!!]` / `[..]`).
-  With `analytics=true` adds Phases-by-Status table, step-tag
-  distribution (sorted descending), average/min/max session
-  duration, and recent velocity (last 10 sessions). Mirrors the
-  Node.js fetch-more-for-analytics quirk so totals don't get
-  truncated by `limit` in the analytics view.
-
-Compliance + status:
-
-- `validate_sdd_compliance(content?, target?, framework_version='4.0', content_type='auto')` —
-  pure-content SDD checks (Documentation, Error Handling,
-  Shebang, Entry Point, Type Hints, Naming Conventions, Path
-  Abstraction). Battery ported byte-for-byte from Node.js
-  `performSDDChecks`. Auto-detects bash / python / json / yaml /
-  markdown from content shape when `content_type='auto'`. The
-  `target` (file path) input is rejected with a `[ERROR]`
-  pointing callers at `content` — the hosted Python runtime has
-  no filesystem access and the Node.js `ContentResolver`
-  filesystem branch is not portable.
-
-- `get_sdd_framework_status(detailed=False)` — Components +
-  Active Session blocks (workflow count, total/completed/abandoned
-  session totals computed from `history.jsonl`, active session
-  progress). With `detailed=true` adds Session Tools list, Preserved
-  Infrastructure list, and a Recent Sessions tail (last 5).
-
-### Degraded-Mode Contract (Requirement 1.7)
-
-The whole `sdd_workflow` module is data-access-free — `data=None` is
-fine for every tool. The session lifecycle works because
-`SessionManager` is file-backed, and `validate_sdd_compliance` is
-pure-string. The catalogue tools `list_sdd_workflows` /
-`get_sdd_workflow` need only the on-disk workflows directory, which
-they degrade gracefully when missing.
-
-### Tests Added
-
-`tests/unit/test_sdd_workflow_tools.py` — 38 tests covering:
-
-- 9-tool registration parity (names + parameter sets) including
-  required flag and FastMCP enum/default rendering.
-- Schema parity per tool: `record_sdd_step.tag` default + 7-tag
-  enum, `validate_sdd_compliance.content_type` default + 6-value
-  enum, `validate_sdd_compliance.framework_version` default `4.0`,
-  `get_sdd_workflow` requires `workflow_name`.
-- Module registers in degraded mode (`data=None`); every tool still
-  responds — including `validate_sdd_compliance` which runs the full
-  SDD checks battery without any backend.
-- Full session lifecycle via the tool layer:
-  `start → record → record → get → complete`, plus the
-  abandon-with-reason path and the resume-emits-resumed-event path.
-- Error paths: record without active session, complete without
-  active session, start while another session is active.
-- State-file format compat with Node.js — asserts
-  `active_session.json` uses camelCase keys (`sessionId`, `phase`,
-  `startedAt`, `lastActivityAt`, `totalSteps`, `currentStep`,
-  `completedSteps`, `skippedSteps`) and step records carry
-  `{step, name, tag, completedAt, notes}`. Asserts `history.jsonl`
-  emits `started → step_completed → completed` events with
-  Node.js-shaped fields (sessionId, phase, event, timestamp; step
-  events carry step/name/tag/notes; completed events carry
-  `completedSteps` as int count + `summary` + `duration`).
-- Execution-history rendering: empty history, completed-session
-  formatting, workflow-name filter scoping, and the analytics block
-  (Phases-by-Status table, Step Tag Distribution, Velocity).
-- `validate_sdd_compliance` content checks: bash clean (4 pass),
-  bash failures (no shebang + hardcoded path → 2 fail), python with
-  type hints (Entry Point + Type Hints both pass), python missing
-  features (both warn), content-type auto-detect for python and
-  bash, error path when neither `content` nor `target` is supplied,
-  error path when only `target` is supplied.
-- Workflow-catalogue parsing: list with files, list with metadata,
-  list with missing directory ([INFO] block), get_workflow renders
-  Phases/Steps/Metadata sections, get_workflow not-found path.
-- Framework status: no active session, with active session
-  (1/5 progress), detailed mode adds Session Tools and Recent
-  Sessions sections.
-- Helper tests: `_parse_duration_minutes` for `15m` / `1h 22m` /
-  `2h` / empty / None / noise; `_session_status` for completed /
-  abandoned / in-progress event lists.
-
-`tests/parity/test_sdd_workflow_parity.py` — 8 hermetic + 18 live
-cases (gated on `RUN_PARITY=1`):
-
-- Catalogue coverage: all 9 SDD tools, ≥5 cases for the high-traffic
-  pure-content tool (`validate_sdd_compliance`), ≥18 cases total.
-- Schema parity against the authoritative Node.js source — params,
-  required, defaults, enums for every tool.
-- Framework PASS / FAIL sanity (matching check-name set passes;
-  missing check trips SET_EQUALITY).
-- Extractor unit tests: `_extract_check_names`,
-  `_extract_h2_headings` (status-icon-stripping for the
-  per-session `[OK]/[!!]/[..]` prefix), `_extract_workflow_names`
-  (filters by following `- **Path**` bullet),
-  `_extract_session_card_fields` (bold-field labels).
-- Per-tool live cases:
-  - `validate_sdd_compliance` — 5 cases SET_EQUALITY on check names
-    (bash-clean, bash-failures, python-clean, python-warns,
-    auto-detect).
-  - `list_sdd_workflows` — 2 cases SET_EQUALITY on workflow names
-    (default, with-metadata).
-  - `get_sdd_workflow` — 2 cases SET_EQUALITY on H2 section
-    headings (phase48, phase56).
-  - `get_sdd_framework_status` — 2 cases SET_EQUALITY on H2
-    section headings (default, detailed).
-  - `get_sdd_execution_history` — 3 cases SET_EQUALITY on H1/H2
-    headings (recent-5, analytics, phase48-filter).
-  - `get_sdd_session` — 1 case SET_EQUALITY on H1 titles
-    (no-active-session render is stable across both runtimes).
-  - Lifecycle (start / record / abandon) — 3 cases SET_EQUALITY on
-    H1 titles, run against a unique scratch phase
-    `phase_parity_scratch` so live runs don't disturb production
-    session state.
-
-### Dockerfile CMD
-
-Changed from `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational`
-(B9 baseline, 35 tools) to
-`--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow`
-(44 tools: 4 + 7 + 6 + 9 + 5 + 4 + 9). Comment block rewritten to
-document the SDD module's data-access-free contract and the
-filesystem-degraded behaviour of the catalogue tools on the
-AgentCore microVM.
-
-### `test_mcp_server.py` Fixture Swap
-
-`test_initialize_degraded_mode_when_data_access_missing` updated:
-
-- Unported fixture swapped from `sdd_workflow` (B9) to
-  `workflow_info` (next alphabetical unported module after B10).
-- `sdd_workflow` added to the list of modules asserted to register
-  successfully in degraded mode.
-- Module whitelist now covers 7 ported + 1 unported = 8 modules.
-
-### Verification
-
-Local pytest run (no AWS credentials required):
-
-- Unit tests: 559 passed (was 521 B9 baseline + 38 new sdd_workflow).
-- Hermetic parity tests: 8 new (6 framework/extractor + schema parity
-  + catalogue coverage).
-- Live parity cases: 18 skipped by default (enable with
-  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
-- Full suite: **576 passed, 174 skipped, 0 failed** in 9.98 s
-  (B9 baseline 530 → B10 576, +46).
-
-### Iteration Notes
-
-1. The Node.js `WorkflowExecutor` reads `sdd_framework/workflows/`
-   from disk via Node `fs` calls. The hosted Python port does the
-   same via `pathlib.Path` but treats a missing directory as the
-   expected state (returns `[INFO]` rather than `[ERROR]`) since
-   the AgentCore microVM does not bind-mount `sdd_framework/`.
-   Truly broken file reads still surface `[ERROR]`.
-
-2. Node.js `ContentResolver` (Phase 19A content-abstraction layer)
-   is not yet ported. The Python port handles only the `content`
-   argument directly and rejects `target` (file path) with an
-   actionable `[ERROR]` pointing callers at `content`. The
-   `_perform_sdd_checks` battery — the actual compliance logic —
-   is ported byte-for-byte; only the resolver's filesystem branch
-   is unported.
-
-3. The Node.js `getSessionSummaries()` helper does not exist on the
-   Python `SessionManager`; the framework-status tool computes the
-   same summaries directly from `history.jsonl` events grouped by
-   `sessionId`. Output shape is byte-compatible — the Components
-   block reports identical totals.
-
-4. `record_sdd_step.step` is `type: 'number'` in Node.js JSON
-   Schema; FastMCP renders Python `int` as `{"type": "integer"}`.
-   The schema-parity tests assert the parameter NAME and the
-   semantic type rather than the literal type string. Behaviour is
-   identical (the Python port wraps `int(step_number)` to coerce
-   any float input the same way Node.js does).
-
-### Next Phase
-
-Task 15 (Phase B10b — `workflow_info` tools, 3 tools) is next.
-Task 16 (`github_tools`, 4 tools) follows. Once those land, the
-Python runtime registers all 51 tools.
-
-
-## [8.18.0] - Phase B9: OperationalTools Port (May 13, 2026)
-
-### Scope
-
-Task 13 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 4 Node.js
-OperationalTools to Python. All code under `mcp_server_python/`. No
-deployments, no ECR pushes, no changes to `mcp_server_node/` or the live
-AgentCore runtimes.
-
-### Tools Ported (`src/tools/operational.py`, 891 lines)
-
-All 4 tools; input schemas match `mcp_server_node/src/tools/OperationalTools.js`
-exactly (verified by two separate assertions — one in the unit-test module
-and a second in the parity module).
-
-- `get_operational_guidance(operation, platform='generic', urgency='routine')` —
-  semantic search against the `global-workflow-docs-v8-0-0` collection
-  with `include_graph=True`. Renders a platform-specific notes block
-  (HERA / HERCULES / ORION / WCOSS2 / GAEA / generic — ported verbatim
-  from the Node.js `platformNotes` dict). The `urgency='emergency'`
-  flag prepends a `[WARN]` banner with on-call escalation steps.
-  Falls back to a hardcoded "General Guidance" template when the
-  vector store returns no hits.
-
-- `explain_workflow_component(component, detail_level='detailed')` —
-  hybrid: vector_db query against the workflow-docs collection +
-  graph_db node lookup + dependency probe (`IMPORTS|SOURCES|USES`
-  one-hop). Detail levels route between three rendering paths
-  (`basic`, `detailed`, `expert` — only `expert` adds the Expert
-  Notes block).
-
-- `list_job_scripts(category?, search?, format='summary', job_list?, files?)` —
-  content-abstracted J-Job listing. Three input modes, prioritized:
-  caller-supplied `job_list` (names only) → caller-supplied `files`
-  (name+content) → graph_db fallback querying for J-prefixed nodes.
-  The `job_list` path is the only operational tool that works in
-  degraded-mode boot (matching the Node.js "remote MCP" mode). All
-  five Node.js category-filter regexes are ported verbatim
-  (`analysis`, `forecast`, `post`, `archive`, `verification`).
-  `format='json'` emits a JSON code-fence; `format='detailed'`
-  surfaces description lines from caller-supplied content.
-
-- `get_job_details(job_name, include_content=False, include_config=True, include_chromadb=True)` —
-  content-abstracted J-Job metadata. Queries the graph store for the
-  J-Job node and its relationships (`USES_CONFIG` / `SOURCES` /
-  `CALLS|INVOKES|EXECUTES` / `CONSUMES|READS` / `PRODUCES|WRITES` /
-  `DEPENDS_ON_ENV|EXPORTS`) plus the `jjobs-v8-0-0` vector
-  collection for related docs. `include_content=True` surfaces an
-  `[INFO]` note rather than a script body — the hosted Python port
-  has no filesystem access. Uses pure-function helpers
-  `_categorize_job` and `_extract_system` ported verbatim from
-  Node.js.
-
-### Degraded-Mode Contract (Requirement 1.7)
-
-All 4 tools require `data` and return `[ERROR]` when booted without a
-data-access layer — *except* `list_job_scripts` invoked with a
-caller-supplied `job_list`, which is the Node.js "remote MCP"
-pass-through and works on caller content alone. Registration always
-succeeds regardless of backend availability.
-
-### Tests Added
-
-`tests/unit/test_operational_tools.py` — 65 tests covering:
-
-- Schema parity (names / required / defaults / enums) across all 4
-  tools, including the array-of-enum and `anyOf[enum, null]` shapes
-  FastMCP emits for optional `Literal[...]` parameters.
-- Degraded-mode parametrized over all 4 tools (each surfaces `[ERROR]`
-  with `data=None`); plus the `list_job_scripts(job_list=...)` exception
-  that bypasses the data-access layer entirely.
-- `get_operational_guidance` per-platform parametrized rendering (6
-  cases — verifies each platform's hardcoded notes block matches the
-  Node.js dict), urgency emergency-block rendering, vector-query
-  collection / arg verification, no-hits fallback to General Guidance.
-- `explain_workflow_component` doc + graph + dependency rendering,
-  detail-level routing (`expert` adds notes; `basic` suppresses),
-  not-found rendering with empty backends, vector-collection assertion.
-- `list_job_scripts` J-prefix filtering, all 5 category regex cases
-  parametrized (verifying e.g. `JGDAS_FIT2OBS` only matches
-  `verification`, not `analysis`), search filter case-insensitive,
-  JSON format round-trip, `detailed` format using `files`-array
-  content_map, graph_db fallback when no input given, summary-format
-  category breakdown.
-- `get_job_details` not-found rendering, metadata-header assembly,
-  6 relationship-block rendering tests (configs / sources / calls /
-  inputs / outputs / env vars), `include_chromadb=True` queries the
-  jjobs collection while `include_chromadb=False` skips the vector
-  call entirely, `include_content=True` surfaces the `[INFO]`
-  unavailable notice, `include_config=False` suppresses the fallback
-  block, env-var truncation at 15 entries with "...and N more"
-  footer.
-- Pure-function tests for `_categorize_job` (10 parametrized cases
-  covering all 9 Node.js categories) and `_extract_system` (6 cases).
-
-`tests/parity/test_operational_parity.py` — 9 hermetic + 20 live
-cases (gated on `RUN_PARITY=1`):
-
-- Catalogue coverage (≥5 cases per tool, ≥20 total).
-- Schema parity against the authoritative Node.js source.
-- Framework PASS/FAIL sanity, TOLERANCE drift on guidance-item count.
-- Extractor unit tests (`_extract_h2_headings`,
-  `_extract_guidance_items`, `_extract_job_names` summary + JSON
-  formats, `_extract_metadata_fields`).
-- Per-tool live cases:
-  - `get_operational_guidance` — 4 cases SET_EQUALITY on H2
-    headings + 1 case TOLERANCE ±10 % on guidance-item count.
-  - `explain_workflow_component` — 5 cases SET_EQUALITY on H2
-    headings.
-  - `list_job_scripts` — 5 cases SET_EQUALITY on the job-name list
-    (`job_list` arguments shared between runtimes so both see
-    identical inputs).
-  - `get_job_details` — 5 cases SET_EQUALITY on metadata field
-    *names*. Field values may legitimately drift between Node.js
-    (filesystem read) and Python (graph query); the *set* of
-    metadata categories present is the stable parity invariant.
-
-### Dockerfile CMD
-
-Changed from `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance`
-(B8 baseline, 31 tools) to
-`--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational`
-(35 tools: 4 + 7 + 6 + 9 + 5 + 4). Comment block rewritten to document
-the operational module's degraded-mode behaviour and the
-content-abstraction gate on `get_job_details`.
-
-### `test_mcp_server.py` Fixture Swap
-
-`test_initialize_degraded_mode_when_data_access_missing` updated:
-
-- Unported fixture swapped from `github_tools` (B8) to
-  `sdd_workflow` (next alphabetical unported module after B9).
-- `operational` added to the list of modules asserted to register
-  successfully in degraded mode.
-- Module whitelist now covers 6 ported + 1 unported = 7 modules.
-
-### Verification
-
-Local pytest run (no AWS credentials required):
-
-- Unit tests: 521 passed (was 456 B8 baseline + 65 new operational).
-- Hermetic parity tests: 9 (8 smoke + 1 schema parity).
-- Live parity cases: 20 skipped by default (enable with
-  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
-- Full suite: **530 passed, 156 skipped, 0 failed.**
-
-### Iteration Notes
-
-1. The Node.js `categories` object uses different regexes per bucket
-   than `categorizeJob`. Most notably, `JGDAS_FIT2OBS` matches the
-   `verification` regex (`verf|fit2obs|cyclone|stat`) but NOT the
-   `analysis` regex (`atm|anl|anal|enkf|letkf`) — confirmed against
-   Node.js source and preserved.
-2. `dataAccess.hybridQuery` / `multiSourceSearch` / `vectorSearch` /
-   `graphDb.findFileImports` are high-level Node.js APIs not present
-   in the Python protocols. Composed equivalent behaviour from
-   `vector_db.query` + `graph_db.query` directly. Schema parity is
-   preserved; internal call shapes differ.
-3. The Node.js port reads J-Job scripts from disk in
-   `list_job_scripts` (filesystem walk) and `get_job_details`
-   (`fs.readFile` + `parseJJob`). The hosted Python port has no
-   filesystem; the port queries the graph store for already-ingested
-   metadata instead. `list_job_scripts` accepts `job_list` / `files`
-   for explicit override (already content-abstracted in Node.js for
-   "remote mode"); `get_job_details` falls back to graph-stored
-   relationships and surfaces an `[INFO]` note when
-   `include_content=True`.
-
-### Next Phase
-
-Task 14 (Phase B10 — `sdd_workflow` tools, 9 tools) is next in
-alphabetical order. After that, Task 15 (`workflow_info`, 3 tools) and
-Task 16 (`github_tools`, 4 tools) remain. Once those land, the Python
-runtime registers all 51 tools.
-
-
-## [8.17.0] - Phase B8: EE2ComplianceTools Port (May 13, 2026)
-
-### Scope
-
-Task 12 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 5 Node.js
-EE2ComplianceTools to Python. All code under `mcp_server_python/`. No
-deployments, no ECR pushes, no changes to `mcp_server_node/` or the live
-AgentCore runtimes. Phase B8 is the first tool module to consume a
-content-abstraction layer instead of reading from the caller's filesystem:
-the two scan / extract tools are explicitly hosted-only.
-
-### Tools Ported (`src/tools/ee2_compliance.py`, 1130 lines)
-
-All 5 tools; input schemas match `mcp_server_node/src/tools/EE2ComplianceTools.js`
-exactly (verified by two separate assertions — one in the unit-test module
-and a second in the parity module).
-
-**Vector-backed tool (1 — requires a data-access layer):**
-
-- `search_ee2_standards(query, category?, max_results=8, include_examples=true)` —
-  semantic search against the `ee2-standards-v5-0-0-enhanced` vector
-  collection. Enhances the query with the category name (if provided) and
-  the anchor token "EE2 compliance". Degrades to `[ERROR]` when the vector
-  adapter is unavailable.
-
-**Content-scanning tools (4 — operate on caller-supplied content, work in
-degraded mode):**
-
-- `analyze_ee2_compliance(content, analysis_type='comprehensive', include_recommendations=true)` —
-  SME-corrected (Phase 2) pattern battery. Flags `set -eu` and `set -e`
-  in bash scripts as anti-patterns (HIGH confidence), flags file
-  operations (cp / mv / ln) without a trailing `err_chk`, reports a
-  positive observation when a script uses `preamble.sh` or `err_chk`
-  without `set -eu`, and checks environment-variable quoting hygiene.
-  Analysis-type narrowing restricts the category set for targeted
-  reviews.
-- `generate_compliance_report(scope='summary', categories?, format='markdown')` —
-  reference reporting with summary / detailed / checklist scopes.
-  Pulls standard excerpts from the vector store when available and
-  renders an `[INFO]` footer when the adapter is missing. Adds a
-  Passthrough Recommendation block when file_naming or
-  environment_variables are requested.
-- `scan_repository_compliance(files?, repository_path?, file_patterns?, sample_size=10000, categories?)` —
-  batched per-file violation scanner across error_handling / file_naming
-  / shebang_compliance / production_utilities categories (the
-  environment_variables category exists for parity but is deliberately
-  no-op per the Node.js Phase 2 notes: only SME-validated rules fire).
-  Content-abstracted: the Python port rejects `repository_path` with
-  a clear `[ERROR]` instructing the caller to use `files` instead,
-  and emits deterministic JSON via `json.dumps(sort_keys=False)` so
-  test snapshots stay stable.
-- `extract_code_for_analysis(content?, files?, path?, content_type='auto', categories?, file_pattern='\.(sh|py)$', max_files=50)` —
-  per-file snippet extraction with LLM prompt bundles per category.
-  Mirrors Node.js `CodeSnippetExtractor` + `EE2AnalysisPrompts`
-  inline (no sub-module, to keep the port self-contained). Also
-  content-abstracted: rejects `path` with a clear `[ERROR]` when
-  neither `content` nor `files` is provided. `content_type='auto'`
-  detects bash vs python from the shebang or structural markers.
-
-### SME-Corrected Behaviour (Preserved)
-
-The Phase 2 corrections documented in `.github/instructions/eib-mcp-tools.instructions.md`
-are preserved bit-for-bit:
-
-- `set -eu` is **NOT** required by EE2 (80 % false-positive rate when
-  flagged as missing). The port flags it as an anti-pattern when
-  present, not as missing.
-- `err_chk` / `err_exit` via `preamble.sh` is the correct EE2 pattern
-  for error handling. A script using either one is reported as
-  compliant.
-- File operations without a trailing `err_chk` are flagged (silent
-  failures are the operational risk).
-- Non-quoted variable references (`$VAR` outnumbering `"${VAR}"`) are
-  flagged as hygiene concerns but without a HIGH confidence level.
-
-### Tests Added
-
-`tests/unit/test_ee2_compliance_tools.py` — 58 tests covering:
-
-- Schema parity (names / required fields / defaults / enums) across
-  all 5 tools, including the array-of-enum and `anyOf[enum, null]`
-  shapes FastMCP emits for `Literal[...] | None` parameters.
-- Degraded-mode split: parameterized over the 1 vector-backed tool
-  (returns `[ERROR]`) and the 4 content-scanners (work without
-  `data`).
-- SME-corrected analyze behaviour: `set -eu` flagged, `set -e`
-  flagged, `err_chk` / `preamble.sh` praised as EE2-compliant,
-  file-ops-without-err_chk flagged, unquoted variables flagged,
-  `analysis_type` narrowing.
-- `generate_compliance_report` summary / detailed / checklist
-  rendering with mock vector hits (including `_extract_checklist_items`
-  round-trip), category filtering, Passthrough Recommendation
-  insertion.
-- `scan_repository_compliance` file-type categorization, 5-category
-  violation battery, content-abstraction rejection of
-  `repository_path`, empty-files rejection, sample_size truncation,
-  handling of malformed entries (skip without crashing).
-- `extract_code_for_analysis` content + files routing,
-  content-abstraction rejection of `path`-only mode, `file_pattern`
-  regex filtering, `max_files` truncation, invalid regex rejection,
-  auto-detect content type, SME-correction text in prompt bundles,
-  unknown-category rejection via direct helper call (pydantic catches
-  at the tool boundary before our code runs).
-- Helper function coverage: `_build_standards_query`,
-  `_extract_checklist_items`, `_detect_content_type`, prompt/pattern
-  coverage assertions.
-
-`tests/parity/test_ee2_compliance_parity.py` — 10 hermetic tests +
-25 live-parity cases (gated on `RUN_PARITY=1`):
-
-- Catalogue coverage (≥5 cases per tool, ≥25 total).
-- Schema parity against the authoritative Node.js source.
-- Framework PASS/FAIL sanity (identical responses pass;
-  set-difference responses fail).
-- Observation-count TOLERANCE (±10 %) drift detection.
-- Total-files TOLERANCE drift detection.
-- Extractor unit tests (`_extract_standard_ids`,
-  `_extract_observation_categories`, `_extract_scan_category_keys`,
-  `_extract_extract_file_paths`).
-- Per-tool live cases:
-  - `search_ee2_standards` — 5 cases, SET_EQUALITY on `## Standard N`
-    section titles.
-  - `analyze_ee2_compliance` — 4 cases SET_EQUALITY on observation
-    category headings + 1 case TOLERANCE ±10 % on observation count.
-  - `generate_compliance_report` — 5 cases SET_EQUALITY on markdown
-    headings.
-  - `scan_repository_compliance` — 4 cases SET_EQUALITY on
-    `issues_by_category` keys + 1 case TOLERANCE on `total_files`.
-  - `extract_code_for_analysis` — 5 cases SET_EQUALITY on per-file
-    snippet section titles.
-
-### Dockerfile CMD
-
-Changed from `--modules utility,semantic_search,code_analysis,graph_rag`
-(B7 baseline, 26 tools) to `--modules utility,semantic_search,code_analysis,graph_rag,ee2_compliance`
-(31 tools: 4 + 7 + 6 + 9 + 5). Comment block rewritten to document the
-split degraded-mode contract and the content-abstraction gate on the
-scan + extract tools.
-
-### `test_mcp_server.py` Fixture Swap
-
-`test_initialize_degraded_mode_when_data_access_missing` updated:
-
-- `operational` replaced by `github_tools` as the "still-unported"
-  fixture (next unported module after B8).
-- `ee2_compliance` added to the list of modules asserted to register
-  successfully in degraded mode.
-- Module whitelist now covers 5 ported + 1 unported = 6 modules.
-
-### Verification
-
-Local pytest run (no AWS credentials required):
-
-- Unit tests: 446 passed (was 388 baseline + 58 new ee2_compliance).
-- Hermetic parity tests: 10 (9 smoke + 1 schema parity).
-- Live parity cases: 25 skipped by default (enable with
-  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`).
-- Full suite: **456 passed, 136 skipped, 0 failed.**
-
-### Iteration Notes
-
-Captured for future port authors:
-
-1. The Node.js COM-uppercase regex needs **two** quoted strings on
-   the same line (COMOUT reference + separate quoted filename with
-   extension). A single quoted string containing both (`"${COMOUT}/foo.NC"`)
-   does not trigger the match — confirmed against Node.js and
-   preserved in the Python port.
-2. `MockVectorDB.query` in `tests/conftest.py` filters by
-   `similarity_threshold` by indexing `h["score"]` — mock hits that
-   omit `score` will `KeyError`. Always include `score` in seeded
-   hit fixtures.
-3. FastMCP / pydantic validates `Literal[...]` enums at the tool
-   boundary before the tool body runs. Unknown-category tests must
-   call the internal `_tool_*` helper directly (or rely on pydantic
-   as the enforcement point).
-4. `ParityRunner.assert_parity` uses `name_extractor` for
-   `SET_EQUALITY` mode, not `id_extractor` — the B7 template
-   documents this convention. `ToolCase(extractor_kind="id", ...)`
-   with `ComparisonMode.SET_EQUALITY` silently falls back to
-   comparing the raw response dict, which accepts any two responses
-   as equal if they share the same top-level keys.
-5. Task prompt listed `name, content` as top-level required
-   parameters for `scan_repository_compliance` and
-   `extract_code_for_analysis`. The authoritative Node.js schema
-   nests them inside the `files` array items. Per the task's "ignore
-   discrepancies, match Node.js" directive, the port follows Node.js.
-
-### Next Phase
-
-Task 13 (Phase B9 — `operational` tools, 4 tools) is next in
-alphabetical order. Task 14 (`sdd_workflow`, 9 tools) and Task 15
-(`workflow_info`, 3 tools) remain pending. `github_tools` (Task 16,
-4 tools) is the last unported module; once it lands, the Python
-server will register all 51 tools.
-
-
-## [8.16.0] - Phase B7: GraphRAGTools Port (May 13, 2026)
-
-### Scope
-
-Task 10 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 9 Node.js
-GraphRAGTools to Python and extend the parity framework to cover them. All
-code under `mcp_server_python/`. No deployments, no ECR pushes, no changes
-to `mcp_server_node/` or the live AgentCore runtimes. B7 is the first phase
-that drives both the B3 GraphGuidedRetrieval pipeline AND the B3 SessionManager
-lifecycle from a single tool module.
-
-### Tools Ported (`src/tools/graph_rag.py`, 1308 lines)
-
-All 9 tools; input schemas match `mcp_server_node/src/tools/GraphRAGTools.js`
-exactly (verified by two separate assertions — one in the unit-test module
-and a second in the parity module).
-
-**Graph / vector-backed tools** (5 — require a data-access layer):
-
-- `get_code_context(symbol, depth=2, include_community=true, token_budget=4000)` —
-  node lookup + fuzzy-match suggestions when symbol is missing, 1-hop
-  callers via CALLS/USES/IMPORTS/EXECUTES/INVOKES, GGSR weighted
-  neighborhood via `GraphGuidedRetrieval.get_code_context`, optional
-  Subsystem Context block from the `community-summaries` vector
-  collection (Phase 24 community detection). Side-effect: records the
-  examined symbol on the session.
-- `search_architecture(query, max_results=5)` — vector search against
-  `community-summaries` rendering community/subsystem summaries with
-  relevance scores and node-count metadata.
-- `find_similar_code(code_or_symbol, similarity_threshold=0.7, max_results=10)` —
-  vector search against `code-with-context-v8-0-0`, 2× over-fetch with
-  threshold filtering. Handles both the OpenSearch `score` shape and
-  the legacy ChromaDB `distance` shape (`similarity = 1 - distance`).
-- `get_change_impact(symbol, change_type='behavior', include_indirect=true)` —
-  direct-dependents query over CALLS/USES/IMPORTS/EXECUTES/INVOKES/SOURCES,
-  transitive indirect query (capped at `direct_count < 100` to bound
-  cost, matching Node.js), optional community-context snippet,
-  risk-score computation (HIGH/MEDIUM/LOW) with a bias table that
-  matches `typeScores` from the Node.js implementation verbatim
-  (`delete=0.3, signature=0.25, rename=0.2, behavior=0.1`), plus
-  change-type-specific recommendations.
-- `trace_data_flow(from_symbol, to_symbol?, max_depth=5)` — one-hop
-  fan-out over outgoing edges, optional `shortestPath` query when a
-  destination symbol is given (clamped to 10 hops).
-
-**Session tools** (4 — work in degraded mode via an injected
-SessionManager):
-
-- `mark_as_modified(file_path, change_type='content', description?)` —
-  delegates to `SessionManager.mark_modified`; best-effort attempt to
-  flag matching graph nodes as `_dirty` (failure is swallowed; the
-  local session state is the source of truth).
-- `get_session_context(include_dirty=true)` — aggregated summary
-  table with modifications / examined symbols / checkpoints.
-- `checkpoint_state(name, description?)` — snapshot of current
-  session state to a checkpoint JSON file.
-- `restore_checkpoint(checkpoint_id)` — rewinds the session;
-  invalid / unknown IDs return a clear `[ERROR]` rather than
-  crashing.
-
-### Entrypoint contract
-
-```python
-register(mcp, data, *, session_manager=None)
-```
-
-The new `session_manager` keyword takes an optional
-`SessionManager` instance. When `None`, the module constructs one
-against the standard `sdd_framework/execution_state` state directory
-so the module is self-sufficient at runtime. Tests inject a tmp-dir
-manager here to get an isolated lifecycle.
-
-Degraded-mode behaviour:
-
-- Graph / vector tools: `data=None` → `[ERROR]` with the
-  "Graph database unavailable" / "Vector database unavailable"
-  text, matching B5/B6 semantics.
-- Session tools: work as long as a `SessionManager` is reachable
-  (default or injected). No hard dependency on `data`.
-
-### Risk-score parity note
-
-`_compute_risk_score` is a byte-identical port of the Node.js
-`_computeRiskScore` formula — same bias table, same saturation cap
-(1.0), same bucket thresholds (HIGH > 0.7, MEDIUM > 0.4). This is
-asserted directly in unit tests via `_compute_risk_score` without
-needing a live graph.
-
-### Schema-enum parity note
-
-Two tools expose a `change_type` parameter but with **different** enum
-sets — this is easy to miss and has its own dedicated test
-(`test_change_type_and_modification_type_enums_differ`):
-
-- `get_change_impact.change_type` ∈ `{signature, behavior, delete, rename}`
-  (default `behavior`).
-- `mark_as_modified.change_type` ∈ `{content, signature, delete, rename}`
-  (default `content`).
-
-The single character difference: `behavior` vs `content`. The unit
-test asserts both sets match Node.js AND that they differ by exactly
-these two values.
-
-### Parity Framework Extensions (`tests/parity/test_graph_rag_parity.py`)
-
-- 8 hermetic tests always run (catalogue coverage, schema parity,
-  framework sanity, symbol-extractor dedupe, affected-symbols
-  section scoping, similarity-score tolerance, session structural
-  check).
-- 45 live-parity parametrized cases (5 per tool × 9 tools) gated
-  on `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`.
-- Reuses `AgentCoreToolCaller` from the B5 parity module via
-  direct import — no duplication of the SSE / boto3 transport.
-
-Per-tool projections:
-
-- `get_code_context` — `_extract_symbol_names` SET_EQUALITY (every
-  backtick-wrapped token in the response, deduplicated).
-- `search_architecture` — `_extract_community_titles` SET_EQUALITY
-  OR `_extract_relevance_scores` TOLERANCE for the relevance-drift
-  case.
-- `find_similar_code` — `_extract_symbol_names` SET_EQUALITY +
-  `_extract_similarity_scores` TOLERANCE on the score column.
-- `get_change_impact` — `_extract_affected_symbols` SET_EQUALITY
-  (Direct + Indirect sections only; Risk Factors / Recommendations
-  sections are excluded from the parity key).
-- `trace_data_flow` — `_extract_flow_node_names` SET_EQUALITY
-  (Outgoing + Shortest Path sections).
-- `mark_as_modified` / `get_session_context` / `checkpoint_state` /
-  `restore_checkpoint` — **structural-only** EXACT on a boolean
-  `has_block` check, since session state is non-deterministic
-  between the two runtimes. Every response must render the same
-  markdown block shape (header + expected fields), even though
-  the state inside may differ.
-
-### Unit Tests (`tests/unit/test_graph_rag_tools.py`, 74 tests)
-
-Schema parity (names / required / defaults / enums — dedicated
-test for the `change_type` enum divergence); degraded-mode split
-behaviour (parametrized across 5 graph-backed tools and 3 session
-tools); empty-argument validation (parametrized across 8 tools);
-`get_code_context` rendering including type/path/callers/GGSR
-neighborhood; fuzzy-match fallback on missing symbol; community
-section routing via `include_community`; `token_budget=0` suppresses
-the GGSR section; examined-symbol side effect; depth clamp (1..3);
-`search_architecture` rendering with community metadata and
-`max_results` clamp (1..10); `find_similar_code` threshold filtering,
-similarity-threshold clamp to [0, 1], 2× over-fetch behaviour,
-`max_results` clamp to 25; `get_change_impact` dependent tables,
-`include_indirect` flag, `change_type` routing (parametrized over
-all 4 enum values), indirect-query skip when direct ≥ 100,
-`_compute_risk_score` math parity; `trace_data_flow` outgoing list,
-shortestPath, no-path fallback, `max_depth` clamp to 10;
-session lifecycle round-trip (mark → checkpoint → more mods →
-restore → verify rollback); invalid checkpoint ID returns `[ERROR]`;
-graph-error propagation for all 5 data-backed tools; default
-SessionManager when none injected; helper coverage
-(`_clamp`, `CHANGE_TYPE_RISK_BIAS` table, `_generate_recommendations`).
-
-### Deployment Hook
-
-- `mcp_server_python/Dockerfile` CMD updated to
-  `--modules utility,semantic_search,code_analysis,graph_rag`
-  (26 tools: 4 + 7 + 6 + 9).
-- No rebuild or push in this phase — operator rolls a new
-  `python-graph-rag-v1` tag to the staging runtime per the rebuild
-  instructions in `.kiro/steering/06-python-port-progress.md` when
-  ready to run the live parity suite.
-
-### Test Update
-
-- `tests/unit/test_mcp_server.py::test_initialize_degraded_mode_when_data_
-  access_missing` — previously used `ee2_compliance` as the
-  "still unported" fixture. Now that `graph_rag` is ported, the
-  fixture list was extended to include `graph_rag` on the
-  register-successfully path and the "unported" marker was swapped
-  to `operational` per the task instruction. Note: alphabetically
-  `ee2_compliance` is still the first unported module after B7
-  (before `github_tools` / `operational`); the task author's choice
-  of `operational` is preserved as-is per the explicit instruction.
-  The assertion block now loops over the four ported modules rather
-  than hand-listing each.
-
-### Test Results
-
-- Full suite: 388 passed, 111 skipped (30 B6 + 36 B5 + 45 B7
-  live-parity cases), 0 failed.
-- Hermetic parity tests: 8/8 passed by default.
-- Schema parity: all 9 tool schemas match Node.js parameter names,
-  required fields, defaults, and enum values (asserted twice — in
-  the unit suite and in the parity module).
-
-### Schema-description discrepancy note
-
-The Phase B7 task description in the user prompt listed
-`get_change_impact.change_type` as `{'content', 'delete', 'rename',
-'interface'}` — this conflicts with the authoritative Node.js source,
-which uses `{'signature', 'behavior', 'delete', 'rename'}`. The port
-follows the Node.js source (the stated parity rule in the task header)
-and the unit + parity test schema assertions both cover this.
-
-### Next
-
-- **B8** (`ee2_compliance`, 5 tools) — compliance analyzer; exercises
-  semantic search over the `ee2-standards-v5-0-0-enhanced` collection
-  and the `analyze_ee2_compliance` multi-category check battery.
-- Operator action: rebuild the `mdc_mcp_rag_server_python` staging
-  runtime with the new Dockerfile CMD and run the live parity suite
-  to validate the 9 new tools against live Neptune + OpenSearch +
-  SessionManager state.
-
-## [8.15.0] - Phase B6: CodeAnalysisTools Port (May 13, 2026)
-
-### Scope
-
-Task 9 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 6 Node.js
-CodeAnalysisTools to Python and extend the parity framework to cover them.
-All code under `mcp_server_python/`. No deployments, no ECR pushes, no
-changes to `mcp_server_node/` or the live AgentCore runtimes. This is B6,
-the first phase that drives a real workload through the B3 GGSRTraversal
-engine.
-
-### Tools Ported (`src/tools/code_analysis.py`, 1425 lines)
-
-All 6 tools; input schemas match `mcp_server_node/src/tools/CodeAnalysisTools.js`
-exactly (verified by unit test and a second assertion in the parity module):
-
-- `analyze_code_structure(file_path, include_dependencies=true, depth=2,
-  token_budget=4000)` — file overview (function + class counts),
-  per-symbol detail blocks, optional upstream/downstream dependency
-  listing, Related Queries hint, and a GGSR weighted-context section
-  when `token_budget > 0`.
-- `find_dependencies(target, direction='both', max_depth=3,
-  token_budget=4000)` — upstream / downstream import traversal plus a
-  circular-dependency probe when `max_depth > 1`. `direction` matches
-  the Node.js enum (`upstream | downstream | both`).
-- `trace_execution_path(function_name, file_path?, max_depth=3,
-  include_callers=false, include_weights=true, token_budget=4000)` —
-  call-chain traversal with entity-type auto-detection (function /
-  python / fortran / shell). Shell scripts follow SOURCES/INVOKES/
-  EXECUTES edges; code functions follow CALLS. Optional callers block.
-- `find_callers_callees(function_name, file_path?, include_source=false,
-  token_budget=4000, cross_language=false)` — fan-in / fan-out analysis
-  with a complexity score, optional cross-language section (Shell →
-  Fortran / Shell → Python) traversed via SOURCES/INVOKES/EXECUTES/
-  CALLS/USES/DEFINES edges. `cross_language=true` routes the GGSR
-  scoring through `BRIDGE_DECAY_OVERRIDE` (0.8) instead of the default
-  `HOP_DECAY` (0.5) so execution-bridge edges decay more slowly.
-- `trace_full_execution_chain(start, direction='forward', max_depth=5,
-  languages?)` — flagship cross-language tool; renders an indented
-  tree of reachable nodes with language tags and bridge markers.
-  Supports `direction='forward'|'reverse'|'both'` and optional
-  `languages=['shell','fortran','python']` filter applied after the
-  graph walk.
-- `find_env_dependencies(variable_name, show_exports=true, limit=50,
-  token_budget=4000)` — queries `DEPENDS_ON_ENV` / `EXPORTS` edges
-  against `EnvironmentVariable` nodes, groups dependents by script
-  type, surfaces EE2-standard / HOMEmodel flags from the metadata
-  node, and computes a LOW / MEDIUM / HIGH impact bucket.
-
-All tools return markdown `TextContent` matching the Node.js output
-shape (`# Heading`, `## Section`, numbered indented call chains,
-fan-in/fan-out table, etc.). Degraded-mode (data=None) returns clear
-`[ERROR]` messages per tool rather than crashing — identical contract
-to B5.
-
-### GGSR Integration (first real B3 workload)
-
-`trace_execution_path`, `find_callers_callees`, `analyze_code_structure`,
-`find_dependencies`, and `find_env_dependencies` all call
-`GGSRTraversal.budget_aware_neighborhood` via the shared
-`_render_ggsr_section` helper. Budget trimming, weight matrix scoring,
-and the ``BRIDGE_DECAY_OVERRIDE`` cross-language override are exercised
-end-to-end by the unit tests (`_apply_bridge_decay` direct assertions)
-and end-to-end by the 30 live-parity cases when `RUN_PARITY=1`.
-
-### Parity Framework Extensions (`tests/parity/test_code_analysis_parity.py`)
-
-- 8 hermetic tests always run (catalogue coverage, schema-parity
-  assertion against the Node.js source, 6 framework sanity / extractor
-  round-trip tests).
-- 30 live-parity parametrized cases (5 per tool × 6 tools) gated on
-  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`.
-- Reuses `AgentCoreToolCaller` from the B5 parity module via direct
-  import — no code duplication.
-- Per-tool projections match the response shape:
-  - `analyze_code_structure` — markdown headings (SET_EQUALITY) plus
-    Dependencies-section entry count (TOLERANCE ±10%, because Neptune
-    and Neo4j may return slightly different neighbour counts under
-    concurrent writers).
-  - `find_dependencies` — bulleted path list (SET_EQUALITY).
-  - `trace_execution_path` — ordered function-name sequence (EXACT —
-    execution order IS the parity key here).
-  - `find_callers_callees` — union of caller + callee sections
-    (SET_EQUALITY).
-  - `trace_full_execution_chain` — chain-node names (SET_EQUALITY),
-    extracted only from Direction subsections to ignore the
-    Statistics block.
-  - `find_env_dependencies` — script paths from the dependents list
-    (SET_EQUALITY).
-
-### Unit Tests (`tests/unit/test_code_analysis_tools.py`, 54 tests)
-
-Schema parity (names / required / defaults / enums); degraded-mode
-error-message shape for all 6 tools (parametrized); empty-argument
-validation (parametrized); per-tool happy-path rendering against
-`MockUnifiedDataAccess` with canned graph rows; `token_budget=0` /
-negative clamping; direct `_apply_bridge_decay` math test covering
-the EXECUTES/INVOKES → `BRIDGE_DECAY_OVERRIDE` re-scoring path and
-confirming regular CALLS edges are untouched; `languages` filter on
-`trace_full_execution_chain`; `max_depth` bounds (clamped to 5 for
-function-scope tools, 10 for `trace_full_execution_chain`); `limit`
-clamping on `find_env_dependencies` including a Node.js-parity note
-that `limit=0` falls back to the default 50 (matches
-`parseInt(limit, 10) || 50`); graph-error propagation; `_label_to_language`
-and `_clamp` helper tests.
-
-### Deployment Hook
-
-- `mcp_server_python/Dockerfile` CMD updated:
-  `--modules utility,semantic_search,code_analysis` (17 tools now boot
-  by default: 4 + 7 + 6).
-- No rebuild or push in this phase — operator will roll a new
-  `python-code-analysis-v1` tag to the staging runtime per the rebuild
-  instructions in `.kiro/steering/06-python-port-progress.md` when
-  ready to run the live parity suite.
-
-### Test Update
-
-- `tests/unit/test_mcp_server.py::test_initialize_degraded_mode_when_data_
-  access_missing` — previously used `code_analysis` as the "still
-  unported" fixture. Now that `code_analysis` IS ported it registers
-  successfully in degraded mode. The test now uses `ee2_compliance`
-  (alphabetically-next unported module after B6) as the
-  "should-fail-to-import" fixture.
-
-### Test Results
-
-- Full suite: 305 passed, 66 skipped (30 + 36 live-parity cases), 0
-  failed.
-- Hermetic parity tests: 8/8 passed by default.
-- Schema parity: all 6 tool schemas match Node.js parameter names,
-  required fields, defaults, and enum values (asserted twice — in the
-  unit suite and again in the parity module).
-
-### Next
-
-- **B7** (`graph_rag`, 9 tools) — will further exercise the GGSR
-  + GraphGuidedRetrieval pipeline from B3 on higher-level graph
-  semantics (change impact, data flow, session context).
-- Operator action: rebuild the `mdc_mcp_rag_server_python` staging
-  runtime with the new Dockerfile CMD and run the live parity suite
-  to validate the 6 new tools against live Neptune.
-
-## [8.14.0] - Phase B5: SemanticSearchTools Port (May 13, 2026)
-
-### Scope
-
-Task 8 from `.kiro/specs/python-mcp-server-port/tasks.md` — port the 7 Node.js
-SemanticSearchTools to Python and extend the parity framework to cover them.
-All code under `mcp_server_python/`. No deployments, no ECR pushes, no changes
-to `mcp_server_node/` or the live AgentCore runtimes.
-
-### Tools Ported (`src/tools/semantic_search.py`, 1566 lines)
-
-All 7 tools; input schemas match `mcp_server_node/src/tools/SemanticSearchTools.js`
-and the `UnifiedMCPServer.js` registrations exactly (verified by unit test):
-
-- `search_documentation(query, collection?, max_results=8, include_graph=true,
-  similarity_threshold=0.1)` — dual-mode: single-collection hybrid BM25+kNN
-  when `collection` is pinned, multi-collection fan-out otherwise. Optional
-  1-hop graph neighbour enrichment per hit.
-- `find_related_files(file_path, max_results=10, include_documentation=true)` —
-  resolves the seed file's IMPORTS/USES/SOURCES/INVOKES edges, then finds
-  other files sharing those modules.
-- `explain_with_context(topic, context_type='all', detail_level='intermediate')` —
-  collection selection from `context_type`, result count from `detail_level`
-  (basic=3 / intermediate=5 / advanced=8).
-- `get_knowledge_base_status(include_graph=true, include_vector=true)` — uses
-  the adapter's `health_check(deep=True)` path. Replacement for the currently-
-  failing Node.js tool; `opensearch-py` pools connections natively so the
-  `Max connection limit reached` failure mode should not repeat.
-- `list_ingested_urls(format='detailed', source_filter?)` — reads the bundled
-  `documentation_sources.json` baked into the image at
-  `src/config/documentation_sources.json`. Works in degraded-mode boot.
-- `get_ingested_urls_array(include_failed=false)` — same source, machine-
-  readable JSON output.
-- `check_knowledge_integrity(sample_size=50)` — Phase 43's four-check battery
-  (path consistency, orphaned graph nodes, stale embeddings, coverage gap)
-  using OpenSearch `scroll` sampling (no `get(limit, offset)` on OpenSearch,
-  so this diverges mechanically from the Node.js ChromaDB path while staying
-  outcome-equivalent).
-
-All tools return markdown `TextContent` matching the Node.js output shape.
-Degraded-mode (data=None) returns clear `[ERROR]` messages per tool rather
-than crashing.
-
-### Configuration
-
-- `src/config/documentation_sources.json` — copy of
-  `mcp_server_node/config/documentation_sources.json` (v8.1.0, 42 sources,
-  40 enabled) so the Docker image's `COPY src ./src` layer bakes it in.
-- Override via `MCP_DOCUMENTATION_SOURCES_PATH` env var. Developer fallback
-  searches the Node.js config too, so local dev keeps working without
-  duplication (TODO: drop this fallback once the Python runtime is the
-  only one).
-
-### Parity Framework Extensions (`tests/parity/test_semantic_search_parity.py`)
-
-- 6 hermetic tests always run (catalogue coverage, comparison-framework
-  sanity, extractor round-trip, HTTP-JSON-RPC caller importability).
-- 35 live-parity parametrized cases (5 per tool × 7 tools) gated on
-  `RUN_PARITY=1 NODEJS_RUNTIME_ID=... PYTHON_RUNTIME_ID=...`.
-- `AgentCoreToolCaller` class inlined — wraps `boto3.bedrock-agentcore.
-  invoke_agent_runtime` with SSE parsing, independent of the Kiro proxy
-  code so the test surface stays self-contained.
-- Per-tool projections match the response shape:
-  - `search_documentation` — top-5 Source fields, `EXACT` match (fulfills
-    the spec's 'top-5 document ID match' requirement).
-  - `find_related_files` — bulleted paths, `SET_EQUALITY`.
-  - `explain_with_context` — markdown headings, `SET_EQUALITY` (body text
-    varies between runtimes; section structure is the stable key).
-  - `get_knowledge_base_status` — numeric counts, `TOLERANCE` (±10% —
-    cluster state drifts between calls).
-  - `list_ingested_urls` — markdown headings, `EXACT`.
-  - `get_ingested_urls_array` — parsed JSON `enabled` array, `SET_EQUALITY`.
-  - `check_knowledge_integrity` — check row names, `SET_EQUALITY` + no-error
-    smoke assertion.
-
-### Deployment Hook
-
-- `mcp_server_python/Dockerfile` CMD updated:
-  `--modules utility,semantic_search` (11 tools now boot by default).
-- No rebuild or push in this phase — operator will roll a new
-  `python-semantic-v1` tag to the staging runtime per the rebuild
-  instructions in `.kiro/steering/06-python-port-progress.md` when
-  ready to run the live parity suite.
-
-### Test Update
-
-- `tests/unit/test_mcp_server.py::test_initialize_degraded_mode_when_data_
-  access_missing` — previously expected `semantic_search` registration to
-  fail because the module didn't exist; now expects it to succeed in
-  degraded mode (Requirement 1.7). `code_analysis` takes over as the
-  "still unported" fixture. Mirrors the contract utility met in B11.
-
-### Test Results
-
-- Full suite: 244 passed, 36 skipped (live-parity cases), 0 failed.
-- Hermetic parity tests: 6/6 passed by default.
-- Schema parity: all 7 tools match Node.js parameter names, required
-  fields, defaults, and enum values (asserted by unit test).
-
-### Next
-
-- **B6** (`code_analysis`, 6 tools) — will exercise the GGSRTraversal
-  engine from B3 under real workloads (`find_callers_callees`,
-  `trace_full_execution_chain`, graph-heavy queries).
-- Operator action: rebuild the `mdc_mcp_rag_server_python` staging
-  runtime with the new Dockerfile CMD and run the live parity suite
-  to validate the 7 new tools against Neptune + OpenSearch.
-
-## [8.13.0] - Phase B4 + Early B11: Parity Framework and Utility Tools Port (May 12, 2026)
-
-### Scope
-
-Tasks 7 and 17 from `.kiro/specs/python-mcp-server-port/tasks.md`:
-
-- **Task 7 (Phase B4)** — dual-server parity testing framework and shared test
-  fixtures.
-- **Task 17 (Phase B11)** — port of the 4 utility tools (`get_server_info`,
-  `mcp_health_check`, `get_health_trend`, `get_quality_metrics`).
-
-Task 6 is a checkpoint and was skipped (B3 landed at `1603b3e`). All code
-lives under `mcp_server_python/`. No changes to `mcp_server_node/`, no
-deployments, no ECR pushes, no AgentCore Runtime updates.
-
-### Sequencing Note — Task 17 Pulled Forward
-
-Task 17 is the **B11** utility-tool module in the linear spec, but it is being
-ported now — before Phase B5 (`semantic_search`) — because the first AgentCore
-Runtime smoke test for the Python server needs a minimal working tool set that
-does **not** depend on live Neptune / OpenSearch connectivity. The utility
-tools are the natural choice:
-
-- `get_server_info` works unconditionally.
-- `mcp_health_check` reports degraded state cleanly when the data layer is
-  absent, rather than crashing.
-- `get_health_trend` / `get_quality_metrics` read local JSONL files and have
-  no cloud dependency.
-
-This means the Python server can boot with `--modules utility` alone, pass
-the AgentCore Runtime health probe, and let the operator validate the
-streamable-HTTP transport, SigV4 entry path, and observability wiring in
-isolation before any production tool is exposed. Once the smoke test passes,
-subsequent phases (B5, B6, …) layer tools on top of the validated base.
-
-The rest of Phase B11 (`github_tools`, etc.) will be ported in their
-original slot.
-
-### Phase B4 — Parity Testing Framework (`tests/parity/`)
-
-- `tests/parity/parity_runner.py` (717 lines) — dual-server MCP parity
-  harness:
-  - `ComparisonMode` enum with three strategies: `EXACT` (ordered deep
-    equals, e.g. top-k document IDs), `SET_EQUALITY` (order-insensitive
-    `collections.Counter` multiset comparison that rejects duplicate
-    mismatches), `TOLERANCE` (element-wise relative delta with a
-    near-zero guard of `max(|x|, |y|, 1)`; default ±10% to match the
-    design's "relevance scores within 10%" requirement).
-  - `ParityRunner.assert_parity(tool_name, arguments, comparison,
-    id_extractor=…, name_extractor=…, score_extractor=…)` dispatches the
-    two tool calls concurrently via `asyncio.gather`, so latency is
-    `max(node_ms, python_ms)` rather than their sum. Extractor callbacks
-    let each tool project its response to the comparable subset without
-    forcing every tool to share a shape.
-  - `ParityResult` / `ParitySummary` / `ParityCase` dataclasses cover
-    per-call results, batch aggregation, and declarative test cases.
-  - `HTTPJSONRPCToolCaller` — minimal Streamable-HTTP client (lazy
-    `httpx` import) for wiring the framework against a live server.
-    Tests always inject mock callers via `build_mock_tool_caller` so
-    pytest runs offline.
-  - CLI entrypoint with `--nodejs-url`, `--python-url`, `--module`,
-    `--cases-file`, `--tolerance`, `--nodejs-header`, `--python-header`
-    (the last two support AgentCore bearer-token auth).
-  - Framework makes zero live HTTP calls by itself — the Python server
-    isn't deployed yet, so the framework lives idle until the first
-    smoke test.
-
-### Phase B4 — Shared Test Fixtures (`tests/conftest.py`)
-
-- `tests/conftest.py` extended from 20 lines to 521 lines:
-  - `SAMPLE_VECTOR_HITS` / `SAMPLE_GRAPH_ROWS` — canonical sample data
-    shaped to match `VECTOR_RESULT_KEYS` and the GGSR scorer's expected
-    row shape.
-  - `MockVectorDB` / `MockGraphDB` / `MockUnifiedDataAccess` —
-    dataclass-based doubles that structurally satisfy
-    `VectorDBProtocol` / `GraphDBProtocol`. Knobs: `hits`, `collections`,
-    `health`, `raise_on_query`. Every call is recorded on `call_log`
-    so tests can assert the adapter was reached with the expected
-    inputs. `MockGraphDB.add_response(fragment, rows)` registers
-    cypher-template-specific responses with longest-match wins.
-    `MockUnifiedDataAccess.health_check` composes adapter health with
-    a configurable `min_indices=5` guard matching the Node.js
-    `HealthChecker.checkDatabases` behaviour.
-  - `FakeClock` — monotonic ISO-8601 clock generator, injectable into
-    `SessionManager` and the utility tools for Hypothesis
-    reproducibility.
-  - `make_deterministic_id_factory(prefix, width)` — zero-arg ID
-    factory producing `{prefix}000001`-style tokens; replaces the
-    random-alnum default when tests need reproducible shrinks.
-  - `build_mock_tool_caller(responses, latency_ms, side_effect)` —
-    returns a `ParityRunner.ToolCaller`-compatible callable so parity
-    tests can exercise the framework without network.
-  - Fixtures: `sample_vector_hits`, `sample_graph_rows`,
-    `mock_vector_db`, `mock_graph_db`, `mock_data_access`,
-    `fake_clock`, `deterministic_id_factory`, `tmp_state_dir`,
-    `monotonic_wall_clock`.
-
-### Phase B11 — Utility Tools Module (`src/tools/utility.py`)
-
-- `src/tools/utility.py` (1010 lines) with a single public entry
-  `register(mcp, data, *, state_dir=None, server_version=None)` that
-  registers all 4 tools on the FastMCP instance. Input schemas match
-  the Node.js `UnifiedMCPServer.js` utility tool registrations exactly
-  (parameter names, types, defaults, enum values).
-
-- **`get_server_info(include_capabilities: bool = False) -> str`** —
-  reports server version (from `src.mcp_server.SERVER_VERSION`, lazy
-  import to avoid circular deps), live tool count (via
-  `mcp.list_tools()`), the list of registered tools, and the inferred
-  active-module set. `_infer_active_modules()` maps currently-registered
-  tool names back to the 9 canonical module names using the
-  authoritative tool-list from the Node.js server. When
-  `include_capabilities=True`, adds a block showing whether the data
-  access layer is connected or in degraded mode.
-
-- **`mcp_health_check(detailed: bool = False, deep: bool = False,
-  functional: bool = False) -> str`** — awaits `data.health_check(deep=…)`
-  when `data` is not `None`. Three overall states:
-  - `HEALTHY` — all component rows are `healthy`/`disabled`.
-  - `DEGRADED` — at least one row is `degraded` (e.g. vector DB has
-    fewer than `MIN_HEALTHY_INDICES=5` indices, or graph DB has 0
-    nodes).
-  - `UNHEALTHY` — a component raised or returned an error. The
-    `Data Access Layer` row is `disabled` when `data is None`
-    (first-deploy scenario), which keeps overall status `HEALTHY` so
-    the AgentCore Runtime's own health probe passes during the smoke
-    test.
-
-  `deep=True` persists a snapshot to `state_dir/health_history.jsonl`
-  in the Node.js-compatible schema:
-
-  ```json
-  {"timestamp": "2026-05-12T…Z", "source": "tool_call",
-   "neo4j": {"status": "ok", "nodes": N, "relationships": R, "latency_ms": L},
-   "chromadb": {"status": "healthy", "collections": C, "total_docs": D, "latency_ms": L},
-   "drift": {"neo4j_node_delta": D1, "chromadb_doc_delta": D2}}
-  ```
-
-  Drift is computed against the last line of the file.
-
-- **`get_health_trend(limit: int = 10) -> str`** — reads
-  `state_dir/health_history.jsonl`, tails the last `limit` entries,
-  renders a markdown table with per-snapshot node / relationship /
-  doc / collection / drift counts, then computes count-increase/
-  decrease trend lines, average + delta latency trend, and flags any
-  consecutive-snapshot change exceeding `HEALTH_ANOMALY_PCT=0.10`
-  (the same 10% threshold as the Node.js implementation).
-
-- **`get_quality_metrics(category: Literal[6 enum values] | None =
-  None, compare: bool = False) -> str`** — reads
-  `state_dir/quality_metrics.jsonl` (one benchmark snapshot per line).
-  Renders Overall table (Precision@5, Recall@5, MRR, Coverage, P50,
-  P95) plus per-category breakdown. When `compare=True` and at least
-  two snapshots exist, renders a regression table with
-  `[IMPROVED]` / `[DEGRADED]` tags (lower-is-better logic for
-  `latency_*` metrics). `category` filter narrows both the category
-  table and the regression block.
-
-  > *Note:* the Python port expects a JSONL file, one snapshot per
-  > line. The Node.js original reads a directory of JSON files
-  > (`mcp_server_node/test/benchmark/results/*.json`). If strict
-  > parity is required for this tool in Phase B4 parity tests, the
-  > test fixture will consolidate the directory into a JSONL
-  > on-the-fly — documented in the follow-ups of
-  > `sdd_framework/execution_state/phase_b4_b11_session.json`.
-
-- State-directory resolution precedence: explicit `state_dir` argument
-  → `SDD_STATE_DIR` environment variable → `sdd_framework/execution_state`
-  default. Matches the precedence already used by
-  `src.sdd.session_manager.SessionManager`.
-
-### Tests
-
-- `tests/unit/test_parity_runner.py` (449 lines, 31 tests) — every
-  comparison mode, every extractor path, exception-side divergence
-  reporting, `run_cases` with `--module` filter, `ParitySummary`
-  rendering, CLI helper functions (`_parse_headers`, `_load_cases`),
-  and a concurrency assertion (both mock callers with 50ms latency
-  complete in < 90ms when dispatched in parallel).
-- `tests/unit/test_conftest_mocks.py` (239 lines, 28 tests) — protocol
-  compliance for both mock adapters, query filtering, retry-on-error,
-  multi-collection merge, call-log tracking, `MockUnifiedDataAccess`
-  health composition (healthy / few-indices / empty-graph / deep-flag
-  forwarding).
-- `tests/unit/test_utility_tools.py` (610 lines, 38 tests) — schema
-  parity (parameter names, bool defaults, limit default, enum values
-  via `anyOf[0].enum` since `Literal | None` becomes
-  `anyOf: [{enum: […]}, {type: null}]` under FastMCP); `get_server_info`
-  (version, tool count, tool list, active-module inference, capability
-  block); `mcp_health_check` (healthy, degraded variants, data-raises
-  path, deep-flag snapshot persistence, drift vs prior, non-deep does
-  not write, functional-flag messaging); `get_health_trend` (no file,
-  empty file, tail-N table, anomaly detection at >10%, stable message,
-  single-snapshot skips trend section, invalid limit rejected);
-  `get_quality_metrics` (missing file, empty file, overall + category
-  rendering, category filter, no-match, compare without prior,
-  regression table); state-dir resolution precedence;
-  `_infer_active_modules`.
-- Pre-existing `test_initialize_degraded_mode_when_data_access_missing`
-  updated — it previously asserted "no modules register in degraded
-  mode" on the assumption that `semantic_search` and `utility` were
-  both unported. Now `utility` registers successfully (the deliberate
-  Phase B11 sequencing), so the test was tightened to assert
-  `semantic_search.registered is False` *and* `utility.registered is
-  True`. This is the correct behaviour for the first-deploy smoke-test
-  scenario.
-
-**Test run summary** (`python3.12 -m pytest tests/`):
-
-- Task 7: **59 / 59** new tests passed (31 parity + 28 mock).
-- Task 17: **38 / 38** utility tool tests passed.
-- Full suite: **195 / 195** passed (157 before Task 17 + 38 new).
-- 0 failures, 0 skipped. Run time ~5 seconds.
-
-### Files Added
-
-- `mcp_server_python/tests/parity/parity_runner.py` (717 lines)
-- `mcp_server_python/src/tools/utility.py` (1010 lines)
-- `mcp_server_python/tests/unit/test_parity_runner.py` (449 lines)
-- `mcp_server_python/tests/unit/test_conftest_mocks.py` (239 lines)
-- `mcp_server_python/tests/unit/test_utility_tools.py` (610 lines)
-- `sdd_framework/execution_state/phase_b4_b11_session.json` — side-carried
-  completion record for this phase.
-
-### Files Updated
-
-- `mcp_server_python/tests/conftest.py` — extended from 20 → 521 lines
-  with the mock-adapter + fixture library described above.
-- `mcp_server_python/tests/unit/test_mcp_server.py` — one test updated to
-  reflect the deliberate Task 17 early-port sequencing.
-- `sdd_framework/execution_state/history.jsonl` — appended 6 events for
-  the B4+B11 lifecycle (1 × `started`, 4 × `step_completed`, 1 ×
-  `completed`), all round-trippable via `SessionManager.get_history`.
-
-### Files Not Touched
-
-- `mcp_server_node/` (the running production server, still on Node.js).
-- `.kiro/settings/mcp.json` (the active MCP registration).
-- AgentCore Runtime (`mdc_mcp_rag_server-TMXDllG2Wi`) — still on version 7.
-- `sdd_framework/execution_state/active_session.json` — belongs to the
-  unrelated phase56 session (blocked on user approval).
-- Neptune and OpenSearch (no queries, no writes).
-
-### Next
-
-- Task 8 (Phase B5, `semantic_search`) is the next module in the linear
-  port order. The Task 7 parity framework will validate it against the
-  Node.js baseline once the Python server is deployed to a staging
-  AgentCore Runtime.
-- Before continuing the module ports, the operator should (a) build the
-  AgentCore Runtime container with the `utility` module registered,
-  (b) push to ECR, (c) update the AgentCore Runtime to point at the new
-  image, (d) run the first smoke test: `mcp_health_check({})` via the
-  live proxy, expecting overall status `HEALTHY` with `Data Access Layer:
-  disabled` and the two utility-tool rows green. These steps are
-  explicitly out of scope for this session per the user's instruction
-  ("do not deploy anything").
-
-### Post-Commit Smoke Test — Deployed 2026-05-12T23:54Z
-
-Following the `[8.13.0]` code landing, the utility-only image was built,
-pushed to ECR, and deployed to a **new** staging AgentCore Runtime named
-`mdc_mcp_rag_server_python` (ID `mdc_mcp_rag_server_python-v5K2F8BGrN`).
-The production Node.js runtime (`mdc_mcp_rag_server-TMXDllG2Wi` v10) was
-not modified.
-
-**Deployment artefacts:**
-- Image URI: `903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:python-utility-v1`
-- Final manifest digest (v2): `sha256:f02782c9b2cffe990878d9b478e2ca81fb5b5105d52493b94f538e2e104d6c7a`
-- Runtime ARN: `arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN`
-- Runtime version: `v2` (v1 was the initial deploy with FastMCP stateful
-  mode; v2 after the stateless fix described below)
-- VPC config: 2 subnets (`subnet-0e13af6b3a9a6416f` us-east-1a,
-  `subnet-04447750c61bd7e06` us-east-1b), `sg-096489a0876cc78c1`.
-- Lifecycle: 900 s idle, 28800 s max (matches Node.js runtime).
-
-**Build + deploy timing:**
-| Step | Duration |
-|---|---|
-| `docker build --platform linux/arm64` (v1) | 124 s |
-| `docker push` (v1) | 16 s |
-| `CreateAgentRuntime` → READY | 12 s |
-| Rebuild after stateless fix | 78 s |
-| Repush (v2) | 15 s |
-| `UpdateAgentRuntime` v1 → v2 → READY | 18 s |
-
-**Root-cause finding during the deploy (captured because it affects
-the code shipped in `[8.13.0]`):** FastMCP's `streamable-http` transport
-in version 3.2.4 defaults to **stateful** mode, which generates its own
-`Mcp-Session-Id` on initialize and rejects any other session ID with
-HTTP 400. AgentCore Runtime, per the [MCP protocol contract](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-mcp-protocol-contract.html),
-generates its **own** `Mcp-Session-Id` per request and expects the
-server to accept it. The 400 bubbles up as a 500-class error
-(`-32010 "Received error (500) from runtime"`). Fix in
-`mcp_server_python/src/mcp_server.py`:
-
-- `mcp.run(..., stateless_http=True)` is now the default.
-- An `MCP_STATELESS_HTTP=false` environment variable opts back into
-  stateful mode for local development that exercises multi-turn
-  elicitation / sampling.
-- 195/195 pytest suite still passes with the change.
-
-This change is an additive edit to the `[8.13.0]` ship — it is required
-to make the port deployable on AgentCore and is not a behaviour change
-for local unit tests.
-
-**Smoke-test results (verbatim):**
-
-`mcp_health_check({})` →
-
-```markdown
-# Server Health Check
-
-**Overall Status**: HEALTHY (2/3 components healthy)
-
-[OK] **Base Server**: healthy
-[OK] **Utility Tools**: healthy
-[OFF] **Data Access Layer**: disabled - No data access layer (degraded-mode boot)
-```
-
-`get_server_info({})` →
-
-```markdown
-# MDC MCP/RAG Server v1.0.0
-
-**Total Tools**: 4
-**Active Modules**: 1 of 9
-
-## Active Modules
-- `utility`
-
-## Registered Tools
-- `get_health_trend`
-- `get_quality_metrics`
-- `get_server_info`
-- `mcp_health_check`
-```
-
-Both match the documented acceptance criteria for a degraded-mode
-(utility-only) boot. Full report at
-`docs/reports/2026-05-12-python-server-smoke-test.md`. Progress log at
-`.kiro/steering/06-python-port-progress.md`.
-
-**Not touched during the deploy:** `mcp_server_node/`,
-`.kiro/settings/mcp.json` (still points at the Node.js runtime until the
-operator manually flips it), the ECR `latest` / `agentcore-v8` /
-`agentcore` tags, the Node.js runtime, Neptune, or OpenSearch.
-
-## [8.12.0] - Phase B3: GGSR Traversal Engine and SDD Session Manager (May 12, 2026)
-
-### Scope
-
-Tasks 4 and 5 from `.kiro/specs/python-mcp-server-port/tasks.md` — the GGSR traversal
-engine and the SDD session manager. Task 3 is a checkpoint and was skipped (Tasks 1
-and 2 landed previously at `4e235d4` and `dc293c0` on `develop_aws`). Continues the
-Python port of the Node.js MCP server. All code lives under `mcp_server_python/`.
-
-Additive only. No changes to `mcp_server_node/`, no deployments, no ECR pushes, no
-AgentCore Runtime updates. The active `phase56` session (blocked on user approval for
-ECR rotation) is unaffected.
-
-### Phase B3 — GGSR Traversal Engine (`src/graphrag/`)
-
-- `src/graphrag/ggsr_traversal.py` (387 lines) — `GGSRTraversal` class with:
-  - `WEIGHT_MATRIX` (27 relationship types copied verbatim from Node.js
-    `GGSRTraversalPrototypes.js` `RELATIONSHIP_WEIGHTS`): `CALLS=1.0`,
-    `EXECUTES=1.0`, `SOURCES=0.95`, `INVOKES=0.9`, `CALLED_BY=0.9`,
-    `DEPENDS_ON=0.8`, `DEPENDS_ON_ENV=0.8`, `IMPORTS=0.7`, `USES=0.7`,
-    `INHERITS=0.7`, `DEFINES=0.65`, `PROVIDED_BY=0.6`, `EXPORTS=0.6`,
-    `DOC_REFERENCES=0.6`, `DOC_DESCRIBES=0.55`, `TRANSITIVELY_DEPENDS=0.5`,
-    `HAS_METHOD=0.5`, `CONTAINS=0.5`, `SETS=0.5`, `DOCUMENTED_BY=0.4`,
-    `SAME_DIRECTORY=0.4`, `BUILT_BY=0.35`, `BUILD_ORCHESTRATES=0.35`,
-    `REQUIRES_VERSION=0.3`, `AUTHORED=0.3`, `AUTHORED_BY=0.3`,
-    `CONTRIBUTED_TO=0.3`. Unknown edges fall back to `DEFAULT_WEIGHT=0.3`.
-  - `HOP_DECAY = 0.5`; score formula `weight × HOP_DECAY^hop_distance`.
-  - `BRIDGE_DECAY_OVERRIDE = 0.8` for cross-language bridge hops.
-  - `budget_aware_neighborhood(entity, token_budget, max_results, hops, min_weight)`
-    for 1- or 2-hop retrieval against any `GraphDBProtocol` adapter.
-  - `_score_results`: scores every record then sorts descending.
-  - `_trim_to_budget`: greedy prefix that stops before exceeding the token budget.
-  - `_multi_hop_query`: Neptune-compatible Cypher (`toLower($baseName) CONTAINS`,
-    no regex operators).
-  - `GGSRScoredResult` dataclass for tool-layer consumption.
-- `src/graphrag/graph_guided_retrieval.py` (284 lines) — `GraphGuidedRetrieval`
-  combining GGSR traversal with vector search:
-  - `get_code_context(entity, …)` runs graph neighbourhood + semantic enrichment
-    in parallel via `asyncio.gather` (equivalent to `Promise.all` in the Node.js
-    source).
-  - `GGSRRetrievalResult(entity, ggsr_results, semantic_hits, metadata)` return type.
-  - Degrades gracefully when no `vector_db` is wired in (`semantic_available=False`).
-  - `retrieve` kept as an alias of `get_code_context` for Node.js naming parity.
-  - Query classification and community summaries from the full JS version are
-    deferred to Phase B7 (GraphRAGTools port).
-
-Note on weight values: the initial B3 implementation followed an abbreviated
-9-type matrix and `HOP_DECAY=0.6` that were incorrectly stated in the spec
-tasks.md. Pre-commit review against the authoritative Node.js source corrected
-the matrix to all 27 types and `HOP_DECAY=0.5`; `.kiro/specs/python-mcp-server-port/tasks.md`
-and `design.md` have been updated to match for future phases.
-
-### Phase B3 — SDD Session Manager (`src/sdd/`)
-
-- `src/sdd/session_manager.py` (814 lines) — `SessionManager` class with:
-  - Injectable `state_dir`, `clock`, and `id_factory` for testability; defaults
-    mirror the Node.js path conventions and `Math.random().toString(36).substr(2, 6)`
-    ID shape.
-  - Data models as dataclasses: `SDDSession`, `SDDStep`, `FileModification`,
-    `ExaminedSymbol`, `Checkpoint` — camelCase fields for byte-compat with the
-    existing `active_session.json` on disk.
-  - Lifecycle: `start_session`, `record_step`, `complete_session`, `abandon_session`,
-    `resume_session`.
-  - State tracking: `examine_symbol` (dedup, silent on no-session), `mark_modified`,
-    `checkpoint_state`, `restore_checkpoint` (restores `examined` + `modifications`
-    from the snapshot).
-  - Readers: `get_session_state`, `get_session_context`, `get_history` with
-    phase-substring / event-name / limit filters.
-  - Static `serialize_session` / `deserialize_session` for Property 11 round-trip.
-  - `threading.Lock` guards all disk mutations (FastMCP can dispatch handlers on a
-    thread pool; the Node.js server was single-threaded).
-  - JSONL event names match `mcp_server_node/src/sdd/SessionManager.js`: `started`,
-    `step_completed`, `file_modified`, `symbol_examined`, `checkpoint_created`,
-    `checkpoint_restored`, `completed`, `abandoned`, `resumed`.
-- Constants exported: `VALID_TAGS` (7 semantic tags), `VALID_CHANGE_TYPES` (4 change
-  types), `STATUS_ACTIVE` / `STATUS_COMPLETED` / `STATUS_ABANDONED`, `SessionError`.
-
-### Tests
-
-**Property tests** (Hypothesis, `tests/properties/`):
-- `test_ggsr_props.py` (294 lines, 11 tests) — Property 9 decomposed into eight
-  sub-properties: exact score formula for known edges, descending sort order,
-  `DEFAULT_WEIGHT` fallback for unknown edges, hop-2 score ≤ hop-1 for the same edge
-  (exact `HOP_DECAY` ratio), trim never exceeds budget, trim is a prefix (no
-  reordering), larger budget keeps at least as many rows, all known edges produce
-  finite scores in (0, 1]. Plus edge cases: empty input, zero budget, `hop_distance<1`
-  clamped to 1. Up to 150 Hypothesis examples per property.
-- `test_sdd_session_props.py` (370 lines, 4 tests × up to 60 examples each) —
-  Properties 10 and 11: examined dedup and first-seen ordering, modifications
-  duplicate preservation, `restore_checkpoint` reverts state for any mix of
-  pre/post operations, full lifecycle serialize/deserialize round-trip for all
-  three terminal states (complete/abandon/still-active). Key gotcha: the initial
-  function-scoped fixture leaked active sessions across Hypothesis examples;
-  resolved by creating a fresh `SessionManager` + `tempfile.TemporaryDirectory`
-  per iteration in a `try/finally`.
-
-**Unit tests** (`tests/unit/test_session_manager.py`, 538 lines, 37 tests):
-- Initialization (recursive state dir + checkpoints subdir creation).
-- `start_session` (file write shape, history event, double-start rejection,
-  empty-phase rejection).
-- `record_step` (append, `currentStep` watermark, duplicate step rejected,
-  no-session raises, unknown tag accepted with log warning, empty tag defaults
-  to `implement`, history event emitted).
-- `examine_symbol` / `mark_modified` (dedup, silent-on-no-session, every-call
-  appended even for same path, `file_path` required, unknown `changeType` warning).
-- `checkpoint_state` / `restore_checkpoint` (snapshot JSON written with full
-  pre-state copies, restore reverts only `examined` + `modifications`, unknown
-  checkpoint id raises `SessionError`).
-- `complete_session` / `abandon_session` (status set, active file removed, history
-  event includes `duration` / `reason`).
-- `resume_session` across a fresh `SessionManager` instance (simulates server
-  restart).
-- JSONL format parity: full 7-event lifecycle written one-object-per-line, every
-  event has `sessionId` + `phase` + Z-suffix timestamp, matching the Node.js
-  `SessionManager.js` writer.
-- `active_session.json` top-level keys match Node.js; optional lifecycle fields
-  (`completedAt`, `abandonedAt`, `summary`, `abandonReason`) are omitted from the
-  JSON until the matching transition happens.
-- `get_history` event / phase-substring / limit filters.
-- `serialize_session` / `deserialize_session` round-trip preserves all fields;
-  unknown keys ignored for forward-compat; non-object JSON rejected with
-  `ValueError`.
-- Thread safety smoke test: 10 concurrent `record_step` calls produce exactly
-  steps 1..10 with no corruption (guard on `threading.Lock`).
-
-**Test run summary** (`python3.12 -m pytest tests/`):
-- Task 4: **11 / 11** GGSR property tests passed.
-- Task 5: **41 / 41** SDD tests passed (4 property + 37 unit).
-- Full suite: **98 / 98** passed (57 pre-existing from Phase B1–B2 + 41 new).
-- 0 failures, 0 skipped. Run time ~4 seconds.
-
-### What This Enables
-
-- Phase B3 of the spec is complete. The GGSR engine and SDD session manager are
-  both ready to be wired into the tool layer that starts in Phase B5.
-- Any Phase B5+ tool module that needs a graph neighbourhood can now call
-  `GGSRTraversal.budget_aware_neighborhood` or
-  `GraphGuidedRetrieval.get_code_context`.
-- The SDD tool module (Phase B10) can delegate directly to `SessionManager` with
-  no additional translation layer — the on-disk JSON / JSONL shapes are already
-  Node.js-compatible.
-
-### Files Added
-
-- `mcp_server_python/src/graphrag/ggsr_traversal.py` (387 lines)
-- `mcp_server_python/src/graphrag/graph_guided_retrieval.py` (284 lines)
-- `mcp_server_python/src/sdd/session_manager.py` (814 lines)
-- `mcp_server_python/tests/properties/test_ggsr_props.py` (294 lines)
-- `mcp_server_python/tests/properties/test_sdd_session_props.py` (370 lines)
-- `mcp_server_python/tests/unit/test_session_manager.py` (538 lines)
-- `sdd_framework/execution_state/phase_b3_session.json` (renamed from
-  `phase_b1_b2_session.json`; populated with the full B3 completion record)
-
-### Files Updated
-
-- `mcp_server_python/src/graphrag/__init__.py` — re-exports `GGSRTraversal`,
-  `GraphGuidedRetrieval`, etc.
-- `mcp_server_python/src/sdd/__init__.py` — re-exports `SessionManager`,
-  dataclasses, constants.
-- `sdd_framework/execution_state/history.jsonl` — appended 8 events for the B3
-  lifecycle (`started`, 6 × `step_completed`, `completed`). Also repaired one
-  newline-less concatenation between the trailing `phase56` step-8 line and the
-  first B3 line; two older concatenations (lines 329 and 341, from pre-B1
-  Node.js writes) were left in place as out-of-scope.
-
-### Files Not Touched
-
-- `mcp_server_node/` (the running production server, still on Node.js).
-- `.kiro/settings/mcp.json` (the active MCP registration).
-- AgentCore Runtime (`mdc_mcp_rag_server-TMXDllG2Wi`) — still on version 7.
-- `sdd_framework/execution_state/active_session.json` (belongs to `phase56`,
-  blocked on user approval; untouched).
-- Neptune and OpenSearch (no queries, no writes).
-
-### Next
-
-- Task 6 is a checkpoint — user should review before proceeding.
-- Tasks 7+ belong to Phase B4 (parity testing framework) and Phases B5–B11
-  (per-module tool ports).
-
-## [8.11.0] - Phase B1–B2: Python MCP Server Port Foundation (May 12, 2026)
-
-### Scope
-
-Initial scaffolding and database adapter layer for the Python port of the Node.js MCP
-server (spec: `.kiro/specs/python-mcp-server-port/`). The Node.js server
-(`mcp_server_node/`) continues to run production unchanged. All Python code lives under
-`mcp_server_python/`.
-
-This phase is additive and does not modify, redeploy, or replace any running system.
-
-### Phase B1 — Project Scaffolding (`mcp_server_python/`)
-
-- New directory tree: `src/`, `src/config/`, `src/data/`, `src/graphrag/`, `src/tools/`,
-  `src/sdd/`, `src/agents/`, `tests/unit/`, `tests/parity/`, `tests/properties/`
-- `pyproject.toml` with pinned runtime dependencies: `fastmcp==3.2.4`,
-  `opensearch-py==3.2.0`, `boto3==1.42.70`, `strands-agents==1.39.0`,
-  `opentelemetry-api==1.41.1`, and test extras (`pytest==8.4.2`, `hypothesis==6.152.2`).
-  Python 3.12+ required.
-- `Dockerfile` (ARM64, Python 3.12, port 8000) for future AgentCore Runtime deployment.
-- `.bedrock_agentcore.yaml` for `agentcore deploy` (placeholder — not deployed).
-- `README.md` describing the port strategy and local dev workflow.
-
-### Phase B1 — Environment Configuration
-
-- `src/config/environment.py` — `load_config()` returning a `ServerConfig` dataclass
-  with validated fields for `DB_BACKEND` (aws|legacy), Neptune/OpenSearch/ChromaDB
-  endpoints, port range, enabled modules, and SDD state directory.
-- `src/config/aws_config.py` — region and endpoint defaults for AWS managed services.
-- Raises `ValueError` on invalid port, unknown module name, or non-numeric ChromaDB port.
-
-### Phase B1 — FastMCP Server Entrypoint
-
-- `src/mcp_server.py` — `build_server()` factory, async `initialize()` that connects
-  adapters, and module-based tool registration loop.
-- Degraded mode: catches adapter init failures, logs, and continues with available
-  tools rather than crashing.
-- CLI flags: `--modules` (comma-separated whitelist), `--log-level`.
-- `KNOWN_MODULES` covers all 9 tool module names from the Node.js server.
-
-### Phase B2 — Database Adapter Protocols
-
-- `src/data/protocols.py` — `VectorDBProtocol` and `GraphDBProtocol` as Python
-  `typing.Protocol` classes matching the method signatures of the Node.js adapters:
-  `connect`, `query`, `multi_collection_query`, `health_check`, `close` (vector);
-  `connect`, `query`, `health_check`, `close` (graph).
-
-### Phase B2 — OpenSearch Adapter
-
-- `src/data/opensearch_adapter.py` — async wrapper over `opensearch-py` implementing
-  `VectorDBProtocol`. SigV4 auth via `aws_backend.py` helpers.
-- Hybrid BM25 + k-NN query construction with RRF fusion.
-- Supports all 5 production mpnet768 indices.
-- Exponential backoff retry (max 3, 1s → 2s → 4s) on HTTP 429 / 5xx.
-
-### Phase B2 — Neptune Adapter
-
-- `src/data/aws_backend.py` — SigV4 HTTP adapter for Neptune's openCypher endpoint
-  (port 8182), replacing the Node.js Bolt driver approach.
-- Parameterized queries, session context manager, retry on 429/500/503 and
-  ConcurrentModificationException.
-- Record format parity with Node.js `NeptuneAdapter._recordToObject`.
-
-### Phase B2 — UnifiedDataAccess + Backend Selector
-
-- Facade exposing `hybrid_search()`, `graph_query()`, `health_check()` over both
-  adapters. Backend selector routes to aws or legacy per `DB_BACKEND` env var.
-
-### Tests
-
-46 unit tests passing (`python3.12 -m pytest tests/`):
-- 17 tests covering `environment.py` (env var parsing, defaults, validation errors,
-  module whitelist, legacy backend routing).
-- 15 tests covering `mcp_server.py` (arg parsing, module filtering, registration,
-  degraded mode initialization).
-- Additional coverage for config and data modules.
-
-Property tests (Hypothesis) for Properties 2–7 are scaffolded in `tests/properties/`
-and will be filled in as adapters are exercised against live backends.
-
-### What This Enables
-
-- Python server can be imported and configured locally; `build_server()` returns a
-  FastMCP instance ready for tool registration.
-- Adapters can query the same Neptune + OpenSearch the Node.js server uses,
-  read-only, with no state changes.
-- Next phase (B3) adds GGSR traversal and SDD session manager, then B4 adds the
-  parity test framework before porting any user-facing tools.
-
-### Files Added
-
-- `mcp_server_python/` (new directory, ~20 files)
-- `sdd_framework/execution_state/phase_b1_b2_session.json`
-- `.gitignore` entry for `.hypothesis/`
-
-### Files Not Touched
-
-- `mcp_server_node/` (the running production server)
-- `.kiro/settings/mcp.json` (the active MCP registration)
-- AgentCore Runtime (`mdc_mcp_rag_server-TMXDllG2Wi`) — still on version 7
-- Neptune and OpenSearch (no writes)
-
-## [8.10.0] - Phase 56: OpenSearch Connection Pool Exhaustion Fix (May 12, 2026)
-
-### Problem
-
-On May 11-12, 2026, `get_knowledge_base_status` and all vector-backed tools began failing with:
-```
-Error getting status: "Unexpected server exception 'Max connection limit reached. Limit = 1000'"
-```
-
-Root cause: each AgentCore microVM instantiated `@opensearch-project/opensearch` `Client()` with no
-HTTP agent configuration, so HTTPS connections accumulated unbounded. Multiple microVMs (spawned
-by Kiro cold-start/reconnect cycles) each left dangling sockets until their 900s idle-timeout
-reaper ran, collectively exceeding the OpenSearch cluster's hard 1000-connection limit.
-
-This is the same class of bug fixed for Neptune in commit `6ad5094` (May 6, 2026). The Neptune
-fix reduced the Bolt pool from 50→10 and added `stop_session()` cleanup to test scripts.
-
-### Fixes Applied
-
-#### `mcp_server_node/src/data/adapters/OpenSearchAdapter.js`
-- Added `node:https` `Agent` import and `poolConfig` constructor option with defaults:
-  `maxSockets: 10`, `maxFreeSockets: 5`, `keepAlive: true`, `keepAliveMsecs: 30000`,
-  `socketTimeout: 60000` (matches Neptune `maxConnectionPoolSize: 10`).
-- `connect()` now wires a bounded `HttpsAgent` into the OpenSearch `Client`, capping
-  concurrent HTTPS sockets per microVM at 10.
-- `close()` was previously a no-op — now properly awaits `client.close()` to flush
-  pending requests and calls `agent.destroy()` to release every socket in the pool.
-  Both calls are wrapped in try/catch so teardown never throws.
-
-#### `mcp_server_node/src/mcp-agentcore-entrypoint.js`
-- Added `gracefulShutdown(signal)` handler wired to `process.on('SIGTERM')` and
-  `process.on('SIGINT')`. On signal: stops accepting new HTTP requests, then calls
-  `sharedDataAccess.close()` — which closes both NeptuneAdapter.driver and
-  OpenSearchAdapter (now properly releasing its socket pool).
-- 5s timeout guard prevents hang if close() stalls — AgentCore sends SIGKILL shortly
-  after SIGTERM on microVM idle-timeout.
-- Converted `httpServer` from `const` inside `createServer` to an outer-scope `let`
-  so the shutdown handler can reach it.
-
-#### `tools/agentcore-kiro-proxy.py`
-- Added `AgentCoreClient.stop_session()` method that calls `stop_runtime_session`
-  on the bedrock-agentcore control plane, terminating the microVM (and its
-  Neptune + OpenSearch connection pools) immediately rather than waiting for the
-  900s idle timeout.
-- Wrapped `main()` message loop in `try/finally` so `stop_session()` is called on
-  any exit path: SIGTERM, SIGINT, EOF on stdin, uncaught exception.
-- Without this, every Kiro restart/disconnect left a live microVM for the full
-  900s idle timeout, each holding pooled connections — a secondary leak source.
-
-#### `tools/mcp-parity-test.py`
-- Unchanged in this phase (already compliant from Neptune fix `6ad5094`).
+## [Unreleased] - Phase 55 SDD draft (May 14, 2026)
+
+Drafted [sdd_framework/workflows/phase55_log_triage_tooling_gaps.md](sdd_framework/workflows/phase55_log_triage_tooling_gaps.md)
+consolidating 7 tool-quality gaps surfaced by the 2026-05-14 PR #4575
+log-triage exercise (G1 bash function modelling, G2 GitHub search filter,
+G3 `full_drift_scan` mode, G4 incident-report corpus + retrieval, G5
+`trace_execution_path.from_file` semantics, G6 `find_related_files`
+similarity floor, G7 bash `${VAR:-default}` env extraction). Status: In
+Progress. Origin evidence: [docs/log_reviews/PR4575_gcdas_fcst_seg0_failure_analysis.md](docs/log_reviews/PR4575_gcdas_fcst_seg0_failure_analysis.md).
+
+## [8.5.0] - Phase 48 Local-First Doc Migration cutover (May 14, 2026)
+
+Replaces three URL crawls with on-disk submodule reads and adds the
+`global-workflow.wiki` as net-new coverage. Live docs collection promoted
+from `global-workflow-docs-v8-1-0` (20,511 chunks) to
+**`global-workflow-docs-v8-2-0` (23,624 chunks, +3,113 net)**.
+
+### New collection (live)
+- `global-workflow-docs-v8-2-0`: clone of v8-1-0 with deprecated URL chunks
+  filtered out (517 skipped: `global-workflow`=219, `ecflow`=298, `rocoto`=0)
+  + 3,630 local-source chunks added in a single pass:
+  - `global-workflow-local`: 21 .rst files → **259 chunks**
+  - `rocoto-local`: 3 markdown + 7 roff manpages → **83 chunks**
+    (manpages rendered via `groff -mandoc -Tutf8`)
+  - `ecflow-local`: 393 .rst files (8 empty skipped) → **1,529 chunks**
+  - `global-workflow-wiki`: 108 markdown files → **1,759 chunks**
+    (net-new, never URL-crawled before)
+- Each chunk carries `source_type=local`, `submodule`, `submodule_commit`,
+  and repo-relative `file_path` for drift detection.
+
+### SPOT changes
+- `scripts/documentation_sources_config.py`:
+  added `LOCAL_DOCUMENTATION_SOURCES` (4 entries) +
+  `get_all_local_sources`, `get_local_source`,
+  `get_url_names_replaced_by_local`, `is_local_source` helpers.
+  Flipped `enabled: False` on URL entries `global-workflow`, `rocoto`,
+  `ecflow` with `SUPERSEDED by *-local (Phase 48)` descriptions.
+- New `scripts/lib/doc_parsers.py` registry: `sphinx_rst`, `markdown`,
+  `wiki_markdown` (handles `[[Page-Name|Display]]` linkrot), `plain_text`,
+  `yaml`, plus an extension-override dispatch to `parse_roff_man_file` for
+  `.1/.2/.3/.5/.7/.8` manpages.
+- New `scripts/ingest_local_docs_v8.py`: walks `paths` lists, dispatches via
+  `PARSER_REGISTRY` + `EXTENSION_OVERRIDES`, dedupes by SHA256-of-content,
+  upserts in batches of 100. Metadata schema includes both `source_name` and
+  `source` alias for back-compat with existing JS query patterns.
+- New `scripts/clone_collection_v8_1_to_v8_2.py`: pages v8-1-0 in batches of
+  500, drops chunks whose `source` ∈ deprecated set, upserts kept rows
+  (ids + docs + embeddings + metadatas) into v8-2-0 created with the
+  matching MPNet `SentenceTransformerEmbeddingFunction` so the persisted
+  embedding-fn config matches the local-ingest pass.
+
+### Live tool cutover (only `global-workflow-docs` collection — `jjobs-v8-1-0` unchanged)
+- `src/data/UnifiedDataAccess.js`: default + multi-source list +
+  module-doc query path → `v8-2-0`.
+- `src/data/VectorDatabase.js`: preferred-collections list → `v8-2-0`.
+- `src/tools/SemanticSearchTools.js`: tool description + status query path
+  → `v8-2-0`.
+- `src/sdd/WorkflowExecutor.js`: ingestion script registry → `v8-2-0`.
+- `src/__tests__/SemanticSearchTools.test.js`: fixture collection name +
+  count (23,624) updated; **12/12 tests pass** via `run_unit_tests`.
+- Docker image `eib-mcp-rag:latest` rebuilt; managed gateway recycled
+  (`systemctl restart mcp-rag mcp-gateway`); container healthy on new image.
+- Validated end-to-end: `get_knowledge_base_status` shows v8-2-0 at 23,624;
+  three `search_documentation` probes (`setup_expt.py`, `rocoto dryrun`,
+  `ecflow trigger expressions`) return chunks marked
+  `Source: global-workflow-local|rocoto-local|ecflow-local|global-workflow-wiki`;
+  `check_knowledge_integrity` — all four checks PASS.
+
+### Deferred (require explicit confirmation)
+- Drop legacy `global-workflow-docs-v8-1-0` and `phase48-scratch` collections.
+- Drop legacy `global-workflow-docs-v8-0-0` and `jjobs-v8-0-0`.
+- GraphRAG / `code-with-context` re-ingest.
+
+## [8.4.1] - Phase 48 SDD promoted to v1.0.0 (May 14, 2026)
+
+Doc-only change; no runtime code touched.
+
+- `sdd_framework/workflows/phase48_local_first_doc_migration.md`:
+  bumped header `0.1.0 DRAFT → 1.0.0`, status `Planned → In Progress`,
+  added `Updated:` line, removed DRAFT NOTICE blockquote.
+- §2.1 / §2.2 `paths` / `extensions` columns LOCKED against working tree
+  (Step 48-1 discovery): `global-workflow/docs/` (21 .rst), `rocoto/`
+  (3 root .md + `man/`), `ECFLOW/ecflow/docs/` (398 .rst),
+  `global-workflow.wiki/` (108 .md, flat).
+- §2.1 baseline column populated from direct ChromaDB v2 query against
+  `global-workflow-docs-v8-1-0`: `global-workflow`=219, `rocoto`=0,
+  `ecflow`=298 chunks. Rocoto URL crawl returns nothing — local migration
+  is **net new coverage**, not just a quality bump.
+- §2.2 scope locked: `global-workflow-wiki` IN; `evs-docs`,
+  `mcp-gateway-docs`, `parallel-works-mcp-docs` DEFERRED to v1.x.
+- §3.1 `LOCAL_DOCUMENTATION_SOURCES` skeleton fleshed out with concrete
+  entries for all 4 in-scope sources.
+- §4 Step 48-4 acceptance now carries projected chunk yields (~2865 total
+  local-source chunks vs 517 today, **+2348 net**).
+- §4 Step 48-5 target collection name LOCKED: `global-workflow-docs-v8-2-0`.
+- §5 validation table `Before` column populated from v8-1-0; `After` column
+  derived from §4 projections.
+- §8 Finalization Checklist: 5 of 6 items checked; only `start_sdd_session`
+  registration remains (kicks off when implementation begins).
+
+## [8.4.0] - v8-1-0 Documentation & J-Job Re-Ingest Cutover (May 14, 2026)
+
+Re-ingested both documentation and J-Job ChromaDB collections from current
+sources and flipped all live-tool references from `v8-0-0` to `v8-1-0`.
+The `code-with-context-v8-0-0` collection is intentionally **not** part of
+this cutover — GraphRAG re-ingest is tracked separately.
+
+### New collections (live)
+- `global-workflow-docs-v8-1-0`: 40 sources, 1,641 docs, **20,511 chunks** added (0 errors).
+- `jjobs-v8-1-0`: 92/92 J-Jobs, **859 documents** (was 700 in v8-0-0).
+
+### Cutover (docs + jjobs only — code-with-context untouched)
+- **SPOT defaults**: `documentation_sources_config.py`, `ingest_documentation_v8.py`,
+  `ingest_jjobs_v8.py`, `ingest_phase46_curl_crawler.py`, `link-nceplibs-chromadb.py`.
+- **Live tool code**: `UnifiedDataAccess.js` (default + multi-source list +
+  module-doc query), `VectorDatabase.js` (preferred-collections list),
+  `SemanticSearchTools.js` (tool description + status query path),
+  `OperationalTools.js` (J-Job lookup paths, doc-count message updated to 859),
+  `WorkflowExecutor.js` (ingestion script registry).
+- **Test fixture**: `__tests__/SemanticSearchTools.test.js` updated to v8-1-0
+  (12/12 tests pass via `run_unit_tests`).
+- **Docker image** `eib-mcp-rag:latest` rebuilt; gateway containers cycled so
+  the new code is served. Validated end-to-end via
+  `get_knowledge_base_status`, `search_documentation` (returns
+  `collection: global-workflow-docs-v8-1-0`), and `check_knowledge_integrity`
+  (all four checks PASS).
+
+### Deferred (require explicit confirmation)
+- Drop legacy `global-workflow-docs-v8-0-0` and `jjobs-v8-0-0` collections.
+- GraphRAG / `code-with-context` re-ingest.
+- Promote SDD Phase 48 (local-first doc migration) draft to v1.0.0.
+
+## [8.3.0] - SDD Phase 53: Gateway Tool Quality Remediation (May 2, 2026)
+
+Fixes the 10 reproducible tool-output defects (D1–D10) catalogued in
+`docs/MCP_TOOL_QUALITY_REPORT.md`. Every fix is minimal/surgical and is
+covered by a regression test under `mcp_server_node/src/__tests__/`.
+
+### Fixed
+- **D1** `find_dependencies` no longer renders `[object Object]` for import names.
+  Fallback chain now reads `imp.moduleName ?? imp.target ?? imp.name ?? imp.path` for
+  imports and `imp.file ?? imp.source ?? imp.path ?? imp.name` for importers
+  (matches the actual Neo4j returned-field names from `findFileImports` and
+  `findImporters`).
+- **D2** `find_related_files` no longer labels every result `Unknown`.
+  The `fileName` resolver now includes `file.path` in its fallback chain so
+  rows returned by `findRelatedCode` (which uses Cypher alias `f.path`) render
+  the canonical file path.
+- **D3** `get_code_context` header no longer shows `null` for File nodes.
+  Display name resolves through `node.name → basename(node.path) → args.symbol`.
+- **D4** `analyze_code_structure` resolves partial paths via a 3-tier resolver
+  (exact → `ENDS WITH` suffix → basename suffix), ranked by shortest path.
+  `scripts/exglobal_forecast.sh` now correctly resolves to the canonical
+  `supported_repos/global-workflow/scripts/exglobal_forecast.sh` node and
+  prints a `Resolved … → …` notice.
+- **D5** `find_env_dependencies` header count is now derived from a single
+  source of truth (`dependents.length + ggsrCount`) and matches the body.
+- **D6** `scan_repository_compliance` accepts `files=[{name,content,path?}]`
+  without a `repository_path`. The handler now branches at the top: when an
+  in-memory `files` array is provided it skips all filesystem checks and
+  reuses the existing per-file compliance loop. Path-mode behaviour is
+  unchanged.
+- **D7** `explain_with_context` always populates body sections — handles both
+  the post-Phase-51 flat-array shape and the legacy `{vector, graph}` shape
+  from `multiSourceSearch`, and emits a no-results guard so callers never get
+  just a heading.
+- **D8** `explain_workflow_component` renders a Job Definition section when
+  the graph arm matches a `:JJob` — or a `:ShellScript` whose name matches
+  the J-job pattern (`^J(GFS|GDAS|GLOBAL|ENKF|...)`). The Cypher label
+  clause was widened to include `:ShellScript` so canonical J-jobs like
+  `JGLOBAL_FORECAST` (stored as `:ShellScript` nodes in the graph) hit the
+  J-Job render branch. Delegates to `getJobDetails` and degrades gracefully
+  when filesystem reads fail.
+- **D9** `get_operational_guidance` accepts `topic` (canonical) and
+  `operation` (backward-compatible alias). Schema advertises both as optional
+  properties (no `anyOf`/`required`); the handler enforces presence of at
+  least one at runtime and returns a structured error otherwise. The
+  original `anyOf` form was rejected by the gateway's JSON-schema validator
+  even when `topic` was supplied, so it was dropped during gateway
+  re-validation.
+- **D10** `search_architecture` two-pass relaxation: Pass 1 keeps the strict
+  Phase 51 floor (`similarity ≥ 0.2 ∧ level ≥ 1`); Pass 2 drops the floor
+  to `0.15`; final fallback returns the top-3 by `similarity * (1 + 0.25 *
+  level)` with a `[low-confidence]` annotation. Never returns a silent
+  empty match.
+
+### Added
+- 13 regression tests across 5 test files (one focused test per defect plus
+  edge-case coverage):
+  - `src/__tests__/CodeAnalysisTools.test.js` — D1, D4, D5
+  - `src/__tests__/SemanticSearchTools.test.js` — D2, D7
+  - `src/__tests__/GraphRAGTools.test.js` — D3, D10 (×2)
+  - `src/__tests__/OperationalTools.test.js` — D8, D9 (×3 incl. error case)
+  - `src/__tests__/EE2ComplianceTools.test.js` — D6 (NEW file; 2 tests)
+- Final test count: **78/78 passing** (65 baseline + 13 new), 0 regressions.
+
+### Notes
+- **Docker image rebuild required** so the gateway picks up these fixes:
+  `docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node`
+  followed by gateway restart per the project README. **Re-validated against
+  the rebuilt gateway on 2026-05-01**: 9/10 defects pass live tool probes;
+  D9 server-side accepts `topic` (verified by container source inspection
+  + unit tests), but VS Code's MCP schema cache requires an MCP reconnect
+  before the client stops pre-validating against the old schema.
+- `docs/MCP_TOOL_QUALITY_REPORT.md` rows for the 10 affected tools updated
+  in-place (★ → ★★★★) with a Phase-53 re-validation footer dated 2026-05-01.
+- Spec: `sdd_framework/workflows/phase53_gateway_tool_quality_remediation.md`.
+
+---
+
+## [7.40.0] - SDD Phase 47a: Rocoto Dryrun PR #125 Log Semantics & Upstream Reconcile (April 20, 2026)
+
+Closes out the Rocoto `--dryrun` PR after upstream collaborator
+@christopherwharrop-noaa's second review pass. All remaining feedback was
+about **clarity of logging / terminal output** plus a trivial merge conflict
+from upstream PR #126 (removal of `RUBY_VERSION < "1.9.0"` guards).
+
+### Rocoto Branch Reconcile (`supported_repos/rocoto/`, `feature/dryrun_nodaemon_final`)
+
+- **Upstream merge** (`9424352`): Merged `christopherwharrop/rocoto:develop` (5 commits ahead — PR #126 dead-code removal, PR #127 CI tests, PR #128 RSpec scaffolding, PR #108 standalone-bundler install, PR #123 cycledef `exclude_hours`/`valid_hours`). Single conflict in `lib/workflowmgr/utilities.rb`: kept this branch's `DRYRUN` constant + `dryrun_mode?` helper, adopted upstream's simplified `require 'timeout'` (dropped `system_timer` fallback). GitHub PR #125 status flipped from `CONFLICTING` → `MERGEABLE`.
+
+### Rocoto Dryrun Log Semantics (per PR #125 review)
+
+- **Startup banner** (`lib/workflowmgr/workflowengine.rb`): Added one-line `puts "Dryrun Mode: no new jobs would be submitted"` at the top of `WorkflowEngine#run` and `#boot`, gated by `WorkflowMgr.dryrun_mode?`. Fires once per `rocotorun` / `rocotoboot` invocation.
+- **Single-line workflow-log semantics** (`lib/workflowmgr/workflowengine.rb`): Suppressed the leading `@logServer.log(..., "Submitting #{task}")` and `"Forcibly submitting #{task}"` lines under `dryrun_mode?` so the per-job `Dryrun Mode: would submit …` line below is the single source of truth in the workflow log. Eliminates the contradictory `Submitting foo_3 / Dryrun: would submit foo_3` pair Chris flagged. Per-scheduler `WorkflowMgr.stderr("Submitting …", 4)` verbose-debug lines are intentionally retained (level 4, not in the workflow log).
+- **`Dryrun:` → `Dryrun Mode:` rename** at every emit site:
+  - `lib/workflowmgr/workflowengine.rb` (boot job-result + run job-result — 2 strings).
+  - `lib/workflowmgr/workflowreport.rb` (1 string).
+  - `lib/workflowmgr/lsfbatchsystem.rb` (log + stderr — 2 strings).
+  - `lib/workflowmgr/lsfcraybatchsystem.rb` (log + stderr — 2 strings).
+
+### "Validation" Wording Audit
+
+- **No code change required.** `workflowoption.rb` and `reportoption.rb` already describe `-n,--dryrun` as `"Show Workflow Manager commands, but do not execute"` — neutral; no "validate" / "pre-flight" claim. Only `validat*` hits in `lib/` are internal method names (`validate_opts`) and pre-existing XML/cycledef validation comments, none describing dryrun. The "validation" framing lives only in the GitHub PR #125 description body and will be softened there at push time per Chris's caveat that dryrun reports `y = f(x)` for the current state `x`.
 
 ### Validation
 
-**Pre-deploy (source):**
-- `node --check` passes for OpenSearchAdapter.js and mcp-agentcore-entrypoint.js.
-- `python3 -m py_compile` passes for agentcore-kiro-proxy.py.
-- Module-import + null-safe `close()` verified via stand-alone Node script.
+- `ruby -c` clean on all 5 modified files.
+- Local smoke tests on EC2 (Rocky 9, Ruby 3.2.3 via `module load ruby/3.2.3`, Slurm 23.11.x): `dryrun` PASS, `status` PASS, `threads-{1,4,8,16}` PASS (4/4). `real` / `full` not run — actual `sbatch` calls out of scope for this no-side-effects local close-out.
+- Workflow log post-change shows the desired single-line form:
+  ```
+  2026-04-20 20:22:52 +0000 :: <host> :: Dryrun Mode: would submit dryrun_task for cycle 202001010000
+  ```
+  with no preceding `Submitting …` line.
 
-**CloudWatch metric caveat:**
-The SDD spec referenced `ActiveConnectionCount` for Step 5 validation. This metric is
-not exposed for managed AWS OpenSearch Service (confirmed via `list-metrics`). The
-available signals are `OpenSearchRequests`, `5xx` count, and application-layer errors.
-Baseline captured (May 11-12): `OpenSearchRequests` 1-13/hr typical with 108/147 peaks
-during Kiro sessions; `5xx` = 0 throughout. Full post-deploy validation will use
-application-level signal (absence of "Max connection limit reached" from
-`get_knowledge_base_status`).
+### Smoke-Harness Bootstrap Note
 
-**Post-deploy (pending Step 7 — AgentCore v8 rollout):**
-- Reconnection storm test: 5 sequential proxy sessions; confirm connections stay
-  bounded (5 × 10 = 50 max) and release after `stop_session()`.
-- `mcp_health_check({deep: true})` shows 9/9 healthy.
-- `get_knowledge_base_status()` returns successfully.
+The upstream `Gemfile` (PR #108) now requires Ruby ≥ 3.2 and a populated `bundle/` directory. One-time bootstrap on this EC2:
+```bash
+module load ruby/3.2.3
+cd supported_repos/rocoto
+bundle config set --local path 'bundle'
+bundle install --standalone --local
+```
+After bootstrap, `./test/run_smoke.sh dryrun` runs in ~1s. Default system Ruby (3.0.7) cannot satisfy the new constraint. Upstream-driven; not addressed in this dryrun PR.
 
-### Prior Art
+### SDD
 
-- `6ad5094` — Neptune pool size 50→10, added session cleanup (May 6, 2026)
-- `ee7a2d2` — Pre-warm connections in entrypoint before listen (May 4, 2026)
-- `4266089` — Shared `dataAccess` instance, eliminated 3x duplicate connections (April 10, 2026)
+- Spec: `sdd_framework/workflows/phase47a_rocoto_dryrun_log_semantics.md`.
 
-### Relationship to Proxy Keepalive (v1.1.0, May 12)
+## [7.39.0] - Phase 52: Unit Test Suite Repair & Pre-Commit Gate MCP Tool (April 18, 2026)
 
-The `agentcore-kiro-proxy.py` v1.1.0 patch (earlier today) addresses the Kiro-side
-60s MCP-timeout symptom by answering `initialize` locally and background-warming
-AgentCore. Phase 56 addresses the independent server-side connection accumulation
-that made cold starts catastrophic when they did occur.
+Repaired 45 stale unit test failures across 4 test files and added a new `run_unit_tests` MCP tool (tool #49) to enforce a pre-commit quality gate. Codified the practice in both instruction files so the AI agent runs tests before every `git add`/`git commit`.
 
-### Files Modified
+### New Tool
 
-- `mcp_server_node/src/data/adapters/OpenSearchAdapter.js`
-- `mcp_server_node/src/mcp-agentcore-entrypoint.js`
-- `tools/agentcore-kiro-proxy.py`
-- `sdd_framework/workflows/phase56_opensearch_connection_pool_exhaustion.md` (phase spec)
-- `sdd_framework/execution_state/active_session.json`
-- `sdd_framework/execution_state/history.jsonl`
+- **`run_unit_tests`** (`mcp_server_node/src/UnifiedMCPServer.js`):
+  Spawns `npx vitest run` via `execSync`, parses the summary line with regex, and returns structured markdown with pass/fail table, failure details (if any), and a commit gate message (`[OK] Safe to proceed` or `[WARN] Fix test failures`). Parameters: `file` (optional — run a single module, e.g. `"CodeAnalysisTools"`), `verbose` (optional — include full vitest output). 120s timeout, `FORCE_COLOR=0` + `NO_COLOR=1` to strip ANSI.
 
-### Remaining (Steps 6, 7)
+### Test Suite Repair (45 → 0 failures, 65/65 pass)
 
-- **Step 7**: Build new ARM64 image, push to ECR, update AgentCore Runtime to v8.
-- **Step 6**: Validate under reconnection storm with v8 live (5 sequential proxy
-  sessions, confirm connections bounded and released).
+- **`CodeAnalysisTools.test.js`** — Fixed `graphDb` → `graphDB` casing throughout; updated mocks to use `findFileFunctions`, `findCallers`, `traceCallChain` matching current API; 12 tests.
+- **`WorkflowInfoTools.test.js`** — Removed broken `fs` mocks; tests now validate actual hardcoded structure output from `getWorkflowStructure`; 8 tests.
+- **`SemanticSearchTools.test.js`** — Removed stale EE2/findSimilarCode tests; updated `searchDocumentation` to `hybridQuery` flat-array API, `explainWithContext` to `multiSourceSearch`; 15 tests.
+- **`OperationalTools.test.js`** — Fixed `hybridQuery` to flat array, `multiSourceSearch` for `explainWorkflowComponent`, added `job_list` param for `listJobScripts`; 15 tests.
 
-Both gated on user confirmation since Step 7 rotates the live runtime.
+### Config & Instructions
 
-## [8.9.0] - Phase 51b: AgentCore Runtime Deployed + Kiro Proxy (April 30, 2026)
+- **`vitest.config.js`** — Added `src/__tests__/setup.js` to exclude list; restricted include to `*.test.js` patterns only.
+- **`.github/copilot-instructions.md`** — Added "Pre-Commit Gate (REQUIRED)" section mandating `run_unit_tests()` before every commit.
+- **`.github/instructions/eib-mcp-tools.instructions.md`** — Updated Utility module from 4 → 5 tools; added `run_unit_tests` table entry and Pre-Commit Gate workflow section.
 
-### AgentCore Runtime — Deployed and Validated
-- Runtime created via AgentCore Power MCP tool `create_agent_runtime`
-- Runtime ID: `mdc_mcp_rag_server-TMXDllG2Wi`, Status: READY (version 2)
-- Protocol: MCP, Network: VPC (us-east-1a, us-east-1b)
-- First attempt failed: `subnet-024fd9b597b3075a5` in us-east-1d (use1-az6) unsupported by AgentCore
-- Retry with 2 supported subnets succeeded in ~4 minutes
-- All 51 tools validated via `InvokeAgentRuntime` API (initialize, tools/list, get_server_info)
-- Environment variables added via `UpdateAgentRuntime` (version 2): DB_BACKEND, NEPTUNE_ENDPOINT, OPENSEARCH_ENDPOINT, AWS_REGION, WORKFLOW_ROOT
-- Idle timeout: 900s, max lifetime: 28800s
+### Deployment Note
 
-### AgentCore Kiro Proxy — Built and Connected
-- New file: `tools/agentcore-kiro-proxy.py` — stdio MCP bridge (Kiro ↔ AgentCore Runtime)
-- Reads JSON-RPC from stdin, forwards via boto3 `invoke_agent_runtime` (SigV4), parses SSE response, writes to stdout
-- Single Python file, no deps beyond stdlib + boto3, Python 3.9 compatible
-- Session management: unique 43-char session ID per process, reuse across calls
-- Retry logic: 3 retries with exponential backoff (0.5s/1s/2s) on transient errors
-- Signal handling: SIGTERM/SIGINT graceful shutdown
-- Tests: `tests/test_agentcore_kiro_proxy.py` — property-based (Hypothesis) + unit tests (pytest)
-- Kiro spec: `.kiro/specs/agentcore-kiro-proxy/` (requirements, design, tasks)
+`src/UnifiedMCPServer.js` is baked into the Docker image. Rebuild required for gateway:
+```bash
+docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node
+```
 
-### Kiro MCP Configuration
-- Added `agentcore-mcp-rag` entry to `.kiro/settings/mcp.json` (command type, python3)
-- 51 tools visible in Kiro MCP panel alongside legacy `eib-mcp-gateway`
-- Static tools (get_server_info) confirmed working through AgentCore
-- Graph tools (get_code_context) pending: Neptune VPC connectivity from microVM needs security group update
+## [7.38.0] - SDD Phase 51: Gateway Health, Explain, and Architecture-Search Fixes (April 18, 2026)
 
-### IAM Permissions — Resolved
-- Trust policy updated: `bedrock-agentcore.amazonaws.com` on `mdc-mcp-rag-ecs-task-role`
-- 4 service-linked roles created by admin
-- Explicit deny on `bedrock-agentcore:*` removed
-- Verified: `aws bedrock-agentcore-control list-agent-runtimes` returns successfully
-- CLI note: subcommand is `bedrock-agentcore-control` (not `bedrock-agentcore`)
+Three independent gateway-side defects observed against the EIB MCP Gateway (port 18888, image `eib-mcp-rag:latest`) while underlying Neo4j (2,758 files, 2.65M relationships) and ChromaDB (85,995 docs across 6 collections) were healthy. Fixed in-place on the `develop` branch (Phase 48's `src/health/HealthChecker.js` lives only on `develop_aws` and is not present here, so the equivalent check is added inline to `UnifiedMCPServer.healthCheck()`).
 
-### Documentation
-- `docs/mcp-access-architecture-proposal.md` — Two-phase deployment strategy (Phase 1: AgentCore + 10-user cohort, Phase 2: Fargate + GitHub Actions CI/CD)
-- `docs/presentations/mcp_access_architecture.pdf` — LaTeX/TikZ presentation with architecture diagrams
-- Wiki: `MCP-Access-Architecture-Proposal` published to global-workflow.wiki
-- SDD: `sdd_framework/workflows/phase51b_agentcore_mcp_deployment.md` reconciled with actual progress
-- Kiro spec: `.kiro/specs/agentcore-mcp-deployment/tasks.md` — tasks 1-6 marked complete, 7-11 updated
+### Fixes
 
-### Remaining (next session)
-- Debug Neptune VPC connectivity from AgentCore microVM (security group egress/ingress)
-- Validate graph + vector tools through AgentCore (get_code_context, search_documentation)
-- Update CHANGELOG and SDD after full validation
-- Retire dev bridge (Task 10)
+- **Defect 1 — Graph DB always reported degraded** (`mcp_server_node/src/UnifiedMCPServer.js`):
+  `healthCheck()` had no graph-database probe at all; the gateway's overall status was driven entirely by ChromaDB and never reflected Neo4j. Added a Graph Database (Neo4j) check that calls `graphDB.getStatistics()` and computes `nodeCount = fileCount + functionCount + classCount + moduleCount` (the actual schema returned by `GraphDatabase.getStatistics()`), so the report shows real per-label counts and degrades only when the graph is genuinely empty.
 
-### Commits
-- `9988788` docs: reconcile Phase 51b SDD and Kiro spec with deployment progress
-- `41ee0a5` docs: add MCP access architecture proposal
-- `b86f3b2` docs: add MCP access architecture PDF with TikZ diagrams
-- `994575d` docs: update architecture proposal with Kiro SSH remote + proxy details
-- `f19bc6a` docs: cohort accounts already provisioned by infra team
+- **Defect 2 — `explain_workflow_component` returned only the heading** (`mcp_server_node/src/tools/OperationalTools.js`):
+  The function read `results.vector` / `results.graph` from `multiSourceSearch`, but that helper returns a **flat array of vector results** (each optionally enriched with `.graphContext`). Rewrote `explainWorkflowComponent` to (a) iterate the flat array for the Documentation section, (b) issue a direct Cypher query for `:JJob`/`:Script`/`:File`/`:Function`/`:Class` nodes for the Code Structure section, expanding the label set to `:JJob`/`:Script` when the component name matches `/^J(GFS|GDAS|GLOBAL|ENKF|[A-Z]+)/i` (covers Phase 27B J-job ingestion), and (c) emit explicit hint guidance when both arms are empty so callers never receive just a `# Workflow Component:` heading.
 
-## [8.8.1] - Phase 53 Track B: Fortran Ingestion Complete (April 27, 2026)
-
-### Fortran Ingestion — Completed
-- Full Fortran graph ingestion into Neptune: 63,379 nodes (+3,620), 2,765,892 rels (+132,518)
-- Processed 7,275 Fortran files across all UFS submodules in two batches (--skip flag for OOM recovery)
-- 88% parse success rate (6,409 files parsed, 866 fparser F2003 strict-mode failures)
-
-### Fortran Source Sanitizer (new)
-- `_sanitize_fortran_source()`: preprocessor that fixes fparser-incompatible patterns before parsing
-- Fix 1: Dangling assignment continuations (`VARIABLE = &` with no value — CVS $Id$ stripping)
-- Fix 2: Dangling USE/ONLY continuations (`USE Module, ONLY: X, &` with no continuation)
-- Fix 3: Non-standard write comma (`write(6,*),` — accepted by gfortran, rejected by fparser)
-- Fix 4: Git merge conflict markers (`<<<<<<`, `>>>>>>`, `=======`)
-- ~550 files recovered total (406 in main run + 133 in recovery pass)
-
-### Observability Enhancements
-- Per-file logging: `PARSE → INGEST (Xn/Yr) → ✓` for every file
-- Progress checkpoints every 50 files with RSS, elapsed time, ETA
-- `gc.collect()` every 50 files to mitigate fparser memory accumulation
-- Memory pressure warning at 4GB RSS threshold
-- `--skip N` and `--limit N` flags for batched processing (OOM recovery)
-
-### Memory Management
-- fparser accumulates ~6GB RSS over 7,275 files (ParserFactory grammar cache)
-- Solved via `--skip` batching: first batch processes 5,500 files, second batch resumes from 5,500
-- Peak RSS per batch: ~2.9GB (well within t3.xlarge 16GB)
-
-### Remaining (next session)
-- Task 4: Shell script graph ingestion
-- Task 5: Cross-language bridge ingestion
-- Task 6: Python graph ingestion
-- Task 7-8: Validation
-- 866 Fortran files still failing (fparser limitations: ESMF macros, F2008 features, fixed-form)
-
-### Commits
-- `8cd5bec` feat: enhance ingest_fortran_graph.py logging for observability
-- `7a9e7d1` feat: add gc.collect() and memory pressure warning
-- `75b64c6` fix: sanitize dangling Fortran continuations for CRTM compatibility
-- `75ee05b` feat: add --skip and --limit flags for batched Fortran ingestion
-- `586f336` fix: extend Fortran sanitizer for USE/ONLY, write-comma, merge markers
-
-## [8.8.0] - Phase 53 Track B: Neptune SigV4 Adapter + Re-Ingestion (April 25, 2026)
-
-### Neptune HTTP/SigV4 Adapter (neptune-python-sigv4-ingestion spec)
-- Replaced non-functional Bolt driver in `aws_backend.py` with HTTP-based Neptune adapter
-- `NeptuneHTTPAdapter`: neo4j Driver-compatible drop-in for `get_graph_driver()` when `DB_BACKEND=aws`
-- `NeptuneSession`: SigV4-signed HTTP POST to Neptune `/opencypher` endpoint via botocore
-- `NeptuneResult`: Result wrapper with iteration, `single()`, and dict-style column access
-- Endpoint normalization: `wss://`, `bolt+s://`, bare hostname → `https://host:8182/opencypher`
-- Retry logic with exponential backoff (1s/2s/4s) on HTTP 429/500/503
-- Fresh credentials per request via `boto3.Session()` for long-running ingestion jobs
-- 26 tests passing: 3 property-based (Hypothesis, 100+ iterations each) + 23 unit tests
-
-### Neptune DDL Compatibility Fixes
-- `ingest_fortran_graph.py`: Skip `CREATE INDEX` when `DB_BACKEND=aws` (Neptune auto-indexes)
-- `ingest_shell_graph_v8.py`: Skip `CREATE INDEX` when `DB_BACKEND=aws`
-- `ingest_env_variables.py`: Skip `CREATE CONSTRAINT` on AWS; replace `execute_write` with direct `session.run` for Neptune adapter compatibility
-
-### Track B Re-Ingestion (in progress)
-- Fortran ingestion started against Neptune via SigV4 adapter — confirmed working
-- Neptune counts grew from baseline: +290 nodes, +45,950 relationships
-- Fortran ingestion hit memory pressure (~6GB RSS on t3.xlarge) after ~3 hours processing 7,275 files — process entered disk sleep (swap thrashing), killed
-- MERGE semantics ensure no data loss — re-run will resume idempotently
-- Remaining: Shell, cross-language bridges, Python ingestion still pending
-
-### Known Issues
-- `ingest_fortran_graph.py` holds all parsed ASTs in memory — OOM risk on t3.xlarge with full submodule tree (7,275 Fortran files)
-- Next quarter: investigate batched parsing or streaming writes to reduce memory footprint
-- Next quarter: Python SDK migration to replace Node.js MCP server (discussion started, not yet spec'd)
-
-### Commits
-- `67a5271` feat: Neptune HTTP/SigV4 adapter for Python ingestion scripts
-- `6965634` fix: skip Neo4j-specific DDL on Neptune (DB_BACKEND=aws)
-
-## [8.7.0] - Phase 51b: AgentCore MCP Deployment (April 23, 2026)
-
-### New Files
-- `mcp_server_node/src/mcp-agentcore-entrypoint.js` — AgentCore Runtime MCP entrypoint
-  - Streamable HTTP on 0.0.0.0:8000/mcp (AgentCore convention)
-  - /ping health endpoint returning {"status":"Healthy"}
-  - Shared data access across stateless requests (same pattern as mcp-http-server.js)
-- `mcp_server_node/Dockerfile.agentcore` — ARM64 container for AgentCore Runtime
-  - node:20-slim base, production deps only, 302MB compressed
-  - Healthcheck on /ping, CMD node src/mcp-agentcore-entrypoint.js
-- `mcp_server_node/.bedrock_agentcore.yaml` — AgentCore CLI configuration
-  - Container deployment, MCP protocol, VPC network mode
-  - 3 private subnets (us-east-1a/b/d), ECS security group
-  - Idle timeout 900s, max lifetime 28800s
-- `mcp_server_node/.dockerignore` — Build context exclusions
-- `docs/agentcore-execution-role-request.md` — Admin request for IAM trust policy update
-
-### Infrastructure
-- Created ECR repository: mdc-mcp-rag (903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag)
-- Pushed ARM64 container image tagged `agentcore`
-- Container verified locally: /ping returns healthy, MCP server starts
-
-### Blockers
-- IAM trust policy on mdc-mcp-rag-ecs-task-role needs bedrock-agentcore.amazonaws.com
-- Admin request generated, deployment paused at Task 7 checkpoint
-
-## [8.6.0] - Phase 51: Private MCP Deployment — CDK Stacks (April 22, 2026)
-
-### Architecture Changes
-- Converted API Gateway from REGIONAL to PRIVATE endpoint type
-- Removed CloudFront distribution and CLOUDFRONT-scoped WAF
-- Removed Cognito UserPool authorizer (not needed for private-only access)
-- Added VPC Link (API Gateway → Internal NLB → ECS Fargate)
-- Added resource policy restricting API access to VPC endpoint (vpce-0b2f402157c32c1c8)
-- Associated REGIONAL WAF with API Gateway stage via CfnWebACLAssociation
-- Switched from ALB to NLB (REST API VPC Links require Network Load Balancers)
-
-### CDK Stack Modifications
-- MdcSecurityStack: removed Cognito UserPool/resource server, kept WAF + role imports + SG + secrets + SSM
-- MdcDataStack: replaced Neptune/OpenSearch creation with imports of existing resources
-- MdcServerStack: removed CloudFront/Cognito, added Private API GW + VPC Link + /health endpoint
-- bin/cdk.ts: removed userPool from MdcServerStack props
-
-### Test Results
-- 27 CDK assertion tests passing (test-first approach)
-- All 4 stacks synthesize successfully via `cdk synth`
-
-### Other Changes
-- Updated Dockerfile to use mcp-http-server.js (HTTP transport) instead of UnifiedMCPServer.js (stdio)
-- Updated .kiro/settings/mcp.json with Private API Gateway placeholder URL
-
-### Files Modified
-- `infrastructure/cdk/lib/mdc-server-stack.ts`
-- `infrastructure/cdk/lib/mdc-security-stack.ts`
-- `infrastructure/cdk/lib/mdc-data-stack.ts`
-- `infrastructure/cdk/bin/cdk.ts`
-- `infrastructure/cdk/test/cdk.test.ts`
-- `infrastructure/docker/Dockerfile`
-- `.kiro/settings/mcp.json`
-
-## [8.5.1] - Phase 48B Task 5: Neptune traceCrossLanguageChain Decomposition (April 21, 2026)
-
-### Neptune Parity Fixes
-- Decomposed `traceCrossLanguageChain()` forward direction from monolithic query into 4 sequential queries (find start → shell children per-hop → Fortran bridge → Python bridge)
-- Decomposed reverse direction into 4 sequential queries (find target → Fortran CALLS trace → EXECUTES bridge → J-Job triggers)
-- Fixed `findFortranModuleUses()` — changed exact name match to case-insensitive CONTAINS, added `ORDER BY moduleName`, `LIMIT 50`, and `userName` to RETURN to match legacy
-- Added automatic `labels(x)[0]` → `head(labels(x))` transform in `NeptuneAdapter.query()` for Neptune compatibility with inline tool queries
-- Fixed Fortran type detection in `CodeAnalysisTools.findCallersCallees()` — now checks Fortran labels even when generic CALLS edges exist
-
-### Parity Results
-- `trace_full_execution_chain("JGLOBAL_FORECAST")`: 93.4% data completeness (target ≥80%)
-- `find_callers_callees("setuprad")`: 91.6% data completeness (target ≥90%)
-- Module dependencies: 31/31 matching legacy exactly
-
-### Files Modified
-- `mcp_server_node/src/data/adapters/NeptuneAdapter.js`
-- `mcp_server_node/src/tools/CodeAnalysisTools.js`
-
-## [8.5.0] - Phase 52: Bedrock Titan1024 Re-Ingestion (April 15, 2026)
-
-### Re-Ingestion Results
-- 5 titan1024 OpenSearch indices populated with Bedrock Titan Embed Text V2 (1024-dim)
-- code-context: 58,961 docs (97.3% of mpnet768 baseline)
-- workflow-docs: 5,494 docs (fresh crawl — many legacy URLs now 404)
-- jjobs: 751 docs (107.3% — source tree differences)
-- community-summaries: 2,113 docs (100% — re-embedded from mpnet768)
-- ee2-standards: 34 docs (100% — re-embedded from mpnet768)
-
-### Benchmark Results
-- titan1024-hybrid: P@5=0.267, P@10=0.196, MRR=0.511, nDCG=0.536
-- titan1024-vector: P@5=0.158, MRR=0.286 (hybrid significantly outperforms vector-only)
-- Hybrid search latency: p50=117ms across all indices
-
-### Nova Matryoshka Testing
-- Nova multimodal embeddings (amazon.nova-2-multimodal-embeddings-v1:0) validated
-- 150 docs ingested into mdc-workflow-docs-nova1024 test index
-- Native dimension generation at 256/384/1024/3072 confirmed
-- 100% result overlap between 256-dim and 1024-dim queries on test set
-
-### Drift Detection Baselines
-- All 5 titan1024 collections: mean_similarity=1.000, drifted=false
-
-### Code Changes (`mcp_server_node/scripts/`)
-- `aws_backend.py` — added `get()`, `modify()` stubs to `_OpenSearchCollection` for ChromaDB compat
-- `ingestion_base.py` — skip local embedding function for AWS backend in `ChromaDBClient.get_or_create_collection()`
-- `embedding_provider.py` — added Nova API format support (schemaVersion/taskType/singleEmbeddingParams)
-- `embedding_registry.py` — fixed Nova model ID to `amazon.nova-2-multimodal-embeddings-v1:0`
-- `benchmark_runner.py` — implemented real OpenSearch querying, added bm25 mode, latency tracking
-- `drift_detector.py` — implemented `_sample_from_opensearch()` with random sampling via function_score
-- `config/benchmark_ground_truth.json` — 24 queries across 5 domains (6 code, 5 docs, 5 jjobs, 4 community, 4 ee2)
-
-## [8.4.0] - Neptune GGSR Compatibility Bugfix (April 14, 2026)
-
-### Bug Fixes (`mcp_server_node/src/data/adapters/NeptuneAdapter.js`)
-- `traceCrossLanguageChain()` — rewrote from broken `->[:REL*1..N]->` syntax (arrows outside brackets) to decomposed multi-OPTIONAL-MATCH approach matching `GraphDatabase.traceCrossLanguageChain()`
-- `traceCrossLanguageChain()` — replaced `=~` regex (unsupported by Neptune) with `toLower(x) CONTAINS toLower(y)`
-- `findFortranCallers()` — replaced multi-label `|` syntax (`f:A|B|C`) with `WHERE f:A OR f:B OR f:C` for Neptune compatibility
-- `findCallers()`, `findScriptCallers()`, `findFortranCallers()`, `findUpstreamExecutors()`, `traceFortranCallChain()` — replaced `labels(n)[0]` with `head(labels(n))` for Neptune portability
-- Added `_labelToLanguage()` helper for cross-language chain assembly
-
-### Bug Fixes (`mcp_server_node/src/mcp-http-server.js`)
-- Inject `sharedGGSR` and `sharedRetrieval` into per-request `codeAnalysisTools` and `graphRAGTools` (was null, breaking `get_code_context` and GGSR-dependent tools via HTTP transport)
-- Create `sharedRetrieval` (`GraphGuidedRetrieval` instance) alongside `sharedGGSR` during initialization
+- **Defect 3 — `search_architecture` surfaced negative-similarity L0 micro-leaves** (`mcp_server_node/src/tools/GraphRAGTools.js`):
+  The ranker returned raw cosine without any threshold; queries like `"GFS forecast job"` returned 2-node L0 communities at relevance `-0.379`. `searchArchitecture` now over-fetches (`max_results * 4`), filters by `similarity >= 0.2 && level >= 1`, and reranks by `similarity * (1 + 0.25 * level)` so curated Phase 24E L1/L2 community summaries beat noisy L0 leaves of equal cosine. Returns a clear "no high-confidence matches" message when nothing passes the floor.
 
 ### Tests
-- NEW: `test/neptune-ggsr-bug-condition.test.js` — 11 property-based tests (C1: Neptune VLP syntax, C2: HTTP GGSR injection)
-- NEW: `test/neptune-ggsr-preservation.test.js` — 14 preservation tests (non-VLP queries, APOC transforms, stdio GGSR, health endpoint, labels() compatibility)
 
-## [8.3.0] - Phase 48 Validation: AWS MCP Server (April 10, 2026)
+- Added `mcp_server_node/src/__tests__/GraphRAGTools.test.js` (new) — 3 tests covering similarity floor, level boost ordering (L2 ranked above L1 at equal cosine), and L0 rejection.
+- Extended `mcp_server_node/src/__tests__/OperationalTools.test.js` with a new describe block — 3 tests for the J-job lookup contract (flat-array consumption, `:JJob`/`:Script` cypher labels, hint-guidance fallback).
+- All 6 new tests pass under `vitest@4.1.4`. Pre-existing `OperationalTools.test.js` failures (8) are unrelated stale tests against an old `hybridQuery({vectorResults, graphContext})` API and an older `list_job_scripts` output format — outside the scope of Phase 51.
 
-### Adapter Fixes (`mcp_server_node/src/data/adapters/`)
-- `NeptuneAdapter.js` — replaced `neo4j.auth.none()` with SigV4 IAM auth using `@smithy/signature-v4` + `@aws-crypto/sha256-js` (Neptune has `iamAuthEnabled: true`)
-- `OpenSearchAdapter.js` — fixed `COLLECTION_TO_INDEX` mapping to include `-mpnet768` suffix matching actual index names
+### Deployment Note
 
-### Server Init Fix (`mcp_server_node/src/UnifiedMCPServer.js`)
-- Share single `dataAccess` instance across all tool modules (was creating 3 separate instances)
-- Server startup: 70+ seconds → 706ms (eliminated duplicate connections and Neptune auth retry storms)
-- Guard `dataValidation.validation` access in `mcp_health_check` for OpenSearch compatibility
+Per `.github/copilot-instructions.md`, the `eib-mcp-rag:latest` Docker image is a snapshot. To activate these fixes in the gateway:
 
-### Validation (`mcp_server_node/scripts/validate-aws-mcp.js`)
-- NEW: Tool-by-tool validation script — tests all 51 tools against live AWS backends
-- 45/45 non-GitHub tools pass with `DB_BACKEND=aws`
-- Error handling: 9/9 edge-case scenarios handled gracefully
-- Graceful degradation: server starts with bad Neptune endpoint, vector queries still work
-- Performance: P50=7ms, P95=9155ms, avg=686ms, startup=706ms
-
-### Report (`docs/aws-mcp-validation-report.md`)
-- Comprehensive validation report with adapter fixes, per-module results, error handling, resilience, performance benchmarks, and data counts
-
-## [8.2.1] - Phase 50b: Neptune Bulk Loader Remediation (April 9, 2026)
-
-### Neptune Graph Load (`mcp_server_node/scripts/`)
-- Phase 50 `load-graph` via Bolt silently failed — 0 rels in Neptune despite watermark saying "done" (`.catch()` swallowed all batch errors)
-- Switched to Neptune native bulk loader: S3 → Neptune direct pipeline, 10-100x faster than Bolt
-- `convert-to-opencypher-csv.js` (NEW) — converts Neo4j JSON dump to openCypher CSV format with label:name composite node IDs
-- `neptune-bulk-load.js` (NEW) — invokes Neptune `/loader` API with SigV4 auth, polls status, verifies counts
-- `neptune-purge.js` (NEW) — batched DETACH DELETE + Neptune `performDatabaseReset` for clean slate
-- Final counts: 59,759 nodes (deduplicated from 98,813 — 39K shared same label+name+path), 2,633,374 relationships (exact match), 0 errors
-
-### Bug Fixes
-- `convert-to-opencypher-csv.js` — `nodeMergeId()` now uses `label:base` composite key (was `name` only, causing cross-label collisions on `__init__`, `main`, etc.)
-- `neptune-purge.js`, `neptune-bulk-load.js` — fixed `/openCypher` → `/opencypher` endpoint path (Neptune is case-sensitive)
-- Neptune security group — added egress rule for HTTPS to S3 prefix list (was `allowAllOutbound: false` with no S3 access)
-- Neptune IAM role — added `kms:Decrypt` for KMS-encrypted S3 bucket objects
-
-### Infrastructure
-- Admin attached IAM role `mdc-mcp-rag-neptune-s3-loader` to Neptune cluster (iam:PassRole)
-- Admin added Neptune route table `rtb-03e894efb9a5095de` to S3 VPC Gateway endpoint
-
-### Migration Parity
-
-| Component | Legacy (PW) | AWS | Status |
-|-----------|-------------|-----|--------|
-| Vectors | 85,995 docs | 85,921 docs | ✅ 5/5 collections exact |
-| Graph rels | 2,653,565 | 2,633,374 | ✅ 99.2% (20K unresolvable) |
-| Graph nodes | 98,813 | 59,759 | ✅ Deduplicated (39K dupes) |
+```bash
+docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node
+pkill -f "docker-mcp gateway"
+docker stop $(docker ps -q  --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
+docker rm   $(docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
+MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025" docker mcp gateway run \
+  --catalog eib-local.yaml --servers eib-mcp-rag \
+  --transport streaming --port 18888 --long-lived &
+```
 
 ### SDD
-- Phase 50b: 9 steps, bulk loader approach
-- Admin requests: `docs/neptune-bulk-loader-role-request.txt`, `docs/s3-endpoint-route-table-request.txt`
 
-## [8.2.0] - Phase 50: Parallel Works S3 Migration Export (April 7, 2026)
+- Spec: `sdd_framework/workflows/phase51_gateway_health_explain_search_fixes.md`.
+- Session: `session_2026-04-18_qcufpt` (7 steps, ISD).
 
-### S3 Data Export (`mcp_server_node/scripts/migrate-to-aws.js`)
-- Exported ChromaDB vector store (5 collections, 85,921 documents, ~339 MiB) to `s3://mdc-mcp-rag-migration/vectors/`
-  - code-with-context-v8-0-0: 60,576 docs (234.4 MiB)
-  - global-workflow-docs-v8-0-0: 22,498 docs (94.6 MiB)
-  - community-summaries: 2,113 docs (7.6 MiB)
-  - jjobs-v8-0-0: 700 docs (2.7 MiB)
-  - ee2-standards-v5-0-0-enhanced: 34 docs (160.1 KiB)
-- Exported Neo4j graph database (98,813 nodes, 2,653,565 relationships, 12.4 MiB) to `s3://mdc-mcp-rag-migration/graph/`
-- Watermarks saved to `s3://mdc-mcp-rag-migration/watermarks/` for idempotent re-execution
+## [7.37.0] - Rocoto Dryrun PR #124: Post-Reconciliation Hardening & Smoke Tests (April 3, 2026)
 
-### Bug Fixes
-- `migrate-to-aws.js` — fixed `JSON.stringify()` string length limit on large collections by switching to streaming NDJSON (one JSON object per line through gzip)
+### Rocoto Dryrun Hardening (`supported_repos/rocoto/`)
+- **LSF early returns**: `lsfbatchsystem.rb`, `lsfcraybatchsystem.rb` — dryrun branch now returns early with `return nil,"This is a dryrun"` and logs `"Dryrun: would submit ..."` instead of falling through to misleading `"Submitted ..."` messages.
+- **harvest_pending_jobids early returns**: `workflowengine.rb` — added `return if dryrun_mode?` at top of `harvest_pending_jobids` to skip all DRb interactions and DB mutations in dryrun (PR #124 comment). `workflowreport.rb` — BQServer iteration already guarded with `unless dryrun_mode?`.
+- **Side-effect-free dryrun** (`37a8d6f`): Made dryrun truly side-effect-free across engine, report, and proxy paths per PR #124 review feedback.
+- **Arg parsing restored** (`444f1ac`): Restored `--dryrun`/`-n` CLI option parsing in `WorkflowOption`, `ReportOption`, and subset option classes.
+- **Dryrun option state hardening** (`e989b70`): Additional PR suggestions for hardening dryrun option state propagation.
+- **BQS thread pool guard** (`6c95a22`): Avoid thread pool in BQS `submit()` during dryrun mode.
+- **BQServer DRYRUN constant fix** (`206fb09`): Fixed BQServer's `DRYRUN` constant definition so non-dryrun submit still works correctly.
+- **Smoke test runner** (`738c28a`–`5d93bf8`): Added `test/run_smoke.sh` with named test cases (`dryrun`, `real`, `status`, `full`), auto-detected Slurm partition/account, and structured PASS/FAIL reporting.
 
-### Configuration
-- `.vscode/mcp.json` — enabled Docker MCP Gateway endpoint (Streamable HTTP on port 18888 via dev tunnel)
-
-### SDD
-- Phase 50 session completed: 7/7 steps, ~7 minutes (`session_2026-04-07_8yca4n`)
-
-## [8.1.0] - Phase 49: Ingestion Pipeline Restructure (April 2-3, 2026)
-
-### Multi-Model Embedding Infrastructure (`mcp_server_node/scripts/`)
-- `embedding_registry.py` — ModelProfile dataclass, EmbeddingModelRegistry with 6 built-in profiles (mpnet768, titan1024, nova256/512/1024/3072)
-- `embedding_provider.py` — EmbeddingProvider ABC, LocalProvider (sentence-transformers, CUDA auto-detect), BedrockProvider (boto3, Nova outputEmbeddingLength)
-- `collection_namer.py` — Model-aware naming: `{domain}-{version}-{model_short}`, legacy name detection
-
-### Centralized BaseIngester Refactor (`mcp_server_node/scripts/ingestion_base.py`)
-- Centralized `--model`, `--backend`, `--collections`, `--dry-run` CLI parsing
-- `get_clients()` — unified backend routing replacing inline boilerplate in 7 scripts
-- `deterministic_id()` — SHA-256 hash of content+source+chunk_index+model for idempotent upserts
-- `upsert_document()` / `merge_graph_node()` / `merge_graph_relationship()` — upsert/MERGE semantics
-- Removed hardcoded `EMBEDDING_MODEL = "all-mpnet-base-v2"`, replaced with registry resolution
-
-### Ingestion Script Refactoring
-- `ingest_code_v8.py`, `ingest_documentation_v8.py`, `ingest_fortran_graph.py`, `ingest_shell_graph_v8.py`, `ingest_jjobs_v8.py`, `ingest_cross_language_bridges.py`, `ingest_env_variables.py` — all refactored to subclass BaseIngester, inline `--backend` boilerplate removed
-
-### Model-Aware AWS Integration
-- `aws_backend.py` — dynamic COLLECTION_TO_INDEX resolution with model suffix, legacy mapping preserved
-- `create-opensearch-indices.js` — `--model` flag, dynamic knn_vector dimensions per profile, `model_profile` keyword field, BM25 dual-indexing on content field
-- `migrate-to-aws.js` — model metadata from ChromaDB, model-aware S3 keys, per-collection-model watermarks
-- `verify-migration.js` — multi-model count parity across all model-specific indices
-
-### Retrieval Enhancements (`mcp_server_node/src/data/search/`)
-- `HybridSearchBuilder.js` — BM25 + vector + RRF fusion, code identifier detection (camelCase, snake_case, dot.notation, file paths), auto-boost BM25 for code queries
-- `GraphAugmenter.js` — 1-hop Neptune expansion (CALLS, USES, IMPORTS, CONTAINS), configurable hopDepth, graceful fallback
-- `MatryoshkaQuery.js` — adaptive dimension truncation at query time for Nova Multimodal embeddings
-- `comparativeQuery()` on VectorDatabaseAdapter + OpenSearchAdapter — multi-model parallel query, results grouped by profile
-- `UnifiedDataAccess.js` — wired with `search_mode`, `graph_augmented`, `dimensions` options; all 51 MCP tools unchanged
-
-### Dead Code Archival
-- `mcp_server_python/` moved to `archive/mcp_server_python/` (unused prototype)
-
-### Self-Improving Feedback Loop (Phase 49D-49E)
-- `FeedbackLogger.js` — anonymized query-result pair logging to S3 (JSON Lines), opt-in via FEEDBACK_LOGGING=true, no PII
-- `sagemaker_launcher.py` — submit ingestion scripts as SageMaker Processing Jobs, cost estimation, job status polling, GPU instance support
-- `Dockerfile.sagemaker` — ECR container for SageMaker (Python 3.11, sentence-transformers, boto3, neo4j, chromadb, opensearch-py, fparser), CPU/GPU variants via build arg
-- `requirements-sagemaker.txt` — SageMaker container dependencies
-- `drift_detector.py` — sample N docs, re-embed, compute cosine similarity, detect drift (threshold 0.95), check stale documents, upload reports to S3
-- `benchmark_runner.py` — compute precision@k, recall@k, MRR, nDCG per model/dimension/search_mode, ground-truth evaluation, markdown reports
-- `fine_tuning_pipeline.py` — generate training pairs (same-section positives + hard negatives), submit SageMaker Training Jobs, register fine-tuned models
-- `hard_negative_miner.py` — graph-powered training triples (1-hop apart, different communities), Sentence Transformers TripletLoss format
-
-### Property Tests (all passing)
-P1-P2 Registry invariants, P3 Embedding dimension consistency, P4-P5 Collection naming determinism,
-P6-P7 Deterministic ID idempotence/collision resistance, P8 Backend routing completeness,
-P9-P10 Model-aware index mapping, P11 Index creation idempotence
-
-### Bug Fixes
-- `quiet-console.js` — fixed hardcoded legacy path `/mcp_rag_eib` → `/mdc-mcp-rag`
-
-### Documentation
-- `docs/vpc-endpoint-request.md` — formal VPC endpoint provisioning request (9 endpoints, 3 priorities)
-
-## [8.0.0] - Phase 48: AWS Infrastructure Port (April 1, 2026)
-
-### AWS Infrastructure (Phase 48A–48E)
-
-**CDK Stacks** (`infrastructure/cdk/lib/`)
-- `MdcVpcStack` — VPC, 2 AZs, NAT Gateway, 4 VPC endpoints (Secrets Manager, SSM, CloudWatch, S3)
-- `MdcSecurityStack` — Secrets Manager, SSM, Cognito user pool, WAF WebACL, IAM roles
-- `MdcDataStack` — Neptune (openCypher, IAM auth, KMS), OpenSearch (k-NN 768-dim), EFS, S3 migration bucket
-- `MdcServerStack` — ECS Fargate (1 vCPU/2GB), ALB, API Gateway + Cognito auth, CloudFront + WAF, CloudWatch dashboard + alarms
-
-**Adapter Pattern** (`mcp_server_node/src/data/adapters/`)
-- `VectorDatabaseAdapter.js` / `GraphDatabaseAdapter.js` — abstract interfaces (16/34 methods)
-- `OpenSearchAdapter.js` — k-NN search, SigV4 auth, metadata filter translation, score normalization [0,1]
-- `NeptuneAdapter.js` — all 34 graph methods, Bolt/IAM auth, APOC pre-transform
-- `apoc-transform.js` — 5 APOC→openCypher replacements + `UnsupportedQueryError`
-- `ChromaDBLegacyAdapter.js` / `Neo4jLegacyAdapter.js` — passthrough wrappers
-- `backend-selector.js` — routes `DB_BACKEND=legacy|aws`
-- `UnifiedDataAccess.js` — 3-line change to use `selectDatabaseBackend()`
-
-**Configuration** (`mcp_server_node/src/config/aws-config.js`)
-- `resolveConfig()` — Secrets Manager + SSM fetch, process-lifetime cache, env var fallback, no secret logging
-
-**Health & Resilience** (`mcp_server_node/src/health/HealthChecker.js`)
-- `checkDatabases()` — healthy iff ≥5 indices + nodeCount > 0
-- `withRetry()` — exponential backoff 5s/10s/20s/60s
-- `mcp_health_check` tool updated to include graph DB check
-- `/health` HTTP endpoint uses real DB check
-
-**Migration Scripts** (`mcp_server_node/scripts/`)
-- `create-opensearch-indices.js` — 5 indices, knn_vector 768-dim nmslib cosinesimil hnsw
-- `migrate-to-aws.js` — 5-phase migration with S3 staging, gzip, watermarks
-- `verify-migration.js` — count parity check (ChromaDB↔OpenSearch, Neo4j↔Neptune)
-- `capture-golden-files.js` — baseline capture from legacy system
-- `validate-search-relevance.js` — 5% tolerance comparison (overlapAtK)
-- `run-golden-file-comparison.js` — schema equivalence check against golden files
-- `cutover-mcp-client.js` — updates `.kiro/settings/mcp.json` to AWS endpoint
-
-**Ingestion Adaptation** (`mcp_server_node/scripts/aws_backend.py`)
-- Shared adapter: `get_graph_driver()` (Neptune), `get_vector_client()` (OpenSearch)
-- All 7 ingestion scripts patched with `--backend aws` flag
-
-**Provisioning** (`SETUP_AWS/`)
-- `bootstrap.sh` + `mcp-env-aws.sh` + 9 numbered scripts (00–08)
-- Installs: Node.js LTS via nvm, AWS CDK CLI, Python 3.11+, uvx, AWS CLI
-
-### Property Tests (all passing)
-P1 Tool Interface Preservation, P2 Adapter Output Compatibility, P3 APOC Semantic Preservation,
-P4 Data Completeness, P5 Migration Idempotence, P6 Embedding Fidelity, P7 Score Normalization,
-P8 Search Equivalence, P9 Health Check Accuracy, P10 Graceful Degradation,
-P11 Secret Non-Exposure, P12 Configuration Caching, P13 Retry Exponential Backoff
-
-### Breaking Changes
-- None — all 51 tools work identically in `DB_BACKEND=legacy` mode (default)
-- `DB_BACKEND=aws` requires `OPENSEARCH_ENDPOINT` + `NEPTUNE_ENDPOINT`
-
-## [7.36.1] - SDD Phase 49: Rocoto Dryrun Thread Pool Guard (March 31, 2026)
-
-### Rocoto Dryrun Behavior (`supported_repos/rocoto/lib/workflowmgr/`)
-- **BQS dryrun short-circuit**: `bqs.rb` now records dryrun submit status without creating thread pool workers, preventing deadlocks when `BatchQueueServer=false` while preserving job card output.
+### Validation
+- Smoke tests pass: `dryrun` (PASS), `status` (PASS) on `feature/dryrun_nodaemon_final` branch (Ruby 3.0.7, Rocoto 1.3.7, Slurm).
+- PR #124 review comments (all 7 inline + 1 suppressed) confirmed addressed; reply acknowledgments posted on discussion feed.
 
 ## [7.36.0] - SDD Phase 47: Rocoto Dryrun PR #124 Reconciliation Implementation (March 27, 2026)
 

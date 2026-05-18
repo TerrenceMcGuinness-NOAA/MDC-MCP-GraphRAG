@@ -47,13 +47,6 @@ else
     echo "  Docker: NOT INSTALLED"
 fi
 
-# cypher-shell
-if command_exists cypher-shell; then
-    echo "  cypher-shell: $(cypher-shell --version 2>&1)"
-else
-    echo "  cypher-shell: NOT INSTALLED"
-fi
-
 ################################################################################
 # Services Status
 ################################################################################

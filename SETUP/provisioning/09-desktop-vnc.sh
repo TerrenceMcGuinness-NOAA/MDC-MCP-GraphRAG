@@ -198,8 +198,6 @@ unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
 
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null || true
-export ICEAUTHORITY="$HOME/.ICEauthority"
 export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=MATE
 export XDG_SESSION_DESKTOP=mate
@@ -208,9 +206,6 @@ export LIBGL_ALWAYS_SOFTWARE=1
 
 eval $(/usr/bin/dbus-launch --sh-syntax --exit-with-session)
 export DBUS_SESSION_BUS_ADDRESS
-
-# Kill mate-power-manager — causes DBus AccessDenied in containerized/non-seat envs
-(sleep 3 && killall mate-power-manager 2>/dev/null) &
 
 exec /usr/bin/mate-session
 EOFVNC
@@ -622,65 +617,6 @@ else
 fi
 
 ################################################################################
-# ICEauthority / XDG_RUNTIME_DIR Fix (System-Level)
-#
-# MATE desktop's ICE subsystem writes an ICEauthority file. By default it
-# targets $XDG_RUNTIME_DIR/ICEauthority (/run/user/<uid>/ICEauthority).
-# On PW (Parallel Works) nodes the runtime directory may not exist when VNC
-# starts, causing: "Could not update ICEauthority file /run/user/<uid>/ICEauthority"
-# which blocks the desktop from rendering.
-#
-# PW's start-template-v3.sh generates its own kasm-xstartup at session start
-# time, so we cannot patch it from provisioning. The fix must be system-wide:
-#   1. /etc/profile.d/ script — sets ICEAUTHORITY=$HOME/.ICEauthority for all
-#      login shells (inherited by mate-session and its children)
-#   2. tmpfiles.d config — ensures /run/user/<uid> is created at boot/login
-#   3. Individual xstartup templates — belt-and-suspenders (patched above)
-################################################################################
-
-log_subsection "ICEauthority / XDG_RUNTIME_DIR System Fix"
-
-cat > /etc/profile.d/vnc-iceauthority.sh << 'EOFICE'
-# Redirect ICEauthority to $HOME to avoid failures when /run/user/<uid>
-# does not exist (common in PW/container VNC sessions).
-# Also ensure XDG_RUNTIME_DIR exists.
-export ICEAUTHORITY="${HOME}/.ICEauthority"
-if [ -n "${XDG_RUNTIME_DIR}" ]; then
-    mkdir -p "${XDG_RUNTIME_DIR}" 2>/dev/null || true
-fi
-EOFICE
-chmod 644 /etc/profile.d/vnc-iceauthority.sh
-log_success "Installed /etc/profile.d/vnc-iceauthority.sh"
-
-# Ensure XDG_RUNTIME_DIR exists for provisioned users via tmpfiles.d
-# (systemd-logind normally creates this, but PW sessions may bypass logind)
-for username in "${USERS_TO_CONFIG[@]}"; do
-    if id "${username}" &>/dev/null; then
-        local_uid=$(id -u "${username}")
-        local_runtime_dir="/run/user/${local_uid}"
-        mkdir -p "${local_runtime_dir}" 2>/dev/null || true
-        chown "${username}:" "${local_runtime_dir}" 2>/dev/null || true
-        chmod 700 "${local_runtime_dir}" 2>/dev/null || true
-    fi
-done
-
-# tmpfiles.d entry so systemd-tmpfiles recreates on boot
-# Format: d <path> <mode> <user> <group> <age> -
-TMPFILES_VNC="/etc/tmpfiles.d/vnc-runtime-dirs.conf"
-: > "${TMPFILES_VNC}"
-for username in "${USERS_TO_CONFIG[@]}"; do
-    if id "${username}" &>/dev/null; then
-        local_uid=$(id -u "${username}")
-        echo "d /run/user/${local_uid} 0700 ${username} - -" >> "${TMPFILES_VNC}"
-    fi
-done
-if [[ -s "${TMPFILES_VNC}" ]]; then
-    log_success "Installed ${TMPFILES_VNC} for XDG_RUNTIME_DIR pre-creation"
-else
-    rm -f "${TMPFILES_VNC}"
-fi
-
-################################################################################
 # KasmVNC Configuration
 ################################################################################
 
@@ -759,19 +695,12 @@ unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
 
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null || true
-export ICEAUTHORITY="$HOME/.ICEauthority"
 export XDG_SESSION_TYPE=x11
 export XDG_CURRENT_DESKTOP=MATE
 export XDG_SESSION_DESKTOP=mate
-export GDK_BACKEND=x11
-export LIBGL_ALWAYS_SOFTWARE=1
 
 eval $(/usr/bin/dbus-launch --sh-syntax --exit-with-session)
 export DBUS_SESSION_BUS_ADDRESS
-
-# Kill mate-power-manager — causes DBus AccessDenied in containerized/non-seat envs
-(sleep 3 && killall mate-power-manager 2>/dev/null) &
 
 if command -v mate-session &> /dev/null; then
     exec /usr/bin/mate-session
@@ -841,9 +770,6 @@ echo "[OK] Xvnc running (PID ${XVNC_PID}) on :${DISPLAY_NUM}"
 
 # Launch MATE desktop session
 export DISPLAY=:${DISPLAY_NUM}
-export ICEAUTHORITY="$HOME/.ICEauthority"
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null || true
 nohup mate-session &>/tmp/mate-vnc-${DISPLAY_NUM}.log &
 MATE_PID=$!
 sleep 3
@@ -1001,8 +927,6 @@ else
     export DISPLAY=":${DISPLAY_NUM}"
     export GDK_BACKEND=x11
     export LIBGL_ALWAYS_SOFTWARE=1
-    export ICEAUTHORITY="$HOME/.ICEauthority"
-    mkdir -p "/run/user/$(id -u)" 2>/dev/null || true
     nohup mate-session &>/tmp/mate-vnc-${DISPLAY_NUM}.log &
     sleep 3
 

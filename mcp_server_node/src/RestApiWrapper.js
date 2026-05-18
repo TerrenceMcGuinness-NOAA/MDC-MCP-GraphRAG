@@ -133,28 +133,13 @@ function getToolRegistry() {
 
 // Routes
 
-// Health check — checks both databases when available
-app.get('/health', async (req, res) => {
-  const result = { status: 'ok', service: 'MCP REST API Wrapper', timestamp: new Date().toISOString() };
-
-  // If semantic search tools are initialized, run a real DB health check
-  const dataAccess = toolModules.semantic?.dataAccess;
-  if (dataAccess?.vectorDB && dataAccess?.graphDB) {
-    try {
-      const { checkDatabases } = await import('./health/HealthChecker.js');
-      const dbHealth = await checkDatabases(dataAccess.vectorDB, dataAccess.graphDB);
-      result.databases = dbHealth;
-      if (dbHealth.status !== 'healthy') {
-        result.status = 'degraded';
-        return res.status(200).json(result);  // 200 so ALB keeps routing; ECS health check uses status field
-      }
-    } catch (err) {
-      result.databases = { status: 'degraded', reason: err.message };
-      result.status = 'degraded';
-    }
-  }
-
-  res.json(result);
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    service: 'MCP REST API Wrapper',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // List tools (no auth required)
