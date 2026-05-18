@@ -1,7 +1,7 @@
 {
   "version": "9.0.0",
   "description": "Unified ingest manifest \u2014 all knowledge base sources (url_crawl, on_disk_submodule, code_parse, config_parse, standards, community_summary, jjob_docs)",
-  "generated_at": "2026-05-18T15:11:24+00:00",
+  "generated_at": "2026-05-18T16:28:33+00:00",
   "sources": [
     {
       "name": "global-workflow",
@@ -725,7 +725,7 @@
       "description": "Shell scripts (j-jobs, ush, ex* drivers) with execution context",
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_shell_graph_v8.py",
-      "doc_count": 0,
+      "doc_count": 2079,
       "root_path": "supported_repos/global-workflow",
       "languages": [
         "shell"
@@ -741,7 +741,7 @@
       "description": "Python modules / utilities ingestible from the global-workflow tree",
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_python_graph.py",
-      "doc_count": 0,
+      "doc_count": 8922,
       "root_path": "supported_repos/global-workflow/ush",
       "languages": [
         "python"
@@ -751,13 +751,13 @@
     {
       "name": "rocoto-config",
       "source_type": "config_parse",
-      "collection_target": "global-workflow-docs-v8-0-0",
+      "collection_target": "code-with-context-v8-0-0",
       "embedding_profile": "titan1024",
       "enabled": true,
       "description": "Rocoto XML workflow definitions (tasks, metatasks, dependencies)",
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_rocoto_xml.py",
-      "doc_count": 0,
+      "doc_count": 187,
       "config_root": "supported_repos/global-workflow/parm",
       "file_patterns": [
         "**/*.xml"
@@ -767,13 +767,13 @@
     {
       "name": "expdir-configs",
       "source_type": "config_parse",
-      "collection_target": "global-workflow-docs-v8-0-0",
+      "collection_target": "code-with-context-v8-0-0",
       "embedding_profile": "titan1024",
       "enabled": true,
       "description": "Experiment-directory bash configs (config.* files)",
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_expdir_configs.py",
-      "doc_count": 0,
+      "doc_count": 1297,
       "config_root": "supported_repos/global-workflow/parm/config",
       "file_patterns": [
         "config.*"

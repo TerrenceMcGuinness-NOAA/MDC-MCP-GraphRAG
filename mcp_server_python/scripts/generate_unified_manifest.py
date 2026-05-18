@@ -132,7 +132,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
     {
         "name": "rocoto-config",
         "source_type": SourceType.CONFIG_PARSE,
-        "collection_target": "global-workflow-docs-v8-0-0",
+        "collection_target": "code-with-context-v8-0-0",
         "embedding_profile": "titan1024",
         "enabled": True,
         "description": "Rocoto XML workflow definitions (tasks, metatasks, dependencies)",
@@ -147,7 +147,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
     {
         "name": "expdir-configs",
         "source_type": SourceType.CONFIG_PARSE,
-        "collection_target": "global-workflow-docs-v8-0-0",
+        "collection_target": "code-with-context-v8-0-0",
         "embedding_profile": "titan1024",
         "enabled": True,
         "description": "Experiment-directory bash configs (config.* files)",
@@ -340,6 +340,7 @@ async def _populate_actual_counts(
 
     # For shared indices, query per-source breakdown via aggregation
     per_source_counts: dict[str, dict[str, int]] = {}
+    per_language_counts: dict[str, dict[str, int]] = {}
     for index_name, source_idxs in index_to_sources.items():
         if len(source_idxs) <= 1:
             continue
@@ -371,6 +372,32 @@ async def _populate_actual_counts(
         except Exception as exc:
             log.warning("aggregation for %s failed: %s", index_name, exc)
 
+        # Also run a language aggregation for code_parse sources
+        try:
+            lang_body = {
+                "size": 0,
+                "aggs": {
+                    "languages": {
+                        "terms": {"field": "metadata.language.keyword", "size": 20}
+                    }
+                },
+            }
+            resp = await asyncio.to_thread(
+                raw_client.search, index=index_name, body=lang_body
+            )
+            buckets = resp.get("aggregations", {}).get("languages", {}).get("buckets", [])
+            if buckets:
+                per_language_counts[index_name] = {
+                    b["key"]: b["doc_count"] for b in buckets
+                }
+                log.info(
+                    "language aggregation for %s: %s",
+                    index_name,
+                    {b["key"]: b["doc_count"] for b in buckets},
+                )
+        except Exception as exc:
+            log.debug("language aggregation for %s failed: %s", index_name, exc)
+
     # Now assign counts
     new_sources: list[SourceEntry] = []
     for i, entry in enumerate(sources):
@@ -390,6 +417,25 @@ async def _populate_actual_counts(
             # Shared index — look up by source name in the aggregation
             agg = per_source_counts[index_name]
             doc_count = agg.get(entry.name, 0)
+            # For code_parse sources, fall back to language-based count
+            if doc_count == 0 and entry.source_type.value == "code_parse":
+                lang_agg = per_language_counts.get(index_name, {})
+                languages = entry.type_fields.get("languages", [])
+                for lang in languages:
+                    if lang in lang_agg:
+                        doc_count = lang_agg[lang]
+                        break
+            # For config_parse sources, try phase40_* source names
+            if doc_count == 0 and entry.source_type.value == "config_parse":
+                agg = per_source_counts.get(index_name, {})
+                # Map manifest names to actual metadata.source values
+                config_source_map = {
+                    "expdir-configs": "phase40_expdir_ingestion",
+                    "rocoto-config": "phase40_config_ingestion",
+                }
+                mapped_name = config_source_map.get(entry.name)
+                if mapped_name and mapped_name in agg:
+                    doc_count = agg[mapped_name]
         else:
             # Shared index but aggregation failed — leave at 0
             pass
