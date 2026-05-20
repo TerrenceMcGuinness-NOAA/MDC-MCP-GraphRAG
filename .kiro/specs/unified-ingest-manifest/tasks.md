@@ -6,13 +6,13 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
 
 ## Tasks
 
-- [ ] 1. Create manifest package with data models
-  - [ ] 1.1 Create `src/manifest/__init__.py` with package exports
+- [x] 1. Create manifest package with data models
+  - [x] 1.1 Create `src/manifest/__init__.py` with package exports
     - Create the `mcp_server_python/src/manifest/` package directory
     - Define `__init__.py` exporting `ManifestRegistry`, `GapDetector`, `SourceEntry`, `SourceType`, `UnifiedManifest`
     - _Requirements: 1.1, 1.2, 1.10_
 
-  - [ ] 1.2 Implement `src/manifest/models.py` with SourceType enum, SourceEntry, and UnifiedManifest dataclasses
+  - [x] 1.2 Implement `src/manifest/models.py` with SourceType enum, SourceEntry, and UnifiedManifest dataclasses
     - Define `SourceType(str, Enum)` with all 7 values: `url_crawl`, `on_disk_submodule`, `code_parse`, `config_parse`, `standards`, `community_summary`, `jjob_docs`
     - Define frozen `SourceEntry` dataclass with common fields (`name`, `source_type`, `collection_target`, `embedding_profile`, `enabled`, `description`, `last_ingested`, `ingestion_script`, `doc_count`) and `type_fields: dict[str, Any]`
     - Define `UnifiedManifest` dataclass with `version`, `description`, `generated_at`, `sources`
@@ -20,14 +20,14 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Validate type-specific required fields per source_type in `from_dict()` (url_crawl needs `url`, `crawl_type`, `max_pages`, `tier`; on_disk_submodule needs `local_path`, `file_patterns`, `parser`; etc.)
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10_
 
-  - [ ]* 1.3 Write property test for manifest round-trip fidelity
+  - [x]* 1.3 Write property test for manifest round-trip fidelity
     - **Property 1: Manifest Round-Trip Fidelity**
     - Use Hypothesis to generate arbitrary `UnifiedManifest` instances, serialize to dict, deserialize back, and assert equality
     - Verify field ordering in JSON output is deterministic (sorted keys)
     - **Validates: Requirements 1.1, 1.2, 8.1**
 
-- [ ] 2. Implement ManifestRegistry
-  - [ ] 2.1 Implement `src/manifest/registry.py` with ManifestRegistry class
+- [x] 2. Implement ManifestRegistry
+  - [x] 2.1 Implement `src/manifest/registry.py` with ManifestRegistry class
     - Implement `__init__(self, manifest: UnifiedManifest)` building `_by_name` index
     - Implement `load(cls, path: Path | None = None) -> ManifestRegistry` class method
     - Implement `get_sources(*, source_type, collection, enabled_only) -> list[SourceEntry]` with filter logic
@@ -38,18 +38,18 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Implement `version`, `total_sources`, `enabled_sources` properties
     - _Requirements: 1.11, 2.2, 2.4, 5.1, 5.2, 5.3, 5.4_
 
-  - [ ]* 2.2 Write property test for filter completeness
+  - [x]* 2.2 Write property test for filter completeness
     - **Property 3: Filter Completeness**
     - Use Hypothesis to generate manifests with mixed source types, verify `get_sources(source_type=X)` returns exactly entries where `entry.source_type == X` and `entry.enabled == True`
     - Assert no entries are dropped or duplicated
     - **Validates: Requirements 3.2, 3.3**
 
-  - [ ]* 2.3 Write property test for legacy equivalence
+  - [x]* 2.3 Write property test for legacy equivalence
     - **Property 2: Legacy Equivalence**
     - Use Hypothesis to generate `url_crawl` entries, verify `get_legacy_format()` output is structurally identical to `documentation_sources.json` format — same field names, value types, ordering
     - **Validates: Requirements 2.1, 2.3, 2.4**
 
-  - [ ]* 2.4 Write unit tests for ManifestRegistry
+  - [x]* 2.4 Write unit tests for ManifestRegistry
     - Test `load()` from valid JSON with all source types
     - Test `get_sources()` with each filter combination (type, collection, enabled_only)
     - Test `get_url_sources()` returns only url_crawl entries
@@ -59,8 +59,8 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Test `KeyError` raised for `update_source()` with unknown name
     - _Requirements: 2.2, 2.4, 5.4_
 
-- [ ] 3. Implement manifest loader with fallback chain
-  - [ ] 3.1 Implement `src/manifest/loader.py` with path resolution and fallback logic
+- [x] 3. Implement manifest loader with fallback chain
+  - [x] 3.1 Implement `src/manifest/loader.py` with path resolution and fallback logic
     - Implement `resolve_manifest_path() -> Path | None` checking `MCP_UNIFIED_MANIFEST_PATH` env var → `src/config/unified_manifest.json` bundled path → `None`
     - Implement `load_manifest(path: Path | None = None) -> ManifestRegistry` with full fallback chain
     - Implement `_migrate_legacy(legacy_path: Path) -> UnifiedManifest` converting `documentation_sources.json` entries to `url_crawl` SourceEntries
@@ -69,13 +69,13 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Log WARNING when falling back to legacy manifest
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-  - [ ]* 3.2 Write property test for fallback safety
+  - [x]* 3.2 Write property test for fallback safety
     - **Property 5: Fallback Safety**
     - Use Hypothesis to generate malformed JSON strings, verify `load_manifest()` never raises, always returns a valid `ManifestRegistry` (possibly with legacy-only sources)
     - Verify WARNING is logged when falling back
     - **Validates: Requirements 8.3, 8.5**
 
-  - [ ]* 3.3 Write unit tests for manifest loader
+  - [x]* 3.3 Write unit tests for manifest loader
     - Test env var path takes precedence over bundled path
     - Test bundled path used when env var unset
     - Test legacy fallback when unified manifest file missing
@@ -84,11 +84,11 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Test INFO log emitted with version/count on successful load
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 4. Checkpoint - Ensure all tests pass
+- [x] 4. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Implement GapDetector
-  - [ ] 5.1 Implement `src/manifest/gap_detector.py` with GapDetector and GapReport
+- [x] 5. Implement GapDetector
+  - [x] 5.1 Implement `src/manifest/gap_detector.py` with GapDetector and GapReport
     - Define `GapReport` dataclass with `collection`, `declared_count`, `actual_count`, `coverage_pct`, `stale_sources`, `never_ingested`, `status`
     - Implement `GapDetector` class with `COVERAGE_THRESHOLD = 0.90` and `STALE_DAYS = 30`
     - Implement `async detect(registry, vector_db) -> list[GapReport]` comparing declared vs actual counts per collection
@@ -100,12 +100,12 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Produce per-collection summary with declared vs actual counts
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-  - [ ]* 5.2 Write property test for gap detection monotonicity
+  - [x]* 5.2 Write property test for gap detection monotonicity
     - **Property 4: Gap Detection Monotonicity**
     - Use Hypothesis to generate manifests where actual_count >= declared_count for all collections, verify `detect()` returns zero gap reports with status "healthy"
     - **Validates: Requirements 6.1, 6.2**
 
-  - [ ]* 5.3 Write unit tests for GapDetector
+  - [x]* 5.3 Write unit tests for GapDetector
     - Test all collections at 100% coverage → no gaps reported
     - Test one collection at 85% → gap reported with correct status
     - Test source with `last_ingested` > 30 days → stale status
@@ -114,8 +114,8 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Test per-collection summary math (declared vs actual sums)
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-- [ ] 6. Implement MCP tools
-  - [ ] 6.1 Add `list_all_sources` tool to `src/tools/semantic_search.py`
+- [x] 6. Implement MCP tools
+  - [x] 6.1 Add `list_all_sources` tool to `src/tools/semantic_search.py`
     - Register new `list_all_sources` tool with parameters: `source_type`, `collection`, `format` (summary/detailed), `include_gaps`
     - Implement summary format: aggregated counts grouped by source type and collection
     - Implement detailed format: full SourceEntry metadata for each source
@@ -123,27 +123,27 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Include actual document counts from OpenSearch alongside declared counts
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 6.5_
 
-  - [ ] 6.2 Update `list_ingested_urls` to read from ManifestRegistry
+  - [x] 6.2 Update `list_ingested_urls` to read from ManifestRegistry
     - Refactor internal implementation to call `registry.get_url_sources()` instead of reading `documentation_sources.json` directly
     - Preserve existing parameter interface (`format`, `source_filter`) unchanged
     - When `format=detailed`, append summary section showing non-URL source counts
     - Fall back to legacy file-based behavior if registry is None
     - _Requirements: 4.1, 4.3, 4.5_
 
-  - [ ] 6.3 Update `get_ingested_urls_array` to read from ManifestRegistry
+  - [x] 6.3 Update `get_ingested_urls_array` to read from ManifestRegistry
     - Refactor internal implementation to call `registry.get_url_sources()` instead of reading file
     - Preserve existing parameter interface (`include_failed`) unchanged
     - Return same JSON structure as current implementation
     - Fall back to legacy file-based behavior if registry is None
     - _Requirements: 4.2, 4.4_
 
-  - [ ] 6.4 Update `register()` function signature to accept `manifest_registry` parameter
+  - [x] 6.4 Update `register()` function signature to accept `manifest_registry` parameter
     - Add `manifest_registry: ManifestRegistry | None = None` keyword parameter to `register()`
     - Pass registry to tool closures for `list_all_sources`, `list_ingested_urls`, `get_ingested_urls_array`
     - Preserve `documentation_sources_path` parameter for fallback
     - _Requirements: 2.2, 4.1, 4.2_
 
-  - [ ]* 6.5 Write unit tests for MCP tools
+  - [x]* 6.5 Write unit tests for MCP tools
     - Test `list_all_sources` with no filters returns all enabled sources
     - Test `list_all_sources` with `source_type` filter returns correct subset
     - Test `list_all_sources` with `collection` filter returns correct subset
@@ -155,11 +155,11 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Test all tools gracefully handle `registry=None` (fallback mode)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 7. Checkpoint - Ensure all tests pass
+- [x] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Create CLI scripts
-  - [ ] 8.1 Implement `scripts/generate_unified_manifest.py` bootstrap script
+- [x] 8. Create CLI scripts
+  - [x] 8.1 Implement `scripts/generate_unified_manifest.py` bootstrap script
     - Scan `mcp_server_node/scripts/` for ingestion scripts and map each to a SourceEntry
     - Query OpenSearch for actual document counts per index to populate `doc_count` fields
     - Discover source types by analyzing ingestion script names and content patterns
@@ -168,7 +168,7 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Support `--dry-run` flag to print manifest without writing
     - _Requirements: 7.1, 7.2, 7.3_
 
-  - [ ] 8.2 Implement `scripts/validate_manifest.py` validation script
+  - [x] 8.2 Implement `scripts/validate_manifest.py` validation script
     - Validate all required common fields present on every SourceEntry
     - Validate type-specific required fields per `source_type`
     - Validate `collection_target` resolves to a known OpenSearch index
@@ -180,7 +180,7 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Exit with non-zero code on validation errors
     - _Requirements: 7.4, 7.5, 7.6_
 
-  - [ ]* 8.3 Write unit tests for validation script
+  - [x]* 8.3 Write unit tests for validation script
     - Test valid manifest passes validation
     - Test missing required field reports error
     - Test invalid source_type reports entry name and value
@@ -188,28 +188,28 @@ This plan implements the Unified Ingest Manifest feature for the MDC MCP RAG Pyt
     - Test duplicate name detection
     - _Requirements: 7.4, 7.5, 7.6_
 
-- [ ] 9. Server boot integration and manifest file
-  - [ ] 9.1 Create initial `src/config/unified_manifest.json` manifest file
+- [x] 9. Server boot integration and manifest file
+  - [x] 9.1 Create initial `src/config/unified_manifest.json` manifest file
     - Create the JSON file with `version: "9.0.0"`, `description`, `generated_at`
     - Include representative entries for each of the 7 source types based on current knowledge base state
     - Ensure all url_crawl entries match current `documentation_sources.json` content
     - _Requirements: 1.1, 1.2, 2.1, 2.3_
 
-  - [ ] 9.2 Integrate ManifestRegistry loading into `src/mcp_server.py` boot sequence
+  - [x] 9.2 Integrate ManifestRegistry loading into `src/mcp_server.py` boot sequence
     - Import `load_manifest` from `src.manifest.loader`
     - Call `load_manifest()` during server initialization
     - Pass resulting `ManifestRegistry` to `semantic_search.register(mcp, data, manifest_registry=registry)`
     - Ensure server boots successfully even if manifest loading fails (fallback)
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-  - [ ]* 9.3 Write unit tests for server boot integration
+  - [x]* 9.3 Write unit tests for server boot integration
     - Test server boots with valid unified manifest
     - Test server boots with missing manifest (fallback to legacy)
     - Test server boots with malformed manifest (fallback + error log)
     - Test registry is passed to semantic_search.register()
     - _Requirements: 8.3, 8.4, 8.5_
 
-- [ ] 10. Final checkpoint - Ensure all tests pass
+- [x] 10. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

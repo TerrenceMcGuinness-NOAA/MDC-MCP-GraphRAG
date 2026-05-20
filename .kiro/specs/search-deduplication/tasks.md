@@ -12,7 +12,7 @@ Verification is via live search queries and dry-run output (no property-based te
 
 ## Fix 1: Query-Time Deduplication (~5 lines in opensearch_adapter.py)
 
-- [ ] 1. Verify bug exists — reproduce duplicate results on UNFIXED code
+- [x] 1. Verify bug exists — reproduce duplicate results on UNFIXED code
   - **Property 1: Bug Condition** - Duplicate Content in Search Results
   - **IMPORTANT**: Run this verification BEFORE implementing the fix
   - **GOAL**: Confirm the bug condition holds for the known ESMF query
@@ -23,7 +23,7 @@ Verification is via live search queries and dry-run output (no property-based te
   - **EXPECTED OUTCOME**: Duplicates confirmed — validates the bug condition from design
   - _Requirements: 1.1, 1.2_
 
-- [ ] 2. Verify preservation baseline — confirm non-duplicate queries return correct results on UNFIXED code
+- [x] 2. Verify preservation baseline — confirm non-duplicate queries return correct results on UNFIXED code
   - **Property 2: Preservation** - Non-Duplicate Query Behavior
   - **IMPORTANT**: Follow observation-first methodology on UNFIXED code
   - Query `search_documentation` with a topic that produces all-unique results (e.g., "forecast model GFS configuration")
@@ -33,9 +33,9 @@ Verification is via live search queries and dry-run output (no property-based te
   - **EXPECTED OUTCOME**: Results are all unique, well-ordered by score — baseline captured
   - _Requirements: 3.1, 3.2, 3.6_
 
-- [ ] 3. Implement query-time dedup in `multi_collection_query()`
+- [x] 3. Implement query-time dedup in `multi_collection_query()`
 
-  - [ ] 3.1 Add fingerprint-based deduplication to `opensearch_adapter.py`
+  - [x] 3.1 Add fingerprint-based deduplication to `opensearch_adapter.py`
     - File: `mcp_server_python/src/data/opensearch_adapter.py`, method `multi_collection_query()` (line ~232)
     - After `merged.sort(key=lambda r: r.get("score", 0.0), reverse=True)`, replace `return merged[:k]` with:
       ```python
@@ -56,14 +56,14 @@ Verification is via live search queries and dry-run output (no property-based te
     - _Preservation: non-duplicate queries return identical results since no fingerprints collide_
     - _Requirements: 2.1, 2.2, 3.1, 3.2, 3.6_
 
-  - [ ] 3.2 Verify bug condition query now returns deduplicated results
+  - [x] 3.2 Verify bug condition query now returns deduplicated results
     - **Property 1: Expected Behavior** - No Duplicate Content in Search Results
     - **IMPORTANT**: Re-run the SAME query from task 1 — do NOT write a new test
     - Re-run "ESMF coupling framework NUOPC component initialization" (k=5)
     - **EXPECTED OUTCOME**: All 5 results have distinct content fingerprints — no duplicates
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 3.3 Verify preservation queries still return identical results
+  - [x] 3.3 Verify preservation queries still return identical results
     - **Property 2: Preservation** - Non-Duplicate Query Behavior
     - **IMPORTANT**: Re-run the SAME queries from task 2 — do NOT write new tests
     - Re-run the non-duplicate queries recorded in task 2
@@ -71,7 +71,7 @@ Verification is via live search queries and dry-run output (no property-based te
     - **EXPECTED OUTCOME**: Results are identical to the pre-fix baseline — no regressions
     - _Requirements: 3.1, 3.2, 3.6_
 
-  - [ ] 3.4 Rebuild and deploy Docker image with Fix 1
+  - [x] 3.4 Rebuild and deploy Docker image with Fix 1
     - Rebuild the Python MCP server image with the dedup change
     - Tag as `python-all-tools-v4` (next version after current `python-all-tools-v3`)
     - Push to ECR: `903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:python-all-tools-v4`
@@ -79,7 +79,7 @@ Verification is via live search queries and dry-run output (no property-based te
     - Smoke-test via `get_server_info` — confirm 51 tools, 9 modules
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 3.5 Verify deduplication works on live AgentCore runtime
+  - [x] 3.5 Verify deduplication works on live AgentCore runtime
     - Run "ESMF coupling framework NUOPC component initialization" via the deployed runtime
     - Confirm deduplicated results (no duplicate fingerprints in response)
     - Run a non-duplicate query and confirm results unchanged
@@ -87,9 +87,9 @@ Verification is via live search queries and dry-run output (no property-based te
 
 ## Fix 2: Ingest-Time Deterministic IDs + Index Cleanup
 
-- [ ] 4. Create `dedup_opensearch_index.py` cleanup script
+- [x] 4. Create `dedup_opensearch_index.py` cleanup script
 
-  - [ ] 4.1 Implement the cleanup script
+  - [x] 4.1 Implement the cleanup script
     - File: `mcp_server_python/scripts/dedup_opensearch_index.py` (NEW)
     - Use OpenSearch scroll API to iterate all documents in target index
     - Group documents by content fingerprint (`content[:200]`)
@@ -103,26 +103,26 @@ Verification is via live search queries and dry-run output (no property-based te
     - _Preservation: unique content count must not decrease (Req 3.7), dry-run leaves index unmodified (Req 3.4)_
     - _Requirements: 2.5, 3.4, 3.5, 3.7_
 
-  - [ ] 4.2 Verify `--dry-run` mode reports duplicates without modifying index
+  - [x] 4.2 Verify `--dry-run` mode reports duplicates without modifying index
     - Run: `python dedup_opensearch_index.py --dry-run --index mdc-workflow-docs-titan1024`
     - Confirm output reports duplicate count and which documents would be removed
     - Confirm index document count is unchanged after dry-run
     - _Requirements: 3.4_
 
-  - [ ] 4.3 Run cleanup (live) and verify results
+  - [x] 4.3 Run cleanup (live) and verify results
     - Run: `python dedup_opensearch_index.py --index mdc-workflow-docs-titan1024`
     - Verify: unique content count after ≥ unique content count before
     - Verify: total document count decreased by the number of duplicates reported
     - _Requirements: 2.5, 3.7_
 
-  - [ ] 4.4 Verify idempotency — second run finds zero duplicates
+  - [x] 4.4 Verify idempotency — second run finds zero duplicates
     - Re-run: `python dedup_opensearch_index.py --dry-run --index mdc-workflow-docs-titan1024`
     - **EXPECTED OUTCOME**: Reports 0 duplicates found, 0 documents to remove
     - _Requirements: 3.5_
 
-- [ ] 5. Update ingestion pipeline with deterministic ID generation
+- [x] 5. Update ingestion pipeline with deterministic ID generation
 
-  - [ ] 5.1 Change ID formula in `ingest_documentation_v8.py`
+  - [x] 5.1 Change ID formula in `ingest_documentation_v8.py`
     - File: `mcp_server_node/scripts/ingest_documentation_v8.py`
     - Replace current ID generation with: `SHA-256(source_name + first_500_chars_of_content)[:16]`
     - Remove dependency on chunk index — same content always produces same ID regardless of chunking order
@@ -132,7 +132,7 @@ Verification is via live search queries and dry-run output (no property-based te
     - _Preservation: genuinely new content still indexes successfully (Req 3.3)_
     - _Requirements: 2.3, 2.4, 3.3_
 
-  - [ ] 5.2 Update `documentation_sources_config.py` manifest if needed
+  - [x] 5.2 Update `documentation_sources_config.py` manifest if needed
     - File: `mcp_server_node/scripts/documentation_sources_config.py`
     - Ensure any source-level metadata or ID generation config aligns with the new deterministic scheme
     - No functional change if manifest only declares sources (not ID logic)
@@ -140,36 +140,36 @@ Verification is via live search queries and dry-run output (no property-based te
 
 ## Data Integrity Verification
 
-- [ ] 6. End-to-end data integrity verification
+- [x] 6. End-to-end data integrity verification
 
-  - [ ] 6.1 Verify search quality post-cleanup
+  - [x] 6.1 Verify search quality post-cleanup
     - Run the ESMF duplicate query via live AgentCore runtime
     - Confirm: 1 ESMF result + 4 distinct related results (no duplicates)
     - Run 3-5 additional queries across different documentation sources
     - Confirm: all results contain unique content, scores are reasonable, no missing content
     - _Requirements: 2.1, 2.2, 3.1_
 
-  - [ ] 6.2 Verify index document counts via `get_knowledge_base_status`
+  - [x] 6.2 Verify index document counts via `get_knowledge_base_status`
     - Call `get_knowledge_base_status` tool
     - Record `mdc-workflow-docs-titan1024` document count
     - Compare to pre-cleanup count — difference should equal duplicates removed
     - Verify unique content count is preserved (≥ pre-cleanup unique count)
     - _Requirements: 3.7_
 
-  - [ ] 6.3 Verify manifest consistency
+  - [x] 6.3 Verify manifest consistency
     - Run `backfill_manifest_status.py` to update manifest with current doc counts
     - Confirm manifest `doc_count` values reflect the post-cleanup totals
     - Verify no sources show unexpected zero counts (would indicate over-deletion)
     - _Requirements: 2.5, 3.7_
 
-  - [ ] 6.4 Verify re-ingestion produces upserts (not new duplicates)
+  - [x] 6.4 Verify re-ingestion produces upserts (not new duplicates)
     - Re-ingest a single known source using the updated `ingest_documentation_v8.py`
     - Confirm: document count for that source does NOT increase
     - Confirm: content is unchanged (same fingerprints present)
     - Run `dedup_opensearch_index.py --dry-run` — should report 0 new duplicates
     - _Requirements: 2.3, 2.4, 3.3, 3.5_
 
-- [ ] 7. Checkpoint — Ensure all verification passes
+- [x] 7. Checkpoint — Ensure all verification passes
   - All live search queries return deduplicated results
   - Dry-run cleanup reports 0 remaining duplicates
   - Non-duplicate queries return same results as pre-fix baseline

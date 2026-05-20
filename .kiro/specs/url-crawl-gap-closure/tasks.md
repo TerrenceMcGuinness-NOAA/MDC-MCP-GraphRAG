@@ -68,7 +68,7 @@ Ingest 12 pending `url_crawl` sources into the `mdc-workflow-docs-titan1024` Ope
     - Confirm results contain source=uwtools
     - _Requirements: 8.2_
 
-- [ ] 4. Checkpoint — Verify tier1 and tier2 before proceeding
+- [x] 4. Checkpoint — Verify tier1 and tier2 before proceeding
   - Ensure gsi-user-guide and uwtools both show doc_count > 0. Ask the user if questions arise.
 
 - [x] 5. Ingest tier3_models batch (7 newly added sources)
@@ -121,7 +121,7 @@ Ingest 12 pending `url_crawl` sources into the `mdc-workflow-docs-titan1024` Ope
     - If site has no crawlable documentation content, mark as `empty_site`
     - _Requirements: 1.5, 4.1, 4.4_
 
-- [ ] 8. Checkpoint — Verify all 12 sources attempted
+- [x] 8. Checkpoint — Verify all 12 sources attempted
   - Confirm all 12 sources have been attempted. Count sources with doc_count > 0. Ensure at least 9 of 12 have doc_count > 0 for batch success. Ask the user if questions arise.
 
 - [x] 9. Manifest status writeback and final verification
@@ -155,7 +155,7 @@ Ingest 12 pending `url_crawl` sources into the `mdc-workflow-docs-titan1024` Ope
     - If fewer than 9, list failed sources with error details for investigation
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 10. Final checkpoint — Confirm gap closure complete
+- [x] 10. Final checkpoint — Confirm gap closure complete
   - Ensure all verification queries pass, manifest is updated, and batch summary shows SUCCESS. Ask the user if questions arise.
 
 ## Notes

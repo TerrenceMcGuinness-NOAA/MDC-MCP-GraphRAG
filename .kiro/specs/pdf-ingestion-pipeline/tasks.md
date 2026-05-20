@@ -55,7 +55,7 @@ Create a standalone Python script (`mcp_server_node/scripts/ingest_pdf_sources.p
     - Add `if __name__ == "__main__": main()` entry point
     - _Requirements: 7.1, 7.2, 7.3, 8.5, 9.1, 9.2_
 
-- [ ] 6. Checkpoint — Verify dry-run mode works end-to-end
+- [x] 6. Checkpoint — Verify dry-run mode works end-to-end
   - Ensure all tests pass, ask the user if questions arise.
   - Run `python mcp_server_node/scripts/ingest_pdf_sources.py --dry-run` and confirm output shows PDF sizes, page counts, and chunk counts for all enabled pdf_download sources
 
@@ -71,7 +71,7 @@ Create a standalone Python script (`mcp_server_node/scripts/ingest_pdf_sources.p
     - Verify indexed documents are retrievable via `search_documentation` tool queries for ESMF/NUOPC content
     - _Requirements: 5.1, 6.1, 6.2, 6.3_
 
-- [ ] 8. Final checkpoint — Confirm pipeline operational
+- [x] 8. Final checkpoint — Confirm pipeline operational
   - Ensure all tests pass, ask the user if questions arise.
   - Confirm dry-run produces expected output, live ingestion indexes documents, and search queries return PDF-sourced results
 

@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Write bug condition exploration test
+- [x] 1. Write bug condition exploration test
   - **Property 1: Bug Condition** - Failed Batches Silently Swallowed, Watermark Written as "Done"
   - **DEFERRED**: Bulk loader approach bypasses the Bolt loadGraph code path entirely
   - **NOTE**: Still valuable for future incremental Bolt updates — defer to post-migration
@@ -14,7 +14,7 @@
   - Mark task complete when test is written, run, and failure is documented
   - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3_
 
-- [ ] 2. Write preservation property tests (BEFORE implementing fix)
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
   - **Property 2: Preservation** - Successful Runs Write "Done" Watermark with Correct Counts
   - **IMPORTANT**: Follow observation-first methodology
   - Create test file at `mcp_server_node/test/tests/unit/loadGraph-preservation.test.js`
@@ -26,31 +26,31 @@
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 3. Fix loadGraph Bolt error handling (defense in depth)
+- [x] 3. Fix loadGraph Bolt error handling (defense in depth)
 
-  - [ ] 3.1 Replace .catch() with error accumulation in relationship loading loop
+  - [x] 3.1 Replace .catch() with error accumulation in relationship loading loop
     - Remove `.catch(err => console.error(...))` from the `runWithRetry` call in the rel loading worker tasks
     - Wrap each batch in try/catch that increments a `failedRelBatches` counter
     - Log each failure with batch index, rel type, and truncated error message (existing format preserved)
     - _Requirements: 1.1, 2.1_
 
-  - [ ] 3.2 Replace .catch() with error accumulation in node loading loop
+  - [x] 3.2 Replace .catch() with error accumulation in node loading loop
     - Apply the same pattern as 3.1 to the node loading worker tasks
     - Add a `failedNodeBatches` counter
     - _Requirements: 1.4, 2.4_
 
-  - [ ] 3.3 Add conditional watermark write based on failure counts
+  - [x] 3.3 Add conditional watermark write based on failure counts
     - Only write `wm['load:graph'] = 'done'` if BOTH `failedNodeBatches === 0` AND `failedRelBatches === 0`
     - Log summary: `[RESULT] Nodes: X succeeded, Y failed. Rels: A succeeded, B failed.`
     - If failures > 0: `[WARN] load:graph NOT marked done — N batch failures. Re-run to retry.`
     - _Requirements: 1.2, 1.3, 2.2, 2.3, 2.5, 3.1_
 
-  - [ ] 3.4 Verify bug condition exploration test now passes
+  - [x] 3.4 Verify bug condition exploration test now passes
     - Re-run the SAME test from task 1 on FIXED code
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
     - _Requirements: 2.1, 2.2, 2.3, 2.5_
 
-  - [ ] 3.5 Verify preservation tests still pass
+  - [x] 3.5 Verify preservation tests still pass
     - Re-run the SAME tests from task 2 on FIXED code
     - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_

@@ -20,10 +20,10 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
 - [x] 3. Checkpoint — connection validation passes
   - _All connections verified, 45/45 tools pass. Sub-tasks completed as part of tasks 1-2._
 
-- [ ] 4. Implement APOC transform property tests
-  - [ ] 4.1 Create vitest test file — DEFERRED (tools work without APOC transforms on Neptune)
+- [x] 4. Implement APOC transform property tests
+  - [x] 4.1 Create vitest test file — DEFERRED (tools work without APOC transforms on Neptune)
 
-  - [ ]* 4.2 Write property test: APOC path.expand transform produces valid variable-length path
+  - [x]* 4.2 Write property test: APOC path.expand transform produces valid variable-length path
     - **Property 1: APOC path.expand transform**
     - Generate arbitrary valid start node names (alphanumeric), min/max depth (non-negative integers where min ≤ max), and path variable names
     - Construct `CALL apoc.path.expand(startNode, 'REL', 'Label', minDepth, maxDepth) YIELD path AS pathVar`
@@ -31,7 +31,7 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
     - Assert result does NOT contain `apoc.`
     - **Validates: Requirements 13.1**
 
-  - [ ]* 4.3 Write property test: APOC merge.node transform produces valid MERGE statement
+  - [x]* 4.3 Write property test: APOC merge.node transform produces valid MERGE statement
     - **Property 2: APOC merge.node transform**
     - Generate arbitrary label names, identity/onCreate/onMatch property objects, and alias names
     - Construct `CALL apoc.merge.node(['Label'], {identProps}, {onCreateProps}, {onMatchProps}) YIELD node AS alias`
@@ -39,20 +39,20 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
     - Assert result does NOT contain `apoc.`
     - **Validates: Requirements 13.2**
 
-  - [ ]* 4.4 Write property test: Non-APOC query passthrough
+  - [x]* 4.4 Write property test: Non-APOC query passthrough
     - **Property 3: Non-APOC passthrough**
     - Generate arbitrary strings that do NOT contain `apoc.`
     - Assert `transformApoc(query) === query` (identity)
     - **Validates: Requirements 13.3**
 
-  - [ ]* 4.5 Write property test: Unsupported APOC procedure error
+  - [x]* 4.5 Write property test: Unsupported APOC procedure error
     - **Property 4: Unsupported APOC error**
     - Generate arbitrary procedure names that are NOT one of the 5 supported (`path.expand`, `algo.dijkstra`, `periodic.iterate`, `create.node`, `merge.node`)
     - Construct `CALL apoc.<procedure>(...) YIELD ...`
     - Assert `transformApoc` throws `UnsupportedQueryError` with the procedure name
     - **Validates: Requirements 13.4**
 
-  - [ ]* 4.6 Write property test: Report generation correctness
+  - [x]* 4.6 Write property test: Report generation correctness
     - **Property 5: Report generation correctness**
     - Generate arbitrary arrays of `{ suite, status: 'pass'|'fail'|'error', name }` objects
     - Pass to the report generator function (extracted from validate-aws-mcp.js)
@@ -60,7 +60,7 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
     - Assert every unique `suite` value appears as a section heading
     - **Validates: Requirements 15.3, 15.4**
 
-- [ ] 5. Checkpoint — APOC property tests — DEFERRED
+- [x] 5. Checkpoint — APOC property tests — DEFERRED
 
 - [x] 6. Parity comparison — AWS vs Legacy
   - [x] 6.1 search_documentation "data assimilation" — DONE (same 3 CICE docs, same order, scores within tolerance)
@@ -97,17 +97,17 @@ Systematic validation of the AWS-native MCP server (`mdc-mcp-rag-aws`) running w
   - Production path: Deploy via AgentCore Runtime (task 12)
   - Config: `.kiro/settings/mcp.json` uses `"type": "http", "url": "http://localhost:3000/mcp"`
 
-- [ ] 12. Deploy MCP server via AWS Bedrock AgentCore Runtime
+- [x] 12. Deploy MCP server via AWS Bedrock AgentCore Runtime
   - **PRIORITY**: Replace mcp-http-server.js development bridge with managed AWS deployment
   - See SDD: `sdd_framework/workflows/phase51b_agentcore_mcp_deployment.md`
-  - [ ] 12.1 Install AgentCore toolkit: `pip install bedrock-agentcore-starter-toolkit`
-  - [ ] 12.2 Wrap UnifiedMCPServer with BedrockAgentCoreApp entrypoint
-  - [ ] 12.3 Configure: `agentcore configure --entrypoint agentcore-entrypoint --non-interactive`
-  - [ ] 12.4 Test locally: `agentcore dev` + `agentcore invoke --dev`
-  - [ ] 12.5 Deploy: `agentcore launch`
-  - [ ] 12.6 Update Kiro mcp.json with AgentCore endpoint URL
-  - [ ] 12.7 Configure AgentCore Gateway for multi-user auth
-  - [ ] 12.8 Remove development bridge (mcp-http-server.js, port 3000 SG rule)
+  - [x] 12.1 Install AgentCore toolkit: `pip install bedrock-agentcore-starter-toolkit`
+  - [x] 12.2 Wrap UnifiedMCPServer with BedrockAgentCoreApp entrypoint
+  - [x] 12.3 Configure: `agentcore configure --entrypoint agentcore-entrypoint --non-interactive`
+  - [x] 12.4 Test locally: `agentcore dev` + `agentcore invoke --dev`
+  - [x] 12.5 Deploy: `agentcore launch`
+  - [x] 12.6 Update Kiro mcp.json with AgentCore endpoint URL
+  - [x] 12.7 Configure AgentCore Gateway for multi-user auth
+  - [x] 12.8 Remove development bridge (mcp-http-server.js, port 3000 SG rule)
 
 ## Notes
 

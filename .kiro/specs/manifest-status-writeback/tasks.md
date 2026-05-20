@@ -30,11 +30,11 @@ Fix three operational bugs in the unified manifest system: `last_ingested` alway
     - In the gap detection section, when `include_gaps` is true and reports are empty with empty `actual_counts`, render a notice stating actual counts are unavailable
     - _Requirements: 4.1, 4.2_
 
-- [ ] 4. Checkpoint - Verify registry and gap detector changes
+- [x] 4. Checkpoint - Verify registry and gap detector changes
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Create standalone backfill script
-  - [ ] 5.1 Implement `scripts/backfill_manifest_status.py`
+- [x] 5. Create standalone backfill script
+  - [x] 5.1 Implement `scripts/backfill_manifest_status.py`
     - Create `mcp_server_python/scripts/backfill_manifest_status.py`
     - Parse CLI args: `--manifest`, `--opensearch-endpoint`, `--region`, `--dry-run`
     - Implement `fetch_live_counts()` using `requests` + `AWS4Auth` to query `_cat/indices?format=json`
@@ -44,7 +44,7 @@ Fix three operational bugs in the unified manifest system: `last_ingested` alway
     - Without `--dry-run`, call `registry.save()` to persist
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 5.1, 5.2, 5.3_
 
-- [ ] 6. Final checkpoint - Verify end-to-end
+- [x] 6. Final checkpoint - Verify end-to-end
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

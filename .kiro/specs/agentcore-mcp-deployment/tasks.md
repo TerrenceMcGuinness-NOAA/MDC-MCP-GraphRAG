@@ -51,8 +51,8 @@ Deploy the MDC MCP RAG Server to AgentCore Runtime as a native MCP protocol serv
     - Verified: `aws bedrock-agentcore-control list-agent-runtimes` returns `{"agentRuntimes": []}`
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 7. Deploy to AgentCore Runtime (via Power MCP)
-  - [ ] 7.1 Call `create_agent_runtime` via AgentCore Power with parameters:
+- [x] 7. Deploy to AgentCore Runtime (via Power MCP)
+  - [x] 7.1 Call `create_agent_runtime` via AgentCore Power with parameters:
     - `agent_runtime_name`: `mdc_mcp_rag_server`
     - `container_uri`: `903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:agentcore`
     - `server_protocol`: `MCP`
@@ -62,37 +62,37 @@ Deploy the MDC MCP RAG Server to AgentCore Runtime as a native MCP protocol serv
     - `role_arn`: `arn:aws:iam::903050880929:role/mdc-mcp-rag-ecs-task-role`
     - `idle_timeout`: 900
     - `max_lifetime`: 28800
-  - [ ] 7.2 Monitor: call `get_agent_runtime` until status is READY
+  - [x] 7.2 Monitor: call `get_agent_runtime` until status is READY
     - Record the runtime ID and DEFAULT endpoint URL
     - CDK Safety: This only creates AgentCore Runtime resources — no Neptune/OpenSearch impact
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 10.1, 10.2, 10.4_
 
-- [ ] 8. Validate deployment
-  - [ ] 8.1 Verify health: call `invoke_agent_runtime` with a `/ping` equivalent
-  - [ ] 8.2 Verify tools: invoke representative set via `invoke_agent_runtime`:
+- [x] 8. Validate deployment
+  - [x] 8.1 Verify health: call `invoke_agent_runtime` with a `/ping` equivalent
+  - [x] 8.2 Verify tools: invoke representative set via `invoke_agent_runtime`:
     - `get_server_info`, `search_documentation`, `get_code_context`, `mcp_health_check`
     - Compare responses against dev bridge for parity
     - _Requirements: 7.1, 7.2, 7.3_
-  - [ ] 8.3 Check logs via CloudWatch for any errors
+  - [x] 8.3 Check logs via CloudWatch for any errors
     - _Requirements: 6.5_
 
-- [ ] 9. Update Kiro MCP client configuration
-  - [ ] 9.1 Update `.kiro/settings/mcp.json` with AgentCore endpoint URL for `mdc-mcp-rag-aws`
+- [x] 9. Update Kiro MCP client configuration
+  - [x] 9.1 Update `.kiro/settings/mcp.json` with AgentCore endpoint URL for `mdc-mcp-rag-aws`
     - Keep dev bridge config as disabled fallback
     - _Requirements: 8.1, 8.2, 8.3_
-  - [ ] 9.2 Verify Kiro connects and all tools are listed
+  - [x] 9.2 Verify Kiro connects and all tools are listed
     - _Requirements: 7.1_
 
-- [ ] 10. Retire development bridge
-  - [ ] 10.1 Stop `mcp-http-server.js` process on port 3000
-  - [ ] 10.2 Remove security group rule for port 3000 inbound
-  - [ ] 10.3 Keep `mcp-http-server.js` code as dev-only fallback (do not delete)
+- [x] 10. Retire development bridge
+  - [x] 10.1 Stop `mcp-http-server.js` process on port 3000
+  - [x] 10.2 Remove security group rule for port 3000 inbound
+  - [x] 10.3 Keep `mcp-http-server.js` code as dev-only fallback (do not delete)
     - _Requirements: 11.1, 11.2, 11.3_
 
-- [ ] 11. Update documentation and SDD
-  - [ ] 11.1 Update `CHANGELOG.md` with AgentCore deployment entry
-  - [ ] 11.2 Update Phase 51b SDD spec with actual deployment details
-  - [ ] 11.3 Update steering files if endpoint or workflow changed
+- [x] 11. Update documentation and SDD
+  - [x] 11.1 Update `CHANGELOG.md` with AgentCore deployment entry
+  - [x] 11.2 Update Phase 51b SDD spec with actual deployment details
+  - [x] 11.3 Update steering files if endpoint or workflow changed
     - _Requirements: 9.1, 9.2, 9.3_
 
 ## Notes

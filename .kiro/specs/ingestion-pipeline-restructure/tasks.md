@@ -176,7 +176,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/src/data/search/HybridSearchBuilder.js`
     - _Requirements: 26.1, 26.2, 26.3, 26.4, 26.5_
 
-  - [ ]* 11.2 Write property test: code identifier detection
+  - [x]* 11.2 Write property test: code identifier detection
     - **Property P12: For any string containing camelCase, snake_case, dot.notation, or file path patterns, `_containsCodeIdentifiers()` returns true**
     - **Property P13: For any plain English sentence without code patterns, `_containsCodeIdentifiers()` returns false**
     - **Validates: Requirements 26.3**
@@ -196,7 +196,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/src/data/search/GraphAugmenter.js`
     - _Requirements: 28.1, 28.2, 28.3, 28.4, 28.5_
 
-  - [ ]* 12.2 Write property test: graph augmentation backward compatibility
+  - [x]* 12.2 Write property test: graph augmentation backward compatibility
     - **Property P14: For any vector result set, when graph augmentation is disabled, the output is identical to the input**
     - **Validates: Requirements 28.4**
 
@@ -208,7 +208,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/src/data/search/MatryoshkaQuery.js`
     - _Requirements: 25.1, 25.2, 25.3, 25.4_
 
-  - [ ]* 13.2 Write property test: Matryoshka truncation preserves prefix
+  - [x]* 13.2 Write property test: Matryoshka truncation preserves prefix
     - **Property P15: For any embedding of dimension D and truncation target T < D, the truncated vector equals the first T elements of the original**
     - **Validates: Requirements 25.2**
 
@@ -247,7 +247,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/src/data/feedback/FeedbackLogger.js`
     - _Requirements: 31.1, 31.2, 31.4, 31.5_
 
-  - [ ]* 17.2 Write property test: feedback log contains no PII
+  - [x]* 17.2 Write property test: feedback log contains no PII
     - **Property P16: For any logged feedback entry, the entry contains only query_text, result_ids, result_scores, collection, model_profile, tool_name, and timestamp — no raw user prompts or PII fields**
     - **Validates: Requirements 31.5**
 
@@ -286,7 +286,7 @@ Restructure the GraphRAG MCP server's ingestion pipeline from 14+ independent Py
     - File: `mcp_server_node/scripts/drift_detector.py`
     - _Requirements: 29.1, 29.2, 29.3, 29.4, 29.5_
 
-  - [ ]* 20.2 Write property test: drift detection threshold behavior
+  - [x]* 20.2 Write property test: drift detection threshold behavior
     - **Property P17: For any collection where all stored embeddings are identical to freshly generated embeddings, `detect()` reports `drifted=False` with `mean_similarity >= threshold`**
     - **Validates: Requirements 29.1, 29.2**
 
