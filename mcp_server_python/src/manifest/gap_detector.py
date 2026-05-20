@@ -183,9 +183,39 @@ class GapDetector:
             )
             return {}
 
+        log.debug(
+            "GapDetector._get_actual_counts: health dict keys=%s",
+            sorted(health.keys()),
+        )
+
         detail = health.get("indices_detail")
-        if isinstance(detail, dict):
+        if isinstance(detail, dict) and detail:
             return {str(k): int(v) for k, v in detail.items()}
+
+        # Fallback: some adapter shapes use alternative key names for
+        # the per-index breakdown. Try each in turn so the gap
+        # detector keeps working when only the key name drifts.
+        for fallback_key in ("index_details", "index_counts", "per_index_counts"):
+            candidate = health.get(fallback_key)
+            if isinstance(candidate, dict) and candidate:
+                log.debug(
+                    "GapDetector._get_actual_counts: using fallback key %r",
+                    fallback_key,
+                )
+                return {str(k): int(v) for k, v in candidate.items()}
+
+        # No per-index breakdown was discoverable. If the adapter
+        # reported a successful health check we want operators to
+        # notice — gap reports will otherwise show 0 actual coverage
+        # for every collection without explanation.
+        status = health.get("status")
+        if status in ("healthy", "degraded"):
+            log.warning(
+                "GapDetector._get_actual_counts: no per-index breakdown "
+                "found despite status=%s; available keys=%s",
+                status,
+                sorted(health.keys()),
+            )
         # Older adapter shapes returned only ``indices`` + ``total_documents``
         # — no per-index breakdown. Treat as empty (no actual counts) so
         # the gap detector cannot misreport zero coverage.

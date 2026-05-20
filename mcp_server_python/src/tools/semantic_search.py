@@ -1265,14 +1265,27 @@ async def _tool_list_all_sources(
     # (Requirement 3.6). Use the same health_check shape the URL tools
     # use so we hit the cluster once.
     actual_counts: dict[str, int] = {}
+    health_status: str | None = None
     if data is not None and getattr(data, "vector_db", None) is not None:
         try:
             health = await data.vector_db.health_check(deep=True)
+            if isinstance(health, dict):
+                health_status = health.get("status")
             detail = health.get("indices_detail") or {}
             if isinstance(detail, dict):
                 actual_counts = {str(k): int(v) for k, v in detail.items()}
         except Exception as exc:
             log.debug("list_all_sources: health_check failed: %s", exc)
+
+    # Surface the case where the cluster reports healthy but the
+    # per-index breakdown is missing — declared/actual columns and
+    # gap reports will silently show 0/n/a otherwise (Requirement 4.1).
+    if not actual_counts and health_status in ("healthy", "degraded"):
+        log.warning(
+            "list_all_sources: actual_counts empty despite successful "
+            "health_check (status=%s)",
+            health_status,
+        )
 
     lines: list[str] = [
         "# Unified Ingest Manifest",
@@ -1317,9 +1330,15 @@ async def _tool_list_all_sources(
                 log.warning("list_all_sources: GapDetector failed: %s", exc)
                 reports = []
             if not reports:
-                lines.append(
-                    "_Gap detection unavailable — could not query OpenSearch._"
-                )
+                if not actual_counts:
+                    lines.append(
+                        "_⚠️ Actual index counts unavailable — "
+                        "gap status may be inaccurate._"
+                    )
+                else:
+                    lines.append(
+                        "_Gap detection unavailable — could not query OpenSearch._"
+                    )
             else:
                 lines.extend(_render_gap_reports(reports))
         lines.append("")

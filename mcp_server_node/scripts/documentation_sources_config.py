@@ -7,21 +7,21 @@ SINGLE POINT OF TRUTH (SPOT) - Documentation Sources Configuration
 This file is the AUTHORITATIVE SOURCE for all documentation URLs used in the
 MCP RAG ingestion pipeline. 
 
-╔══════════════════════════════════════════════════════════════════════════════╗
+╔═════════════════════════════════════════════════════════════════════════════╗
 ║  SPOT DIRECTIVE: DO NOT DUPLICATE THIS CONFIGURATION                        ║
-║                                                                              ║
-║  All ingestion scripts MUST import from this file:                           ║
-║                                                                              ║
-║    from documentation_sources_config import (                                ║
-║        DOCUMENTATION_SOURCES,                                                ║
-║        VERSION,                                                              ║
-║        get_all_sources,                                                      ║
-║        get_tier_names                                                        ║
-║    )                                                                         ║
-║                                                                              ║
-║  NEVER copy-paste source definitions into other scripts.                     ║
-║  If you need to modify sources, modify THIS FILE ONLY.                       ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+║                                                                             ║
+║  All ingestion scripts MUST import from this file:                          ║
+║                                                                             ║
+║    from documentation_sources_config import (                               ║
+║        DOCUMENTATION_SOURCES,                                               ║
+║        VERSION,                                                             ║
+║        get_all_sources,                                                     ║
+║        get_tier_names                                                       ║
+║    )                                                                        ║
+║                                                                             ║
+║  NEVER copy-paste source definitions into other scripts.                    ║
+║  If you need to modify sources, modify THIS FILE ONLY.                      ║
+╚═════════════════════════════════════════════════════════════════════════════╝
 
 Version: 7.0.0
 Last Updated: December 4, 2025
@@ -116,6 +116,16 @@ DOCUMENTATION_SOURCES = {
             'description': 'NUOPC Layer Reference - component model interface standard',
             'max_pages': 150,
             'enabled': True
+        },
+        {
+            'name': 'gsi-user-guide',
+            'url': 'https://dtcenter.org/sites/default/files/community-code/gsi/docs/users-guide/html_v3.7/',
+            'type': 'readthedocs',
+            'priority': 1,
+            'description': 'GSI - Gridpoint Statistical Interpolation data assimilation system (DTC user guide)',
+            'max_pages': 100,
+            'enabled': True,
+            'local_path': 'sorc/gsi.fd',
         }
     ],
 
@@ -169,6 +179,15 @@ DOCUMENTATION_SOURCES = {
             'priority': 2,
             'description': 'Pyflow - Python ecFlow workflow generator',
             'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'uwtools',
+            'url': 'https://uwtools.readthedocs.io/en/main/',
+            'type': 'readthedocs',
+            'priority': 2,
+            'description': 'UFS Workflow Tools (uwtools) - unified configuration, templating, and driver utilities',
+            'max_pages': 150,
             'enabled': True
         }
     ],
@@ -291,6 +310,70 @@ DOCUMENTATION_SOURCES = {
             'priority': 4,
             'description': 'EPA CMAQ - Community Multiscale Air Quality Model',
             'max_pages': 50,
+            'enabled': True
+        },
+        {
+            'name': 'mpas-atmosphere',
+            'url': 'https://www2.mmm.ucar.edu/projects/mpas/site/index.html',
+            'type': 'readthedocs',
+            'priority': 2,
+            'description': 'MPAS Atmosphere - Model for Prediction Across Scales (unstructured Voronoi mesh dynamical core)',
+            'max_pages': 150,
+            'enabled': True
+        },
+        {
+            'name': 'catchem',
+            'url': 'https://ufs-community.github.io/CATChem',
+            'type': 'github_pages',
+            'priority': 2,
+            'description': 'CATChem - Community Atmospheric chemistry Transport model for UFS',
+            'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'cece',
+            'url': 'https://ufs-community.github.io/CECE',
+            'type': 'github_pages',
+            'priority': 2,
+            'description': 'CECE - Community Earth-system Coupled Evaluation framework for UFS',
+            'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'cdeps',
+            'url': 'https://escomp.github.io/CDEPS/versions/master/html/index.html',
+            'type': 'github_pages',
+            'priority': 2,
+            'description': 'CDEPS - Community Data Models for Earth Prediction Systems (DATM, DOCN, DICE, DLND, DWAV)',
+            'max_pages': 100,
+            'enabled': True,
+            'local_path': 'sorc/ufs_model.fd/CDEPS',
+        },
+        {
+            'name': 'land-da',
+            'url': 'https://land-da.readthedocs.io/en/stable/',
+            'type': 'readthedocs',
+            'priority': 3,
+            'description': 'UFS Land Data Assimilation - offline Noah-MP land surface model DA workflow',
+            'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'ufs-srweather-app',
+            'url': 'https://ufs-srweather-app.readthedocs.io/en/develop/',
+            'type': 'readthedocs',
+            'priority': 3,
+            'description': 'UFS Short-Range Weather Application - regional forecast workflow and components',
+            'max_pages': 200,
+            'enabled': True
+        },
+        {
+            'name': 'hafs',
+            'url': 'https://hafsdoc.readthedocs.io/en/latest/',
+            'type': 'readthedocs',
+            'priority': 2,
+            'description': 'HAFS - Hurricane Analysis and Forecast System (user guide, workflow, CDEPS integration)',
+            'max_pages': 100,
             'enabled': True
         }
     ],

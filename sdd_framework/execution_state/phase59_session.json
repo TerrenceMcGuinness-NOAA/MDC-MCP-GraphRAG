@@ -1,0 +1,57 @@
+{
+  "sessionId": "session_2026-05-19_pdf-ingestion-pipeline",
+  "phase": "pdf-ingestion-pipeline",
+  "startedAt": null,
+  "lastActivityAt": "2026-05-19T14:40:00.000Z",
+  "completedAt": null,
+  "status": "planned",
+  "totalSteps": 5,
+  "notes": "Phase 59: Add pdf_download crawl_type support to the ingest pipeline. 4 SME-requested PDF sources (ESMF Fortran API ref, ESMC C API ref, NUOPC ref, ESMPy) contain critical coupling framework documentation with no HTML equivalent. Pipeline: download PDF → extract text via pypdf → chunk (512 tokens, 64 overlap) → embed with Titan → index to mdc-workflow-docs-titan1024. Depends on Phase 58 completing first to validate the ingest pipeline is healthy.",
+  "completedSteps": [],
+  "pendingSteps": [
+    {
+      "step": 1,
+      "name": "Verify PDF accessibility and text extraction quality",
+      "tag": "research",
+      "notes": "Download all 4 PDFs, check page count, verify extract_text() produces clean readable content (not scanned images). Report page counts and sample text."
+    },
+    {
+      "step": 2,
+      "name": "Implement scripts/ingest_pdf_sources.py",
+      "tag": "implement",
+      "notes": "New script: load manifest, filter pdf_download sources, download PDF, extract text via pypdf, chunk at 512 tokens with 64 overlap, embed via Bedrock Titan, index to OpenSearch. Supports --dry-run and --source flags."
+    },
+    {
+      "step": 3,
+      "name": "Remove .pdf from URL exclusion list in ingestion_base.py",
+      "tag": "implement",
+      "notes": "Prevent the HTML crawler from accidentally processing PDF URLs while allowing the new PDF handler to work. Gate behind crawl_type check."
+    },
+    {
+      "step": 4,
+      "name": "Run PDF ingestion for all 4 sources",
+      "tag": "ingest",
+      "notes": "Execute ingest_pdf_sources.py for esmf-ref-pdf, esmc-ref-pdf, nuopc-ref-pdf, esmpy-pdf. Verify with search_documentation queries targeting API-specific terms."
+    },
+    {
+      "step": 5,
+      "name": "Update CHANGELOG + rebuild image",
+      "tag": "document",
+      "notes": "Add [8.24.0] entry. Rebuild python-all-tools-v5, deploy to AgentCore. Verify manifest shows updated doc_count and last_ingested for all 4 PDF sources."
+    }
+  ],
+  "followUps": [
+    "If text extraction quality is poor for any PDF (e.g. scanned images, heavy math), consider using Amazon Textract as an alternative extraction method.",
+    "Future PDF sources can be added to the manifest with crawl_type: pdf_download and they will be picked up automatically by the new script.",
+    "Consider adding a --refresh flag to re-download and re-ingest PDFs when upstream releases new versions (ESMF releases ~annually)."
+  ],
+  "artifacts": {
+    "filesCreated": [
+      "sdd_framework/workflows/phase59_pdf_ingestion_pipeline.md",
+      "sdd_framework/execution_state/phase59_session.json"
+    ],
+    "filesUpdated": [],
+    "totalLinesAdded": 0,
+    "testResults": {}
+  }
+}

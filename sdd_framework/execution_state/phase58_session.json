@@ -1,0 +1,59 @@
+{
+  "sessionId": "session_2026-05-19_url-crawl-gap-closure",
+  "phase": "url-crawl-gap-closure",
+  "startedAt": null,
+  "lastActivityAt": "2026-05-18T21:15:00.000Z",
+  "completedAt": null,
+  "status": "planned",
+  "totalSteps": 5,
+  "notes": "Phase 58: Ingest 12 url_crawl sources with doc_count=0 in the unified manifest. 3 are pre-existing entries that never crawled successfully (cmeps, nceplibs-sfcio, kokkos-api). 9 are newly added on 2026-05-18: mpas-atmosphere, catchem, cece, cdeps, land-da, uwtools, ufs-srweather-app, gsi-user-guide, hafs. Priority order: tier1 (gsi) → tier2 (uwtools) → tier3 (rest). Depends on Phase 57 for the backfill_manifest_status.py script to update last_ingested after completion. Scheduled to start 2026-05-19 morning.",
+  "completedSteps": [],
+  "pendingSteps": [
+    {
+      "step": 1,
+      "name": "Verify crawl reachability — HTTP smoke test all 12 URLs",
+      "tag": "research",
+      "notes": "curl HEAD check for 200 status on all 12 URLs. Flag any 404/5xx. Disable unreachable sources in manifest."
+    },
+    {
+      "step": 2,
+      "name": "Ingest tier1 + tier2 priority sources (gsi-user-guide, uwtools)",
+      "tag": "ingest",
+      "notes": "Run ingest_documentation_v8.py --source <name> --model titan1024 for gsi-user-guide and uwtools. Verify with search_documentation queries."
+    },
+    {
+      "step": 3,
+      "name": "Ingest tier3_models batch (mpas, catchem, cece, cdeps, land-da, srw, hafs)",
+      "tag": "ingest",
+      "notes": "Run sequentially to avoid rate-limiting. 7 sources. Verify with search_documentation for MPAS and HAFS."
+    },
+    {
+      "step": 4,
+      "name": "Retry pre-existing failures (cmeps, nceplibs-sfcio, kokkos-api)",
+      "tag": "ingest",
+      "notes": "These may need special handling. kokkos-api is JS-heavy. cmeps/sfcio may legitimately have 0 crawlable pages. Accept 0 if site has no content."
+    },
+    {
+      "step": 5,
+      "name": "Update manifest status + CHANGELOG",
+      "tag": "document",
+      "notes": "Run backfill_manifest_status.py (Phase 57) to write last_ingested + doc_count. Add CHANGELOG entry. Verify with list_all_sources(include_gaps=True)."
+    }
+  ],
+  "followUps": [
+    "If kokkos-api fails with standard crawl, try a rendered/JS-enabled crawl mode or switch crawl_type to 'single_page' with a higher max_pages.",
+    "Consider adding HAFS develop-branch docs (gsp-hafs.readthedocs.io/en/text-us-64/) as a secondary source if the hafsdoc.readthedocs.io content is thin.",
+    "After Phase 58 completes, the total url_crawl sources with data should be 49+ (up from 40). Run a full gap detection to confirm coverage improvement."
+  ],
+  "artifacts": {
+    "filesCreated": [
+      "sdd_framework/workflows/phase58_url_crawl_gap_closure.md",
+      "sdd_framework/execution_state/phase58_session.json"
+    ],
+    "filesUpdated": [
+      "mcp_server_python/src/config/unified_manifest.json"
+    ],
+    "totalLinesAdded": 0,
+    "testResults": {}
+  }
+}

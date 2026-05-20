@@ -1,0 +1,135 @@
+================================================================================
+  RAG KNOWLEDGE BASE — URL CRAWL INVENTORY (Updated)
+  Manifest Version : 9.0.0
+  Report Date      : 2026-05-19 (post-SME reconciliation)
+================================================================================
+
+  55 url_crawl sources  |  53 enabled  |  2 disabled
+  37 have data          |  16 pending ingest
+  PDF sources: 4 (require pdf_download pipeline enhancement)
+
+  Tiers
+  -----
+  tier1_critical  — Core workflow / DA / coupling infrastructure
+  tier2_workflow  — Workflow orchestration tools
+  tier3_models    — Model components (atmos, ocean, ice, land, chem, wave)
+  tier4_build     — Build system, I/O libraries, utilities
+  tier5_standards — Coding standards, style guides, verification
+
+================================================================================
+  TIER 1 — CRITICAL
+================================================================================
+  --- Has Data (4) ---
+    esmf-user-guide              10,510 docs  [readthedocs]    https://earthsystemmodeling.org/docs/release/latest/ESMF_usrdoc/
+    global-workflow                 234 docs  [readthedocs]    https://global-workflow.readthedocs.io/en/latest/
+    nuopc-layer-reference           248 docs  [readthedocs]    https://earthsystemmodeling.org/docs/release/latest/NUOPC_refdoc/
+    ufs-utils                       128 docs  [readthedocs]    https://noaa-emcufs-utils.readthedocs.io/en/latest/
+  --- Pending Ingest (5) ---
+    esmc-ref-pdf                            [pdf_download]   https://earthsystemmodeling.org/docs/release/latest/ESMC_crefdoc.pdf
+    esmf-ref-pdf                            [pdf_download]   https://earthsystemmodeling.org/docs/release/latest/ESMF_refdoc.pdf
+    esmpy-pdf                               [pdf_download]   https://earthsystemmodeling.org/esmpy_doc/release/latest/ESMPy.pdf
+    gsi-user-guide                          [readthedocs]    https://dtcenter.org/sites/default/files/community-code/gsi/docs/users-guide/html_v3.7/
+    nuopc-ref-pdf                           [pdf_download]   https://earthsystemmodeling.org/docs/release/latest/NUOPC_refdoc.pdf
+
+================================================================================
+  TIER 2 — WORKFLOW
+================================================================================
+  --- Has Data (4) ---
+    ecflow                          338 docs  [readthedocs]    https://ecflow.readthedocs.io/en/latest/
+    pyflow                          103 docs  [readthedocs]    https://pyflow-workflow-generator.readthedocs.io/en/latest/
+    rocoto                           74 docs  [github_pages]   https://christopherwharrop.github.io/rocoto/
+    wxflow                           95 docs  [readthedocs]    https://wxflow.readthedocs.io/en/latest/
+  --- Pending Ingest (1) ---
+    uwtools                                 [readthedocs]    https://uwtools.readthedocs.io/en/latest/
+
+================================================================================
+  TIER 3 — MODELS
+================================================================================
+  --- Has Data (10) ---
+    cice                            325 docs  [readthedocs]    https://cice-consortium-cice.readthedocs.io/en/main/index.html
+    cmaq                            403 docs  [github-wiki]    https://github.com/USEPA/CMAQ/wiki
+    fms                             933 docs  [github-wiki]    https://github.com/NOAA-GFDL/FMS/wiki
+    fv3-docs                        851 docs  [github_pages]   https://github.com/NOAA-GFDL/GFDL_atmos_cubed_sphere/wiki
+    gocart                        1,025 docs  [readthedocs]    https://geos-chem.readthedocs.io/en/latest/
+    jedi-docs                       107 docs  [readthedocs]    https://jointcenterforsatellitedataassimilation-jedi-docs.readthedocs-hosted.com/en/latest/
+    mom6                            901 docs  [readthedocs]    https://mom6.readthedocs.io/en/main/
+    pyioda                          142 docs  [readthedocs]    https://jointcenterforsatellitedataassimilation-jedi-docs.readthedocs-hosted.com/en/latest/inside/jedi-components/ioda/index.html
+    ufs-weather-model               356 docs  [readthedocs]    https://ufs-weather-model.readthedocs.io/en/latest/
+    ww3-wiki                      2,282 docs  [github_pages]   https://github.com/NOAA-EMC/WW3/wiki
+  --- Pending Ingest (8) ---
+    catchem                                 [github_pages]   https://ufs-community.github.io/CATChem
+    cdeps                                   [github_pages]   https://escomp.github.io/CDEPS/versions/master/html/index.html
+    cece                                    [github_pages]   https://ufs-community.github.io/CECE
+    cmeps                                   [github_pages]   https://escomp.github.io/CMEPS/
+    hafs                                    [readthedocs]    https://hafsdoc.readthedocs.io/en/latest/
+    land-da                                 [readthedocs]    https://land-da.readthedocs.io/en/stable/
+    mpas-atmosphere                         [readthedocs]    https://www2.mmm.ucar.edu/projects/mpas/site/index.html
+    ufs-srweather-app                       [readthedocs]    https://ufs-srweather-app.readthedocs.io/en/develop/
+
+================================================================================
+  TIER 4 — BUILD / LIBRARIES
+================================================================================
+  --- Has Data (13) ---
+    ccpp-techdoc                    214 docs  [readthedocs]    https://ccpp-techdoc.readthedocs.io/en/latest/
+    kokkos-overview                  49 docs  [single_page]    https://kokkos.org/about/overview/
+    nceplibs-bacio                   95 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-bacio/
+    nceplibs-bufr                 1,251 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-bufr/
+    nceplibs-g2                     388 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-g2/
+    nceplibs-g2tmpl                 158 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-g2tmpl/
+    nceplibs-ip                     838 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-ip/
+    nceplibs-nemsio                   9 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-nemsio/
+    nceplibs-sigio                    1 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-sigio/
+    nceplibs-w3emc                  648 docs  [github_pages]   https://noaa-emc.github.io/NCEPLIBS-w3emc/
+    spack                         1,969 docs  [readthedocs]    https://spack.readthedocs.io/en/latest/
+    spack-stack                     162 docs  [readthedocs]    https://spack-stack.readthedocs.io/en/latest/
+    wgrib2                          366 docs  [single_page]    https://www.cpc.ncep.noaa.gov/products/wesley/wgrib2/
+  --- Pending Ingest (2) ---
+    kokkos-api                              [github_pages]   https://kokkos.org/kokkos-core-wiki/api-references.html
+    nceplibs-sfcio                          [github_pages]   https://noaa-emc.github.io/NCEPLIBS-sfcio/
+
+================================================================================
+  TIER 5 — STANDARDS
+================================================================================
+  --- Has Data (6) ---
+    fortran-best-practices          876 docs  [single_page]    https://fortran-lang.org/learn/best_practices/
+    google-shell-style               36 docs  [single_page]    https://google.github.io/styleguide/shellguide.html
+    metplus                         444 docs  [readthedocs]    https://metplus.readthedocs.io/en/latest/
+    numpy-docstrings                 31 docs  [single_page]    https://numpydoc.readthedocs.io/en/latest/format.html
+    pep8                             42 docs  [single_page]    https://peps.python.org/pep-0008/
+    upp                             198 docs  [readthedocs]    https://upp.readthedocs.io/en/latest/
+
+================================================================================
+  DISABLED  (2 sources)
+================================================================================
+    ee2-standards-url             https://nws-hpc-standards.readthedocs.io/en/latest/
+                                  Reason: superseded by local RST ingest (ee2-standards source)
+
+    fv3-dynamical-core            https://www.gfdl.noaa.gov/fv3/
+                                  Reason: superseded by fv3-docs (GitHub wiki, more complete)
+
+================================================================================
+  SUMMARY
+================================================================================
+
+  Total url_crawl sources  :  55
+  Enabled                  :  53
+    Has data               :  37
+    Pending ingest (HTML)  :  12
+    Pending ingest (PDF)   :   4
+  Disabled                 :   2
+
+  Changes from SME reconciliation (2026-05-19):
+  - ADDED: esmf-ref-pdf, esmc-ref-pdf, nuopc-ref-pdf, esmpy-pdf (4 PDF sources)
+  - UPDATED: cice URL changed from /en/latest/ to /en/main/index.html (per SME)
+  - CONFIRMED: MOM6, UPP, NUOPC, MPAS, CATChem, CECE already in manifest
+
+  NOTE: PDF sources require a pipeline enhancement (crawl_type: pdf_download)
+        to extract text via pypdf before chunking and embedding with Titan.
+        The pypdf library is already available in the project.
+
+  Next actions:
+  - Phase 57: Fix manifest status writeback (gap detector bugs)
+  - Phase 58: Ingest 12 HTML pending sources
+  - Phase 59 (new): Add pdf_download crawl_type to ingest pipeline, ingest 4 PDFs
+
+================================================================================

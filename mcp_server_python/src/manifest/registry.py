@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -204,6 +205,20 @@ class ManifestRegistry:
             for s in self._manifest.sources
         ]
         self._by_name[name] = replacement
+
+    def update_source_from_ingest(self, name: str, doc_count: int) -> None:
+        """Convenience wrapper for post-ingestion writeback.
+
+        Stamps ``last_ingested`` with the current UTC time and
+        delegates to :meth:`update_source`. Raises :class:`KeyError`
+        for unknown source names (propagated from
+        :meth:`update_source`).
+        """
+        self.update_source(
+            name,
+            last_ingested=datetime.now(timezone.utc).isoformat(),
+            doc_count=doc_count,
+        )
 
     # ── persistence ──────────────────────────────────────────────────
 

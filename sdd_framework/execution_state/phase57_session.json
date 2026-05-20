@@ -1,0 +1,53 @@
+{
+  "sessionId": "session_2026-05-18_manifest-status-writeback",
+  "phase": "manifest-status-writeback",
+  "startedAt": "2026-05-18T17:35:00.000Z",
+  "lastActivityAt": "2026-05-18T17:35:00.000Z",
+  "completedAt": null,
+  "status": "in_progress",
+  "totalSteps": 5,
+  "notes": "Phase 57: Three bugs in list_all_sources / gap detection identified during operator review on 2026-05-18. (1) last_ingested is always null — ingest scripts never call registry.update_source() + save(). (2) Gap table status column always shows 'missing' — GapDetector._get_actual_counts() may be using the wrong key name from the OpenSearch health_check response, so actual_counts resolves to {} and every collection appears uncovered. (3) doc_count in unified_manifest.json is static hand-entered data, never updated after ingestion. Fix plan: diagnose the indices_detail key mismatch first (Step 1), fix it (Step 2), add update_source_from_ingest convenience wrapper (Step 3), write + run a backfill script to populate last_ingested + doc_count from live OpenSearch (Step 4), update CHANGELOG (Step 5). No new unit tests required — existing update_source tests cover the registry; the backfill script is tested via dry-run + live list_all_sources verification.",
+  "completedSteps": [],
+  "pendingSteps": [
+    {
+      "step": 1,
+      "name": "Diagnose indices_detail key mismatch in GapDetector._get_actual_counts()",
+      "tag": "research",
+      "notes": "Add debug log to print raw health dict keys. Call list_all_sources(include_gaps=True) and read server log. Confirm exact key name the OpenSearch adapter returns for per-index doc counts."
+    },
+    {
+      "step": 2,
+      "name": "Fix GapDetector key name + semantic_search.py guard (F3 + F4)",
+      "tag": "implement",
+      "notes": "Update _get_actual_counts() to use confirmed key. Add warning log in _tool_list_all_sources when actual_counts is empty post-health-check. Test: gap table status should show correct values for collections with real data."
+    },
+    {
+      "step": 3,
+      "name": "Add update_source_from_ingest convenience wrapper to ManifestRegistry (F1)",
+      "tag": "implement",
+      "notes": "One-liner wrapper: sets last_ingested=utcnow().isoformat() and delegates to update_source(). No new unit tests needed."
+    },
+    {
+      "step": 4,
+      "name": "Write and run scripts/backfill_manifest_status.py (F2 + F5)",
+      "tag": "implement",
+      "notes": "Script queries OpenSearch _cat/indices, maps index names back to source names via resolve_index, calls update_source_from_ingest for each, saves manifest. Run --dry-run first, then live. Verify with list_all_sources(include_gaps=True)."
+    },
+    {
+      "step": 5,
+      "name": "Update CHANGELOG [8.23.0] (F6)",
+      "tag": "document",
+      "notes": "Document all three bugs, root causes, and fixes. Run pytest mcp_server_python/tests/ to confirm no regression."
+    }
+  ],
+  "followUps": [
+    "After backfill, ingest scripts (ingest_documentation_v8.py and peers) should be updated to call update_source_from_ingest() on completion so last_ingested stays current going forward — tracked as a separate follow-up since the ingest scripts live in mcp_server_node/scripts/ and are not part of the Python port scope.",
+    "The backfill script sets last_ingested to the run timestamp, which is a lower bound — the actual ingest date is unknown for historical runs. This is acceptable for gap detection (stale threshold is 30 days) but should be noted in the CHANGELOG."
+  ],
+  "artifacts": {
+    "filesCreated": [],
+    "filesUpdated": [],
+    "totalLinesAdded": 0,
+    "testResults": {}
+  }
+}
