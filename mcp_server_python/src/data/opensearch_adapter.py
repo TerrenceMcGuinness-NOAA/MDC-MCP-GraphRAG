@@ -229,7 +229,16 @@ class OpenSearchAdapter:
                 merged.append(row)
 
         merged.sort(key=lambda r: r.get("score", 0.0), reverse=True)
-        return merged[:k]
+        seen: set[str] = set()
+        deduped: list[dict[str, Any]] = []
+        for row in merged:
+            fp = (row.get("content") or "")[:200]
+            if fp not in seen:
+                seen.add(fp)
+                deduped.append(row)
+                if len(deduped) == k:
+                    break
+        return deduped
 
     async def health_check(self, *, deep: bool = False) -> dict[str, Any]:
         """Return a snapshot of adapter + cluster health.

@@ -190,7 +190,7 @@ class DocumentationIngesterV7(BaseIngester):
                         
                     self.stats['chunks_created'] += 1
                     
-                    doc_id = self._generate_id(chunk['content'], page_url)
+                    doc_id = self._generate_id(chunk['content'], name)
                     
                     if doc_id in self.seen_ids:
                         self.stats['duplicates_skipped'] += 1
@@ -225,10 +225,14 @@ class DocumentationIngesterV7(BaseIngester):
             print(f"    [ERROR] {e}")
             self.stats['errors'] += 1
     
-    def _generate_id(self, text: str, url: str) -> str:
-        """Generate unique document ID"""
+    def _generate_id(self, text: str, source_name: str) -> str:
+        """Generate deterministic document ID from source_name + content.
+
+        Same content always produces the same ID regardless of URL or
+        chunking order, enabling upsert-on-reingest instead of duplicates.
+        """
         import hashlib
-        content = f"{url}:{text[:500]}"
+        content = f"{source_name}{text[:500]}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
     
     def _print_summary(self):

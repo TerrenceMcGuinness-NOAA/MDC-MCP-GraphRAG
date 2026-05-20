@@ -944,13 +944,14 @@ class BaseIngester:
     # ── Deterministic ID ──────────────────────────────────────────────────────
 
     def deterministic_id(self, content: str, source: str, chunk_index: int = 0) -> str:
-        """SHA-256 of content|source|chunk_index|model_short_name, truncated to 32 hex chars.
+        """SHA-256 of source_name + first 500 chars of content, truncated to 16 hex chars.
 
-        Requirements: 7.1, 7.2, 7.6 (P6, P7)
+        Same content always produces the same ID regardless of chunking
+        order, enabling upsert-on-reingest instead of duplicates.
+        chunk_index parameter is retained for API compatibility but ignored.
         """
-        model_suffix = self.profile.short_name if self.profile else "mpnet768"
-        payload = f"{content}|{source}|{chunk_index}|{model_suffix}"
-        return hashlib.sha256(payload.encode()).hexdigest()[:32]
+        payload = f"{source}{content[:500]}"
+        return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
     # ── Vector writes ─────────────────────────────────────────────────────────
 

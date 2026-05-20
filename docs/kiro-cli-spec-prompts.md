@@ -238,3 +238,12 @@ aws bedrock-agentcore-control update-agent-runtime \
   --lifecycle-configuration '{"idleRuntimeSessionTimeout":900,"maxLifetime":28800}' \
   --environment-variables '{"DB_BACKEND":"aws","NEPTUNE_ENDPOINT":"https://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182","OPENSEARCH_ENDPOINT":"https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com","AWS_REGION":"us-east-1","MCP_STATELESS_HTTP":"true","MCP_WORKFLOW_ROOT":"/app/supported_repos/global-workflow"}'
 ```
+
+
+---
+
+## Phase 60 — Search Deduplication Bugfix
+
+```
+Execute all tasks in the spec at .kiro/specs/search-deduplication/tasks.md autonomously. Follow the task dependency graph. Use python3.12 for all Python commands. The AgentCore MCP tools are available via agentcore-mcp-rag. OpenSearch endpoint is vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com in us-east-1. ECR repo is 903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag. AgentCore runtime ID is mdc_mcp_rag_server_python-v5K2F8BGrN. After Fix 1 deploy, tag the image python-all-tools-v5.
+```
