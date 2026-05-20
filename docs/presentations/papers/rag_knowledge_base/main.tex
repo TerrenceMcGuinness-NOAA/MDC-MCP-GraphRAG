@@ -1,0 +1,616 @@
+\documentclass[11pt,letterpaper]{article}
+
+% ── Packages ────────────────────────────────────────────────────────────
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\addbibresource{references.bib}
+
+% ── Page style ──────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small NOAA EMC — MCP/RAG Platform}
+\lhead{\small RAG Knowledge Base Architecture}
+\cfoot{\thepage}
+
+% ── Title formatting ───────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=green!50!black,
+    urlcolor=blue!70!black
+}
+
+% ── Document ────────────────────────────────────────────────────────────
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Retrieval-Augmented Generation (RAG)\\[4pt]
+for the Global Workflow Knowledge Base}\\[12pt]
+{\large A Researcher's Guide to How AI Finds Answers\\
+in 200,000+ Documents}\\[20pt]
+{\normalsize NOAA EMC — Environmental Modeling Center\\
+MCP/RAG Platform Team\\[8pt]
+May 2026}
+\end{center}
+
+\vspace{1em}
+\hrule
+\vspace{1em}
+
+\tableofcontents
+\newpage
+
+% ════════════════════════════════════════════════════════════════════════
+\section{What is RAG?}
+% ════════════════════════════════════════════════════════════════════════
+
+Retrieval-Augmented Generation (RAG) is a technique that gives an AI
+assistant access to a curated library of documents \emph{at the moment
+it answers your question}. Instead of relying solely on what the model
+memorized during training, RAG retrieves the most relevant passages
+from a knowledge base and feeds them to the language model as context.
+
+Think of it this way: a language model without RAG is like a researcher
+working from memory alone. A language model \emph{with} RAG is like
+that same researcher who can instantly pull the right page from a
+200,000-document library before answering.
+
+\subsection{Why RAG Matters for Scientific Computing}
+
+Large language models are trained on broad internet data. They know
+general programming patterns and common scientific concepts, but they
+do \emph{not} know:
+
+\begin{itemize}[nosep]
+    \item The specific structure of the NOAA Global Workflow
+    \item Which Fortran subroutine handles vortex initialization in HAFS
+    \item What environment variables \texttt{JGFS\_FORECAST} expects
+    \item How ESMF couples the atmosphere to the ocean via NUOPC
+    \item The correct \texttt{err\_chk} pattern for NCO production scripts
+\end{itemize}
+
+RAG bridges this gap by storing all of that domain knowledge in a
+searchable format and retrieving it on demand.
+
+\subsection{The Three Steps of RAG}
+
+Every RAG system follows the same fundamental pattern:
+
+\begin{enumerate}
+    \item \textbf{Ingest} — Documents are broken into chunks, converted
+    to numerical vectors (embeddings), and stored in a searchable
+    database.
+    \item \textbf{Retrieve} — When a question arrives, the system
+    converts the question to the same vector format and finds the most
+    similar document chunks.
+    \item \textbf{Generate} — The retrieved chunks are passed to the
+    language model as context, and the model generates an answer
+    grounded in that evidence.
+\end{enumerate}
+
+The quality of a RAG system depends primarily on Step 1 (what you put
+in) and Step 2 (how well you find it). Step 3 is handled by the
+language model itself.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{How RAG Connects to MCP}
+% ════════════════════════════════════════════════════════════════════════
+
+The Model Context Protocol (MCP) is the transport layer — it defines
+how an AI assistant communicates with external tools and data sources.
+RAG is one of those data sources.
+
+In our system, the MCP server exposes tools like
+\texttt{search\_documentation} and \texttt{explain\_with\_context}.
+When the AI assistant needs domain knowledge, it calls these tools via
+MCP. Behind the scenes, the tool performs the RAG retrieval (Step 2)
+and returns the relevant passages. The assistant then uses those
+passages to formulate its answer (Step 3).
+
+\begin{center}
+\fbox{\parbox{0.85\textwidth}{
+\centering
+\textbf{User Question} $\rightarrow$ \textbf{AI Assistant}
+$\rightarrow$ \textbf{MCP Tool Call} $\rightarrow$
+\textbf{RAG Retrieval} $\rightarrow$ \textbf{Answer with Evidence}
+}}
+\end{center}
+
+The key insight: MCP handles the \emph{communication}, RAG handles
+the \emph{knowledge}. They are complementary layers, not alternatives.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{Embeddings: How Text Becomes Searchable}
+% ════════════════════════════════════════════════════════════════════════
+
+The core technology that makes RAG work is \emph{embedding} — the
+process of converting text into a numerical vector (a list of numbers)
+that captures its meaning.
+
+\subsection{What is an Embedding?}
+
+An embedding is a fixed-length list of numbers (a vector) that
+represents the \emph{semantic meaning} of a piece of text. Two pieces
+of text that mean similar things will have vectors that are close
+together in this numerical space, even if they use completely different
+words.
+
+For example:
+\begin{itemize}[nosep]
+    \item ``FV3 dynamical core'' and ``cubed-sphere atmospheric solver''
+    would have \emph{similar} vectors (same concept, different words)
+    \item ``FV3 dynamical core'' and ``chocolate cake recipe'' would
+    have \emph{distant} vectors (unrelated concepts)
+\end{itemize}
+
+This property — that meaning maps to proximity in vector space — is
+what allows RAG to find relevant documents even when the user's
+question doesn't use the exact same terminology as the source material.
+
+\subsection{Amazon Titan Text Embeddings v2}
+
+Our knowledge base uses \textbf{Amazon Titan Text Embeddings v2}, a
+sentence transformer model provided by AWS through the Bedrock service.
+Key characteristics:
+
+\begin{itemize}[nosep]
+    \item \textbf{1024 dimensions} — each text chunk is represented as
+    a vector of 1024 numbers
+    \item \textbf{8,192 token input limit} — can process chunks up to
+    approximately 32,000 characters
+    \item \textbf{Multilingual} — handles technical English, code
+    snippets, and mixed content
+    \item \textbf{Managed service} — runs on AWS infrastructure, no
+    local GPU required
+\end{itemize}
+
+When we ingest a document, each chunk of text is sent to Titan via the
+AWS Bedrock API. Titan returns a 1024-number vector that we store
+alongside the original text in OpenSearch.
+
+\subsection{Why We Switched to Titan}
+
+Previously, the system used a locally-hosted sentence transformer model
+(MPNet, 768 dimensions). The migration to Titan provided:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Higher dimensionality} (1024 vs 768) — more capacity
+    to distinguish subtle semantic differences
+    \item \textbf{No local compute} — embedding generation runs on AWS,
+    freeing the server for other work
+    \item \textbf{Consistent quality} — AWS maintains and updates the
+    model; we benefit from improvements without re-deploying
+    \item \textbf{Scale} — Titan handles our 200,000+ document corpus
+    without memory constraints
+\end{enumerate}
+
+The MPNet indices remain available as a fallback (the system maintains
+both), but all new ingestion targets the Titan 1024-dimensional indices.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{The Vector Store: OpenSearch}
+% ════════════════════════════════════════════════════════════════════════
+
+Embeddings need a home — a database optimized for finding the nearest
+vectors to a query vector. We use \textbf{Amazon OpenSearch Service}
+with its k-NN (k-nearest neighbors) plugin.
+
+\subsection{How Vector Search Works}
+
+When you ask a question:
+\begin{enumerate}[nosep]
+    \item Your question is embedded using the same Titan model
+    \item OpenSearch finds the $k$ document chunks whose vectors are
+    closest to your question's vector (using cosine similarity)
+    \item Those chunks are returned as search results, ranked by
+    similarity score
+\end{enumerate}
+
+This is fundamentally different from keyword search. A keyword search
+for ``atmosphere model'' would miss documents that say ``atmospheric
+solver'' or ``FV3 dynamical core.'' Vector search finds all of them
+because their \emph{meanings} are close in embedding space.
+
+\subsection{Our Index Structure}
+
+The knowledge base is organized into five logical collections, each
+stored as a physical OpenSearch index:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrl}
+\toprule
+\textbf{Index} & \textbf{Documents} & \textbf{Content} \\
+\midrule
+mdc-workflow-docs-titan1024 & 30,173 & Documentation from 53 URL sources \\
+mdc-code-context-titan1024 & 90,135 & Fortran/Shell/Python code with context \\
+mdc-jjobs-titan1024 & 751 & J-Job script headers and documentation \\
+mdc-community-summaries-titan1024 & 2,113 & Graph-derived subsystem summaries \\
+mdc-ee2-standards-titan1024 & 34 & EE2/NCO production coding standards \\
+\bottomrule
+\end{tabular}
+\caption{OpenSearch indices in the Titan 1024-dim embedding space}
+\end{table}
+
+Total: over 123,000 documents in the Titan indices alone, with an
+additional 85,000+ in the legacy MPNet indices for backward
+compatibility.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{The Unified Ingest Manifest}
+% ════════════════════════════════════════════════════════════════════════
+
+The \textbf{unified ingest manifest} is the single source of truth for
+what documentation has been ingested into the knowledge base. It lives
+at:
+
+\begin{verbatim}
+mcp_server_python/src/config/unified_manifest.json
+\end{verbatim}
+
+\subsection{What the Manifest Tracks}
+
+For every documentation source in the knowledge base, the manifest
+records:
+
+\begin{itemize}[nosep]
+    \item \textbf{name} — unique identifier (e.g., \texttt{mom6},
+    \texttt{esmf-user-guide})
+    \item \textbf{source\_type} — how the content is obtained
+    (\texttt{url\_crawl}, \texttt{code\_parse}, \texttt{pdf\_download},
+    etc.)
+    \item \textbf{collection\_target} — which OpenSearch collection
+    receives the documents
+    \item \textbf{embedding\_profile} — which embedding model to use
+    (\texttt{titan1024})
+    \item \textbf{url} — the documentation website to crawl
+    \item \textbf{doc\_count} — how many chunks are currently indexed
+    \item \textbf{last\_ingested} — when the source was last
+    successfully crawled
+    \item \textbf{tier} — priority classification for ingestion ordering
+    \item \textbf{enabled} — whether the source is active
+\end{itemize}
+
+\subsection{Source Types}
+
+The manifest supports seven source types, reflecting the diverse nature
+of the global workflow's documentation:
+
+\begin{description}[style=nextline,leftmargin=2cm]
+    \item[\texttt{url\_crawl}] Web documentation sites (ReadTheDocs,
+    GitHub Pages, wikis). The crawler follows links within the site up
+    to a configured page limit.
+    \item[\texttt{pdf\_download}] PDF reference documents. Downloaded,
+    text-extracted via pypdf, chunked, and embedded.
+    \item[\texttt{on\_disk\_submodule}] Local RST/Markdown files from
+    the global-workflow git submodule tree.
+    \item[\texttt{code\_parse}] Source code (Fortran, Shell, Python)
+    parsed at function boundaries with surrounding context.
+    \item[\texttt{config\_parse}] Configuration files (Rocoto XML,
+    bash key-value configs) parsed with structure-aware chunking.
+    \item[\texttt{standards}] EE2/NCO coding standards from the
+    nws-hpc-standards repository.
+    \item[\texttt{community\_summary}] Graph-derived community
+    summaries produced by the Leiden algorithm over the code graph.
+\end{description}
+
+\subsection{Tier System}
+
+Sources are classified into five priority tiers that determine
+ingestion order and operational importance:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Tier} & \textbf{Sources} & \textbf{Description} \\
+\midrule
+tier1\_critical & 9 & Core workflow, DA, coupling infrastructure
+(ESMF, NUOPC, GSI, global-workflow, UFS-Utils) \\
+tier2\_workflow & 5 & Workflow orchestration (ecFlow, Rocoto, wxflow,
+pyflow, uwtools) \\
+tier3\_models & 18 & Model components — atmosphere, ocean, ice, land,
+chemistry, waves (MOM6, CICE, FV3, HAFS, MPAS, etc.) \\
+tier4\_build & 15 & Build systems, I/O libraries (spack, NCEPLIBS,
+wgrib2, Kokkos) \\
+tier5\_standards & 6 & Coding standards and style guides (PEP8,
+Fortran best practices, METplus) \\
+\bottomrule
+\end{tabular}
+\caption{Documentation source tier classification}
+\end{table}
+
+\subsection{Gap Detection}
+
+The manifest system includes automated gap detection that compares
+declared sources against live OpenSearch data. For each collection, it
+reports:
+
+\begin{itemize}[nosep]
+    \item \textbf{Coverage percentage} — actual documents vs. declared
+    count
+    \item \textbf{Never-ingested sources} — entries with no
+    \texttt{last\_ingested} timestamp
+    \item \textbf{Stale sources} — entries not refreshed in 30+ days
+\end{itemize}
+
+This allows operators to quickly identify which documentation sources
+need attention without manually querying OpenSearch.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{The Ingestion Pipeline}
+% ════════════════════════════════════════════════════════════════════════
+
+Getting documents from their source into the vector store involves a
+multi-step pipeline.
+
+\subsection{HTML Documentation Crawling}
+
+For web-based documentation (the majority of sources), the pipeline:
+
+\begin{enumerate}[nosep]
+    \item Reads the manifest to identify enabled sources
+    \item Crawls each URL, following internal links up to
+    \texttt{max\_pages}
+    \item Strips HTML to extract clean text content
+    \item Splits text into semantic chunks (respecting paragraph and
+    section boundaries)
+    \item Sends each chunk to Amazon Titan for embedding (1024-dim
+    vector)
+    \item Indexes the chunk + vector + metadata into OpenSearch
+    \item Updates the manifest with the new \texttt{doc\_count} and
+    \texttt{last\_ingested} timestamp
+\end{enumerate}
+
+\subsection{PDF Document Ingestion}
+
+For PDF-only reference documents (like the ESMF Fortran API reference),
+a dedicated pipeline:
+
+\begin{enumerate}[nosep]
+    \item Downloads the PDF from the manifest URL
+    \item Extracts text page-by-page using pypdf
+    \item Chunks at 512-token windows with 64-token overlap between
+    consecutive chunks
+    \item Embeds each chunk with Titan (same 1024-dim space as HTML
+    docs)
+    \item Indexes with metadata including page number for traceability
+\end{enumerate}
+
+The 512-token chunk size with 64-token overlap ensures that:
+\begin{itemize}[nosep]
+    \item Each chunk is well within Titan's 8,192-token input limit
+    \item Overlapping windows prevent information loss at chunk
+    boundaries
+    \item Retrieval returns coherent passages rather than fragments
+\end{itemize}
+
+\subsection{Code Ingestion}
+
+Source code (90,000+ Fortran subroutines, shell scripts, and Python
+modules) is ingested with function-boundary chunking — each chunk
+corresponds to a complete function or subroutine with its surrounding
+context (imports, module declarations, neighboring functions). This
+ensures that code search results are self-contained and actionable.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{Search: Putting It All Together}
+% ════════════════════════════════════════════════════════════════════════
+
+When a researcher asks a question through the MCP interface, the
+\texttt{search\_documentation} tool performs a hybrid search:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Semantic search (k-NN)} — the question is embedded
+    with Titan and the nearest vectors are found in OpenSearch
+    \item \textbf{Keyword search (BM25)} — traditional text matching
+    catches exact terms the embedding might generalize over
+    \item \textbf{Reciprocal Rank Fusion (RRF)} — results from both
+    methods are merged using a rank-based scoring formula that
+    preserves the best of each approach
+    \item \textbf{Graph enrichment} (optional) — each result is
+    annotated with the count of related entities in the code graph,
+    helping identify which results connect to the broader system
+\end{enumerate}
+
+This hybrid approach means the system finds relevant results whether
+the user asks in natural language (``how does the ocean couple to the
+atmosphere?'') or with specific technical terms
+(\texttt{ESMF\_FieldBundleCreate}).
+
+% ════════════════════════════════════════════════════════════════════════
+\section{Current State of the Knowledge Base}
+% ════════════════════════════════════════════════════════════════════════
+
+As of May 2026, the knowledge base contains:
+
+\begin{itemize}[nosep]
+    \item \textbf{209,277 total documents} across all indices
+    \item \textbf{30,173 documentation chunks} in the Titan workflow-docs
+    index (from 53 URL sources + 4 PDFs)
+    \item \textbf{90,135 code chunks} covering Fortran, Shell, and
+    Python from the global-workflow source tree
+    \item \textbf{105,891 graph nodes} and \textbf{2.9 million
+    relationships} in the Neptune code graph
+    \item \textbf{64 declared sources} in the unified manifest (55
+    url\_crawl + 9 non-URL)
+\end{itemize}
+
+The system is healthy (4/4 components operational) and serves queries
+through both the AgentCore-hosted Python runtime and the local Node.js
+gateway.
+
+% ════════════════════════════════════════════════════════════════════════
+\section{Summary}
+% ════════════════════════════════════════════════════════════════════════
+
+RAG transforms a general-purpose AI assistant into a domain expert by
+giving it instant access to curated documentation at query time. The
+key components are:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Embeddings} (Titan 1024-dim) convert text to
+    searchable vectors
+    \item \textbf{OpenSearch} stores and retrieves those vectors
+    efficiently
+    \item \textbf{The manifest} tracks what's been ingested and
+    identifies gaps
+    \item \textbf{The ingest pipeline} keeps the knowledge base current
+    \item \textbf{MCP} provides the communication layer between the AI
+    and the RAG system
+\end{enumerate}
+
+The result: when a researcher asks about MPAS mesh generation or NUOPC
+component coupling, the system retrieves the actual documentation —
+not a hallucinated approximation — and grounds its answer in evidence.
+
+\newpage
+
+% ════════════════════════════════════════════════════════════════════════
+\appendix
+\section{Appendix: Complete Source Inventory}
+\label{app:inventory}
+% ════════════════════════════════════════════════════════════════════════
+
+The following tables list every documentation source in the unified
+ingest manifest as of May 20, 2026 (manifest version 9.0.0).
+
+\subsection{Tier 1 — Critical (9 sources)}
+
+\begin{longtable}{p{3.2cm}rp{7.5cm}}
+\toprule
+\textbf{Source} & \textbf{Docs} & \textbf{URL} \\
+\midrule
+\endhead
+esmf-user-guide & 10,513 & earthsystemmodeling.org/\ldots/ESMF\_usrdoc/ \\
+esmf-ref-pdf & 1,165 & earthsystemmodeling.org/\ldots/ESMF\_refdoc.pdf \\
+esmc-ref-pdf & 125 & earthsystemmodeling.org/\ldots/ESMC\_crefdoc.pdf \\
+nuopc-layer-ref & 248 & earthsystemmodeling.org/\ldots/NUOPC\_refdoc/ \\
+nuopc-ref-pdf & 487 & earthsystemmodeling.org/\ldots/NUOPC\_refdoc.pdf \\
+esmpy-pdf & 94 & earthsystemmodeling.org/\ldots/ESMPy.pdf \\
+global-workflow & 236 & global-workflow.readthedocs.io/en/latest/ \\
+ufs-utils & 129 & noaa-emcufs-utils.readthedocs.io/en/latest/ \\
+gsi-user-guide & 87 & dtcenter.org/\ldots/gsi/docs/users-guide/ \\
+\bottomrule
+\end{longtable}
+
+\subsection{Tier 2 — Workflow (5 sources)}
+
+\begin{longtable}{p{3.2cm}rp{7.5cm}}
+\toprule
+\textbf{Source} & \textbf{Docs} & \textbf{URL} \\
+\midrule
+\endhead
+ecflow & 338 & ecflow.readthedocs.io/en/latest/ \\
+pyflow & 103 & pyflow-workflow-generator.readthedocs.io/ \\
+rocoto & 74 & christopherwharrop.github.io/rocoto/ \\
+uwtools & 152 & uwtools.readthedocs.io/en/latest/ \\
+wxflow & 95 & wxflow.readthedocs.io/en/latest/ \\
+\bottomrule
+\end{longtable}
+
+\subsection{Tier 3 — Models (18 sources)}
+
+\begin{longtable}{p{3.5cm}rp{7cm}}
+\toprule
+\textbf{Source} & \textbf{Docs} & \textbf{URL} \\
+\midrule
+\endhead
+catchem & 45 & ufs-community.github.io/CATChem \\
+cdeps & 62 & escomp.github.io/CDEPS/ \\
+cece & 38 & ufs-community.github.io/CECE \\
+cice & 325 & cice-consortium-cice.readthedocs.io/ \\
+cmaq & 403 & github.com/USEPA/CMAQ/wiki \\
+cmeps & 0 & escomp.github.io/CMEPS/ \\
+fms & 933 & github.com/NOAA-GFDL/FMS/wiki \\
+fv3-docs & 851 & github.com/NOAA-GFDL/\ldots/wiki \\
+gocart & 1,025 & geos-chem.readthedocs.io/ \\
+hafs & 78 & hafsdoc.readthedocs.io/en/latest/ \\
+jedi-docs & 107 & jedi-docs.readthedocs-hosted.com/ \\
+land-da & 56 & land-da.readthedocs.io/en/stable/ \\
+mom6 & 901 & mom6.readthedocs.io/en/main/ \\
+mpas-atmosphere & 134 & www2.mmm.ucar.edu/projects/mpas/ \\
+pyioda & 142 & jedi-docs\ldots/ioda/index.html \\
+ufs-srweather-app & 189 & ufs-srweather-app.readthedocs.io/ \\
+ufs-weather-model & 356 & ufs-weather-model.readthedocs.io/ \\
+ww3-wiki & 2,282 & github.com/NOAA-EMC/WW3/wiki \\
+\bottomrule
+\end{longtable}
+
+\subsection{Tier 4 — Build / Libraries (15 sources)}
+
+\begin{longtable}{p{3.2cm}rp{7.5cm}}
+\toprule
+\textbf{Source} & \textbf{Docs} & \textbf{URL} \\
+\midrule
+\endhead
+ccpp-techdoc & 214 & ccpp-techdoc.readthedocs.io/ \\
+kokkos-api & 0 & kokkos.org/kokkos-core-wiki/ \\
+kokkos-overview & 49 & kokkos.org/about/overview/ \\
+nceplibs-bacio & 95 & noaa-emc.github.io/NCEPLIBS-bacio/ \\
+nceplibs-bufr & 1,251 & noaa-emc.github.io/NCEPLIBS-bufr/ \\
+nceplibs-g2 & 388 & noaa-emc.github.io/NCEPLIBS-g2/ \\
+nceplibs-g2tmpl & 158 & noaa-emc.github.io/NCEPLIBS-g2tmpl/ \\
+nceplibs-ip & 838 & noaa-emc.github.io/NCEPLIBS-ip/ \\
+nceplibs-nemsio & 9 & noaa-emc.github.io/NCEPLIBS-nemsio/ \\
+nceplibs-sfcio & 0 & noaa-emc.github.io/NCEPLIBS-sfcio/ \\
+nceplibs-sigio & 1 & noaa-emc.github.io/NCEPLIBS-sigio/ \\
+nceplibs-w3emc & 648 & noaa-emc.github.io/NCEPLIBS-w3emc/ \\
+spack & 1,969 & spack.readthedocs.io/en/latest/ \\
+spack-stack & 162 & spack-stack.readthedocs.io/ \\
+wgrib2 & 366 & cpc.ncep.noaa.gov/\ldots/wgrib2/ \\
+\bottomrule
+\end{longtable}
+
+\subsection{Tier 5 — Standards (6 sources)}
+
+\begin{longtable}{p{3.8cm}rp{7cm}}
+\toprule
+\textbf{Source} & \textbf{Docs} & \textbf{URL} \\
+\midrule
+\endhead
+fortran-best-practices & 876 & fortran-lang.org/learn/best\_practices/ \\
+google-shell-style & 36 & google.github.io/styleguide/shellguide.html \\
+metplus & 444 & metplus.readthedocs.io/en/latest/ \\
+numpy-docstrings & 31 & numpydoc.readthedocs.io/ \\
+pep8 & 42 & peps.python.org/pep-0008/ \\
+upp & 198 & upp.readthedocs.io/en/latest/ \\
+\bottomrule
+\end{longtable}
+
+\subsection{Non-URL Sources (9 sources)}
+
+\begin{longtable}{p{3.8cm}p{2.5cm}rp{4.5cm}}
+\toprule
+\textbf{Source} & \textbf{Type} & \textbf{Docs} & \textbf{Description} \\
+\midrule
+\endhead
+fortran-code-context & code\_parse & 77,613 & Fortran subroutines/functions \\
+shell-code-context & code\_parse & 2,079 & Shell scripts (j-jobs, ush) \\
+python-code-context & code\_parse & 8,922 & Python modules/utilities \\
+rocoto-config & config\_parse & 187 & Rocoto XML workflow defs \\
+expdir-configs & config\_parse & 1,297 & Experiment config files \\
+global-workflow-rst & on\_disk & 1,759 & Local RST documentation \\
+ee2-standards & standards & 34 & EE2/NCO coding standards \\
+community-summaries & community & 2,113 & Graph-derived summaries \\
+jjob-docs & jjob\_docs & 751 & J-Job script headers \\
+\bottomrule
+\end{longtable}
+
+% ════════════════════════════════════════════════════════════════════════
+\newpage
+\printbibliography
+% ════════════════════════════════════════════════════════════════════════
+
+\end{document}
