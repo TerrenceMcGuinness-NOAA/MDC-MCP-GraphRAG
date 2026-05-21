@@ -152,7 +152,10 @@ npm run validate       # syntax check
 - Follow semantic versioning guidelines
 - Include date and description of changes
 - Periodically perform git commits with clear messages when appropriate
-- Never change the branch that we start with
+- For multi-session feature work, use the feature-branch + spec workflow
+  documented in `.kiro/steering/07-feature-branch-spec-workflow.md`
+  (spec on `develop_aws`, implementation on `feature/<spec-name>`).
+  For single-commit fixes, commit directly to `develop_aws`.
 
 ### Code Style
 - Follow the existing code style in the repository
