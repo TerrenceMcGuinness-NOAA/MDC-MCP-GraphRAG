@@ -8,6 +8,51 @@ inclusion: auto
 
 All feature work follows Spec-Driven Development (SDD): "If it's not in the SDD, it doesn't get coded."
 
+### Spec-First Rule (no exceptions for "feels small")
+
+Before writing any code change other than a **trivial fix** (defined in
+`.kiro/steering/07-feature-branch-spec-workflow.md`), the agent SHALL:
+
+1. Author a Kiro spec under `.kiro/specs/<spec-name>/` with at least
+   `requirements.md`, `design.md`, and `tasks.md`. For very small
+   feature work a one-page spec is sufficient.
+2. Commit the spec to `develop_aws` as its own commit before any
+   implementation commit.
+3. Implement on `develop_aws` (small change) or on
+   `feature/<spec-name>` (multi-session work, per the feature-branch
+   workflow rule).
+
+If the change introduces or modifies any of the following, it is **not**
+trivial and a spec is required even if it looks like a one-liner:
+
+- A SPOT config field (add / remove / rename / type change)
+- A CLI flag, env var, or public function signature
+- A SPOT version bump
+- Shared pipeline code (crawler, ingester, adapter, embedding
+  provider, manifest registry, gap detector, tool module)
+- A new heuristic, pattern, or convention other contributors will
+  need to follow
+- ≥ 3 non-test files
+
+When in doubt, write the spec. The cost is one short markdown triplet;
+the cost of skipping it is silent gaps that don't surface until a
+parity test catches them.
+
+### Retrospective: 2026-05-21 MPAS path-prefix fix
+
+The MPAS RAG bug fix (`1775650`) shipped without a spec. It added a
+new SPOT field (`path_prefix`), a new CLI flag (`--only`), validator
+logic, a SPOT version bump (8.1.0 → 8.2.0), and changed shared
+crawler behavior for all 51 url_crawl sources — across 8 files / 255
+lines. The agent self-classified it as a "trivial fix" using the
+under-defined exit ramp in steering rule 07. The fix worked, but the
+process was wrong: a future change of the same shape might not work
+and we'd have no spec to review. The trivial-fix criteria are now
+explicit (see steering rule 07) and this case is the canonical
+counter-example.
+
+## SDD Methodology (continued)
+
 The AWS port is tracked as **SDD Phase 48** (not Phase 46 — that numbering is used in the Kiro
 tasks.md but conflicts with SDD Phase 46 "Knowledge Base Gap Closure" which is already completed).
 

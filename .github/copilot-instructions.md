@@ -118,6 +118,25 @@ Full tool reference with parameters, descriptions, and usage workflows is in `.g
 
 **SDD = Spec-Driven Development**: "If it's not in the SDD, it doesn't get coded."
 
+**Spec-First Gate** (no exceptions for "feels small"). Before any code change other
+than a trivial fix, author a Kiro spec or SDD phase under `.kiro/specs/<spec-name>/`
+or `sdd_framework/workflows/` and commit it BEFORE the implementation commit.
+
+A change is **not** trivial — and therefore requires a spec — if it:
+
+- Adds / removes / renames a SPOT config field
+- Adds a CLI flag, env var, or new public function arg
+- Bumps a SPOT version (e.g. `VERSION = "8.x.y"`)
+- Modifies shared pipeline code (crawler, ingester, adapter, embedding provider,
+  manifest registry, gap detector, tool module)
+- Establishes a new heuristic or pattern other contributors will follow
+- Touches >= 3 non-test files
+
+When in doubt, write the spec. The cost is one short markdown triplet; the cost
+of skipping it is silent gaps that don't surface until parity testing catches
+them. See the 2026-05-21 MPAS path-prefix retrospective in
+`.kiro/steering/02-development-workflow.md` for the canonical counter-example.
+
 1. **Plan** → Create spec in `sdd_framework/workflows/phaseX_feature_name.md`
 2. **Execute** → Use SDD MCP tools to track session (see tool reference for full lifecycle)
 

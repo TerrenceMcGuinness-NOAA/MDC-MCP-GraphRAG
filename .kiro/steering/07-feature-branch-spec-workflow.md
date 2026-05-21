@@ -112,6 +112,48 @@ Use it when **any** of these are true:
 For trivial fixes (single-commit bug fixes, doc updates), commit directly to
 `develop_aws` — no feature branch needed.
 
+### What Counts as a "Trivial Fix" (the spec-skip gate)
+
+The "no spec needed" exit ramp exists for genuinely small changes only. A
+change qualifies as **trivial** only if **all** of these are true:
+
+- Single file edit (or one source + its CHANGELOG entry)
+- ≤ 30 lines of net change
+- No new schema fields on a SPOT config (`documentation_sources_config.py`,
+  `unified_manifest.json`, `pyproject.toml`, `mcp-env.sh`, etc.)
+- No new CLI flags, new env vars, or new public function signatures
+- No version bump on a SPOT (`VERSION = "8.x.y"` line untouched)
+- No new behavioral pattern that future contributors will need to know
+  (e.g. a new field, a new crawl mode, a new config convention)
+- No change to shared infrastructure (crawler, ingester, adapter,
+  embedding provider, manifest registry, gap detector)
+
+If **any** of those are false, **stop and write a spec first**, even if the
+fix feels small. The MPAS path-prefix work in May 2026 was a textbook
+spec-required change that slipped through as a "trivial fix" — see
+`.kiro/steering/06-python-port-progress.md` for the retrospective.
+
+### Stop-and-Spec Triggers (always require a spec)
+
+Regardless of LOC, write a Kiro spec **before any code change** when:
+
+1. The change adds, removes, or renames a field on a SPOT config.
+2. The change introduces a new CLI flag, env var, or public function arg.
+3. The change modifies shared pipeline code (`mcp_server_node/scripts/`,
+   `mcp_server_python/src/data/`, `src/manifest/`, `src/tools/`,
+   `src/core/`).
+4. The change establishes a new heuristic or pattern other sources will
+   need to follow ("when X, set Y").
+5. The change touches ≥ 3 files in non-test, non-doc paths.
+6. The change bumps a SPOT version.
+7. The user's request would naturally produce one of the above even if
+   the agent initially scoped it as a quick fix.
+
+Default to writing a spec. The cost of one short `requirements.md /
+design.md / tasks.md` triplet is low and creates an auditable record of
+intent. The cost of a missing spec is the kind of silent gap-by-design
+that produced the 2026-05-12 MPAS regression.
+
 ## Quick Reference
 
 ```bash
