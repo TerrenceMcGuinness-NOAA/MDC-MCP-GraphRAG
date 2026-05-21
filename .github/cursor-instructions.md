@@ -154,7 +154,9 @@ meta_tasks_state = {}  # State tracking per metatask
 - Each time you generate code, note the changes in changelog.md
 - Follow semantic versioning guidelines
 - Include date and description of changes
-- Periodically perform git commits with clear messages when appropriate
+- **Git commit and push only on direct user request.** Stage changes with
+  `git add <paths>` so the user can review staged hunks but do not run
+  `git commit` or `git push` autonomously.
 - Never change the branch that we start with
 
 ### Code Style

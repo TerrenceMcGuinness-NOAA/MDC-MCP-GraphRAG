@@ -161,6 +161,9 @@ Each config has exactly one source:
 ### Changelog Practice
 **Always update `CHANGELOG.md`** when modifying tools, infrastructure, or completing SDD phases. Format: semantic versioning with dated headers and commit refs.
 
+### Git Operation Policy
+**Git commit and push only on direct user request.** The agent stages changes (`git add <paths>`) so the user can review staged hunks but does not run `git commit` or `git push` autonomously. Branch switches, merges, rebases, and force-anything also require explicit user authorization. See `.kiro/steering/08-git-operation-policy.md` for the full rule set.
+
 ### Software Stack
 Dependencies go through the **Spack module system**, not arbitrary `pip install`:
 ```bash

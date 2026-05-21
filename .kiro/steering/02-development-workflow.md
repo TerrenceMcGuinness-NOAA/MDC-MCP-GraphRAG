@@ -196,11 +196,15 @@ npm run validate       # syntax check
 - Each time you generate code, note the changes in `CHANGELOG.md`
 - Follow semantic versioning guidelines
 - Include date and description of changes
-- Periodically perform git commits with clear messages when appropriate
+- **Git commit and push only on direct user request.** The agent stages
+  changes (`git add <paths>`) so the user can review staged hunks but
+  does not run `git commit` or `git push` autonomously. See
+  `.kiro/steering/08-git-operation-policy.md` for the full rule set.
 - For multi-session feature work, use the feature-branch + spec workflow
   documented in `.kiro/steering/07-feature-branch-spec-workflow.md`
   (spec on `develop_aws`, implementation on `feature/<spec-name>`).
-  For single-commit fixes, commit directly to `develop_aws`.
+  For single-commit fixes, **stage** directly to `develop_aws` and let
+  the user commit.
 
 ### Code Style
 - Follow the existing code style in the repository
