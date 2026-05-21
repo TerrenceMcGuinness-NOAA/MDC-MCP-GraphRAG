@@ -1,5 +1,70 @@
 # MCP Server Changelog
 
+## [8.23.0] - URL crawler path-prefix scoping; MPAS bug fix (May 21, 2026)
+
+### Scope
+
+Fixes a silent ingestion failure that left `mpas-atmosphere` with
+zero docs in `mdc-workflow-docs-titan1024` despite being marked
+complete by the Phase 58 url-crawl-gap-closure spec. Round-2 parity
+testing flagged the symptom: MPAS-specific queries returned FV3
+content at 100% similarity because the index had no MPAS-tagged
+documents. After this change `mpas-atmosphere` reports 439 docs and
+`search_documentation("MPAS Voronoi unstructured mesh dynamical
+core")` returns real MPAS content (Voronoi mesh / dynamical core /
+DART) at the top of every result list.
+
+### Root cause
+
+The MPAS Sphinx site (`www2.mmm.ucar.edu/projects/mpas/site/`) lives
+on a multi-project UCAR/MMM domain whose Sphinx theme renders one
+global TOC fragment with relative `href`s on every page. From the
+index those links resolve correctly. From a deeper page, `urljoin`
+produces 404 URLs that pollute the BFS queue and exhaust the
+`max_pages` budget before real content is fetched. The same
+codebase had no way to constrain the BFS to the project's own path
+sub-tree.
+
+### Changes
+
+- `mcp_server_node/scripts/ingestion_base.py` — `URLCrawler` accepts
+  optional `path_prefix`; `_extract_same_domain_links` filters
+  discovered URLs by path prefix so multi-project domains don't
+  leak crawl budget.
+- `mcp_server_node/scripts/ingest_documentation_v7.py` — propagates
+  `source.get('path_prefix')` to the crawler; adds `--only
+  <source...>` flag for re-running individual sources without
+  disturbing tier-mates.
+- `mcp_server_node/scripts/ingest_documentation_v8.py` — exposes
+  `--only` at the v8 wrapper.
+- `mcp_server_node/scripts/documentation_sources_config.py` —
+  `mpas-atmosphere` gains `path_prefix: '/projects/mpas/site/'`,
+  `max_pages` 150 → 200; SPOT validator checks `path_prefix` is a
+  valid prefix of the source URL's path. Bumped SPOT to v8.2.0.
+- `mcp_server_python/src/config/unified_manifest.json` — same
+  `path_prefix` mirrored on the manifest entry; backfill ran and
+  produced `doc_count: 439`, `last_ingested: 2026-05-21T20:00Z`.
+- `mcp_server_python/scripts/generate_unified_manifest.py` —
+  preserves `path_prefix` through `type_fields` so a future manifest
+  regeneration doesn't drop the field.
+- `.kiro/steering/06-python-port-progress.md` — captures the
+  symptom, root cause, fix, and the heuristic for when to set
+  `path_prefix` on future sources.
+
+### Verification
+
+```text
+search_documentation("MPAS Voronoi unstructured mesh dynamical core") →
+  5/5 results from source=mpas-atmosphere @ 100% similarity
+OpenSearch mdc-workflow-docs-titan1024.count(source=mpas-atmosphere) = 439
+```
+
+### Still open
+
+`ufs-srweather-app` shows `doc_count: 0` after the same Phase 58
+run despite a reachable RTD seed URL. Different root cause (it's
+RTD-hosted; no `path_prefix` needed). Tracked as a follow-up.
+
 ## [8.22.2] - Phase C-2b hot-fix: Issue C resolved (data layer shipped) (May 14, 2026)
 
 ### Scope

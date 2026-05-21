@@ -485,10 +485,21 @@ class URLCrawler:
     Merged from v4.0 and v4.1.
     """
     
-    def __init__(self, delay=DEFAULT_REQUEST_DELAY, user_agent=None, exclude_url_patterns=None):
+    def __init__(self, delay=DEFAULT_REQUEST_DELAY, user_agent=None,
+                 exclude_url_patterns=None, path_prefix=None):
+        """
+        path_prefix: optional URL path prefix (e.g. ``/projects/mpas/site/``)
+                     that all crawled URLs must start with. When set, this
+                     constrains BFS link discovery to a sub-tree of the
+                     domain so multi-project sites (e.g. UCAR MMM) don't
+                     leak crawl budget into unrelated projects, and broken
+                     Sphinx TOC fragments that produce 404 URLs at depth
+                     are filtered out before fetch.
+        """
         self.delay = delay
         self.user_agent = user_agent or 'NOAA-EMC-MCP-Crawler/4.2.0'
         self.visited = set()
+        self.path_prefix = path_prefix
         # Compile exclude patterns for efficient matching
         self.exclude_patterns = []
         if exclude_url_patterns:
@@ -665,6 +676,12 @@ class URLCrawler:
                     full_url = f"{parsed.scheme}://{parsed.netloc}{fixed_path}"
             
             if urlparse(full_url).netloc == base_domain:
+                # Optional path-prefix scoping. Constrains BFS to a sub-tree
+                # of the domain — necessary for multi-project sites whose
+                # Sphinx theme renders a global TOC with relative hrefs that
+                # urljoin into 404s when followed from deeper pages.
+                if self.path_prefix and not urlparse(full_url).path.startswith(self.path_prefix):
+                    continue
                 links.add(full_url)
         
         return links

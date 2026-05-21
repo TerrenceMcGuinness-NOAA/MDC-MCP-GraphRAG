@@ -34,7 +34,7 @@ import os
 # VERSION CONFIGURATION
 # =============================================================================
 
-VERSION = "8.1.0"
+VERSION = "8.2.0"
 
 # Collection name can be overridden via environment variable
 DEFAULT_COLLECTION_NAME = "global-workflow-docs-v8-0-0"
@@ -318,8 +318,15 @@ DOCUMENTATION_SOURCES = {
             'type': 'readthedocs',
             'priority': 2,
             'description': 'MPAS Atmosphere - Model for Prediction Across Scales (unstructured Voronoi mesh dynamical core)',
-            'max_pages': 150,
-            'enabled': True
+            'max_pages': 200,
+            'enabled': True,
+            # The MPAS Sphinx site lives on a multi-project UCAR MMM domain
+            # (www2.mmm.ucar.edu hosts WRF, MPAS, and other projects). Its
+            # global TOC fragment also produces broken relative links when
+            # rendered on deeper pages. Path-prefix scope keeps the BFS
+            # confined to the MPAS sub-tree so the crawler doesn't burn
+            # budget on 404s or unrelated projects.
+            'path_prefix': '/projects/mpas/site/',
         },
         {
             'name': 'catchem',
@@ -707,6 +714,21 @@ def validate_sources():
             url = source.get('url', '')
             if not url.startswith(('http://', 'https://')):
                 errors.append(f"{name}: Invalid URL format (must start with http:// or https://)")
+
+            # Validate path_prefix (optional) — must start with '/' and live
+            # within the URL's path space, otherwise it would silently filter
+            # every link out of the BFS queue.
+            pp = source.get('path_prefix')
+            if pp is not None:
+                if not isinstance(pp, str) or not pp.startswith('/'):
+                    errors.append(f"{name}: path_prefix must be a string starting with '/'")
+                elif url.startswith(('http://', 'https://')):
+                    from urllib.parse import urlparse as _urlparse
+                    if not _urlparse(url).path.startswith(pp):
+                        errors.append(
+                            f"{name}: path_prefix {pp!r} is not a prefix of url path "
+                            f"{_urlparse(url).path!r}"
+                        )
     
     return errors
 

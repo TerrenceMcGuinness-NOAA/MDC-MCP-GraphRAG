@@ -6,6 +6,105 @@ Short-form progress log for the Python port of the Node.js MCP server
 port (`mcp_server_python/`) is validated module-by-module via parity
 tests before cutover.
 
+## 2026-05-21 — MPAS RAG bug: path-prefix scoping for non-RTD Sphinx sites
+
+### Status
+
+- **MPAS-Atmosphere ingestion fixed.** `mpas-atmosphere` source now
+  has 439 docs in `mdc-workflow-docs-titan1024` (was 0). Verified via
+  `search_documentation("MPAS Voronoi unstructured mesh dynamical
+  core")` — top 5 hits are real MPAS content (Voronoi mesh, dynamical
+  core, DART interface) at 100% similarity.
+- The Phase 58 url-crawl-gap-closure run had silently completed with
+  `mpas-atmosphere: doc_count=0, last_ingested=null` (and
+  `ufs-srweather-app: doc_count=0` — a separate, unresolved case).
+
+### Root cause
+
+The MPAS docs live on `www2.mmm.ucar.edu/projects/mpas/site/` — a
+Sphinx-built site hosted on a multi-project UCAR/MMM domain (the
+domain also hosts WRF and other projects). Two compounding issues:
+
+1. **Multi-project domain.** The crawler's same-domain BFS would
+   leak budget into unrelated `/projects/...` sub-trees if the seed
+   page linked there (it doesn't here, but the pattern is fragile).
+2. **Broken Sphinx TOC at depth.** The site's theme renders one
+   global TOC fragment with relative `href` values (e.g.
+   `documentation/users_guide/foreword.html`) on every page. From
+   the index that resolves correctly. From a deeper page like
+   `gpu_mpas/known_issues.html`, `urljoin` produces
+   `gpu_mpas/documentation/users_guide/foreword.html` — a 404. The
+   crawler's queue fills with hundreds of these URLs, exhausting the
+   `max_pages` budget on broken links and leaving very few real
+   pages indexed.
+
+### Fix (applied to `develop_aws`)
+
+Added an optional `path_prefix` field to URL-crawl sources that
+constrains the BFS to a path sub-tree of the domain:
+
+- `mcp_server_node/scripts/ingestion_base.py` — `URLCrawler` accepts
+  `path_prefix=None`; `_extract_same_domain_links` filters discovered
+  links by prefix.
+- `mcp_server_node/scripts/ingest_documentation_v7.py` — plumbs
+  `source.get('path_prefix')` into the crawler; adds `--only
+  <source...>` flag for re-running individual sources.
+- `mcp_server_node/scripts/ingest_documentation_v8.py` — exposes
+  `--only` at the v8 wrapper.
+- `mcp_server_node/scripts/documentation_sources_config.py` — sets
+  `path_prefix: '/projects/mpas/site/'` on `mpas-atmosphere`,
+  bumps `max_pages` 150 → 200; validator rejects malformed prefixes.
+- `mcp_server_python/src/config/unified_manifest.json` — same
+  `path_prefix` mirrored on the manifest entry.
+- `mcp_server_python/scripts/generate_unified_manifest.py` — passes
+  `path_prefix` through `type_fields` so future regenerations
+  preserve it.
+
+### When to set `path_prefix`
+
+Use it for **any non-ReadTheDocs Sphinx site on a multi-project
+domain** (UCAR/MMM, NCAR, GFDL, JCSDA project pages, etc.). Symptoms
+that warrant it:
+
+- Source URL path is `/projects/<name>/...` or similarly nested under
+  a generic top-level path on a domain that hosts other projects.
+- Live test of `URLCrawler.crawl_recursive(seed, max_pages=20)`
+  returns many `[ERROR] 404` lines for URLs whose paths look like
+  partial-relative TOC artefacts (missing path segments, or
+  unexpected segment duplication).
+- `last_ingested: null` after a tier run that succeeded for other
+  RTD-hosted sources in the same tier.
+
+ReadTheDocs-hosted sites (`*.readthedocs.io`) typically don't need
+this — RTD generates a clean per-project sub-domain and a
+`sitemap.xml` that the ingester prefers when present.
+
+### Re-running a single source
+
+```bash
+DB_BACKEND=aws \
+  OPENSEARCH_ENDPOINT=https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com \
+  NEPTUNE_ENDPOINT=https://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182 \
+  AWS_REGION=us-east-1 \
+  MCP_EMBEDDING_PROFILE=titan1024 \
+  python3.12 mcp_server_node/scripts/ingest_documentation_v8.py \
+    --model titan1024 \
+    --tiers tier3_models \
+    --only mpas-atmosphere \
+    --delay 0.5
+```
+
+Then `python3.12 mcp_server_python/scripts/backfill_manifest_status.py`
+to refresh `doc_count` / `last_ingested` from OpenSearch.
+
+### Still open
+
+- `ufs-srweather-app` shows `doc_count: 0` after the same Phase 58
+  run despite the seed URL returning HTTP 200. Different root cause
+  (it's RTD-hosted, no path_prefix needed). Track separately.
+
+---
+
 ## 2026-05-15 — Phase C-3: Bedrock IAM gap resolved
 
 ### Status

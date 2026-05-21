@@ -105,15 +105,26 @@ class DocumentationIngesterV7(BaseIngester):
             print(f"[WARN] Could not load existing IDs: {e}")
             self.seen_ids = set()
     
-    def ingest_all_tiers(self, tiers: list = None):
-        """Ingest documentation from specified tiers"""
+    def ingest_all_tiers(self, tiers: list = None, only: list = None):
+        """Ingest documentation from specified tiers.
+
+        Args:
+            tiers: list of tier names to process (default: all).
+            only:  optional list of source ``name``s. When set, only sources
+                   whose name appears in this list are processed (across
+                   all selected tiers). Useful for re-running a single
+                   source after fixing its config.
+        """
         if tiers is None:
             tiers = list(DOCUMENTATION_SOURCES.keys())
+        only_set = set(only) if only else None
         
         print(f"\n{'='*70}")
         print(f"Documentation Ingestion v{VERSION}")
         print(f"Collection: {self.collection_name}")
         print(f"Tiers: {', '.join(tiers)}")
+        if only_set:
+            print(f"Filter: only={sorted(only_set)}")
         print(f"{'='*70}\n")
         
         for tier_name in tiers:
@@ -122,6 +133,10 @@ class DocumentationIngesterV7(BaseIngester):
                 continue
             
             sources = DOCUMENTATION_SOURCES[tier_name]
+            if only_set:
+                sources = [s for s in sources if s.get('name') in only_set]
+                if not sources:
+                    continue
             print(f"\n[TIER] Processing {tier_name} ({len(sources)} sources)")
             
             for source in sources:
@@ -136,14 +151,19 @@ class DocumentationIngesterV7(BaseIngester):
         max_pages = source.get('max_pages', 50)
         sitemap_url = source.get('sitemap')
         exclude_patterns = source.get('exclude_url_patterns', [])
+        path_prefix = source.get('path_prefix')
         
         print(f"\n  [SOURCE] {name}: {url}")
         if exclude_patterns:
             print(f"    [INFO] Using {len(exclude_patterns)} URL exclusion patterns")
+        if path_prefix:
+            print(f"    [INFO] Path-prefix scope: {path_prefix}")
         
         try:
             # Create fresh crawler with exclusion patterns
-            crawler = URLCrawler(delay=self.page_delay, exclude_url_patterns=exclude_patterns)
+            crawler = URLCrawler(delay=self.page_delay,
+                                 exclude_url_patterns=exclude_patterns,
+                                 path_prefix=path_prefix)
             
             pages = []
             
@@ -268,6 +288,8 @@ def main():
                        help='Show what would be ingested without actually ingesting')
     parser.add_argument('--delay', type=float, default=1.0,
                        help='Seconds between page fetches (default: 1.0, use 5+ for rate-limited sites)')
+    parser.add_argument('--only', nargs='+', default=None,
+                       help='Only ingest the listed source names (filters within --tiers)')
     
     args = parser.parse_args()
     
@@ -275,13 +297,16 @@ def main():
         print("[DRY RUN] Would ingest the following:")
         for tier, sources in DOCUMENTATION_SOURCES.items():
             if args.tiers is None or tier in args.tiers:
+                filtered = sources if not args.only else [s for s in sources if s['name'] in args.only]
+                if not filtered:
+                    continue
                 print(f"\n{tier}:")
-                for s in sources:
+                for s in filtered:
                     print(f"  - {s['name']}: {s['url']}")
         return
     
     ingester = DocumentationIngesterV7(args.collection, delay=args.delay)
-    ingester.ingest_all_tiers(args.tiers)
+    ingester.ingest_all_tiers(args.tiers, only=args.only)
 
 
 if __name__ == '__main__':

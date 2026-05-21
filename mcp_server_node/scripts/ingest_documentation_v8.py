@@ -90,6 +90,8 @@ def main():
                        help='Show what would be ingested without actually ingesting')
     parser.add_argument('--delay', type=float, default=1.0,
                        help='Seconds between page fetches (default: 1.0, use 5+ for rate-limited sites)')
+    parser.add_argument('--only', nargs='+', default=None,
+                       help='Only ingest the listed source names (filters within --tiers)')
     
     args, _ = parser.parse_known_args()
     
@@ -99,19 +101,24 @@ def main():
     print(f"Collection: {COLLECTION_NAME}")
     print(f"Embedding:  {EMBEDDING_MODEL} ({EMBEDDING_DIMENSIONS} dimensions)")
     print(f"Delay:      {args.delay}s between fetches")
+    if args.only:
+        print(f"Filter:     only={args.only}")
     print("=" * 70)
     
     if args.dry_run:
         print("\n[DRY RUN] Would ingest the following:")
         for tier, sources in DOCUMENTATION_SOURCES.items():
             if args.tiers is None or tier in args.tiers:
+                filtered = sources if not args.only else [s for s in sources if s['name'] in args.only]
+                if not filtered:
+                    continue
                 print(f"\n{tier}:")
-                for s in sources:
+                for s in filtered:
                     print(f"  - {s['name']}: {s['url']}")
         return
     
     ingester = DocumentationIngesterV8(delay=args.delay)
-    ingester.ingest_all_tiers(args.tiers)
+    ingester.ingest_all_tiers(args.tiers, only=args.only)
     
     # Final verification
     print(f"\n[OK] V8 Ingestion complete: {ingester.collection.count()} documents")

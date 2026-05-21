@@ -255,6 +255,11 @@ def _load_legacy_url_sources() -> list[SourceEntry]:
                         if "local_path" in entry
                         else {}
                     ),
+                    **(
+                        {"path_prefix": entry["path_prefix"]}
+                        if "path_prefix" in entry
+                        else {}
+                    ),
                 },
             )
         )
