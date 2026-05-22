@@ -332,10 +332,10 @@ validates the cheapest possible pilot before committing to the
 operational prize:
 
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{\texttt{multi-tenant-foundation}} (54a + 54b
+    \item \textbf{\texttt{omd-tenants-1-foundation}} (54a + 54b
     minimum). Existing AgentCore Runtime becomes a single tenant
     \texttt{gw}; nothing changes for users but plumbing is in place.
-    \item \textbf{\texttt{gw-sfs-tenant-pilot}} (54d). Stand up
+    \item \textbf{\texttt{omd-tenants-2-sfs-pilot}} (54d). Stand up
     \texttt{gw-sfs} against \texttt{dev/sfs}, ingest only the 112-file
     diff, run the branch-isolation probe, prove dedupe works.
     \item \textbf{\texttt{gw-v17-tenant}}. Repeat for \texttt{dev/gfs.v17}
@@ -439,7 +439,7 @@ problem.
 This paper accompanies the Phase~54 SDD Initiative
 (\texttt{Phase-54-OMD-Multi-Program-MCP-Initiative} on the
 \texttt{global-workflow.wiki}) and a companion Kiro spec
-\texttt{multi-tenant-foundation} on \texttt{develop\_aws}. The
+\texttt{omd-tenants-1-foundation} on \texttt{develop\_aws}. The
 recommended first action: author and approve the spec for workstreams
 54a + 54b, with \texttt{dev/sfs} as the validation target. The total
 engineering effort to get from "spec approved" to "branch-isolation

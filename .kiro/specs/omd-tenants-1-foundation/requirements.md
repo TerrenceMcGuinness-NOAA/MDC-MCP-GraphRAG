@@ -11,7 +11,7 @@ and every Neptune query is scoped to a tenant label prefix. The existing
 service surface is preserved as the canonical tenant `gw` (the
 `develop` branch of `NOAA-EMC/global-workflow`); no other tenants are
 configured by this feature, but the plumbing required to add them is
-fully in place. Subsequent features (`gw-sfs-tenant-pilot`,
+fully in place. Subsequent features (`omd-tenants-2-sfs-pilot`,
 `gw-v17-tenant`, etc.) build on the foundation defined here.
 
 This feature **does not** ingest any new branch data, **does not**
