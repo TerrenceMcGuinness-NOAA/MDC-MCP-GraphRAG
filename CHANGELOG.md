@@ -1,5 +1,103 @@
 # MCP Server Changelog
 
+## [8.24.0] - Functional smoke tests for the Python MCP server (May 22, 2026)
+
+### Scope
+
+Implements `.kiro/specs/functional-smoke-tests/` — per-tool-module
+functional validation that fires one lightweight query per module
+against the live AWS backends (OpenSearch + Neptune + filesystem).
+Replaces the placeholder text inside `mcp_health_check(functional=True)`
+with a real markdown table reporting pass/fail/skip and per-query
+latency, and adds a standalone CLI for post-deploy / post-ingestion
+validation that runs the same queries without booting the MCP server.
+
+This addresses the "tool registered but data layer broken" failure
+mode, exemplified by the recent MPAS ingestion bug where
+`doc_count=0` went undetected because no functional query exercised
+the data path.
+
+### Changes
+
+- `mcp_server_python/src/tools/smoke_queries.py` (new) — shared
+  `SmokeQueryRegistry` with 9 module-specific smoke queries,
+  per-query timeout (2 s), total-suite timeout (30 s), and skip-on-
+  missing-env support (currently used for `github_tools` →
+  `GITHUB_TOKEN`). Exposes `SmokeQueryDef` + `ModuleResult`
+  dataclasses for callers.
+- `mcp_server_python/src/tools/utility.py` — `_render_health_check`
+  now imports and runs `SmokeQueryRegistry` when `functional=True`,
+  rendering a markdown table with summary line. The `mcp` instance
+  is plumbed through so the `utility` smoke query can introspect
+  `mcp.list_tools()` for the ≥ 50-tool gate.
+- `mcp_server_python/scripts/smoke_test_tools.py` (new) — standalone
+  CLI with `--json-only` and `--module <name>` flags. Validates
+  required env vars (exits 2 on missing `OPENSEARCH_ENDPOINT` /
+  `NEPTUNE_ENDPOINT` in `aws` mode), bootstraps `UnifiedDataAccess`
+  without starting FastMCP, runs the suite, emits structured JSON to
+  stdout and a markdown table to stderr. Exit 0 on all-pass /
+  some-skip; exit 1 on any failure.
+
+### Spec deviations from `design.md`
+
+The literal queries in the design were authored against an imagined
+Neptune / disk state that doesn't match the deployment. The
+deviations preserve the spec's intent (one real query per module)
+while matching the ground truth on `develop_aws`:
+
+- **graph queries**: `JGFS_FORECAST` (named in the design as a
+  guaranteed File-label node) does not exist in the current Neptune.
+  `JGLOBAL_FORECAST` exists as both `ShellScript` and `CodeFile`.
+  Smoke queries match by `name` only (no label) so they survive
+  label drift.
+- **workflow_info**: the design checks
+  `Path(workflow_root / "jobs").is_dir()`, but the on-disk
+  `global-workflow` clone keeps job scripts under `dev/jobs/`. The
+  smoke query passes when **either** path is a directory — same
+  fallback pattern used by `workflow_info.describe_component`.
+- **OpenSearch adapter signature**: the design example
+  `data.vector_db.query("text", index="...", k=1)` doesn't match
+  the actual signature `(collection, query_text, *, k=10, ...)`.
+  Smoke queries pass the literal index name as the first positional
+  argument; it falls through `resolve_index` unchanged.
+
+### Verification (live AWS backends)
+
+```bash
+DB_BACKEND=aws \
+  OPENSEARCH_ENDPOINT=https://vpc-mdc-mcp-rag-search-...es.amazonaws.com \
+  NEPTUNE_ENDPOINT=https://mdc-mcp-graprag-neptune-1...:8182 \
+  AWS_REGION=us-east-1 \
+  MCP_WORKFLOW_ROOT=/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow \
+  python3.12 mcp_server_python/scripts/smoke_test_tools.py
+```
+
+With `GITHUB_TOKEN` unset (the documented happy-path):
+
+```text
+Summary: 8/9 passed, 0 failed, 1 skipped
+exit=0
+total_duration_ms=1122
+```
+
+(github_tools skipped per design — `requires=("GITHUB_TOKEN",)`.)
+With `GITHUB_TOKEN` set: 9/9 passed.
+
+End-to-end MCP path verified by invoking `mcp_health_check(functional=True,
+detailed=True)` through `FastMCP.call_tool()` — full health check
+report includes the new "Functional Validation" section with the
+same 8/9 (or 9/9) result.
+
+### Out of scope for this work item
+
+- AgentCore Runtime container (`python-all-tools-v3`) does **not**
+  yet contain these files. Deploying the new smoke tooling to the
+  hosted AgentCore endpoint requires a Docker rebuild + ECR push,
+  which is operator-side work tracked separately.
+- No new unit tests are added per user direction — verification is
+  via the live standalone-script run and the in-process MCP tool
+  invocation above.
+
 ## [8.23.0] - URL crawler path-prefix scoping; MPAS bug fix (May 21, 2026)
 
 ### Scope

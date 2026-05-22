@@ -163,6 +163,7 @@ def register(
             detailed=detailed,
             deep=deep,
             functional=functional,
+            mcp=mcp,
         )
 
     @mcp.tool(
@@ -386,6 +387,7 @@ async def _render_health_check(
     detailed: bool,
     deep: bool,
     functional: bool,
+    mcp: FastMCP | None = None,
 ) -> str:
     rows: list[_HealthRow] = [
         _HealthRow("Base Server", "healthy", "FastMCP running"),
@@ -477,10 +479,21 @@ async def _render_health_check(
                 "_Functional tests skipped — no data access layer available._"
             )
         else:
-            lines.append(
-                "_Functional tests not yet implemented in the Python port "
-                "(Phase B5+ will add per-tool smoke queries)._"
-            )
+            # Late import keeps the smoke-query module out of the
+            # utility import graph for callers that never opt into
+            # ``functional=True``.
+            from src.tools.smoke_queries import SmokeQueryRegistry
+
+            registry = SmokeQueryRegistry()
+            try:
+                results = await registry.run_all(data, mcp=mcp)
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("smoke registry run_all failed: %s", exc)
+                lines.append(
+                    f"_Functional tests aborted: {type(exc).__name__}: {exc}_"
+                )
+            else:
+                lines.extend(_render_functional_results(results))
 
     if deep and health_payload is not None:
         _append_health_snapshot(state_dir, health_payload)
@@ -496,6 +509,59 @@ def _overall_status(rows: list[_HealthRow]) -> str:
     if any(r.status == "degraded" for r in rows):
         return "DEGRADED"
     return "HEALTHY"
+
+
+def _render_functional_results(results: list[Any]) -> list[str]:
+    """Render a list of :pyclass:`ModuleResult` as markdown.
+
+    Output shape (matches design.md §4):
+
+    .. code-block:: markdown
+
+        | Module | Status | Latency | Error |
+        |--------|--------|---------|-------|
+        | semantic_search | [OK] pass | 142ms |  |
+        | github_tools    | [SKIP] skip | 0ms | GITHUB_TOKEN not set |
+
+        **Summary**: 8/9 passed, 0 failed, 1 skipped
+
+    Status emoji prefixes (``[OK]`` / ``[ERROR]`` / ``[SKIP]``) match
+    the rest of the health-check output for visual consistency, and
+    are ASCII-only per the steering rule.
+    """
+    status_marker = {"pass": "[OK]", "fail": "[ERROR]", "skip": "[SKIP]"}
+
+    lines: list[str] = []
+    lines.append("| Module | Status | Latency | Error |")
+    lines.append("|--------|--------|---------|-------|")
+    passed = failed = skipped = 0
+    for r in results:
+        marker = status_marker.get(r.status, "[?]")
+        status_cell = f"{marker} {r.status}"
+        # Pipes in error messages would break the markdown table —
+        # collapse them to slashes; truncate egregiously long
+        # messages so the table stays scannable.
+        err = (r.error or "").replace("|", "/")
+        if len(err) > 140:
+            err = err[:137] + "..."
+        latency = f"{r.latency_ms}ms"
+        lines.append(
+            f"| {r.module} | {status_cell} | {latency} | {err} |"
+        )
+        if r.status == "pass":
+            passed += 1
+        elif r.status == "fail":
+            failed += 1
+        elif r.status == "skip":
+            skipped += 1
+
+    total = len(results)
+    lines.append("")
+    lines.append(
+        f"**Summary**: {passed}/{total} passed, {failed} failed, "
+        f"{skipped} skipped"
+    )
+    return lines
 
 
 def _append_health_snapshot(state_dir: Path, payload: dict[str, Any]) -> None:
