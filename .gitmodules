@@ -18,10 +18,6 @@
 	path = supported_repos/EVS
 	url = https://github.com/NOAA-EMC/EVS.git
 	branch = release/evs.v2.0.0
-[submodule "supported_repos/global-workflow_crow"]
-	path = supported_repos/global-workflow_crow
-	url = https://github.com/NOAA-EMC/global-workflow.git
-	branch = crow
 [submodule "supported_repos/global-workflow.wiki"]
 	path = supported_repos/global-workflow.wiki
 	url = https://github.com/TerrenceMcGuinness-NOAA/global-workflow.wiki.git
@@ -58,3 +54,7 @@
 	path = supported_repos/ECFLOW/pyflow
 	url = https://github.com/ecmwf/pyflow
 	branch = develop
+[submodule "supported_repos/global-workflow_dev-sfs"]
+	path = supported_repos/global-workflow_dev-sfs
+	url = https://github.com/NOAA-EMC/global-workflow.git
+	branch = dev/sfs
