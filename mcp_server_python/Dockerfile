@@ -59,6 +59,15 @@ RUN pip install --no-cache-dir /wheels/*.whl \
 COPY --chown=app:app src ./src
 COPY --chown=app:app pyproject.toml ./
 
+# Seed the SDD execution-state directory so SessionManager can write
+# to it on first use AND the functional smoke test for sdd_workflow
+# (smoke_queries._smoke_sdd_workflow) finds either active_session.json
+# or history.jsonl. We touch an empty history.jsonl rather than just
+# making the dir so the smoke probe passes immediately.
+RUN mkdir -p /app/sdd_framework/execution_state \
+ && touch /app/sdd_framework/execution_state/history.jsonl \
+ && chown -R app:app /app/sdd_framework
+
 USER app
 EXPOSE 8000
 
