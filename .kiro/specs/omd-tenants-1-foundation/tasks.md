@@ -28,6 +28,130 @@ References:
 All implementation paths are relative to `mcp_server_python/` unless
 otherwise specified.
 
+## Phase 0 — Short-term workflow_info fix (operational only)
+
+This narrowly-scoped subset restores `mcp_health_check(functional=True)`
+to fully-green by mounting EFS at `/mnt/workflow` with a populated
+`develop` worktree and pointing `MCP_WORKFLOW_ROOT` at it. **No image
+rebuild and no tenancy code lands here** — the existing
+`python-all-tools-v3` image already reads `MCP_WORKFLOW_ROOT` from the
+environment, so once the mount is live and the env var points to
+`/mnt/workflow/develop`, the smoke probe finds `<root>/jobs/` and
+reports healthy.
+
+Phase 0 reuses CDK and IAM artefacts that the full tenancy rollout
+also needs (Tasks 11.2, 11.3, 12.2 in simplified form), so the work
+done here is not throwaway — Phase A of the full rollout starts from
+this state.
+
+Out of scope for Phase 0: tenant catalog, prefix scoping, attribution
+header, parity validation. Those land via Tasks 2 – 16 below.
+
+- [ ] 0. Phase 0 tasks
+  - [ ] 0.1 Add `WorkflowAccessPoint` to CDK and deploy
+    - Author the `efs.AccessPoint` snippet in
+      `infrastructure/cdk/lib/mdc-data-stack.ts` per design §8 "CDK
+      changes":
+      - `path: '/supported_repos/global-workflow'`
+      - `posixUser: { uid: '1000', gid: '1000' }`
+      - `createAcl: { ownerUid: '1000', ownerGid: '1000', permissions: '0755' }`
+      - CfnOutputs `WorkflowAccessPointId`, `WorkflowAccessPointArn`
+    - From `infrastructure/cdk/`: `cdk diff && cdk deploy MdcDataStack`
+    - Capture the access point ID and ARN from the CFN outputs
+    - File: `infrastructure/cdk/lib/mdc-data-stack.ts` (modified)
+    - **Implements: Requirements 11.1, 12.4 (live)**
+    - _Reversible via `cdk destroy` of just the access-point construct._
+
+  - [ ] 0.2 Author IAM policy and attach to the task role
+    - Write `infrastructure/iam/efs-clientmount-workflow-ap.json` per
+      design §8 "IAM policy" — single statement granting
+      `elasticfilesystem:ClientMount` on file-system ARN
+      `arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758`,
+      gated by `ArnEquals` on `elasticfilesystem:AccessPointArn` (use
+      the AP ARN from 0.1). **No `ClientWrite`** (R11.5).
+    - Apply:
+      ```bash
+      aws iam put-role-policy \
+        --role-name mdc-mcp-rag-ecs-task-role \
+        --policy-name efs-clientmount-workflow-ap \
+        --policy-document file://infrastructure/iam/efs-clientmount-workflow-ap.json
+      ```
+    - Verify: `aws iam get-role-policy --role-name mdc-mcp-rag-ecs-task-role --policy-name efs-clientmount-workflow-ap`
+    - **Implements: Requirements 11.4, 11.5 (live)**
+
+  - [ ] 0.3 Populate the EFS with a `develop` worktree (simplified)
+    - Phase 0 simplified script — no `tenants.yaml` dependency:
+      ```bash
+      #!/usr/bin/env bash
+      set -euo pipefail
+      EFS_FS_ID="${EFS_FS_ID:-fs-032d52e4677000758}"
+      STAGING_MNT="${STAGING_MNT:-/mnt/efs-staging}"
+      HOST_DEVELOP_SEED="${HOST_DEVELOP_SEED:-$HOME/supported_repos/global-workflow}"
+      GW_REMOTE="${GW_REMOTE:-https://github.com/NOAA-EMC/global-workflow.git}"
+
+      sudo mkdir -p "$STAGING_MNT"
+      mountpoint -q "$STAGING_MNT" || sudo mount -t efs -o tls "$EFS_FS_ID":/ "$STAGING_MNT"
+
+      [[ -d "$STAGING_MNT/.git" ]] || sudo git clone --bare "$GW_REMOTE" "$STAGING_MNT/.git"
+      sudo mkdir -p "$STAGING_MNT/supported_repos/global-workflow"
+      sudo chown 1000:1000 "$STAGING_MNT/supported_repos/global-workflow"
+
+      target="$STAGING_MNT/supported_repos/global-workflow/develop"
+      if [[ ! -e "$target/.git" && ! -f "$target/HEAD" ]]; then
+        if [[ -d "$HOST_DEVELOP_SEED" ]]; then
+          sudo cp -a "$HOST_DEVELOP_SEED/." "$target/"
+        fi
+        sudo git -C "$STAGING_MNT/.git" worktree add "$target" develop
+      else
+        sudo git -C "$target" pull --ff-only
+      fi
+      sudo chown -R 1000:1000 "$target"
+      sudo umount "$STAGING_MNT"
+      ```
+    - File: `mcp_server_python/scripts/populate_workflow_efs_phase0.sh`
+      (new — supersedes itself when 12.2 lands the full version)
+    - **Runtime expectation: 10 – 30 minutes (clone + seed of ~1.5 GB);
+      subsequent runs are seconds.**
+    - Verify: `ls /mnt/efs-staging/supported_repos/global-workflow/develop/jobs`
+    - **Implements: Requirements 12.1, 12.2 (gw worktree only), 12.6 (live)**
+
+  - [ ] 0.4 Update AgentCore runtime with EFS mount + env var (no image rebuild)
+    - Set `MCP_WORKFLOW_ROOT=/mnt/workflow/develop` via runtime
+      environment variables, and add `--filesystem-configurations` —
+      keep the existing `python-all-tools-v3` image:
+      ```bash
+      AP_ID="<from 0.1 output>"
+      aws bedrock-agentcore-control update-agent-runtime \
+        --region us-east-1 \
+        --agent-runtime-id mdc_mcp_rag_server_python-v5K2F8BGrN \
+        --agent-runtime-artifact '{"containerConfiguration":{"containerUri":"903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:python-all-tools-v3"}}' \
+        --role-arn arn:aws:iam::903050880929:role/mdc-mcp-rag-ecs-task-role \
+        --network-configuration '{"networkMode":"VPC","networkModeConfig":{"subnets":["subnet-0e13af6b3a9a6416f","subnet-04447750c61bd7e06","subnet-024fd9b597b3075a5"],"securityGroups":["sg-096489a0876cc78c1"]}}' \
+        --protocol-configuration '{"serverProtocol":"MCP"}' \
+        --lifecycle-configuration '{"idleRuntimeSessionTimeout":900,"maxLifetime":28800}' \
+        --environment-variables '{"DB_BACKEND":"aws","NEPTUNE_ENDPOINT":"https://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182","OPENSEARCH_ENDPOINT":"https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com","AWS_REGION":"us-east-1","MCP_STATELESS_HTTP":"true","MCP_WORKFLOW_ROOT":"/mnt/workflow/develop"}' \
+        --filesystem-configurations "[{
+          \"fileSystemId\":\"fs-032d52e4677000758\",
+          \"accessPointId\":\"$AP_ID\",
+          \"mountPath\":\"/mnt/workflow\",
+          \"readOnly\":true
+        }]"
+      ```
+    - **Implements: Requirements 11.2, 11.3 (live, image unchanged)**
+    - _Rollback: re-run with the previous env var set and no
+      `--filesystem-configurations`._
+
+  - [ ] 0.5 Verify `workflow_info` smoke green
+    - Call `mcp_health_check(functional=True)` via the agentcore-mcp-rag
+      MCP and confirm the `workflow_info` row reports `pass`
+    - Spot-check `describe_component(component="JGFS_FORECAST")` returns
+      a populated path (not the "not found" error)
+    - **Implements: Requirement 13.5 (live verification)**
+
+Phase 0 closes when 0.5 reports green. The full rollout (Tasks 2 – 16
+below) layers tenancy code, prefix scoping, attribution, and parity on
+top of the Phase 0 EFS mount without re-doing the operational work.
+
 ## Tasks
 
 - [ ] 1. Property test scaffold (TDD harness)
