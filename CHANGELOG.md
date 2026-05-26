@@ -1,5 +1,151 @@
 # MCP Server Changelog
 
+## [8.22.3] - Phase 0 of omd-tenants-1-foundation: workflow_info smoke fix (operational, partial) (May 26, 2026)
+
+### Scope
+
+Phase 0 of `.kiro/specs/omd-tenants-1-foundation/` — the narrowly-scoped
+operational subset that restores `mcp_health_check(functional=True)` to
+fully-green by mounting the Workflow_EFS at `/mnt/workflow` with a
+populated `develop` worktree and pointing `MCP_WORKFLOW_ROOT` at it.
+**No image rebuild and no tenancy code lands here** — the existing
+`python-titan-v5` image already reads `MCP_WORKFLOW_ROOT` from the
+environment, so once the mount is live and the env var points to
+`/mnt/workflow/develop`, the smoke probe finds `<root>/dev/jobs/` and
+reports healthy.
+
+Phase 0 reuses CDK and IAM artefacts that the full tenancy rollout
+(Tasks 11.x, 12.x) also needs, so the work done here is not throwaway —
+Phase A of the full rollout starts from this state.
+
+### Status
+
+- **Done**: Tasks 0.1 (CDK access point), 0.3 (EFS populate). The CDK
+  `MdcEfs` filesystem policy was also expanded to include
+  `elasticfilesystem:ClientMount` (an extra fix beyond the original
+  task scope — see "CDK FS policy fix" below).
+- **Pending admin approval**: Task 0.2 (IAM `efs-clientmount-workflow-ap`
+  inline policy on `mdc-mcp-rag-ecs-task-role`). Request doc submitted
+  at `docs/efs-clientmount-workflow-ap-role-request.txt`.
+- **Blocked on Task 0.2**: Tasks 0.4 (`update-agent-runtime` with
+  `--filesystem-configurations`) and 0.5 (verify `workflow_info`
+  smoke green).
+
+### Changes
+
+- `infrastructure/cdk/lib/mdc-data-stack.ts` — Add
+  `WorkflowAccessPoint` (`efs.AccessPoint`) on the existing `MdcEfs`
+  filesystem with `path: '/supported_repos/global-workflow'`,
+  `posixUser: { uid: '1000', gid: '1000' }`,
+  `createAcl: { ownerUid: '1000', ownerGid: '1000', permissions: '0755' }`.
+  Adds `WorkflowAccessPointId` and `WorkflowAccessPointArn` CFN outputs.
+  Implements R11.1, R12.4 (live).
+- `infrastructure/cdk/lib/mdc-data-stack.ts` — **CDK FS policy fix**:
+  set `allowAnonymousAccess: true` and provide an explicit
+  `fileSystemPolicy` granting `ClientMount`+`ClientWrite`+`ClientRootAccess`
+  to any caller via mount target (gated by `AccessedViaMountTarget=true`).
+  CDK's default emits Write+RootAccess only and omits ClientMount, which
+  required IAM ClientMount on every caller — including operator hosts
+  running populate/maintenance scripts. With the explicit policy, SG
+  ingress remains the perimeter and IAM still gates the runtime's
+  access-point-scoped mount via the pending `efs-clientmount-workflow-ap`
+  inline policy. R11.9.
+- `infrastructure/iam/efs-clientmount-workflow-ap.json` (new) — Single-
+  statement inline policy granting `elasticfilesystem:ClientMount` on
+  the file system ARN, gated by `ArnEquals` on the access-point ARN
+  (`fsap-03e641f056b341f29`). No `ClientWrite` (R11.5).
+- `docs/efs-clientmount-workflow-ap-role-request.txt` (new) — Admin
+  request for IAM `PutRolePolicy` on `mdc-mcp-rag-ecs-task-role`.
+  Submitted because `terry.mcguinness@noaa.gov` lacks `iam:PutRolePolicy`
+  on this role (same condition that blocked the May 14 Bedrock
+  InvokeModel addition). Mirrors the format of
+  `docs/bedrock-invoke-model-role-request.txt`.
+- `mcp_server_python/scripts/populate_workflow_efs_phase0.sh` (new,
+  mode 0755) — Operator-host script that mounts the EFS file system
+  root, initializes the bare clone of
+  `https://github.com/NOAA-EMC/global-workflow.git` at `<EFS>/.git`,
+  ensures the access-point root `/supported_repos/global-workflow`
+  exists with `1000:1000 0755`, adds the `develop` worktree at
+  `<root>/develop`, and chowns to `1000:1000`. Idempotent. Implements
+  R12.1, R12.2 (gw worktree only), R12.4, R12.6 (live, deviating from
+  R12.6's host-seed intent — the bare clone source is NOAA-EMC
+  canonical rather than the host's fork; user-approved). Supersedes
+  itself when `mcp_server_python/scripts/populate_workflow_efs.sh`
+  (Task 12.2) lands.
+
+### Deployment artefacts
+
+| Artefact | Value |
+|---|---|
+| EFS access point ID | `fsap-03e641f056b341f29` |
+| EFS access point ARN | `arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29` |
+| EFS file system | `fs-032d52e4677000758` (CDK-managed `MdcEfs`, no replacement) |
+| Workflow_Bare_Repo | `<EFS>/.git` (NOAA-EMC global-workflow develop, HEAD `2b1702469`) |
+| Workflow_Worktree | `<EFS>/supported_repos/global-workflow/develop` (1000:1000, 0755, 92 jobs under `dev/jobs/`) |
+| MdcDataStack deploys | 2026-05-26T19:42 UTC (access point) and 2026-05-26T21:04 UTC (FS policy ClientMount) |
+
+### Spec deviations from `tasks.md` §0.3
+
+The Phase 0 script in `tasks.md` §0.3 has a latent issue when both
+`HOST_DEVELOP_SEED` is set AND the worktree doesn't exist: `cp -a` would
+populate the target with files (including a stale `.git` ASCII pointer
+to the host's submodule gitdir), and `git worktree add` would then fail
+with `fatal: '<path>' already exists` because the target is non-empty.
+Per user-approved decision, the implemented script:
+
+- **Drops the `cp -a` host-seed step**. Uses `git clone --bare` from
+  NOAA-EMC + `git worktree add` only. Aligns with R7.5's canonical
+  `gw` definition (NOAA-EMC develop, not the operator's fork). The
+  bare clone took ~90 s in our run (network+EFS bound).
+- **Bare-repo worktrees and `FETCH_HEAD`**: bare-repo worktrees do
+  not populate `refs/remotes/origin/*`, so `merge --ff-only origin/develop`
+  fails. Use `merge --ff-only FETCH_HEAD` instead.
+- **`safe.directory` git options**: running git as root (via sudo)
+  over uid-1000-owned files trips the CVE-2022-24765 "dubious
+  ownership" check. Pass `-c safe.directory=...` for both the bare
+  repo and the worktree.
+- **`trap cleanup EXIT`**: ensures the EFS staging mount is unmounted
+  on any exit path (success, error, signal).
+- **Dual-path verify**: mirrors `_smoke_workflow_info`'s acceptance of
+  either `<root>/jobs` or `<root>/dev/jobs` (R13.2). NOAA-EMC develop
+  HEAD `2b1702469` uses `dev/jobs/`.
+
+### Spec deviations from `tasks.md` §0.4 (will apply when admin unblocks 0.2)
+
+- **Image**: stays at `python-titan-v5` (current deployed image at
+  runtime version 16), not `python-all-tools-v3` as the spec says.
+  The spec was authored when the runtime was on `python-all-tools-v3`;
+  user confirmed `python-titan-v5` is the correct preserve target.
+- **Subnets**: include all three private subnets
+  (`subnet-0e13af6b3a9a6416f`, `subnet-04447750c61bd7e06`,
+  `subnet-024fd9b597b3075a5`). Current runtime config has only the
+  first two; adding the third aligns with R11.7 and the EFS mount-target
+  AZ coverage.
+
+### Operational interventions taken outside CDK (require post-Phase-0 followup)
+
+- **Temporary SG ingress rule**: `sgr-04b3d7802002780ce` on EFS SG
+  `sg-04bd2b41beecd1201` allowing the operator host SG
+  `sg-09bb60ffa41137076` (`launch-wizard-1`) on TCP 2049. Required so
+  this operator EC2 host could mount EFS for the populate run. Not
+  yet revoked per user direction. Will appear as drift on next
+  `cdk diff MdcDataStack` until either revoked or promoted to CDK code.
+- **`amazon-efs-utils-2.4.1` installed** on the operator host
+  (`i-0907ea89fb15fd90a`, Amazon Linux 2023 aarch64). Reversible via
+  `sudo dnf remove amazon-efs-utils stunnel`. The package is required
+  for the `mount.efs` helper used by the populate script.
+
+### Known follow-ups
+
+- **Task 0.5 spot-check**: the spec says `describe_component(JGFS_FORECAST)`
+  but `JGFS_FORECAST` does not exist in current NOAA-EMC `develop` —
+  the analog is `JGLOBAL_FORECAST` (the same observation already
+  recorded in `[8.24.0]` for the smoke-query rewrite). When 0.5 runs,
+  it will use `JGLOBAL_FORECAST`.
+- **AgentCore subnet expansion**: pending Task 0.4.
+- **Operator-host SG rule**: pending decision (revoke after first
+  populate vs. permanent-via-CDK vs. leave as drift).
+
 ## [8.24.0] - Functional smoke tests for the Python MCP server (May 22, 2026)
 
 ### Scope

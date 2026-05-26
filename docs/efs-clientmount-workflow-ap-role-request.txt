@@ -1,0 +1,223 @@
+EFS CLIENTMOUNT — INLINE POLICY ADDITION — Account 903050880929
+================================================================
+
+Date:       May 26, 2026
+Requestor:  Terry McGuinness (terry.mcguinness@noaa.gov)
+Account:    903050880929
+Region:     us-east-1
+Project:    MDC MCP RAG Server — omd-tenants-1-foundation Phase 0
+Priority:   HIGH (blocks the workflow_info smoke probe restoration)
+
+
+REQUEST
+-------
+
+Please attach a new, single-statement inline policy to an existing IAM
+role so that the AgentCore microVM can mount the just-deployed EFS
+access point read-only at /mnt/workflow. No new IAM resources are
+created. Existing inline policies on this role are not modified.
+
+
+COMMAND TO RUN
+--------------
+
+    aws iam put-role-policy \
+      --role-name mdc-mcp-rag-ecs-task-role \
+      --policy-name efs-clientmount-workflow-ap \
+      --policy-document '{
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "ClientMountWorkflowEFS",
+            "Effect": "Allow",
+            "Action": "elasticfilesystem:ClientMount",
+            "Resource": "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758",
+            "Condition": {
+              "ArnEquals": {
+                "elasticfilesystem:AccessPointArn": "arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29"
+              }
+            }
+          }
+        ]
+      }' \
+      --region us-east-1
+
+The verbatim JSON file in the repo is:
+
+    infrastructure/iam/efs-clientmount-workflow-ap.json
+
+If preferred, the same call can use --policy-document file://...
+against that file.
+
+
+VERIFICATION
+------------
+
+    aws iam get-role-policy \
+      --role-name mdc-mcp-rag-ecs-task-role \
+      --policy-name efs-clientmount-workflow-ap \
+      --region us-east-1
+
+Expected: returns PolicyName "efs-clientmount-workflow-ap" with the
+single-statement document above.
+
+End-to-end verification (from the runtime, after the policy is
+applied, the EFS is populated, and update-agent-runtime is re-run with
+--filesystem-configurations):
+
+    mcp_health_check(functional=true)
+
+Expected: workflow_info reports "pass" instead of
+"RuntimeError: neither /app/supported_repos/global-workflow/jobs nor
+/app/supported_repos/global-workflow/dev/jobs is a directory".
+
+
+WHY THIS IS NEEDED
+------------------
+
+The AgentCore microVM runs as
+arn:aws:sts::903050880929:assumed-role/mdc-mcp-rag-ecs-task-role/...
+and currently has Neptune, OpenSearch, ECR, logs, X-Ray, Secrets
+Manager, SSM, and Bedrock InvokeModel permissions — but no
+elasticfilesystem:ClientMount.
+
+The workflow_info smoke probe (_smoke_workflow_info in
+mcp_server_python/src/tools/smoke_queries.py) looks for a `jobs/`
+directory beneath MCP_WORKFLOW_ROOT. Today the container has no
+global-workflow checkout at any expected path, so the probe reports
+the module unhealthy. The fix lands the global-workflow develop
+worktree on a shared EFS volume, mounted read-only into the runtime
+at /mnt/workflow/develop, with MCP_WORKFLOW_ROOT pointed at it.
+
+Without elasticfilesystem:ClientMount on this role, the
+update-agent-runtime call with --filesystem-configurations will
+provision but the microVM mount attempt will fail with:
+
+    mount.efs: failed to retrieve EFS DNS name ...
+    NotAuthorized: ... is not authorized to perform:
+    elasticfilesystem:ClientMount ...
+
+so workflow_info would remain failing.
+
+
+WHY THIS REQUIRES ADMIN
+------------------------
+
+The requestor's identity does not allow iam:PutRolePolicy on this
+role. Verified May 26, 2026 — running the COMMAND TO RUN above as the
+requestor returned:
+
+    AccessDenied: User arn:aws:iam::903050880929:user/terry.mcguinness@noaa.gov
+    is not authorized to perform: iam:PutRolePolicy on resource:
+    role mdc-mcp-rag-ecs-task-role because no identity-based policy
+    allows the iam:PutRolePolicy action
+
+This is the same condition that blocked the May 14 Bedrock
+InvokeModel addition — see docs/bedrock-invoke-model-role-request.txt.
+
+
+WHAT ALREADY EXISTS (no new resources needed)
+---------------------------------------------
+
+  IAM Role (already exists):
+    Name: mdc-mcp-rag-ecs-task-role
+    ARN:  arn:aws:iam::903050880929:role/mdc-mcp-rag-ecs-task-role
+    Existing inline policies: ["bedrock-invoke-titan-embed-v2", "inline"]   (untouched by this request)
+    Existing managed policies: []
+
+  EFS File System (already exists, CDK-managed via MdcDataStack):
+    FileSystemId: fs-032d52e4677000758
+    Name: mdc-mcp-rag-efs
+    Encrypted: true
+    Mount targets: 3 (us-east-1a/b/d, all in the AgentCore VPC)
+
+  EFS Access Point (just-deployed via cdk deploy MdcDataStack on May 26, 2026):
+    AccessPointId: fsap-03e641f056b341f29
+    AccessPointArn: arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29
+    Root path: /supported_repos/global-workflow
+    POSIX user: uid=1000 gid=1000
+    CreationInfo: owner 1000:1000, perms 0755
+    LifeCycleState: available
+
+
+WHAT THIS DOES NOT DO
+---------------------
+
+  - Does NOT grant elasticfilesystem:ClientWrite (mount is read-only)
+  - Does NOT grant elasticfilesystem:ClientRootAccess
+  - Does NOT modify the existing "inline" or "bedrock-invoke-titan-embed-v2"
+    inline policies on this role
+  - Does NOT modify the role's trust policy
+  - Does NOT attach any managed policies
+  - Does NOT grant access to any other EFS file system or access point
+  - Does NOT grant any non-EFS action
+  - Does NOT grant access in any region other than us-east-1
+  - Does NOT create any new IAM roles, users, or groups
+  - Does NOT modify networking, KMS, or data resources
+  - Does NOT affect other principals or workloads
+
+
+SECURITY SCOPE
+--------------
+
+Single statement. Single action. Single resource ARN. Single region.
+Pinned to one access point via ArnEquals condition.
+
+  Action:    elasticfilesystem:ClientMount  (one action — read-only)
+  Resource:  fs-032d52e4677000758  (one file system ARN, us-east-1)
+  Condition: AccessPointArn ArnEquals fsap-03e641f056b341f29
+             (the role can mount via this AP and only this AP)
+  Effect:    Allow
+
+The role can already be assumed only by ecs-tasks.amazonaws.com and
+bedrock-agentcore.amazonaws.com (per the existing trust policy). This
+addition does not change who can assume the role, only what an
+already-assumed session may do.
+
+The access-point creationInfo (uid 1000, gid 1000, perms 0755) and
+posixUser pin reads to the container's `app` user; the role has no
+ClientWrite, so the mount is read-only end-to-end (in transit and at
+the IAM layer).
+
+
+IMPACT
+------
+
+  - Additive only — no existing permission is modified or removed
+  - Takes effect immediately, no restart required (the next
+    update-agent-runtime call by the requestor will use it)
+  - Zero downtime, zero cost impact
+  - Reversible at any time with one command:
+
+        aws iam delete-role-policy \
+          --role-name mdc-mcp-rag-ecs-task-role \
+          --policy-name efs-clientmount-workflow-ap \
+          --region us-east-1
+
+
+CONTEXT
+-------
+
+Phase 0 of omd-tenants-1-foundation is the operational subset that
+restores the workflow_info smoke probe to green. It reuses CDK and
+IAM artefacts that the full tenancy rollout (Tasks 11.x and 12.x)
+also need, so this work is not throwaway — Phase A of the full
+rollout starts from this state.
+
+The CDK access-point change has already been deployed (cdk deploy
+MdcDataStack on May 26, 2026 17:42–17:44 UTC). The EFS population
+script, AgentCore runtime update with --filesystem-configurations,
+and final smoke verification are blocked behind this IAM addition.
+
+See:
+  .kiro/specs/omd-tenants-1-foundation/design.md  (§8 "IAM policy")
+  .kiro/specs/omd-tenants-1-foundation/tasks.md   (§0.2)
+  .kiro/specs/omd-tenants-1-foundation/requirements.md  (R11.4, R11.5)
+  infrastructure/iam/efs-clientmount-workflow-ap.json  (verbatim JSON in repo)
+
+
+CONTACT
+-------
+
+Terry McGuinness — terry.mcguinness@noaa.gov
+Project: NOAA NWS POCAI Software Engineering — MDC MCP RAG Server

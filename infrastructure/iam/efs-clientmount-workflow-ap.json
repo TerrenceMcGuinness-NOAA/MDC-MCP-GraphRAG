@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ClientMountWorkflowEFS",
+      "Effect": "Allow",
+      "Action": "elasticfilesystem:ClientMount",
+      "Resource": "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758",
+      "Condition": {
+        "ArnEquals": {
+          "elasticfilesystem:AccessPointArn": "arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29"
+        }
+      }
+    }
+  ]
+}
