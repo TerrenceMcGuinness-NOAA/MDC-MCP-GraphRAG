@@ -98,6 +98,21 @@ class OpenSearchAdapter:
         handlers see a structured error.
     """
 
+    # ── tenant scoping (R3.1-R3.4) ────────────────────────────────────
+
+    @staticmethod
+    def resolve_tenant_index(collection: str, tenant: "Any") -> str:
+        """Apply tenant.index_prefix to a logical collection name.
+
+        Returns ``f"{tenant.index_prefix}{collection}"``; empty prefix
+        yields passthrough (R3.3).
+        """
+        if not tenant.index_prefix:
+            return collection
+        return f"{tenant.index_prefix}{collection}"
+
+    # ── constructor ─────────────────────────────────────────────────────
+
     def __init__(
         self,
         endpoint: str,
@@ -176,6 +191,7 @@ class OpenSearchAdapter:
         similarity_threshold: float = 0.0,
         where: dict[str, Any] | None = None,
         include_graph: bool = True,  # noqa: ARG002 — honored upstream in tool layer
+        tenant: Any = None,
     ) -> list[dict[str, Any]]:
         """Run hybrid BM25 + k-NN with RRF fusion, then format hits."""
         if not self._connected:
@@ -187,7 +203,8 @@ class OpenSearchAdapter:
 
         # Route to the index whose vector dimensionality matches the
         # active embedding profile (Requirement 8.1, 5.3 of design).
-        index = resolve_index(collection, self._profile.short_name)
+        scoped = self.resolve_tenant_index(collection, tenant) if tenant else collection
+        index = resolve_index(scoped, self._profile.short_name)
         embedding = await self._generate_embedding(query_text)
         body = self._build_hybrid_query(query_text, embedding, k, where)
 

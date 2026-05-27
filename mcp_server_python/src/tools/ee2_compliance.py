@@ -72,7 +72,15 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
+from src.tenancy.resolver import get_current_tenant_or_none
+
 log = logging.getLogger(__name__)
+
+
+def _tenant():
+    """Return the active tenant or None (for adapter kwarg)."""
+    ctx = get_current_tenant_or_none()
+    return ctx.tenant if ctx else None
 
 
 # ── constants ──────────────────────────────────────────────────────────
@@ -879,6 +887,7 @@ async def _tool_search_ee2_standards(
             k=max_results,
             similarity_threshold=0.1,
             include_graph=False,
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("search_ee2_standards failed: %s", exc)
@@ -1212,6 +1221,7 @@ async def _fetch_standards_context(
                 query,
                 k=per_category,
                 include_graph=False,
+                tenant=_tenant(),
             )
         except Exception as exc:
             log.debug(
@@ -1268,6 +1278,7 @@ async def _tool_generate_compliance_report(
                     query,
                     k=2,
                     include_graph=False,
+                    tenant=_tenant(),
                 )
             except Exception as exc:
                 log.debug(

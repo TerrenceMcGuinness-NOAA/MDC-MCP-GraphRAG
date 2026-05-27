@@ -61,6 +61,57 @@ class NeptuneAdapterError(RuntimeError):
         self.cause = cause
 
 
+# ── tenant label rewrite helpers (R4.1-R4.4) ────────────────────────────
+
+import re as _re
+
+_LABEL_TOKEN_RE = _re.compile(r":([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _strip_quoted(cypher: str) -> str:
+    """Replace quoted string contents with spaces, preserving length.
+
+    Handles single-quoted, double-quoted strings, and backslash escapes.
+    The returned string has the same length as the input so that offsets
+    found in the stripped version map directly to the original.
+    """
+    out = list(cypher)
+    i = 0
+    n = len(cypher)
+    while i < n:
+        ch = cypher[i]
+        if ch in ('"', "'"):
+            quote = ch
+            out[i] = " "
+            i += 1
+            while i < n:
+                c = cypher[i]
+                if c == "\\" and i + 1 < n:
+                    out[i] = " "
+                    out[i + 1] = " "
+                    i += 2
+                elif c == quote:
+                    out[i] = " "
+                    i += 1
+                    break
+                else:
+                    out[i] = " "
+                    i += 1
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _label_token_offsets(cleaned: str):
+    """Yield (start, end, label) for every :Label token in cleaned cypher.
+
+    ``cleaned`` is the output of ``_strip_quoted`` — quoted regions are
+    spaces so regex matches only structural tokens.
+    """
+    for m in _LABEL_TOKEN_RE.finditer(cleaned):
+        yield m.start(), m.end(), m.group(1)
+
+
 # ── adapter ─────────────────────────────────────────────────────────────
 
 
@@ -90,6 +141,37 @@ class NeptuneAdapter:
       needed beyond ``dict()`` copy for safety).
     * ``health_check()`` that issues a cheap ``RETURN 1 AS ok``.
     """
+
+    # ── tenant scoping (R4.1-R4.4) ────────────────────────────────────
+
+    @staticmethod
+    def resolve_tenant_labels(labels: list[str], tenant: "Any") -> list[str]:
+        """Prepend tenant.label_prefix to each label; passthrough on empty (R4.4)."""
+        if not tenant.label_prefix:
+            return list(labels)
+        return [f"{tenant.label_prefix}{label}" for label in labels]
+
+    def _rewrite_cypher(self, cypher: str, tenant: "Any") -> str:
+        """Rewrite :Label tokens to :<prefix>Label (R4.1, R4.3).
+
+        Empty prefix returns input verbatim. Quoted strings are never modified.
+        """
+        if not tenant.label_prefix:
+            return cypher
+        cleaned = _strip_quoted(cypher)
+        offsets = list(_label_token_offsets(cleaned))
+        if not offsets:
+            return cypher
+        out: list[str] = []
+        cursor = 0
+        for start, end, label in offsets:
+            out.append(cypher[cursor:start])
+            out.append(f":{tenant.label_prefix}{label}")
+            cursor = end
+        out.append(cypher[cursor:])
+        return "".join(out)
+
+    # ── class constants ────────────────────────────────────────────────
 
     #: Cypher used by ``health_check`` and the lazy ``connect``
     #: verification probe. Cheap (no graph traversal).
@@ -144,6 +226,8 @@ class NeptuneAdapter:
         self,
         cypher: str,
         params: dict[str, Any] | None = None,
+        *,
+        tenant: Any = None,
     ) -> list[dict[str, Any]]:
         """Execute an openCypher query and return rows as plain dicts.
 
@@ -155,6 +239,9 @@ class NeptuneAdapter:
             raise ValueError("cypher must be non-empty")
         if not self._connected:
             await self.connect()
+
+        if tenant is not None and tenant.label_prefix:
+            cypher = self._rewrite_cypher(cypher, tenant)
 
         params = params or {}
         rows = await asyncio.to_thread(self._run_session, cypher, params)

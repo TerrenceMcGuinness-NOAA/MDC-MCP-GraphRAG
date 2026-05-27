@@ -93,8 +93,15 @@ from src.graphrag import (
     GraphGuidedRetrieval,
 )
 from src.sdd.session_manager import SessionError, SessionManager
+from src.tenancy.resolver import get_current_tenant_or_none
 
 log = logging.getLogger(__name__)
+
+
+def _tenant():
+    """Return the active tenant or None (for adapter kwarg)."""
+    ctx = get_current_tenant_or_none()
+    return ctx.tenant if ctx else None
 
 
 # ── constants ──────────────────────────────────────────────────────────
@@ -391,6 +398,7 @@ async def _tool_get_code_context(
             "n.absolutePath AS path, n.type AS type, "
             "n.communityId AS communityId LIMIT 1",
             {"name": symbol},
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("get_code_context node lookup failed: %s", exc)
@@ -404,6 +412,7 @@ async def _tool_get_code_context(
                 "MATCH (n) WHERE toLower(n.name) CONTAINS toLower($name) "
                 "RETURN n.name AS name, labels(n) AS labels LIMIT 5",
                 {"name": symbol},
+                tenant=_tenant(),
             )
         except Exception:  # pragma: no cover - defensive
             fuzzy_rows = []
@@ -452,6 +461,7 @@ async def _tool_get_code_context(
             "RETURN caller.name AS name, labels(caller)[0] AS type, "
             "type(r) AS relType LIMIT 10",
             {"name": symbol},
+            tenant=_tenant(),
         )
     except Exception:  # pragma: no cover - defensive
         caller_rows = []
@@ -554,7 +564,8 @@ async def _render_community_section(
     """
     try:
         hits = await vector_db.query(
-            COMMUNITY_COLLECTION, symbol, k=1, include_graph=False
+            COMMUNITY_COLLECTION, symbol, k=1, include_graph=False,
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.debug("community section fetch failed: %s", exc)
@@ -600,7 +611,8 @@ async def _tool_search_architecture(
 
     try:
         hits = await data.vector_db.query(
-            COMMUNITY_COLLECTION, query, k=max_results, include_graph=False
+            COMMUNITY_COLLECTION, query, k=max_results, include_graph=False,
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("search_architecture failed: %s", exc)
@@ -674,6 +686,7 @@ async def _tool_find_similar_code(
             code_or_symbol,
             k=max_results * 2,
             include_graph=False,
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("find_similar_code failed: %s", exc)
@@ -751,6 +764,7 @@ async def _tool_get_change_impact(
             "dependent.absolutePath AS path "
             "ORDER BY dependent.name",
             {"name": symbol},
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("get_change_impact direct-query failed: %s", exc)
@@ -775,6 +789,7 @@ async def _tool_get_change_impact(
                 "indirect.absolutePath AS path "
                 "ORDER BY indirect.name LIMIT 20",
                 {"name": symbol, "directNames": direct_names},
+                tenant=_tenant(),
             )
             indirect = list(indirect_rows or [])
         except Exception as exc:  # pragma: no cover - defensive
@@ -853,6 +868,7 @@ async def _fetch_community_context(data: Any, symbol: str) -> str:
             "MATCH (n) WHERE n.name = $name "
             "RETURN n.communityId AS communityId LIMIT 1",
             {"name": symbol},
+            tenant=_tenant(),
         )
     except Exception:  # pragma: no cover - defensive
         return ""
@@ -860,7 +876,8 @@ async def _fetch_community_context(data: Any, symbol: str) -> str:
         return ""
     try:
         hits = await vector_db.query(
-            COMMUNITY_COLLECTION, symbol, k=1, include_graph=False
+            COMMUNITY_COLLECTION, symbol, k=1, include_graph=False,
+            tenant=_tenant(),
         )
     except Exception:  # pragma: no cover - defensive
         return ""
@@ -971,6 +988,7 @@ async def _tool_trace_data_flow(
             "type(r) AS relType "
             "ORDER BY type(r), target.name LIMIT 25",
             {"name": from_symbol},
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("trace_data_flow outgoing query failed: %s", exc)
@@ -992,7 +1010,8 @@ async def _tool_trace_data_flow(
         )
         try:
             path_rows = await graph.query(
-                path_cypher, {"from": from_symbol, "to": to_symbol}
+                path_cypher, {"from": from_symbol, "to": to_symbol},
+                tenant=_tenant(),
             ) or []
         except Exception as exc:  # pragma: no cover - defensive
             log.debug("trace_data_flow shortestPath failed: %s", exc)
@@ -1083,6 +1102,7 @@ async def _tool_mark_as_modified(
                 "SET n._dirty = true, n._dirtyAt = $now "
                 "RETURN count(n) AS updated",
                 {"path": file_path, "now": _utc_now_iso()},
+                tenant=_tenant(),
             )
             graph_dirty = True
         except Exception as exc:

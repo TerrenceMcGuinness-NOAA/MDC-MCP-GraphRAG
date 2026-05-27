@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from hypothesis import given, settings, HealthCheck
+from hypothesis import assume, given, settings, HealthCheck
 from hypothesis import strategies as st
 
 # ---------------------------------------------------------------------------
@@ -506,3 +506,185 @@ class TestCatalogForwardCompat:
         # Should have logged warnings for unknown fields
         warn_messages = [r.message for r in caplog.records if "unknown field" in r.message]
         assert len(warn_messages) >= 2
+
+
+# ---------------------------------------------------------------------------
+# P1, P2, P3 — OpenSearch and Neptune isolation / passthrough
+# ---------------------------------------------------------------------------
+
+# Strategy: cypher fragments with :Label tokens inside and outside strings
+@st.composite
+def cypher_with_labels_strategy(draw):
+    """Generate cypher containing :Label tokens both inside and outside strings.
+
+    Ensures the PBT exercises the quoted-string preservation invariant.
+    """
+    labels = draw(st.lists(
+        st.from_regex(r"[A-Z][A-Za-z0-9_]{0,10}", fullmatch=True),
+        min_size=1, max_size=4,
+    ))
+    # Build a cypher fragment with labels in structural positions
+    structural = " ".join(f"(n:{lbl})" for lbl in labels)
+    # Optionally embed a label-like token inside a quoted string
+    quote_char = draw(st.sampled_from(['"', "'"]))
+    quoted_label = draw(st.from_regex(r"[A-Z][A-Za-z0-9_]{0,6}", fullmatch=True))
+    quoted_str = f"{quote_char}:{quoted_label}{quote_char}"
+    # Combine: MATCH <structural> WHERE n.name = <quoted_str> RETURN n
+    cypher = f"MATCH {structural} WHERE n.name = {quoted_str} RETURN n"
+    return cypher, labels, quoted_label, quote_char
+
+
+@st.composite
+def cypher_with_escaped_quotes_strategy(draw):
+    """Generate cypher with escaped quotes inside strings to test state machine."""
+    label = draw(st.from_regex(r"[A-Z][A-Za-z0-9_]{0,8}", fullmatch=True))
+    inner_label = draw(st.from_regex(r"[A-Z][A-Za-z0-9_]{0,6}", fullmatch=True))
+    # String with escaped quote: "some \":InnerLabel\" text"
+    escaped = f'MATCH (n:{label}) WHERE n.x = "escaped \\":{inner_label}\\" end" RETURN n'
+    return escaped, label, inner_label
+
+
+class TestP1OpenSearchIsolation:
+    """Property 1: Tenant isolation in OpenSearch.
+
+    # Feature: omd-tenants-1-foundation, Property 1: Tenant isolation in OpenSearch
+    # Validates: Requirements 3.1, 3.2
+    """
+
+    @given(
+        prefix_a=st.from_regex(r"[a-z][a-z0-9_]*_", fullmatch=True).filter(lambda s: len(s) <= 12),
+        prefix_b=st.from_regex(r"[a-z][a-z0-9_]*_", fullmatch=True).filter(lambda s: len(s) <= 12),
+        collection=st.from_regex(r"[a-z][a-z0-9-]{1,20}", fullmatch=True),
+    )
+    def test_distinct_prefixes_yield_disjoint_indices(self, prefix_a, prefix_b, collection):
+        from src.config.tenants import Tenant
+        from src.data.opensearch_adapter import OpenSearchAdapter
+
+        assume(prefix_a != prefix_b)
+
+        tenant_a = Tenant(
+            tenant_id="a", repo_ref="R", branch="b",
+            index_prefix=prefix_a, label_prefix="",
+            workflow_subdir="da", lifecycle="production",
+        )
+        tenant_b = Tenant(
+            tenant_id="b", repo_ref="R", branch="b",
+            index_prefix=prefix_b, label_prefix="",
+            workflow_subdir="db", lifecycle="production",
+        )
+        idx_a = OpenSearchAdapter.resolve_tenant_index(collection, tenant_a)
+        idx_b = OpenSearchAdapter.resolve_tenant_index(collection, tenant_b)
+        assert idx_a != idx_b
+        assert idx_a == f"{prefix_a}{collection}"
+        assert idx_b == f"{prefix_b}{collection}"
+
+
+class TestP3OpenSearchPassthrough:
+    """Property 3: Empty-prefix passthrough (OpenSearch half).
+
+    # Feature: omd-tenants-1-foundation, Property 3: Empty-prefix passthrough (OpenSearch)
+    # Validates: Requirement 3.3
+    """
+
+    @given(collection=st.from_regex(r"[a-z][a-z0-9-]{1,30}", fullmatch=True))
+    def test_empty_prefix_is_identity(self, collection):
+        from src.config.tenants import Tenant
+        from src.data.opensearch_adapter import OpenSearchAdapter
+
+        tenant = Tenant(
+            tenant_id="gw", repo_ref="R", branch="b",
+            index_prefix="", label_prefix="",
+            workflow_subdir="dev", lifecycle="production",
+        )
+        assert OpenSearchAdapter.resolve_tenant_index(collection, tenant) == collection
+
+
+class TestP2NeptuneIsolation:
+    """Property 2: Tenant isolation in Neptune.
+
+    # Feature: omd-tenants-1-foundation, Property 2: Tenant isolation in Neptune
+    # Validates: Requirements 4.1, 4.2
+    """
+
+    @given(
+        data=cypher_with_labels_strategy(),
+        prefix=st.from_regex(r"[A-Z][A-Z0-9_]*_", fullmatch=True).filter(lambda s: len(s) <= 12),
+    )
+    def test_rewrite_prefixes_structural_labels_only(self, data, prefix):
+        from src.config.tenants import Tenant
+        from src.data.neptune_adapter import NeptuneAdapter
+
+        cypher, structural_labels, quoted_label, quote_char = data
+        tenant = Tenant(
+            tenant_id="t", repo_ref="R", branch="b",
+            index_prefix="", label_prefix=prefix,
+            workflow_subdir="d", lifecycle="production",
+        )
+        adapter = NeptuneAdapter.__new__(NeptuneAdapter)
+        rewritten = adapter._rewrite_cypher(cypher, tenant)
+
+        # Every structural label must be prefixed
+        for lbl in structural_labels:
+            assert f":{prefix}{lbl}" in rewritten
+
+        # The quoted label must NOT be prefixed — it stays inside the string
+        # Check the quoted string is preserved verbatim
+        expected_quoted = f"{quote_char}:{quoted_label}{quote_char}"
+        assert expected_quoted in rewritten
+
+    @given(data=cypher_with_escaped_quotes_strategy(),
+           prefix=st.from_regex(r"[A-Z][A-Z0-9_]*_", fullmatch=True).filter(lambda s: len(s) <= 12))
+    def test_rewrite_handles_escaped_quotes(self, data, prefix):
+        from src.config.tenants import Tenant
+        from src.data.neptune_adapter import NeptuneAdapter
+
+        cypher, structural_label, inner_label = data
+        tenant = Tenant(
+            tenant_id="t", repo_ref="R", branch="b",
+            index_prefix="", label_prefix=prefix,
+            workflow_subdir="d", lifecycle="production",
+        )
+        adapter = NeptuneAdapter.__new__(NeptuneAdapter)
+        rewritten = adapter._rewrite_cypher(cypher, tenant)
+
+        # Structural label is prefixed
+        assert f":{prefix}{structural_label}" in rewritten
+        # Inner label inside escaped quotes is NOT prefixed
+        assert f'\\":{inner_label}\\"' in rewritten
+
+
+class TestP3NeptunePassthrough:
+    """Property 3: Empty-prefix passthrough (Neptune half).
+
+    # Feature: omd-tenants-1-foundation, Property 3: Empty-prefix passthrough (Neptune)
+    # Validates: Requirement 4.3
+    """
+
+    @given(data=cypher_with_labels_strategy())
+    def test_empty_prefix_is_identity(self, data):
+        from src.config.tenants import Tenant
+        from src.data.neptune_adapter import NeptuneAdapter
+
+        cypher, _, _, _ = data
+        tenant = Tenant(
+            tenant_id="gw", repo_ref="R", branch="b",
+            index_prefix="", label_prefix="",
+            workflow_subdir="dev", lifecycle="production",
+        )
+        adapter = NeptuneAdapter.__new__(NeptuneAdapter)
+        assert adapter._rewrite_cypher(cypher, tenant) == cypher
+
+    @given(labels=st.lists(
+        st.from_regex(r"[A-Z][A-Za-z0-9_]{0,10}", fullmatch=True),
+        min_size=1, max_size=5,
+    ))
+    def test_resolve_labels_empty_prefix_is_identity(self, labels):
+        from src.config.tenants import Tenant
+        from src.data.neptune_adapter import NeptuneAdapter
+
+        tenant = Tenant(
+            tenant_id="gw", repo_ref="R", branch="b",
+            index_prefix="", label_prefix="",
+            workflow_subdir="dev", lifecycle="production",
+        )
+        assert NeptuneAdapter.resolve_tenant_labels(labels, tenant) == list(labels)

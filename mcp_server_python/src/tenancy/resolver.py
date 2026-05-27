@@ -112,6 +112,16 @@ def get_current_tenant() -> TenantContext:
     return ctx
 
 
+def get_current_tenant_or_none() -> TenantContext | None:
+    """Read the active TenantContext, or None if no scope is active.
+
+    Use this in call sites that may run both inside and outside a
+    tenant_aware scope (e.g. during the transition before the decorator
+    is wired into all tools).
+    """
+    return _ctx_var.get()
+
+
 # ---------------------------------------------------------------------------
 # tenant_aware decorator
 # ---------------------------------------------------------------------------

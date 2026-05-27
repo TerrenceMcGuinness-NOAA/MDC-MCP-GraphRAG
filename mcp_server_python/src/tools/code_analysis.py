@@ -71,8 +71,15 @@ from src.graphrag import (
     GGSRTraversal,
     estimate_row_tokens,
 )
+from src.tenancy.resolver import get_current_tenant_or_none
 
 log = logging.getLogger(__name__)
+
+
+def _tenant():
+    """Return the active tenant or None (for adapter kwarg)."""
+    ctx = get_current_tenant_or_none()
+    return ctx.tenant if ctx else None
 
 
 # ── constants ───────────────────────────────────────────────────────────
@@ -969,7 +976,7 @@ async def _tool_find_env_dependencies(
             f"ORDER BY s.script_type, s.name LIMIT {limit}"
         )
         dependents = list(
-            await data.graph_db.query(depends_cypher, {"varName": variable_name})
+            await data.graph_db.query(depends_cypher, {"varName": variable_name}, tenant=_tenant())
             or []
         )
 
@@ -1009,7 +1016,8 @@ async def _tool_find_env_dependencies(
             )
             exporters = list(
                 await data.graph_db.query(
-                    exports_cypher, {"varName": variable_name}
+                    exports_cypher, {"varName": variable_name},
+                    tenant=_tenant(),
                 )
                 or []
             )
@@ -1040,7 +1048,7 @@ async def _tool_find_env_dependencies(
             "e.first_seen_in AS firstSeen"
         )
         meta = list(
-            await data.graph_db.query(meta_cypher, {"varName": variable_name})
+            await data.graph_db.query(meta_cypher, {"varName": variable_name}, tenant=_tenant())
             or []
         )
 
@@ -1106,7 +1114,7 @@ async def _file_symbols(graph_db: Any, file_path: str) -> list[dict[str, Any]]:
         "s.docstring AS docstring, s.lineNumber AS lineNumber "
         "LIMIT 500"
     )
-    rows = await graph_db.query(cypher, {"path": file_path})
+    rows = await graph_db.query(cypher, {"path": file_path}, tenant=_tenant())
     out: list[dict[str, Any]] = []
     for row in rows or []:
         labels = list(row.get("labels") or [])
@@ -1135,7 +1143,7 @@ async def _file_imports(graph_db: Any, target: str) -> list[str]:
         "WHERE f.path CONTAINS $path OR f.name = $path "
         "RETURN DISTINCT coalesce(m.name, m.path) AS moduleName LIMIT 200"
     )
-    rows = await graph_db.query(cypher, {"path": target})
+    rows = await graph_db.query(cypher, {"path": target}, tenant=_tenant())
     return [row["moduleName"] for row in rows or [] if row.get("moduleName")]
 
 
@@ -1146,7 +1154,7 @@ async def _file_importers(graph_db: Any, target: str) -> list[str]:
         "WHERE t.path CONTAINS $path OR t.name = $path "
         "RETURN DISTINCT coalesce(src.path, src.name) AS filePath LIMIT 200"
     )
-    rows = await graph_db.query(cypher, {"path": target})
+    rows = await graph_db.query(cypher, {"path": target}, tenant=_tenant())
     return [row["filePath"] for row in rows or [] if row.get("filePath")]
 
 
@@ -1156,7 +1164,7 @@ async def _circular_dependencies(graph_db: Any) -> list[dict[str, Any]]:
         "MATCH p=(a)-[:IMPORTS*2..5]->(a) "
         "RETURN [n IN nodes(p) | coalesce(n.name, n.path)] AS path LIMIT 20"
     )
-    rows = await graph_db.query(cypher, {})
+    rows = await graph_db.query(cypher, {}, tenant=_tenant())
     return list(rows or [])
 
 
@@ -1186,7 +1194,7 @@ async def _call_chain(
             "RETURN callee.name AS callee, callee.filepath AS file, "
             "length(p) AS depth LIMIT 200"
         )
-    rows = await graph_db.query(cypher, {"name": function_name})
+    rows = await graph_db.query(cypher, {"name": function_name}, tenant=_tenant())
     return [r for r in (rows or []) if r.get("callee")]
 
 
@@ -1207,7 +1215,7 @@ async def _callers(
             "RETURN DISTINCT caller.name AS name, "
             "caller.filepath AS file LIMIT 200"
         )
-    rows = await graph_db.query(cypher, {"name": function_name})
+    rows = await graph_db.query(cypher, {"name": function_name}, tenant=_tenant())
     return [r for r in (rows or []) if r.get("name")]
 
 
@@ -1224,7 +1232,7 @@ async def _detect_entity_type(
         "MATCH (n) WHERE n.name = $name "
         "RETURN labels(n) AS labels LIMIT 1"
     )
-    rows = await graph_db.query(cypher, {"name": name})
+    rows = await graph_db.query(cypher, {"name": name}, tenant=_tenant())
     if not rows:
         return None, []
     labels = list(rows[0].get("labels") or [])
@@ -1276,7 +1284,7 @@ async def _cross_language_nodes(
         "[rel IN relationships(p) | type(rel)][-1] AS relType "
         "LIMIT 200"
     )
-    rows = await graph_db.query(cypher, {"name": start})
+    rows = await graph_db.query(cypher, {"name": start}, tenant=_tenant())
 
     out: list[dict[str, Any]] = []
     # Always include the seed node at hop 0 when we have it.
@@ -1284,6 +1292,7 @@ async def _cross_language_nodes(
         "MATCH (n) WHERE n.name = $name OR n.path = $name "
         "RETURN n.name AS name, labels(n) AS labels LIMIT 1",
         {"name": start},
+        tenant=_tenant(),
     )
     if seed_rows:
         labels = list(seed_rows[0].get("labels") or [])

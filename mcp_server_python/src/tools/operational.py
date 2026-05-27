@@ -48,7 +48,15 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
+from src.tenancy.resolver import get_current_tenant_or_none
+
 log = logging.getLogger(__name__)
+
+
+def _tenant():
+    """Return the active tenant or None (for adapter kwarg)."""
+    ctx = get_current_tenant_or_none()
+    return ctx.tenant if ctx else None
 
 
 # ── constants ──────────────────────────────────────────────────────────
@@ -349,6 +357,7 @@ async def _tool_get_operational_guidance(
             query,
             k=5,
             include_graph=True,
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("get_operational_guidance failed: %s", exc)
@@ -425,6 +434,7 @@ async def _tool_explain_workflow_component(
             component,
             k=5,
             include_graph=False,
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning(
@@ -579,6 +589,7 @@ async def _tool_list_job_scripts(
                 "OR labels(j)[0] CONTAINS 'Job') "
                 "RETURN j.name AS name ORDER BY j.name",
                 {},
+                tenant=_tenant(),
             )
         except Exception as exc:
             log.warning("list_job_scripts graph query failed: %s", exc)
@@ -686,6 +697,7 @@ async def _tool_get_job_details(
             "j.lineCount AS lineCount, j.jobTask AS jobTask, "
             "labels(j) AS labels LIMIT 1",
             {"name": job_name},
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("get_job_details node query failed: %s", exc)
@@ -705,7 +717,7 @@ async def _tool_get_job_details(
     async def _relation_rows(cypher: str) -> list[dict[str, Any]]:
         try:
             return list(
-                await data.graph_db.query(cypher, {"name": job_name})
+                await data.graph_db.query(cypher, {"name": job_name}, tenant=_tenant())
             ) or []
         except Exception as exc:
             log.debug("relation query failed (%s): %s", cypher[:40], exc)
@@ -747,6 +759,7 @@ async def _tool_get_job_details(
                     job_name,
                     k=3,
                     include_graph=False,
+                    tenant=_tenant(),
                 )
             ) or []
         except Exception as exc:

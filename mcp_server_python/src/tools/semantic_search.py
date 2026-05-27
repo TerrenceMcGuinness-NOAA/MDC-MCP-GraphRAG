@@ -84,8 +84,15 @@ from src.manifest import (
     SourceEntry,
     SourceType,
 )
+from src.tenancy.resolver import get_current_tenant_or_none
 
 log = logging.getLogger(__name__)
+
+
+def _tenant():
+    """Return the active tenant or None (for adapter kwarg)."""
+    ctx = get_current_tenant_or_none()
+    return ctx.tenant if ctx else None
 
 
 # ── constants ───────────────────────────────────────────────────────────
@@ -423,6 +430,7 @@ async def _tool_search_documentation(
                 k=k,
                 similarity_threshold=threshold,
                 include_graph=include_graph,
+                tenant=_tenant(),
             )
             collection_label = f"collection: {collection}"
         else:
@@ -432,6 +440,7 @@ async def _tool_search_documentation(
                 k=k,
                 similarity_threshold=threshold,
                 include_graph=include_graph,
+                tenant=_tenant(),
             )
             collection_label = "multi-collection search"
     except Exception as exc:
@@ -568,7 +577,7 @@ async def _tool_find_related_files(
 
     try:
         imports_rows = await data.graph_db.query(
-            imports_cypher, {"path": file_path}
+            imports_cypher, {"path": file_path}, tenant=_tenant()
         )
     except Exception as exc:
         log.warning("find_related_files: import query failed: %s", exc)
@@ -590,6 +599,7 @@ async def _tool_find_related_files(
             related_rows = await data.graph_db.query(
                 related_cypher,
                 {"modules": imports, "path": file_path, "limit": k},
+                tenant=_tenant(),
             )
             related_files = [
                 row["filePath"]
@@ -608,6 +618,7 @@ async def _tool_find_related_files(
                 doc_query,
                 k=5,
                 include_graph=False,
+                tenant=_tenant(),
             )
         except Exception as exc:  # pragma: no cover - defensive
             log.debug("find_related_files: doc fetch failed: %s", exc)
@@ -687,6 +698,7 @@ async def _tool_explain_with_context(
             topic,
             k=max_hits,
             include_graph=False,
+            tenant=_tenant(),
         )
     except Exception as exc:
         log.warning("explain_with_context: vector query failed: %s", exc)
