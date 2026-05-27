@@ -468,6 +468,135 @@ Phase 0 closure remains pending REV 3.
   resource scoping that the public reference doesn't predict. Build
   policies empirically when AWS guide pages are silent on the topic.
 
+### Phase 0 closed 2026-05-27
+
+REV 3 of the `efs-clientmount-workflow-ap` inline policy was applied
+by admin. The Describe* statement now has a 2-element Resource array
+(file-system ARN + access-point ARN). Verified live via
+`aws iam get-role-policy`.
+
+#### Task 0.4 — first attempt (v19, UPDATE_FAILED)
+
+Re-ran `update-agent-runtime` with the corrected
+`--filesystem-configurations` and full env vars. The IAM validator
+**accepted** the call this time — runtime accepted v19 and went into
+UPDATING. After ~30 seconds, v19 transitioned to UPDATE_FAILED with:
+
+```
+The following subnets are in unsupported availability zones in region
+us-east-1: subnet-024fd9b597b3075a5 in us-east-1d (ID: use1-az6).
+Supported availability zones are: use1-az4, use1-az1, use1-az2
+```
+
+Phase 51b had documented this same constraint:
+> *"only 2 subnets work — `subnet-024fd9b597b3075a5` is in us-east-1d
+> which AgentCore rejected in Phase 51b"*
+
+That note was carried in the steering file but didn't propagate into
+the §0.4 template. AgentCore in this account/region supports use1-az1,
+use1-az2, and use1-az4 — but the third subnet was deliberately put on
+use1-az6 (us-east-1d) when the VPC was provisioned. Sub-task lesson:
+when you have a documented "this AZ is unsupported" footnote, encode
+it in the spec body, not just steering files.
+
+#### Task 0.4 — second attempt (v20, READY)
+
+Dropped `subnet-024fd9b597b3075a5`, kept the 2 AgentCore-supported
+subnets, re-ran `update-agent-runtime`. **v20 reached READY in under
+30 seconds.** Live state:
+
+| Property | Value |
+|---|---|
+| agentRuntimeVersion | `20` |
+| status | READY |
+| containerUri | `python-titan-v5` (unchanged) |
+| MCP_WORKFLOW_ROOT | `/mnt/workflow/develop` |
+| filesystemConfigurations | `[{efsAccessPoint:{accessPointArn:fsap-03e641f056b341f29, mountPath:/mnt/workflow}}]` |
+| subnets | `subnet-0e13af6b3a9a6416f` (use1-az1), `subnet-04447750c61bd7e06` (use1-az2) |
+
+**Deviation from R11.7 worth recording**: R11.7 expects the runtime
+to use all 3 mount-target subnets. The third subnet is unreachable
+from AgentCore in this account; the EFS mount target on use1-az6
+exists but is dark to the runtime. AZ coverage is effectively limited
+to use1-az1 + use1-az2. R11.7 should be revised on the next pass to
+say "subnets must be a subset of the mount-target AZs that AgentCore
+supports in this region/account."
+
+#### Task 0.5 — smoke verification
+
+`mcp_health_check(functional=True)` against the v20 runtime:
+
+| Module | Status | Latency |
+|---|---|---|
+| semantic_search | pass | 182ms |
+| code_analysis | pass | 21ms |
+| graph_rag | pass | 20ms |
+| ee2_compliance | pass | 164ms |
+| operational | pass | 135ms |
+| sdd_workflow | pass | 0ms |
+| **workflow_info** | **pass** | **18ms** |
+| github_tools | skip | (missing env: GITHUB_TOKEN — expected) |
+| utility | pass | 0ms |
+
+Summary: 8/9 passed, 0 failed, 1 expected skip. The original
+`RuntimeError: neither /app/supported_repos/global-workflow/jobs nor
+/app/supported_repos/global-workflow/dev/jobs is a directory` error
+is resolved.
+
+Spot-checks confirmed full filesystem visibility:
+
+- `get_workflow_structure(component="jobs")` returns root
+  `/mnt/workflow/develop` (the EFS-mounted develop worktree)
+- `describe_component(component="JGLOBAL_FORECAST")` returns
+  `${HOMEgfs}/dev/jobs/JGLOBAL_FORECAST` (6678 bytes) — the file is
+  being read from the EFS mount
+
+#### Version history
+
+The Phase 0 journey across runtime versions:
+
+| Version | Source | State |
+|---|---|---|
+| v16 | pre-2026-05-27 baseline | 2 subnets, full env vars, no fs |
+| v17 | accidental bare update | env wiped, 1 subnet (recovered) |
+| v18 | restoration | back to v16 functional config |
+| v19 | first Task 0.4 attempt | UPDATE_FAILED on subnet AZ |
+| **v20** | **second Task 0.4 attempt** | **READY, EFS mounted, smoke green** |
+
+#### Lessons captured
+
+- **Steering file footnotes don't propagate to spec bodies.** The
+  use1-az6 unsupported-AZ note from Phase 51b was in the steering
+  file but didn't make it into the §0.4 command template. Future
+  task templates should explicitly enumerate which subnets/AZs are
+  AgentCore-supported in this account.
+- **AgentCore's validators are layered.** They run in this order:
+  (1) IAM authorization on the caller, (2) input shape validation,
+  (3) IAM authorization on the execution role for filesystem
+  resources, (4) provisioning validation (subnet AZ support, KMS
+  reachability, ENI quota). Each layer can reject with a different
+  error class. Today's session hit layers 2, 3, and 4 in sequence.
+- **READY is fast on this account.** v20 took ~25 seconds from
+  UPDATING to READY for an EFS-mounted runtime. This sets a useful
+  baseline for future deploy expectations.
+
+#### What's still open
+
+Phase 0 is closed for its stated scope (`workflow_info` smoke
+restoration). Two follow-ups carry forward as separate items:
+
+1. Operational drift cleanup:
+   - Temporary EFS SG ingress rule `sgr-04b3d7802002780ce` from
+     operator host SG. Decision pending: revoke after we know we
+     won't need to re-populate from this host, or promote to CDK
+     with a permanent narrow-scoped variant, or accept as drift.
+   - `amazon-efs-utils-2.4.1` install on `i-0907ea89fb15fd90a`. The
+     populate script needs it; we can leave it.
+2. The full multi-tenant rollout (Tasks 2–16 in tasks.md) remains
+   future work. Phase 0 reused Tasks 11.2 (CDK access point) and 11.3
+   (IAM policy) infra, so those are partially done. Everything else
+   in Groups A–G and Phases A/B/C is untouched.
+
 ## [8.24.0] - Functional smoke tests for the Python MCP server (May 22, 2026)
 
 ### Scope

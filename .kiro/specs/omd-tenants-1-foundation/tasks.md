@@ -47,51 +47,33 @@ this state.
 Out of scope for Phase 0: tenant catalog, prefix scoping, attribution
 header, parity validation. Those land via Tasks 2 – 16 below.
 
-### Status (2026-05-27, updated post REV 2 direct test)
+### Status (2026-05-27, CLOSED)
 
-- 0.1 (CDK access point), 0.2 (IAM `efs-clientmount-workflow-ap`
-  v1: ClientMount only), and 0.3 (EFS populate of `develop`
-  worktree) are **done** and verified live. Access point ID:
-  `fsap-03e641f056b341f29`.
-- AWS CLI / botocore upgrade — **done**. Local CLI is now
-  `aws-cli/2.34.54`; the `bedrock-agentcore-control` model exposes
-  the EFS shape `{efsAccessPoint: {accessPointArn, mountPath}}` (see
-  CHANGELOG `[8.22.3]` "Phase 0 status 2026-05-27" for the corrected
-  shape). The `tasks.md §0.4` template snippet below uses an outdated
-  flat shape with `fileSystemId`/`accessPointId`/`readOnly` — the
-  actual API uses a tagged union with `accessPointArn` and no
-  `readOnly` field.
-- Runtime is now at **v18** (was v16 at start of 2026-05-27). v17
-  was an accidental side-effect of a bare `update-agent-runtime`
-  call that wiped env vars and dropped subnets; v18 restored the
-  v16 baseline. MCP is healthy at v18 with the same 52 tools / 9
-  modules and the original `workflow_info` failure unchanged.
-- **REV 2 IAM (FS-only Resource) was applied by admin and tested
-  directly against the real runtime ID** — same `Missing required
-  filesystem permissions` error returned. Cache hypothesis ruled out;
-  AgentCore's validator evaluates Describe* against the access-point
-  ARN even though the IAM Service Authorization Reference suggests
-  the file-system Resource alone should be sufficient. Confirmed not
-  a propagation issue.
-- 0.4 is **blocked** on **REV 3** of the IAM policy. The
-  `DescribeWorkflowEFSForDeployValidation` statement now needs
-  `Resource` as a two-element array (file-system ARN AND access-point
-  ARN) — still least-privilege.
-- Updated artefacts ready for admin:
-  - `infrastructure/iam/efs-clientmount-workflow-ap.json` — now uses
-    a Resource array on the Describe* statement.
-  - `docs/efs-clientmount-workflow-ap-role-request.txt` — REV 3 with
-    the array Resource and root-cause analysis section.
-- 0.5 is therefore also pending.
-- **Forward path remains Option 1** (apply REV 3 IAM policy,
-  then re-run §0.4 with the correct tagged-union JSON shape and
-  `MCP_WORKFLOW_ROOT=/mnt/workflow/develop`). Options 2 and 3
-  remain rejected.
-- See `CHANGELOG.md [8.22.3]` "Phase 0 status 2026-05-27 (later) —
-  REV 2 confirmed insufficient via direct test" for the
-  investigation log.
+**Phase 0 is closed.** `workflow_info` smoke is green. Live runtime
+state: v20, READY, EFS mount at `/mnt/workflow`,
+`MCP_WORKFLOW_ROOT=/mnt/workflow/develop`. All 5 sub-tasks (0.1
+through 0.5) are `[x]`. See `CHANGELOG.md [8.22.3]` "Phase 0 closed
+2026-05-27" for the closeout summary.
 
-- [ ] 0. Phase 0 tasks
+The road to closure required four IAM/config iterations:
+
+1. REV 1 — `ClientMount` only (admin-applied 2026-05-26)
+2. REV 2 — added `Describe*` actions (FS-only Resource, admin-applied 2026-05-27)
+3. REV 3 — `Resource` array (FS + AP ARNs) on the Describe* statement (admin-applied 2026-05-27)
+4. v20 deploy — dropped subnet-024fd9b597b3075a5 (use1-az6 unsupported by AgentCore)
+
+The full multi-tenant rollout (Tasks 2–16 below) is unaffected and
+remains future work. Phase 0 reused the CDK access point (Task 11.2)
+and IAM policy infra (Task 11.3) so that work is not throwaway.
+
+Operational drift carried forward (separate from Phase 0 closure):
+- Temporary EFS SG ingress rule `sgr-04b3d7802002780ce` from operator
+  host SG `sg-09bb60ffa41137076` (was needed for the populate run;
+  pending revoke vs. permanent-via-CDK decision)
+- `amazon-efs-utils-2.4.1` installed on `i-0907ea89fb15fd90a`
+  (required for the `mount.efs` helper; reversible via dnf)
+
+- [x] 0. Phase 0 tasks
   - [x] 0.1 Add `WorkflowAccessPoint` to CDK and deploy
     - Author the `efs.AccessPoint` snippet in
       `infrastructure/cdk/lib/mdc-data-stack.ts` per design §8 "CDK
@@ -159,19 +141,22 @@ header, parity validation. Those land via Tasks 2 – 16 below.
     - Verify: `ls /mnt/efs-staging/supported_repos/global-workflow/develop/jobs`
     - **Implements: Requirements 12.1, 12.2 (gw worktree only), 12.6 (live)**
 
-  - [ ] 0.4 Update AgentCore runtime with EFS mount + env var (no image rebuild)
-    > **BLOCKED (2026-05-27, post REV 2 direct test)**: AWS CLI /
-    > botocore are now on 2.34.54 and the `bedrock-agentcore-control`
-    > model exposes `efsAccessPoint` (shape: `{accessPointArn,
-    > mountPath}`). REV 2 of the IAM policy (ClientMount +
-    > DescribeAccessPoints/DescribeMountTargets with FS-only Resource)
-    > was applied by admin and tested directly against the real
-    > runtime ID — same `Missing required filesystem permissions`
-    > error returned. Cache hypothesis ruled out. **REV 3 required**:
-    > the Describe* statement's `Resource` must be a two-element
-    > array (file-system ARN + access-point ARN). Tracked in
-    > CHANGELOG `[8.22.3]` "Phase 0 status 2026-05-27 (later) —
-    > REV 2 confirmed insufficient via direct test".
+  - [x] 0.4 Update AgentCore runtime with EFS mount + env var (no image rebuild)
+    > **CLOSED 2026-05-27**: After REV 3 of the IAM policy was applied
+    > by admin (Resource array on the Describe* statement), the
+    > `update-agent-runtime` call cleared the IAM validator. v19
+    > failed in provisioning with `unsupported availability zones in
+    > region us-east-1: subnet-024fd9b597b3075a5 in us-east-1d
+    > (use1-az6)` — Phase 51b had also hit this. Retried with the 2
+    > AgentCore-supported subnets (use1-az1 and use1-az2 only) and
+    > **v20 reached READY in under 30 seconds**. Live state: v20,
+    > READY, EFS mount at `/mnt/workflow`,
+    > `MCP_WORKFLOW_ROOT=/mnt/workflow/develop`. Note: this is a
+    > deviation from R11.7 (which expected all 3 mount-target
+    > subnets); the use1-az6 EFS mount target exists but is
+    > unreachable from AgentCore in this account, so AZ coverage is
+    > effectively the 2 supported AZs. See CHANGELOG `[8.22.3]`
+    > "Phase 0 closed 2026-05-27".
     >
     > **JSON shape correction (CRITICAL — apply when re-running)**:
     > the snippet below uses a stale flat shape. The correct shape is
@@ -227,14 +212,18 @@ header, parity validation. Those land via Tasks 2 – 16 below.
     - _Rollback: re-run with the previous env var set and no
       `--filesystem-configurations`._
 
-  - [ ] 0.5 Verify `workflow_info` smoke green
-    > **BLOCKED (2026-05-27)**: depends on 0.4. When 0.4 unblocks, the
-    > spot-check tool name is `JGLOBAL_FORECAST`, not `JGFS_FORECAST`
-    > (the latter does not exist in current NOAA-EMC `develop`; same
-    > observation already recorded in `[8.24.0]`). Use
-    > `mcp_health_check(functional=True)`,
-    > `describe_component(component="JGLOBAL_FORECAST")`, and
-    > `get_workflow_structure(component="jobs")` for the three checks.
+  - [x] 0.5 Verify `workflow_info` smoke green
+    > **CLOSED 2026-05-27**: After v20 reached READY,
+    > `mcp_health_check(functional=True)` reports `workflow_info: pass
+    > (18ms)`. Spot-checks confirmed full filesystem visibility:
+    > `get_workflow_structure(component="jobs")` returns root
+    > `/mnt/workflow/develop`; `describe_component(component="JGLOBAL_FORECAST")`
+    > returns the actual file at `${HOMEgfs}/dev/jobs/JGLOBAL_FORECAST`
+    > (6678 bytes). Functional summary: 8/9 passed, 0 failed, 1 skipped
+    > (github_tools, expected — missing GITHUB_TOKEN). The original
+    > "neither /app/supported_repos/global-workflow/jobs nor .../dev/jobs
+    > is a directory" error is resolved. See CHANGELOG `[8.22.3]`
+    > "Phase 0 closed 2026-05-27".
     - Call `mcp_health_check(functional=True)` via the agentcore-mcp-rag
       MCP and confirm the `workflow_info` row reports `pass`
     - Spot-check `describe_component(component="JGFS_FORECAST")` returns
