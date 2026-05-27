@@ -1,0 +1,17 @@
+schema_version: 1
+defaults:
+  tenant_id: gw
+  staleness_threshold_days: 30
+tenants:
+  - tenant_id: gw
+    repo_ref: NOAA-EMC/global-workflow
+    branch: develop
+    index_prefix: ""
+    label_prefix: ""
+    workflow_subdir: develop
+    lifecycle: production
+    description: |
+      Canonical NOAA-EMC global-workflow develop branch. Default tenant
+      for all unspecified requests; preserves pre-feature byte-equal
+      behaviour (R6.4).
+    extends: []
