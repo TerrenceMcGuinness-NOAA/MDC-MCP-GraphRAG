@@ -47,8 +47,33 @@ this state.
 Out of scope for Phase 0: tenant catalog, prefix scoping, attribution
 header, parity validation. Those land via Tasks 2 – 16 below.
 
+### Status (2026-05-27)
+
+- 0.1 (CDK access point), 0.2 (IAM `efs-clientmount-workflow-ap`), and
+  0.3 (EFS populate of `develop` worktree) are **done** and verified
+  live. Access point ID: `fsap-03e641f056b341f29`.
+- 0.4 (`update-agent-runtime` with `--filesystem-configurations`) is
+  **blocked** on a CLI/botocore capability gap, not on AWS state. The
+  AWS CLI 2.34.11 / botocore 1.42.89 currently in `$PATH` exposes only
+  `filesystemConfigurations[].sessionStorage.mountPath` on the
+  `bedrock-agentcore-control` service model — there are no fields for
+  `fileSystemId`, `accessPointId`, or `readOnly` anywhere in the model.
+  The exact JSON shape that the §0.4 template uses cannot be sent
+  through this CLI (verified via `botocore.session` model
+  introspection on 2026-05-27). `--cli-input-json` does not bypass
+  this because botocore validates against the same model.
+- 0.5 is therefore also pending.
+- **Forward path (chosen 2026-05-27, Option 1)**: research the minimum
+  AWS CLI / botocore version that exposes EFS fields
+  (`fileSystemId`, `accessPointId`, `readOnly`) on
+  `filesystemConfigurations`, install it, then re-run §0.4 verbatim.
+  Option 2 (recreate runtime via `create-agent-runtime` or CDK) and
+  Option 3 (park Phase 0 mount-less) were rejected.
+- See `CHANGELOG.md [8.22.3]` "Phase 0 status 2026-05-27" subsection
+  for the full investigation log.
+
 - [ ] 0. Phase 0 tasks
-  - [ ] 0.1 Add `WorkflowAccessPoint` to CDK and deploy
+  - [x] 0.1 Add `WorkflowAccessPoint` to CDK and deploy
     - Author the `efs.AccessPoint` snippet in
       `infrastructure/cdk/lib/mdc-data-stack.ts` per design §8 "CDK
       changes":
@@ -62,7 +87,7 @@ header, parity validation. Those land via Tasks 2 – 16 below.
     - **Implements: Requirements 11.1, 12.4 (live)**
     - _Reversible via `cdk destroy` of just the access-point construct._
 
-  - [ ] 0.2 Author IAM policy and attach to the task role
+  - [x] 0.2 Author IAM policy and attach to the task role
     - Write `infrastructure/iam/efs-clientmount-workflow-ap.json` per
       design §8 "IAM policy" — single statement granting
       `elasticfilesystem:ClientMount` on file-system ARN
@@ -79,7 +104,7 @@ header, parity validation. Those land via Tasks 2 – 16 below.
     - Verify: `aws iam get-role-policy --role-name mdc-mcp-rag-ecs-task-role --policy-name efs-clientmount-workflow-ap`
     - **Implements: Requirements 11.4, 11.5 (live)**
 
-  - [ ] 0.3 Populate the EFS with a `develop` worktree (simplified)
+  - [x] 0.3 Populate the EFS with a `develop` worktree (simplified)
     - Phase 0 simplified script — no `tenants.yaml` dependency:
       ```bash
       #!/usr/bin/env bash
@@ -116,6 +141,26 @@ header, parity validation. Those land via Tasks 2 – 16 below.
     - **Implements: Requirements 12.1, 12.2 (gw worktree only), 12.6 (live)**
 
   - [ ] 0.4 Update AgentCore runtime with EFS mount + env var (no image rebuild)
+    > **BLOCKED (2026-05-27)**: AWS CLI 2.34.11 / botocore 1.42.89 in
+    > `$PATH` does not expose EFS fields on `filesystemConfigurations`
+    > — its `bedrock-agentcore-control` service model has only
+    > `sessionStorage.mountPath`. The exact JSON below cannot be sent
+    > through this CLI even via `--cli-input-json`. Forward path:
+    > upgrade CLI / botocore to a version that exposes `fileSystemId`,
+    > `accessPointId`, `readOnly` on `FilesystemConfiguration`, then
+    > re-run §0.4 verbatim. Tracked in CHANGELOG `[8.22.3]` "Phase 0
+    > status 2026-05-27".
+    >
+    > **Spec deviations to apply when unblocked** (recorded
+    > 2026-05-26 in CHANGELOG `[8.22.3]`):
+    > - `containerUri`: stays `python-titan-v5` (NOT
+    >   `python-all-tools-v3` as the snippet says); current runtime
+    >   v16 is on `python-titan-v5`
+    > - `subnets`: keep all three —
+    >   `subnet-0e13af6b3a9a6416f`, `subnet-04447750c61bd7e06`,
+    >   `subnet-024fd9b597b3075a5` (the snippet already lists the
+    >   third; current runtime v16 has only the first two)
+    > - `accessPointId`: `fsap-03e641f056b341f29`
     - Set `MCP_WORKFLOW_ROOT=/mnt/workflow/develop` via runtime
       environment variables, and add `--filesystem-configurations` —
       keep the existing `python-all-tools-v3` image:
@@ -142,6 +187,13 @@ header, parity validation. Those land via Tasks 2 – 16 below.
       `--filesystem-configurations`._
 
   - [ ] 0.5 Verify `workflow_info` smoke green
+    > **BLOCKED (2026-05-27)**: depends on 0.4. When 0.4 unblocks, the
+    > spot-check tool name is `JGLOBAL_FORECAST`, not `JGFS_FORECAST`
+    > (the latter does not exist in current NOAA-EMC `develop`; same
+    > observation already recorded in `[8.24.0]`). Use
+    > `mcp_health_check(functional=True)`,
+    > `describe_component(component="JGLOBAL_FORECAST")`, and
+    > `get_workflow_structure(component="jobs")` for the three checks.
     - Call `mcp_health_check(functional=True)` via the agentcore-mcp-rag
       MCP and confirm the `workflow_info` row reports `pass`
     - Spot-check `describe_component(component="JGFS_FORECAST")` returns

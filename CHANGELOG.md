@@ -146,6 +146,119 @@ Per user-approved decision, the implemented script:
 - **Operator-host SG rule**: pending decision (revoke after first
   populate vs. permanent-via-CDK vs. leave as drift).
 
+### Phase 0 status 2026-05-27 — Task 0.4 blocked on CLI/botocore EFS-fields gap
+
+Resumed Phase 0 to run Task 0.4 (`update-agent-runtime` with
+`--filesystem-configurations`) and Task 0.5 (verify smoke green).
+Pre-flight against the live runtime confirmed:
+
+- agentRuntimeId: `mdc_mcp_rag_server_python-v5K2F8BGrN`,
+  current version 16, status READY
+- containerUri: `python-titan-v5` (preserve)
+- subnets: only 2 of the 3 needed
+  (`subnet-0e13af6b3a9a6416f`, `subnet-04447750c61bd7e06`); adding
+  `subnet-024fd9b597b3075a5` brings AZ coverage to all mount targets
+  per R11.7
+- env vars: existing 6, with `MCP_WORKFLOW_ROOT=/app/supported_repos/global-workflow`
+  to be replaced by `/mnt/workflow/develop`
+
+The proposed `update-agent-runtime` invocation matched
+`tasks.md §0.4` verbatim with the documented spec deviations applied
+(image stays at `python-titan-v5`, all three subnets, AP ID
+`fsap-03e641f056b341f29`).
+
+**Blocker**: the `aws` CLI in `$PATH` is `aws-cli/2.34.11
+Python/3.13.11 Linux/6.12.73-95.123.amzn2023.aarch64
+exec-env/AmazonQ-For-CLI` (botocore 1.42.89). Its
+`bedrock-agentcore-control` service model does **not** expose EFS
+fields on `filesystemConfigurations`. Running the proposed command
+returned:
+
+```
+aws: [ERROR]: Unknown options: --filesystem-configurations,
+  [{"fileSystemId":"fs-032d52e4677000758",
+    "accessPointId":"fsap-03e641f056b341f29",
+    "mountPath":"/mnt/workflow",
+    "readOnly":true}]
+```
+
+Direct introspection of the botocore service model:
+
+```python
+import botocore.session
+m = botocore.session.Session().get_service_model('bedrock-agentcore-control')
+op = m.operation_model('UpdateAgentRuntime')
+fs = op.input_shape.members['filesystemConfigurations']
+# fs.member.members -> {'sessionStorage': StructureShape}
+# fs.member.members['sessionStorage'].members -> {'mountPath': StringShape}
+```
+
+The model has only `filesystemConfigurations[].sessionStorage.mountPath`
+— a single-string scratch path. There are no fields for `fileSystemId`,
+`accessPointId`, or `readOnly` anywhere in the `bedrock-agentcore-control`
+shape catalog (verified by scanning all shapes for substrings
+`filesystem`, `efs`, `accesspoint`, `mount`). `--cli-input-json` does
+not bypass this because botocore validates against the same model.
+The same is true for `GetAgentRuntime` output, which only echoes back
+`sessionStorage.mountPath` for the filesystemConfigurations field.
+
+The §0.4 spec template was authored against an API shape that this
+CLI/botocore version cannot send. The blocker is API surface, not
+IAM permissions — Task 0.2's `efs-clientmount-workflow-ap` is in
+place and would not be exercised by this invocation regardless.
+
+### Forward path (chosen 2026-05-27)
+
+**Option 1: upgrade AWS CLI / botocore** — research and install the
+minimum CLI / botocore version that exposes `fileSystemId`,
+`accessPointId`, and `readOnly` on
+`FilesystemConfiguration`. After upgrade, re-run `tasks.md §0.4`
+verbatim with the deviations already documented in this entry. If
+upgrade is not feasible in this environment, fall back to invoking
+the API via boto3 directly with a hand-rolled `UpdateAgentRuntime`
+request once the model is updated upstream.
+
+Options rejected:
+
+- **Option 2** (recreate runtime via `create-agent-runtime` or CDK):
+  same model gap; `CreateAgentRuntime` shares the
+  `FilesystemConfiguration` shape. Would also force a runtime ID
+  change and disrupt the existing endpoint URL.
+- **Option 3** (park Phase 0 mount-less): leaves the smoke probe
+  failing because `MCP_WORKFLOW_ROOT=/mnt/workflow/develop` would
+  point at a non-existent path inside the container. Defeats the
+  purpose of Phase 0.
+
+### Operational state at this checkpoint
+
+No live AWS state was changed during the 2026-05-27 attempt. The
+runtime remains at version 16 with its prior configuration:
+
+| Property | Value |
+|---|---|
+| agentRuntimeVersion | `16` |
+| status | READY |
+| containerUri | `python-titan-v5` |
+| subnets | `subnet-0e13af6b3a9a6416f`, `subnet-04447750c61bd7e06` |
+| MCP_WORKFLOW_ROOT | `/app/supported_repos/global-workflow` |
+| filesystemConfigurations | none |
+
+Phase 0 closure remains pending Task 0.4 unblock. Tasks 0.1, 0.2, 0.3
+spec checkboxes were flipped to `[x]` to reflect ground truth; 0.4,
+0.5, and Task 0 itself remain `[ ]` with inline blocker notes.
+
+### Tooling note: iam-policy-autopilot MCP
+
+While diagnosing, confirmed the `iam-policy-autopilot` MCP is
+registered (`~/.kiro/settings/mcp.json` under
+`powers.mcpServers.power-iam-policy-autopilot-power-iam-policy-autopilot-mcp`),
+and the package runs cleanly via `uvx iam-policy-autopilot@latest
+mcp-server`. It exposes three tools: `generate_application_policies`,
+`generate_policy_for_access_denied`, `fix_access_denied`. These tools
+were not loaded into the active Kiro CLI session (the agent will pick
+them up on next restart). They would not have unblocked 0.4 in any
+case — the gap is API surface, not IAM permissions.
+
 ## [8.24.0] - Functional smoke tests for the Python MCP server (May 22, 2026)
 
 ### Scope
