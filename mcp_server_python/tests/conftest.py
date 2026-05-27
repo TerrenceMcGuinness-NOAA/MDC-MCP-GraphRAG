@@ -602,3 +602,46 @@ __all__ = [
     "make_deterministic_id_factory",
     "build_mock_tool_caller",
 ]
+
+
+# ── tenant test helpers ─────────────────────────────────────────────────
+
+
+@pytest.fixture
+def tenant_context_for_test(tmp_path):
+    """Fixture that sets a TenantContext on the ContextVar for the test scope.
+
+    Usage::
+
+        def test_something(tenant_context_for_test):
+            ctx = tenant_context_for_test(workflow_root=tmp_path / "wf")
+            # get_current_tenant() now returns ctx
+    """
+    from src.config.tenants import Tenant
+    from src.tenancy.resolver import TenantContext, _ctx_var
+
+    def _factory(
+        tenant_id: str = "gw",
+        workflow_root: Path | None = None,
+    ) -> TenantContext:
+        subdir = "develop" if workflow_root is None else workflow_root.name
+        root = workflow_root or tmp_path / "develop"
+        root.mkdir(parents=True, exist_ok=True)
+        tenant = Tenant(
+            tenant_id=tenant_id,
+            repo_ref="NOAA-EMC/global-workflow",
+            branch="develop",
+            index_prefix="",
+            label_prefix="",
+            workflow_subdir=subdir,
+            lifecycle="production",
+            description="test",
+        )
+        # Monkey-patch workflow_root to use the tmp_path
+        object.__setattr__(tenant, "workflow_root", root)
+        ctx = TenantContext(tenant_id=tenant_id, tenant=tenant)
+        _ctx_var.set(ctx)
+        return ctx
+
+    yield _factory
+    _ctx_var.set(None)

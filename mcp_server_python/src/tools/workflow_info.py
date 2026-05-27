@@ -65,7 +65,27 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
+from src.tenancy.resolver import get_current_tenant_or_none
+
 log = logging.getLogger(__name__)
+
+
+def _resolve_workflow_root_with_tenant() -> Path:
+    """Resolve workflow root: tenant context → env var → default.
+
+    Uses get_current_tenant_or_none() so this works both inside and
+    outside a tenant_aware scope (defense in depth per Task 8.2).
+    """
+    ctx = get_current_tenant_or_none()
+    if ctx is not None:
+        return ctx.workflow_root
+    # Fallback for calls outside tenant scope (e.g. during startup)
+    candidate = os.environ.get("MCP_WORKFLOW_ROOT")
+    if not candidate:
+        candidate = os.environ.get("HOMEgfs")
+    if not candidate:
+        candidate = DEFAULT_WORKFLOW_ROOT
+    return Path(candidate).resolve()
 
 
 # ── constants ──────────────────────────────────────────────────────
@@ -620,7 +640,6 @@ def register(
         ``content=...`` to bypass filesystem entirely).
     """
     del data  # explicitly unused — kept for register-signature parity
-    root = _resolve_workflow_root(workflow_root)
 
     @mcp.tool(
         name="get_workflow_structure",
@@ -638,7 +657,7 @@ def register(
     ) -> str:
         try:
             return _tool_get_workflow_structure(
-                root,
+                _resolve_workflow_root_with_tenant(),
                 component=component,
                 structure_data=structure_data,
             )
@@ -664,7 +683,7 @@ def register(
     ) -> str:
         try:
             return _tool_get_system_configs(
-                root,
+                _resolve_workflow_root_with_tenant(),
                 platform=platform,
                 config_type=config_type,
                 content=content,
@@ -688,7 +707,7 @@ def register(
     ) -> str:
         try:
             return _tool_describe_component(
-                root,
+                _resolve_workflow_root_with_tenant(),
                 component=component,
                 show_content=show_content,
                 content=content,

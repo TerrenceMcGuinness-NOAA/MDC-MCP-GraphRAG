@@ -188,6 +188,9 @@ async def initialize(
     ok = sum(1 for r in results if r.registered)
     log.info("[OK] registered %d/%d tool modules", ok, total)
 
+    # Wire tenant_aware decorator onto all non-utility tools (R6.1-6.3).
+    _wire_tenant_aware(mcp)
+
     if data is None:
         log.warning(
             "[WARN] running in degraded mode — tools requiring Neptune or "
@@ -195,6 +198,68 @@ async def initialize(
         )
 
     return data, results
+
+
+# Tools that should NOT get tenant_aware wrapping (they emit catalog-level
+# info and don't query per-tenant data).
+_UTILITY_TOOLS: frozenset[str] = frozenset({
+    "mcp_health_check",
+    "get_server_info",
+    "get_health_trend",
+    "get_quality_metrics",
+})
+
+
+def _wire_tenant_aware(mcp: FastMCP) -> None:
+    """Wrap each registered tool's fn with tenant resolution + attribution.
+
+    Skips utility tools that emit catalog-level info. After this runs,
+    every tool call has an active TenantContext available via
+    get_current_tenant().
+    """
+    from src.tenancy.resolver import TenantContext, _ctx_var, resolve_tenant
+    from src.tenancy.runtime import get_catalog
+    from src.tools._attribution import attribute
+
+    try:
+        catalog = get_catalog()
+    except Exception as exc:
+        log.warning("[WARN] tenant catalog unavailable — skipping tenant_aware wiring: %s", exc)
+        return
+
+    lp = mcp.local_provider
+    wrapped_count = 0
+    for key, tool in list(lp._components.items()):
+        if not hasattr(tool, "fn") or not hasattr(tool, "name"):
+            continue
+        if tool.name in _UTILITY_TOOLS:
+            continue
+
+        original_fn = tool.fn
+
+        # Build a wrapper that resolves tenant and sets the ContextVar
+        def _make_wrapper(orig_fn):
+            async def _tenant_wrapped(*args, **kwargs):
+                # Pop tenant_id if provided (won't be in schema but
+                # FastMCP passes unknown kwargs through)
+                tenant_id = kwargs.pop("tenant_id", None)
+                ctx = resolve_tenant(
+                    request_tenant_id=tenant_id, catalog=catalog
+                )
+                token = _ctx_var.set(ctx)
+                try:
+                    body = await orig_fn(*args, **kwargs)
+                finally:
+                    _ctx_var.reset(token)
+                return attribute(body, ctx.tenant)
+            _tenant_wrapped.__name__ = getattr(orig_fn, "__name__", "unknown")
+            _tenant_wrapped.__qualname__ = getattr(orig_fn, "__qualname__", "unknown")
+            return _tenant_wrapped
+
+        tool.fn = _make_wrapper(original_fn)
+        wrapped_count += 1
+
+    log.info("[OK] tenant_aware wired onto %d tools", wrapped_count)
 
 
 def _load_manifest_registry() -> Any | None:

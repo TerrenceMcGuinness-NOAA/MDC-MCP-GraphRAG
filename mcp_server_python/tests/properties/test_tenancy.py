@@ -688,3 +688,37 @@ class TestP3NeptunePassthrough:
             workflow_subdir="dev", lifecycle="production",
         )
         assert NeptuneAdapter.resolve_tenant_labels(labels, tenant) == list(labels)
+
+
+# ---------------------------------------------------------------------------
+# Workflow_info dual-path probe
+# ---------------------------------------------------------------------------
+
+
+class TestWorkflowInfoDualPathProbe:
+    """Workflow_info dual-path probe.
+
+    # Feature: omd-tenants-1-foundation, Property: Workflow_info dual-path probe
+    # Validates: Requirement 13.2
+    """
+
+    @pytest.mark.parametrize("has_jobs,has_dev_jobs,expected", [
+        (False, False, False),
+        (True, False, True),
+        (False, True, True),
+        (True, True, True),
+    ])
+    def test_smoke_probe_dual_path(self, tmp_path, has_jobs, has_dev_jobs, expected):
+        from src.tools.smoke_queries import _smoke_workflow_info_check
+
+        root = tmp_path / "wf"
+        root.mkdir()
+        if has_jobs:
+            (root / "jobs").mkdir()
+        if has_dev_jobs:
+            (root / "dev" / "jobs").mkdir(parents=True)
+
+        if expected:
+            assert _smoke_workflow_info_check(root) is True
+        else:
+            assert _smoke_workflow_info_check(root) is False

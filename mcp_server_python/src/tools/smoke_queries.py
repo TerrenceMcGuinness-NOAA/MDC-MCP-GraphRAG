@@ -239,23 +239,32 @@ async def _smoke_sdd_workflow(_data: Any, _mcp: Any) -> bool:
 async def _smoke_workflow_info(_data: Any, _mcp: Any) -> bool:
     """Workflow-root filesystem probe.
 
-    Pass when either ``$MCP_WORKFLOW_ROOT/jobs`` or
-    ``$MCP_WORKFLOW_ROOT/dev/jobs`` is a directory. The
-    ``dev/jobs`` fallback matches the layout of the actual
-    ``global-workflow`` clone on this EC2 instance — see
-    ``src/tools/workflow_info.describe_component`` which uses the
-    same fallback for the same reason.
+    Pass when either ``<workflow_root>/jobs`` or
+    ``<workflow_root>/dev/jobs`` is a directory. Uses tenant context
+    when available, falls back to MCP_WORKFLOW_ROOT env var.
     """
-    workflow_root = Path(
-        os.environ.get("MCP_WORKFLOW_ROOT")
-        or "supported_repos/global-workflow"
-    )
-    candidates = [workflow_root / "jobs", workflow_root / "dev" / "jobs"]
-    if any(p.is_dir() for p in candidates):
+    from src.tenancy.resolver import get_current_tenant_or_none
+
+    ctx = get_current_tenant_or_none()
+    if ctx is not None:
+        workflow_root = ctx.workflow_root
+    else:
+        workflow_root = Path(
+            os.environ.get("MCP_WORKFLOW_ROOT")
+            or "supported_repos/global-workflow"
+        )
+    if _smoke_workflow_info_check(workflow_root):
         return True
     raise RuntimeError(
-        f"neither {workflow_root}/jobs nor {workflow_root}/dev/jobs is a directory"
+        f"workflow_root={workflow_root} contains neither jobs/ nor dev/jobs/ "
+        f"(tenant={ctx.tenant_id if ctx else 'none'})"
     )
+
+
+def _smoke_workflow_info_check(workflow_root: Path) -> bool:
+    """Pure check: returns True if jobs/ or dev/jobs/ exists under root."""
+    candidates = [workflow_root / "jobs", workflow_root / "dev" / "jobs"]
+    return any(p.is_dir() for p in candidates)
 
 
 async def _smoke_github_tools(_data: Any, _mcp: Any) -> bool:

@@ -225,9 +225,19 @@ async def _render_server_info(
         "",
         f"**Total Tools**: {len(tool_names)}",
         f"**Active Modules**: {len(active_modules)} of {len(ALL_TOOL_MODULES)}",
-        "",
-        "## Active Modules",
     ]
+
+    # Tenant info (R5.4)
+    try:
+        from src.tenancy.runtime import get_catalog, get_default_tenant
+        catalog = get_catalog()
+        default = get_default_tenant()
+        lines.append(f"**Tenants**: {len(catalog.tenants)} (default: {default.tenant_id})")
+    except Exception:
+        lines.append("**Tenants**: unavailable")
+
+    lines.append("")
+    lines.append("## Active Modules")
     if active_modules:
         for mod in active_modules:
             lines.append(f"- `{mod}`")
@@ -469,6 +479,56 @@ async def _render_health_check(
         if detailed or row.status != "healthy":
             line += f" - {row.details}"
         lines.append(line)
+
+    # ── Tenants section (R8.1, R8.5) ──────────────────────────────────
+    if detailed:
+        try:
+            from src.tenancy.runtime import get_catalog, get_default_tenant
+
+            catalog = get_catalog()
+            default_tenant = get_default_tenant()
+            lines.append("")
+            lines.append(f"## Tenants ({len(catalog.tenants)})")
+            lines.append("")
+            lines.append(
+                "| tenant_id | branch | lifecycle | index_prefix | "
+                "label_prefix | workflow_subdir | workflow_root reachable |"
+            )
+            lines.append(
+                "|-----------|--------|-----------|--------------|"
+                "--------------|-----------------|-------------------------|"
+            )
+            for t in catalog.tenants:
+                reachable = "yes" if t.workflow_root.is_dir() else "no"
+                lines.append(
+                    f"| {t.tenant_id} | {t.branch} | {t.lifecycle} "
+                    f"| {t.index_prefix!r} | {t.label_prefix!r} "
+                    f"| {t.workflow_subdir} | {reachable} ({t.workflow_root}) |"
+                )
+            lines.append("")
+            lines.append(
+                f"Default tenant: {default_tenant.tenant_id}  "
+                f"(resolved from catalog.defaults.tenant_id)"
+            )
+        except Exception as exc:
+            lines.append("")
+            lines.append(f"## Tenants\n\n_Error loading catalog: {exc}_")
+
+    # ── Workflow Filesystem section (R8.6) ─────────────────────────────
+    if detailed:
+        mount_path = Path("/mnt/workflow")
+        mounted = mount_path.is_dir()
+        lines.append("")
+        lines.append("## Workflow Filesystem")
+        lines.append("")
+        lines.append(
+            f"- mount: /mnt/workflow ({'mounted' if mounted else 'NOT mounted'})"
+        )
+        if mounted:
+            subdirs = sorted(
+                p.name for p in mount_path.iterdir() if p.is_dir()
+            )
+            lines.append(f"- subdirectories: {', '.join(subdirs) if subdirs else '(none)'}")
 
     if functional:
         lines.append("")
