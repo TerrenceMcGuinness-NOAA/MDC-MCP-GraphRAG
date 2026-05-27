@@ -47,30 +47,44 @@ this state.
 Out of scope for Phase 0: tenant catalog, prefix scoping, attribution
 header, parity validation. Those land via Tasks 2 – 16 below.
 
-### Status (2026-05-27)
+### Status (2026-05-27, updated end of day)
 
-- 0.1 (CDK access point), 0.2 (IAM `efs-clientmount-workflow-ap`), and
-  0.3 (EFS populate of `develop` worktree) are **done** and verified
-  live. Access point ID: `fsap-03e641f056b341f29`.
-- 0.4 (`update-agent-runtime` with `--filesystem-configurations`) is
-  **blocked** on a CLI/botocore capability gap, not on AWS state. The
-  AWS CLI 2.34.11 / botocore 1.42.89 currently in `$PATH` exposes only
-  `filesystemConfigurations[].sessionStorage.mountPath` on the
-  `bedrock-agentcore-control` service model — there are no fields for
-  `fileSystemId`, `accessPointId`, or `readOnly` anywhere in the model.
-  The exact JSON shape that the §0.4 template uses cannot be sent
-  through this CLI (verified via `botocore.session` model
-  introspection on 2026-05-27). `--cli-input-json` does not bypass
-  this because botocore validates against the same model.
+- 0.1 (CDK access point), 0.2 (IAM `efs-clientmount-workflow-ap`
+  v1: ClientMount only), and 0.3 (EFS populate of `develop`
+  worktree) are **done** and verified live. Access point ID:
+  `fsap-03e641f056b341f29`.
+- AWS CLI / botocore upgrade — **done**. Local CLI is now
+  `aws-cli/2.34.54`; the `bedrock-agentcore-control` model exposes
+  the EFS shape `{efsAccessPoint: {accessPointArn, mountPath}}` (see
+  CHANGELOG `[8.22.3]` "Phase 0 status 2026-05-27" for the corrected
+  shape). The `tasks.md §0.4` template snippet below uses an outdated
+  flat shape with `fileSystemId`/`accessPointId`/`readOnly` — the
+  actual API uses a tagged union with `accessPointArn` and no
+  `readOnly` field.
+- Runtime is now at **v18** (was v16 at start of 2026-05-27). v17
+  was an accidental side-effect of a bare `update-agent-runtime`
+  call that wiped env vars and dropped subnets; v18 restored the
+  v16 baseline. MCP is healthy at v18 with the same 52 tools / 9
+  modules and the original `workflow_info` failure unchanged.
+- 0.4 is **blocked** on a second IAM addition. AgentCore's deploy-
+  time validation requires the execution role have
+  `elasticfilesystem:DescribeAccessPoints` and
+  `elasticfilesystem:DescribeMountTargets` (in addition to
+  `ClientMount`). This is not documented in the AWS guide on
+  AgentCore EFS mounts; we discovered it empirically.
+- Updated artefacts ready for admin:
+  - `infrastructure/iam/efs-clientmount-workflow-ap.json` — now has
+    a two-statement document (ClientMount + Describe*).
+  - `docs/efs-clientmount-workflow-ap-role-request.txt` — revised
+    request doc with the 2026-05-27 status and replacement command.
 - 0.5 is therefore also pending.
-- **Forward path (chosen 2026-05-27, Option 1)**: research the minimum
-  AWS CLI / botocore version that exposes EFS fields
-  (`fileSystemId`, `accessPointId`, `readOnly`) on
-  `filesystemConfigurations`, install it, then re-run §0.4 verbatim.
-  Option 2 (recreate runtime via `create-agent-runtime` or CDK) and
-  Option 3 (park Phase 0 mount-less) were rejected.
-- See `CHANGELOG.md [8.22.3]` "Phase 0 status 2026-05-27" subsection
-  for the full investigation log.
+- **Forward path remains Option 1** (apply the updated IAM policy,
+  then re-run §0.4 with the correct tagged-union JSON shape and
+  `MCP_WORKFLOW_ROOT=/mnt/workflow/develop`). Options 2 and 3
+  remain rejected.
+- See `CHANGELOG.md [8.22.3]` "Phase 0 status 2026-05-27 — CLI
+  upgraded; partial recovery; new IAM block" for the full
+  investigation log.
 
 - [ ] 0. Phase 0 tasks
   - [x] 0.1 Add `WorkflowAccessPoint` to CDK and deploy
@@ -141,26 +155,47 @@ header, parity validation. Those land via Tasks 2 – 16 below.
     - **Implements: Requirements 12.1, 12.2 (gw worktree only), 12.6 (live)**
 
   - [ ] 0.4 Update AgentCore runtime with EFS mount + env var (no image rebuild)
-    > **BLOCKED (2026-05-27)**: AWS CLI 2.34.11 / botocore 1.42.89 in
-    > `$PATH` does not expose EFS fields on `filesystemConfigurations`
-    > — its `bedrock-agentcore-control` service model has only
-    > `sessionStorage.mountPath`. The exact JSON below cannot be sent
-    > through this CLI even via `--cli-input-json`. Forward path:
-    > upgrade CLI / botocore to a version that exposes `fileSystemId`,
-    > `accessPointId`, `readOnly` on `FilesystemConfiguration`, then
-    > re-run §0.4 verbatim. Tracked in CHANGELOG `[8.22.3]` "Phase 0
-    > status 2026-05-27".
+    > **BLOCKED (2026-05-27 update)**: AWS CLI / botocore are now on
+    > 2.34.54 and the `bedrock-agentcore-control` model exposes
+    > `efsAccessPoint` (shape: `{accessPointArn, mountPath}`). Running
+    > `update-agent-runtime` returned a NEW service-side validation
+    > error: the execution role needs
+    > `elasticfilesystem:DescribeAccessPoints` and
+    > `elasticfilesystem:DescribeMountTargets` (deploy-time validation
+    > reads — not documented in the AWS AgentCore EFS guide). Updated
+    > IAM policy and admin request doc are ready. Tracked in CHANGELOG
+    > `[8.22.3]` "Phase 0 status 2026-05-27 — CLI upgraded; partial
+    > recovery; new IAM block".
+    >
+    > **JSON shape correction (CRITICAL — apply when re-running)**:
+    > the snippet below uses a stale flat shape. The correct shape is
+    > a tagged-union with **no** `fileSystemId`, **no**
+    > `accessPointId`, and **no** `readOnly`:
+    >
+    > ```bash
+    > --filesystem-configurations '[{
+    >   "efsAccessPoint":{
+    >     "accessPointArn":"arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29",
+    >     "mountPath":"/mnt/workflow"
+    >   }
+    > }]'
+    > ```
+    >
+    > Read-only-ness is at the IAM layer (no `ClientWrite`), not in
+    > the API shape.
     >
     > **Spec deviations to apply when unblocked** (recorded
-    > 2026-05-26 in CHANGELOG `[8.22.3]`):
-    > - `containerUri`: stays `python-titan-v5` (NOT
-    >   `python-all-tools-v3` as the snippet says); current runtime
-    >   v16 is on `python-titan-v5`
+    > 2026-05-26 + 2026-05-27 in CHANGELOG `[8.22.3]`):
+    > - `containerUri`: stays `python-titan-v5`
     > - `subnets`: keep all three —
     >   `subnet-0e13af6b3a9a6416f`, `subnet-04447750c61bd7e06`,
-    >   `subnet-024fd9b597b3075a5` (the snippet already lists the
-    >   third; current runtime v16 has only the first two)
-    > - `accessPointId`: `fsap-03e641f056b341f29`
+    >   `subnet-024fd9b597b3075a5`
+    > - `accessPointArn` (not `accessPointId`):
+    >   `arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29`
+    > - drop `readOnly` and `fileSystemId` and `accessPointId` keys
+    >   entirely
+    > - the runtime is now at v18 (after a v17 hiccup recovered to
+    >   v18 baseline); next successful update will be v19+
     - Set `MCP_WORKFLOW_ROOT=/mnt/workflow/develop` via runtime
       environment variables, and add `--filesystem-configurations` —
       keep the existing `python-all-tools-v3` image:

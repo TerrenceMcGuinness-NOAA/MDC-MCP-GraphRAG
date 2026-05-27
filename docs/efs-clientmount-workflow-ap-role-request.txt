@@ -1,7 +1,7 @@
 EFS CLIENTMOUNT — INLINE POLICY ADDITION — Account 903050880929
 ================================================================
 
-Date:       May 26, 2026
+Date:       May 26, 2026 (initial); REVISED May 27, 2026 (added Describe* actions)
 Requestor:  Terry McGuinness (terry.mcguinness@noaa.gov)
 Account:    903050880929
 Region:     us-east-1
@@ -9,13 +9,40 @@ Project:    MDC MCP RAG Server — omd-tenants-1-foundation Phase 0
 Priority:   HIGH (blocks the workflow_info smoke probe restoration)
 
 
+STATUS UPDATE 2026-05-27
+------------------------
+
+The original `efs-clientmount-workflow-ap` policy (single statement,
+elasticfilesystem:ClientMount only) was applied by admin on
+2026-05-26 and works correctly for the runtime mount. However, when
+calling `update-agent-runtime --filesystem-configurations` from the
+operator user, AgentCore's deploy-time validation rejects the call
+with:
+
+    ValidationException: Execution role is missing required filesystem
+    permissions. Ensure the role has elasticfilesystem:DescribeAccessPoints
+    and elasticfilesystem:DescribeMountTargets
+
+These two `Describe*` actions are validation reads that AgentCore
+runs against the execution role at deploy time to confirm the access
+point and mount targets exist. They are not documented in the AWS
+guide page on AgentCore EFS mounts (which lists only ClientMount /
+ClientWrite); we discovered the requirement by hitting the validation
+error empirically.
+
+Please update the existing inline policy `efs-clientmount-workflow-ap`
+to include both Describe* actions. The replacement document is below.
+
+
 REQUEST
 -------
 
-Please attach a new, single-statement inline policy to an existing IAM
-role so that the AgentCore microVM can mount the just-deployed EFS
-access point read-only at /mnt/workflow. No new IAM resources are
-created. Existing inline policies on this role are not modified.
+Please update the existing inline policy `efs-clientmount-workflow-ap`
+on the existing IAM role `mdc-mcp-rag-ecs-task-role`. The replacement
+document adds a second statement granting two read-only
+elasticfilesystem actions scoped to the same file system. No new IAM
+resources are created. The other inline policy on this role
+(`bedrock-invoke-titan-embed-v2`) is not modified.
 
 
 COMMAND TO RUN
@@ -37,6 +64,15 @@ COMMAND TO RUN
                 "elasticfilesystem:AccessPointArn": "arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29"
               }
             }
+          },
+          {
+            "Sid": "DescribeWorkflowEFSForDeployValidation",
+            "Effect": "Allow",
+            "Action": [
+              "elasticfilesystem:DescribeAccessPoints",
+              "elasticfilesystem:DescribeMountTargets"
+            ],
+            "Resource": "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758"
           }
         ]
       }' \
@@ -45,6 +81,10 @@ COMMAND TO RUN
 The verbatim JSON file in the repo is:
 
     infrastructure/iam/efs-clientmount-workflow-ap.json
+
+`put-role-policy` is idempotent on the policy name, so this command
+*replaces* the existing single-statement policy with the two-statement
+version. No `delete-role-policy` is needed first.
 
 If preferred, the same call can use --policy-document file://...
 against that file.
@@ -59,7 +99,7 @@ VERIFICATION
       --region us-east-1
 
 Expected: returns PolicyName "efs-clientmount-workflow-ap" with the
-single-statement document above.
+two-statement document above.
 
 End-to-end verification (from the runtime, after the policy is
 applied, the EFS is populated, and update-agent-runtime is re-run with
@@ -145,8 +185,8 @@ WHAT THIS DOES NOT DO
 
   - Does NOT grant elasticfilesystem:ClientWrite (mount is read-only)
   - Does NOT grant elasticfilesystem:ClientRootAccess
-  - Does NOT modify the existing "inline" or "bedrock-invoke-titan-embed-v2"
-    inline policies on this role
+  - Does NOT modify the "bedrock-invoke-titan-embed-v2" inline policy
+    on this role
   - Does NOT modify the role's trust policy
   - Does NOT attach any managed policies
   - Does NOT grant access to any other EFS file system or access point
@@ -155,19 +195,34 @@ WHAT THIS DOES NOT DO
   - Does NOT create any new IAM roles, users, or groups
   - Does NOT modify networking, KMS, or data resources
   - Does NOT affect other principals or workloads
+  - Does NOT grant any write or destructive EFS action; the two
+    Describe* actions are read-only metadata queries
 
 
 SECURITY SCOPE
 --------------
 
-Single statement. Single action. Single resource ARN. Single region.
-Pinned to one access point via ArnEquals condition.
+Two statements. One write action (read-only mount via NFS), two
+read-only metadata reads. All scoped to a single file system in a
+single region. The mount is further pinned to one access point via
+ArnEquals condition.
 
-  Action:    elasticfilesystem:ClientMount  (one action — read-only)
-  Resource:  fs-032d52e4677000758  (one file system ARN, us-east-1)
-  Condition: AccessPointArn ArnEquals fsap-03e641f056b341f29
-             (the role can mount via this AP and only this AP)
-  Effect:    Allow
+  Statement 1 (existing — already applied):
+    Action:    elasticfilesystem:ClientMount  (one action — read-only)
+    Resource:  fs-032d52e4677000758  (one file system ARN, us-east-1)
+    Condition: AccessPointArn ArnEquals fsap-03e641f056b341f29
+               (the role can mount via this AP and only this AP)
+    Effect:    Allow
+
+  Statement 2 (new — needed for AgentCore deploy-time validation):
+    Action:    elasticfilesystem:DescribeAccessPoints
+               elasticfilesystem:DescribeMountTargets
+               (both are read-only metadata queries)
+    Resource:  fs-032d52e4677000758  (same file system ARN)
+    Effect:    Allow
+    Condition: none (Describe* on EFS does not support
+               AccessPointArn conditions; the resource scoping is the
+               only filter available)
 
 The role can already be assumed only by ecs-tasks.amazonaws.com and
 bedrock-agentcore.amazonaws.com (per the existing trust policy). This
@@ -177,7 +232,9 @@ already-assumed session may do.
 The access-point creationInfo (uid 1000, gid 1000, perms 0755) and
 posixUser pin reads to the container's `app` user; the role has no
 ClientWrite, so the mount is read-only end-to-end (in transit and at
-the IAM layer).
+the IAM layer). The two new Describe* actions only return metadata
+(state, AZ, IP) about the file system's mount targets and access
+points; they cannot read or write file contents.
 
 
 IMPACT

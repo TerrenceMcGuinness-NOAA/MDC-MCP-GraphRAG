@@ -256,8 +256,140 @@ and the package runs cleanly via `uvx iam-policy-autopilot@latest
 mcp-server`. It exposes three tools: `generate_application_policies`,
 `generate_policy_for_access_denied`, `fix_access_denied`. These tools
 were not loaded into the active Kiro CLI session (the agent will pick
-them up on next restart). They would not have unblocked 0.4 in any
-case — the gap is API surface, not IAM permissions.
+them up on next restart). They would not have unblocked 0.4 on
+2026-05-26 in any case — the gap was API surface, not IAM
+permissions.
+
+### Phase 0 status 2026-05-27 — CLI upgraded; partial recovery; new IAM block
+
+Three things happened on 2026-05-27 in sequence:
+
+**1. AWS CLI / botocore upgrade — UNBLOCKED.** The yesterday-blocking
+gap was resolved. The AWS CLI v2 changelog shows version `2.34.44`
+landed `bedrock-agentcore-control` filesystemConfigurations support:
+
+> 2.34.44 — api-change: bedrock-agentcore-control: Adds support for
+> bring-your-own file system in AgentCore Runtime. Developers can
+> mount Amazon S3 Files and Amazon EFS access points directly into
+> agent sessions using filesystemConfigurations.
+
+We were on 2.34.11; latest is 2.34.54. Upgraded to 2.34.54 via the
+official `awscli-exe-linux-aarch64.zip` installer with `--update`
+flag. Side-by-side install at `/usr/local/aws-cli/v2/2.34.54/`,
+`current` symlink atomically updated. Rollback path preserved at
+`/usr/local/aws-cli/v2/2.34.11/`.
+
+**2. Spec template shape was wrong; corrected via empirical probing.**
+The `tasks.md §0.4` template assumed a flat shape:
+
+```json
+{"fileSystemId":"fs-...","accessPointId":"fsap-...","mountPath":"...","readOnly":true}
+```
+
+The actual `bedrock-agentcore-control.UpdateAgentRuntime` model in
+botocore/CLI 2.34.54 uses a tagged-union shape:
+
+```json
+{"efsAccessPoint":{"accessPointArn":"arn:aws:elasticfilesystem:...:access-point/fsap-...","mountPath":"..."}}
+```
+
+Verified via `aws bedrock-agentcore-control update-agent-runtime
+--generate-cli-skeleton` and via end-to-end ParamValidation errors:
+
+- `readOnly` is **not** a valid field. botocore rejects it with
+  `Unknown parameter in filesystemConfigurations[0].efsAccessPoint:
+  "readOnly", must be one of: accessPointArn, mountPath`. The mount
+  is read-only because the IAM policy only grants `ClientMount` (not
+  `ClientWrite`) — the read-only-ness is at the IAM layer, not the
+  API layer.
+- `fileSystemId` is **not** a valid field; the FS is derived from
+  the access-point ARN.
+- `accessPointId` is **not** a valid field; use `accessPointArn`.
+
+The tasks.md §0.4 snippet is now stale and will be updated separately
+when Phase 0 closes (Option 1 forward path remains valid; only the
+JSON shape inside §0.4 needs correction).
+
+**3. Operator user CAN call UpdateAgentRuntime; runtime updated to
+v18 in clean state; Task 0.4 still BLOCKED on additional IAM.**
+
+A test call against an `INVALID-DRYRUN-ID` returned
+`AccessDeniedException`, but that was the service rejecting the
+bogus runtime ID (post-authorization). Confirmed by issuing a real
+call against `mdc_mcp_rag_server_python-v5K2F8BGrN` without
+`--filesystem-configurations` — the call succeeded and bumped the
+runtime to v17. **Important consequence**: that bare call wiped the
+environment variables (`env: null`) and dropped the runtime to one
+subnet. Mitigated by an immediate restoration call to v18 with the
+prior env vars and the original 2-subnet config (the v16 baseline).
+
+| Version | Source | Notes |
+|---|---|---|
+| v16 | pre-2026-05-27 | baseline; 2 subnets, full env vars, no fs |
+| v17 | accidental on 2026-05-27 | bare update — env wiped, 1 subnet |
+| v18 | restoration on 2026-05-27 | back to v16 functional config |
+
+Live state is currently v18, READY, MCP healthy (52 tools, 9
+modules), `mcp_health_check` passes everything except
+`workflow_info` (the original failure we are still trying to fix —
+no progress on that, but no regression either).
+
+**Then** the proper Task 0.4 attempt (full env vars, 3 subnets, EFS
+filesystemConfigurations with the correct tagged-union shape)
+returned a NEW service-side validation error:
+
+```
+ValidationException: Execution role is missing required filesystem
+permissions. Ensure the role has elasticfilesystem:DescribeAccessPoints
+and elasticfilesystem:DescribeMountTargets
+```
+
+This is a deploy-time validation read AgentCore runs against the
+execution role to confirm the access point and mount targets exist.
+**It is not documented in the AWS guide page on AgentCore EFS
+mounts**, which lists only `ClientMount` and `ClientWrite`. Surfaced
+empirically.
+
+### Forward path 2026-05-27 — second IAM admin request
+
+The `efs-clientmount-workflow-ap` inline policy needs a second
+statement granting two read-only metadata actions:
+
+```json
+{
+  "Sid": "DescribeWorkflowEFSForDeployValidation",
+  "Effect": "Allow",
+  "Action": [
+    "elasticfilesystem:DescribeAccessPoints",
+    "elasticfilesystem:DescribeMountTargets"
+  ],
+  "Resource": "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758"
+}
+```
+
+Updated artefacts in this commit:
+
+- `infrastructure/iam/efs-clientmount-workflow-ap.json` — now has the
+  two-statement document. `put-role-policy` is idempotent on the
+  policy name, so admin can replace the existing single-statement
+  version with one call (no `delete-role-policy` needed first).
+- `docs/efs-clientmount-workflow-ap-role-request.txt` — revised with
+  the 2026-05-27 status update and the two-statement command.
+
+### Operational state at end of 2026-05-27 attempt
+
+| Property | Value |
+|---|---|
+| agentRuntimeVersion | `18` (was 16 at start of session) |
+| status | READY |
+| containerUri | `python-titan-v5` (unchanged) |
+| subnets | `subnet-0e13af6b3a9a6416f`, `subnet-04447750c61bd7e06` (unchanged from v16) |
+| MCP_WORKFLOW_ROOT | `/app/supported_repos/global-workflow` (restored) |
+| filesystemConfigurations | `null` (still pending Task 0.4 unblock) |
+| AWS CLI | `2.34.54` (was `2.34.11`); rollback at `2.34.11` |
+| MCP health | 52 tools, 9 modules; `workflow_info` still failing (the original blocker; unchanged) |
+
+Phase 0 closure remains pending the second IAM admin action.
 
 ## [8.24.0] - Functional smoke tests for the Python MCP server (May 22, 2026)
 
