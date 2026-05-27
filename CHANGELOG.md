@@ -391,6 +391,83 @@ Updated artefacts in this commit:
 
 Phase 0 closure remains pending the second IAM admin action.
 
+### Phase 0 status 2026-05-27 (later) — REV 2 confirmed insufficient via direct test
+
+After admin applied the two-statement REV 2 policy
+(ClientMount + DescribeAccessPoints/DescribeMountTargets with
+`Resource` set to the file-system ARN only), we hypothesised the
+returning `Missing required filesystem permissions` error might be a
+permission-cache staleness in AgentCore's deploy validator. We waited
+well past any plausible IAM eventual-consistency window (>30 minutes)
+and re-ran `update-agent-runtime` with the EFS `--filesystem-configurations`
+against the **real** runtime ID `mdc_mcp_rag_server_python-v5K2F8BGrN`
+(not `INVALID-DRYRUN-ID` — that earlier dry-run rejected before
+filesystem validation, so it never actually exercised the IAM check).
+
+Result: same `ValidationException: Execution role is missing required
+filesystem permissions` error. Live state remains v18 — the failed
+ValidationException did not create a new runtime version. **Confirmed:
+this is not a permission-cache issue; it is a real IAM scoping issue.**
+
+### Root cause analysis
+
+The IAM Service Authorization Reference for EFS shows
+`DescribeAccessPoints` supports both `access-point` and `file-system`
+resource types (neither is asterisk-required), and `DescribeMountTargets`
+shows `file-system*` (required) plus `access-point` (optional). On a
+literal reading of those tables, the FS-only Resource in REV 2 should
+have been sufficient. AgentCore's internal validator evidently
+evaluates these Describe* actions against the access-point ARN
+specifically, even when the API call itself routes through the
+file-system. That is **not** the documented IAM behaviour in the
+authorization reference, but it is what the validator empirically
+demands.
+
+### Forward path — REV 3 (Resource array)
+
+Update the `DescribeWorkflowEFSForDeployValidation` statement's
+`Resource` from a single string to a two-element array containing
+both the file-system ARN and the access-point ARN. This is still
+least-privilege (one FS + one AP, single region, two read-only
+metadata actions, no condition keys are supported on these actions
+beyond resource scoping).
+
+The updated artefacts in this commit:
+
+- `infrastructure/iam/efs-clientmount-workflow-ap.json` — `Resource`
+  is now a JSON array.
+- `docs/efs-clientmount-workflow-ap-role-request.txt` — revised to
+  REV 3 with the array Resource. Header marker:
+  `REV 3 May 27 (Resource array fix)`.
+
+### Operational state at end of REV 2 test
+
+| Property | Value |
+|---|---|
+| agentRuntimeVersion | `18` (unchanged from start of test) |
+| status | READY |
+| containerUri | `python-titan-v5` (unchanged) |
+| filesystemConfigurations | `null` (the failed call did not change live state) |
+| MCP health | unchanged — 52 tools, 9 modules; `workflow_info` still failing on the original error |
+| IAM policy live | REV 2 (single-string Resource); REV 3 pending admin |
+
+Phase 0 closure remains pending REV 3.
+
+### Lessons captured
+
+- Future "is this a cache issue?" hypotheses should be tested against
+  the real resource ID, not against a sentinel like
+  `INVALID-DRYRUN-ID`. The dry-run path rejects before validators run
+  and produces misleading "looks like permissions are fine" signals.
+- AgentCore's deploy validator messages do not name the specific
+  evaluation that failed (action, resource, or condition). When
+  iterating on its requirements, change one variable at a time and
+  test directly.
+- The IAM Service Authorization Reference is necessary but not
+  sufficient for AgentCore; service-internal validators can require
+  resource scoping that the public reference doesn't predict. Build
+  policies empirically when AWS guide pages are silent on the topic.
+
 ## [8.24.0] - Functional smoke tests for the Python MCP server (May 22, 2026)
 
 ### Scope

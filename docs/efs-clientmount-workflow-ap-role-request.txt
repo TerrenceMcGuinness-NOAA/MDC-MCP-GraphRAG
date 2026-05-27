@@ -1,12 +1,35 @@
 EFS CLIENTMOUNT — INLINE POLICY ADDITION — Account 903050880929
 ================================================================
 
-Date:       May 26, 2026 (initial); REVISED May 27, 2026 (added Describe* actions)
+Date:       May 26, 2026 (initial); REV 2 May 27 (added Describe*); REV 3 May 27 (Resource array fix)
 Requestor:  Terry McGuinness (terry.mcguinness@noaa.gov)
 Account:    903050880929
 Region:     us-east-1
 Project:    MDC MCP RAG Server — omd-tenants-1-foundation Phase 0
 Priority:   HIGH (blocks the workflow_info smoke probe restoration)
+
+
+STATUS UPDATE 2026-05-27 (REV 3 — Resource array fix)
+-----------------------------------------------------
+
+REV 2 was applied by admin (confirmed via get-role-policy). However,
+AgentCore's deploy-time validation STILL rejects with the same error:
+
+    ValidationException: Execution role is missing required filesystem
+    permissions. Ensure the role has elasticfilesystem:DescribeAccessPoints
+    and elasticfilesystem:DescribeMountTargets
+
+Root cause: the Describe statement's `Resource` was set to the
+file-system ARN only. Per the IAM Service Authorization Reference,
+`DescribeAccessPoints` supports resource-level permissions on BOTH
+`file-system` and `access-point` resource types. AgentCore's
+permission simulation appears to evaluate `DescribeAccessPoints`
+against the access-point ARN, which the file-system-only Resource
+does not cover.
+
+Fix: change `Resource` from a single string to an array containing
+both the file-system ARN and the access-point ARN. This is still
+least-privilege (scoped to one FS + one AP in one region).
 
 
 STATUS UPDATE 2026-05-27
@@ -72,7 +95,10 @@ COMMAND TO RUN
               "elasticfilesystem:DescribeAccessPoints",
               "elasticfilesystem:DescribeMountTargets"
             ],
-            "Resource": "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758"
+            "Resource": [
+              "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758",
+              "arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29"
+            ]
           }
         ]
       }' \
@@ -214,11 +240,13 @@ ArnEquals condition.
                (the role can mount via this AP and only this AP)
     Effect:    Allow
 
-  Statement 2 (new — needed for AgentCore deploy-time validation):
+  Statement 2 (updated REV 3 — Resource array for deploy-time validation):
     Action:    elasticfilesystem:DescribeAccessPoints
                elasticfilesystem:DescribeMountTargets
                (both are read-only metadata queries)
-    Resource:  fs-032d52e4677000758  (same file system ARN)
+    Resource:  fs-032d52e4677000758  (file system ARN)
+               fsap-03e641f056b341f29  (access point ARN)
+               (both in us-east-1, same account)
     Effect:    Allow
     Condition: none (Describe* on EFS does not support
                AccessPointArn conditions; the resource scoping is the

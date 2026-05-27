@@ -47,7 +47,7 @@ this state.
 Out of scope for Phase 0: tenant catalog, prefix scoping, attribution
 header, parity validation. Those land via Tasks 2 – 16 below.
 
-### Status (2026-05-27, updated end of day)
+### Status (2026-05-27, updated post REV 2 direct test)
 
 - 0.1 (CDK access point), 0.2 (IAM `efs-clientmount-workflow-ap`
   v1: ClientMount only), and 0.3 (EFS populate of `develop`
@@ -66,24 +66,29 @@ header, parity validation. Those land via Tasks 2 – 16 below.
   call that wiped env vars and dropped subnets; v18 restored the
   v16 baseline. MCP is healthy at v18 with the same 52 tools / 9
   modules and the original `workflow_info` failure unchanged.
-- 0.4 is **blocked** on a second IAM addition. AgentCore's deploy-
-  time validation requires the execution role have
-  `elasticfilesystem:DescribeAccessPoints` and
-  `elasticfilesystem:DescribeMountTargets` (in addition to
-  `ClientMount`). This is not documented in the AWS guide on
-  AgentCore EFS mounts; we discovered it empirically.
+- **REV 2 IAM (FS-only Resource) was applied by admin and tested
+  directly against the real runtime ID** — same `Missing required
+  filesystem permissions` error returned. Cache hypothesis ruled out;
+  AgentCore's validator evaluates Describe* against the access-point
+  ARN even though the IAM Service Authorization Reference suggests
+  the file-system Resource alone should be sufficient. Confirmed not
+  a propagation issue.
+- 0.4 is **blocked** on **REV 3** of the IAM policy. The
+  `DescribeWorkflowEFSForDeployValidation` statement now needs
+  `Resource` as a two-element array (file-system ARN AND access-point
+  ARN) — still least-privilege.
 - Updated artefacts ready for admin:
-  - `infrastructure/iam/efs-clientmount-workflow-ap.json` — now has
-    a two-statement document (ClientMount + Describe*).
-  - `docs/efs-clientmount-workflow-ap-role-request.txt` — revised
-    request doc with the 2026-05-27 status and replacement command.
+  - `infrastructure/iam/efs-clientmount-workflow-ap.json` — now uses
+    a Resource array on the Describe* statement.
+  - `docs/efs-clientmount-workflow-ap-role-request.txt` — REV 3 with
+    the array Resource and root-cause analysis section.
 - 0.5 is therefore also pending.
-- **Forward path remains Option 1** (apply the updated IAM policy,
+- **Forward path remains Option 1** (apply REV 3 IAM policy,
   then re-run §0.4 with the correct tagged-union JSON shape and
   `MCP_WORKFLOW_ROOT=/mnt/workflow/develop`). Options 2 and 3
   remain rejected.
-- See `CHANGELOG.md [8.22.3]` "Phase 0 status 2026-05-27 — CLI
-  upgraded; partial recovery; new IAM block" for the full
+- See `CHANGELOG.md [8.22.3]` "Phase 0 status 2026-05-27 (later) —
+  REV 2 confirmed insufficient via direct test" for the
   investigation log.
 
 - [ ] 0. Phase 0 tasks
@@ -155,17 +160,18 @@ header, parity validation. Those land via Tasks 2 – 16 below.
     - **Implements: Requirements 12.1, 12.2 (gw worktree only), 12.6 (live)**
 
   - [ ] 0.4 Update AgentCore runtime with EFS mount + env var (no image rebuild)
-    > **BLOCKED (2026-05-27 update)**: AWS CLI / botocore are now on
-    > 2.34.54 and the `bedrock-agentcore-control` model exposes
-    > `efsAccessPoint` (shape: `{accessPointArn, mountPath}`). Running
-    > `update-agent-runtime` returned a NEW service-side validation
-    > error: the execution role needs
-    > `elasticfilesystem:DescribeAccessPoints` and
-    > `elasticfilesystem:DescribeMountTargets` (deploy-time validation
-    > reads — not documented in the AWS AgentCore EFS guide). Updated
-    > IAM policy and admin request doc are ready. Tracked in CHANGELOG
-    > `[8.22.3]` "Phase 0 status 2026-05-27 — CLI upgraded; partial
-    > recovery; new IAM block".
+    > **BLOCKED (2026-05-27, post REV 2 direct test)**: AWS CLI /
+    > botocore are now on 2.34.54 and the `bedrock-agentcore-control`
+    > model exposes `efsAccessPoint` (shape: `{accessPointArn,
+    > mountPath}`). REV 2 of the IAM policy (ClientMount +
+    > DescribeAccessPoints/DescribeMountTargets with FS-only Resource)
+    > was applied by admin and tested directly against the real
+    > runtime ID — same `Missing required filesystem permissions`
+    > error returned. Cache hypothesis ruled out. **REV 3 required**:
+    > the Describe* statement's `Resource` must be a two-element
+    > array (file-system ARN + access-point ARN). Tracked in
+    > CHANGELOG `[8.22.3]` "Phase 0 status 2026-05-27 (later) —
+    > REV 2 confirmed insufficient via direct test".
     >
     > **JSON shape correction (CRITICAL — apply when re-running)**:
     > the snippet below uses a stale flat shape. The correct shape is

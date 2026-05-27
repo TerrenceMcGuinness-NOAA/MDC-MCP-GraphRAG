@@ -19,7 +19,10 @@
         "elasticfilesystem:DescribeAccessPoints",
         "elasticfilesystem:DescribeMountTargets"
       ],
-      "Resource": "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758"
+      "Resource": [
+        "arn:aws:elasticfilesystem:us-east-1:903050880929:file-system/fs-032d52e4677000758",
+        "arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29"
+      ]
     }
   ]
 }
