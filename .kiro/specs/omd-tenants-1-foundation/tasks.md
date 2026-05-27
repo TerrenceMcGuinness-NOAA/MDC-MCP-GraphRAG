@@ -667,6 +667,16 @@ top of the Phase 0 EFS mount without re-doing the operational work.
     - **Implements: Requirement 5.4**
 
   - [ ] 9.6 Wire `tenant_aware` decorator into FastMCP tool registration
+    > **Implementation note (added after Groups D and E)**: Until
+    > this task lands, the call sites in Groups D/E read tenant via
+    > `get_current_tenant_or_none()` from
+    > `src/tenancy/resolver.py` — a transitional helper that returns
+    > `None` when no scope is active (so adapters apply passthrough,
+    > preserving pre-feature behaviour). Once `tenant_aware` is
+    > wired here, every tool call has an active scope and the helper
+    > returns the resolved tenant. The strict `get_current_tenant()`
+    > variant remains preferred for new code that runs strictly
+    > inside a tenant_aware scope. See design §2 for both helpers.
     - In `src/mcp_server.py` (or wherever the 51 tools are registered),
       apply `tenant_aware(catalog)` to each tool registration except
       the four utility tools that emit catalog-level info

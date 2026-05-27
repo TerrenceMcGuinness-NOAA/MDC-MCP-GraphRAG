@@ -463,6 +463,25 @@ def get_current_tenant() -> TenantContext:
         raise RuntimeError("tenant_with no active TenantContext (programmer error)")
     return ctx
 
+def get_current_tenant_or_none() -> TenantContext | None:
+    """Read the active TenantContext, or None if no scope is active.
+
+    Use this in adapter call sites that need to operate during the
+    transition between Groups D/E (which thread tenant= through the
+    adapter call surface) and Group G's Task 9.6 (which wires the
+    `tenant_aware` decorator into FastMCP tool registration). Until
+    the decorator is wired, no scope is active at call time, and
+    using `get_current_tenant()` would raise `RuntimeError` for every
+    real tool invocation. Adapters treat `tenant=None` as passthrough,
+    so this helper lets the runtime stay operational throughout the
+    rollout.
+
+    Once Task 9.6 lands and every tool registration is wrapped, this
+    helper still works (the ContextVar will be set) but `get_current_tenant()`
+    is the stronger contract and should be preferred for new code.
+    """
+    return _ctx_var.get()
+
 def tenant_aware(catalog: TenantCatalog) -> Callable:
     """Decorator factory to wrap a FastMCP tool callable.
 
