@@ -323,6 +323,164 @@ class TestCatalogRejection:
             load_catalog(p)
 
 
+class TestP4ResolutionDeterminism:
+    """Property 4: Resolution determinism.
+
+    # Feature: omd-tenants-1-foundation, Property 4: Resolution determinism
+    # Validates: Requirements 2.1, 2.2, 2.3, 2.4, 6.1, 6.5
+    """
+
+    @given(tenants=valid_catalog_strategy(min_size=1, max_size=3))
+    def test_repeated_calls_same_result(self, tenants):
+        from src.config.tenants import TenantCatalog, CatalogDefaults, Tenant
+        from src.tenancy.resolver import resolve_tenant
+
+        catalog = TenantCatalog(
+            schema_version=1,
+            defaults=CatalogDefaults(tenant_id=tenants[0]["tenant_id"]),
+            tenants=tuple(
+                Tenant(
+                    tenant_id=t["tenant_id"], repo_ref=t["repo_ref"],
+                    branch=t["branch"], index_prefix=t["index_prefix"],
+                    label_prefix=t["label_prefix"],
+                    workflow_subdir=t["workflow_subdir"],
+                    lifecycle=t["lifecycle"], description=t["description"],
+                    extends=tuple(t["extends"]),
+                )
+                for t in tenants
+            ),
+        )
+        # Pick a known tenant_id
+        tid = tenants[0]["tenant_id"]
+        ctx1 = resolve_tenant(request_tenant_id=tid, catalog=catalog, env={})
+        ctx2 = resolve_tenant(request_tenant_id=tid, catalog=catalog, env={})
+        assert ctx1.tenant_id == ctx2.tenant_id
+        assert ctx1.tenant == ctx2.tenant
+
+    @given(tenants=valid_catalog_strategy(min_size=1, max_size=3))
+    def test_precedence_request_wins(self, tenants):
+        """request_tenant_id takes precedence over env and defaults."""
+        from src.config.tenants import TenantCatalog, CatalogDefaults, Tenant
+        from src.tenancy.resolver import resolve_tenant
+
+        catalog = TenantCatalog(
+            schema_version=1,
+            defaults=CatalogDefaults(tenant_id=tenants[0]["tenant_id"]),
+            tenants=tuple(
+                Tenant(
+                    tenant_id=t["tenant_id"], repo_ref=t["repo_ref"],
+                    branch=t["branch"], index_prefix=t["index_prefix"],
+                    label_prefix=t["label_prefix"],
+                    workflow_subdir=t["workflow_subdir"],
+                    lifecycle=t["lifecycle"], description=t["description"],
+                    extends=tuple(t["extends"]),
+                )
+                for t in tenants
+            ),
+        )
+        tid = tenants[-1]["tenant_id"]
+        env = {"MCP_DEFAULT_TENANT": tenants[0]["tenant_id"]}
+        ctx = resolve_tenant(request_tenant_id=tid, catalog=catalog, env=env)
+        assert ctx.tenant_id == tid
+
+    @given(tenants=valid_catalog_strategy(min_size=2, max_size=3))
+    def test_precedence_env_over_default(self, tenants):
+        """MCP_DEFAULT_TENANT env wins over catalog.defaults.tenant_id."""
+        from src.config.tenants import TenantCatalog, CatalogDefaults, Tenant
+        from src.tenancy.resolver import resolve_tenant
+
+        catalog = TenantCatalog(
+            schema_version=1,
+            defaults=CatalogDefaults(tenant_id=tenants[0]["tenant_id"]),
+            tenants=tuple(
+                Tenant(
+                    tenant_id=t["tenant_id"], repo_ref=t["repo_ref"],
+                    branch=t["branch"], index_prefix=t["index_prefix"],
+                    label_prefix=t["label_prefix"],
+                    workflow_subdir=t["workflow_subdir"],
+                    lifecycle=t["lifecycle"], description=t["description"],
+                    extends=tuple(t["extends"]),
+                )
+                for t in tenants
+            ),
+        )
+        env_tid = tenants[1]["tenant_id"]
+        env = {"MCP_DEFAULT_TENANT": env_tid}
+        ctx = resolve_tenant(request_tenant_id=None, catalog=catalog, env=env)
+        assert ctx.tenant_id == env_tid
+
+    @given(tenants=valid_catalog_strategy(min_size=1, max_size=2))
+    def test_precedence_catalog_default_over_hardcoded(self, tenants):
+        """catalog.defaults.tenant_id wins over hardcoded 'gw'."""
+        from src.config.tenants import TenantCatalog, CatalogDefaults, Tenant
+        from src.tenancy.resolver import resolve_tenant
+
+        default_tid = tenants[0]["tenant_id"]
+        catalog = TenantCatalog(
+            schema_version=1,
+            defaults=CatalogDefaults(tenant_id=default_tid),
+            tenants=tuple(
+                Tenant(
+                    tenant_id=t["tenant_id"], repo_ref=t["repo_ref"],
+                    branch=t["branch"], index_prefix=t["index_prefix"],
+                    label_prefix=t["label_prefix"],
+                    workflow_subdir=t["workflow_subdir"],
+                    lifecycle=t["lifecycle"], description=t["description"],
+                    extends=tuple(t["extends"]),
+                )
+                for t in tenants
+            ),
+        )
+        ctx = resolve_tenant(request_tenant_id=None, catalog=catalog, env={})
+        assert ctx.tenant_id == default_tid
+
+
+class TestAttributionHeaderWellFormedness:
+    """Attribution header well-formedness.
+
+    # Feature: omd-tenants-1-foundation, Property: Attribution header well-formedness
+    # Validates: Requirements 5.1, 5.2
+    """
+
+    @given(
+        tenant=valid_tenant_strategy(),
+        body=st.text(min_size=0, max_size=200),
+    )
+    def test_header_present_and_stale_marker(self, tenant, body):
+        from src.config.tenants import Tenant
+        from src.tools._attribution import attribute
+
+        t = Tenant(
+            tenant_id=tenant["tenant_id"],
+            repo_ref=tenant["repo_ref"],
+            branch=tenant["branch"],
+            index_prefix=tenant["index_prefix"],
+            label_prefix=tenant["label_prefix"],
+            workflow_subdir=tenant["workflow_subdir"],
+            lifecycle=tenant["lifecycle"],
+            description=tenant["description"],
+            extends=tuple(tenant["extends"]),
+        )
+        result = attribute(body, t)
+        assert result.startswith(f"*Tenant: {t.tenant_id}*")
+        if t.lifecycle == "stale":
+            assert "[STALE]" in result.split("\n")[0]
+        else:
+            assert "[STALE]" not in result.split("\n")[0]
+
+    def test_non_string_passthrough(self):
+        from src.config.tenants import Tenant
+        from src.tools._attribution import attribute
+
+        t = Tenant(
+            tenant_id="gw", repo_ref="R", branch="b",
+            index_prefix="", label_prefix="", workflow_subdir="dev",
+            lifecycle="production", description="",
+        )
+        assert attribute(42, t) == 42
+        assert attribute({"key": "val"}, t) == {"key": "val"}
+
+
 class TestCatalogForwardCompat:
     """Catalog forward-compat warning.
 
