@@ -15,3 +15,51 @@ tenants:
       for all unspecified requests; preserves pre-feature byte-equal
       behaviour (R6.4).
     extends: []
+
+  - tenant_id: gw_sfs
+    repo_ref: NOAA-EMC/global-workflow
+    branch: dev/sfs
+    index_prefix: "gw_sfs_"
+    label_prefix: "GW_SFS_"
+    workflow_subdir: dev-sfs
+    lifecycle: experimental
+    description: |
+      Standalone Forecast System (SFS) development branch. Experimental
+      pillar for short-range deterministic forecasting.
+    extends: []
+
+  - tenant_id: gw_jedi_gfs
+    repo_ref: NOAA-EMC/global-workflow
+    branch: dev/jedi-gfs
+    index_prefix: "gw_jedi_gfs_"
+    label_prefix: "GW_JEDI_GFS_"
+    workflow_subdir: dev-jedi-gfs
+    lifecycle: experimental
+    description: |
+      JEDI-GFS development branch. Integrates the Joint Effort for Data
+      assimilation Integration (JEDI) system with the GFS workflow.
+    extends: []
+
+  - tenant_id: gw_v17
+    repo_ref: NOAA-EMC/global-workflow
+    branch: dev/gfs.v17
+    index_prefix: "gw_v17_"
+    label_prefix: "GW_V17_"
+    workflow_subdir: dev-v17
+    lifecycle: staging
+    description: |
+      GFS v17 development branch. Next operational GFS version targeting
+      production deployment.
+    extends: []
+
+  - tenant_id: gw_gefs_v12
+    repo_ref: NOAA-EMC/global-workflow
+    branch: release/gefs_v12
+    index_prefix: "gw_gefs_v12_"
+    label_prefix: "GW_GEFS_V12_"
+    workflow_subdir: gefs-v12
+    lifecycle: production
+    description: |
+      GEFS v12 release branch. Global Ensemble Forecast System
+      operational release for probabilistic forecasting.
+    extends: []

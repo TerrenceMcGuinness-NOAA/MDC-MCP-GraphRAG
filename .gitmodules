@@ -1,6 +1,6 @@
 [submodule "supported_repos/global-workflow"]
 	path = supported_repos/global-workflow
-	url = https://github.com/TerrenceMcGuinness-NOAA/global-workflow.git
+	url = https://github.com/NOAA-EMC/global-workflow.git
 	branch = develop
 [submodule "supported_repos/nws-hpc-standards"]
 	path = supported_repos/nws-hpc-standards
@@ -58,3 +58,15 @@
 	path = supported_repos/global-workflow_dev-sfs
 	url = https://github.com/NOAA-EMC/global-workflow.git
 	branch = dev/sfs
+[submodule "supported_repos/global-workflow_dev-jedi-gfs"]
+	path = supported_repos/global-workflow_dev-jedi-gfs
+	url = https://github.com/NOAA-EMC/global-workflow.git
+	branch = dev/jedi-gfs
+[submodule "supported_repos/global-workflow_dev-v17"]
+	path = supported_repos/global-workflow_dev-v17
+	url = https://github.com/NOAA-EMC/global-workflow.git
+	branch = dev/gfs.v17
+[submodule "supported_repos/global-workflow_gefs-v12"]
+	path = supported_repos/global-workflow_gefs-v12
+	url = https://github.com/NOAA-EMC/global-workflow.git
+	branch = release/gefs_v12
