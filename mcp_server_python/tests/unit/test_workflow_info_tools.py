@@ -59,7 +59,7 @@ def _enum_of(schema: dict[str, Any]) -> set[str]:
 
 
 @pytest.fixture
-def workflow_tree(tmp_path: Path) -> Path:
+def workflow_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Build a minimal global-workflow-like tree under tmp_path.
 
     Provides:
@@ -68,9 +68,14 @@ def workflow_tree(tmp_path: Path) -> Path:
     - dev/jobs/JGFS_FORECAST sample
     - dev/scripts/exgfs_forecast.sh sample
     - ush/detect_machine.sh sample (legacy path)
+
+    Also sets MCP_WORKFLOW_ROOT so the tenant-aware resolution path
+    (which falls back to env var when no tenant context is active)
+    finds the test tree.
     """
     root = tmp_path / "wf"
     root.mkdir()
+    monkeypatch.setenv("MCP_WORKFLOW_ROOT", str(root))
 
     env_dir = root / "env"
     env_dir.mkdir()
@@ -451,8 +456,9 @@ async def test_get_system_configs_config_type_all_includes_every_block(
 
 @pytest.mark.asyncio
 async def test_get_system_configs_missing_env_dir_surfaces_message(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("MCP_WORKFLOW_ROOT", str(tmp_path / "no_workflow"))
     mcp = _make_server(workflow_root=tmp_path / "no_workflow")
     out = await _call_tool(mcp, "get_system_configs", {})
     assert "Could not read env directory" in out

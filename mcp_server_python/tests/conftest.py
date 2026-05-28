@@ -161,6 +161,7 @@ class MockVectorDB:
         similarity_threshold: float = 0.0,
         where: dict[str, Any] | None = None,
         include_graph: bool = True,
+        tenant: Any = None,
     ) -> list[dict[str, Any]]:
         self.call_log.append(
             (
@@ -265,6 +266,7 @@ class MockGraphDB:
         self,
         cypher: str,
         params: dict[str, Any] | None = None,
+        tenant: Any = None,
     ) -> list[dict[str, Any]]:
         self.call_log.append(("query", (cypher,), dict(params or {})))
         if self.raise_on_query is not None:
