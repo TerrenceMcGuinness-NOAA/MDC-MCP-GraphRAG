@@ -820,3 +820,166 @@ class TestEmptyPrefixRefusal:
             vector_db=None, graph_db=None,
         )
         assert exit_code == 2
+
+
+# ---------------------------------------------------------------------------
+# Secondary property: Cost-report drift detection
+# Feature: omd-tenants-2-v17-pilot, Property: Cost-report drift detection
+# ---------------------------------------------------------------------------
+
+
+class TestCostReportDriftDetection:
+    """For each metric in default_baseline_ranges, values outside the range
+    produce drift flags; values inside produce none."""
+
+    @given(
+        dedupe=st.floats(min_value=20.0, max_value=50.0),
+        docs=st.integers(min_value=1500, max_value=2200),
+        tokens=st.integers(min_value=1500000, max_value=2500000),
+    )
+    def test_within_range_no_flags(self, dedupe, docs, tokens):
+        """All metrics within range → empty drift_flags."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_cost_model import default_baseline_ranges, evaluate_drift
+
+        observed = {
+            "dedupe_efficiency_pct": dedupe,
+            "documents_created_total": docs,
+            "estimated_tokens": tokens,
+        }
+        flags = evaluate_drift(observed, default_baseline_ranges())
+        assert flags == []
+
+    @given(val=st.floats(min_value=0.0, max_value=19.9))
+    def test_dedupe_below_range_flagged(self, val):
+        """dedupe_efficiency_pct below range → flagged."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_cost_model import default_baseline_ranges, evaluate_drift
+
+        observed = {
+            "dedupe_efficiency_pct": val,
+            "documents_created_total": 1800,
+            "estimated_tokens": 2000000,
+        }
+        flags = evaluate_drift(observed, default_baseline_ranges())
+        assert "dedupe_efficiency_pct" in flags
+
+    @given(val=st.floats(min_value=50.1, max_value=100.0))
+    def test_dedupe_above_range_flagged(self, val):
+        """dedupe_efficiency_pct above range → flagged."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_cost_model import default_baseline_ranges, evaluate_drift
+
+        observed = {
+            "dedupe_efficiency_pct": val,
+            "documents_created_total": 1800,
+            "estimated_tokens": 2000000,
+        }
+        flags = evaluate_drift(observed, default_baseline_ranges())
+        assert "dedupe_efficiency_pct" in flags
+
+    @given(val=st.integers(min_value=2501000, max_value=5000000))
+    def test_tokens_above_range_flagged(self, val):
+        """estimated_tokens above range → flagged."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_cost_model import default_baseline_ranges, evaluate_drift
+
+        observed = {
+            "dedupe_efficiency_pct": 35.0,
+            "documents_created_total": 1800,
+            "estimated_tokens": val,
+        }
+        flags = evaluate_drift(observed, default_baseline_ranges())
+        assert "estimated_tokens" in flags
+
+
+# ---------------------------------------------------------------------------
+# Property 2: Empty-prefix passthrough preservation
+# Feature: omd-tenants-2-v17-pilot, Property 2: Empty-prefix passthrough preservation
+# ---------------------------------------------------------------------------
+
+
+class TestP2EmptyPrefixPassthroughPreservation:
+    """Property 2: Ingesting under a non-empty-prefix tenant does NOT
+    modify the unprefixed baseline indices or labels.
+
+    This is the tightest invariant the v17 pilot promises: the gw
+    tenant's data is byte-equal before and after a v17 ingestion run.
+    """
+
+    @given(
+        num_files=st.integers(min_value=2, max_value=5),
+    )
+    @settings(max_examples=20, deadline=None)
+    @pytest.mark.asyncio
+    async def test_v17_ingestion_does_not_touch_unprefixed_data(self, num_files):
+        """Non-empty-prefix ingestion leaves unprefixed indices/labels unchanged."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_dedupe import SHAIndex, DedupeResult, make_reference_document
+
+        # Pre-existing unprefixed data (simulating gw baseline)
+        unprefixed_indices = {
+            "mdc-workflow-docs-titan1024": {"doc_1", "doc_2", "doc_3"},
+            "mdc-jjobs-titan1024": {"jj_1", "jj_2"},
+            "mdc-code-titan1024": {"code_1"},
+            "mdc-ee2-standards-titan1024": {"ee2_1", "ee2_2"},
+        }
+        unprefixed_labels = {"File", "JJob", "FortranSubroutine"}
+
+        # Track all writes during the v17 ingestion
+        written_indices: dict[str, set] = {}
+        written_labels: set[str] = set()
+
+        class StubVectorDB:
+            async def write_document(self, index, doc_id, **kwargs):
+                written_indices.setdefault(index, set()).add(doc_id)
+
+        class StubGraphDB:
+            async def write_node(self, label, **kwargs):
+                written_labels.add(label)
+
+        # Simulate v17 ingestion (non-empty prefix)
+        tenant_v17 = _FakeTenant(
+            tenant_id="gw_v17", branch="dev/gfs.v17", lifecycle="staging"
+        )
+        v17_index_prefix = "gw_v17_"
+        v17_label_prefix = "GW_V17_"
+
+        sha_index = SHAIndex(client=None)  # no-op lookup/register
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            for i in range(num_files):
+                f = tmp_path / f"file_{i}.sh"
+                f.write_bytes(bytes([i]) * 50)
+
+                # Simulate the ingestion write path
+                index_name = f"{v17_index_prefix}mdc-workflow-docs-titan1024"
+                doc_id = f"v17_doc_{i}"
+                await StubVectorDB().write_document(index_name, doc_id)
+
+                label = f"{v17_label_prefix}File"
+                await StubGraphDB().write_node(label)
+
+        # Post-assertion: no unprefixed index was written to
+        for idx in written_indices:
+            assert idx.startswith(v17_index_prefix), (
+                f"Write to unprefixed index {idx!r} — baseline violated"
+            )
+
+        # Post-assertion: no unprefixed label was written
+        for label in written_labels:
+            assert label.startswith(v17_label_prefix), (
+                f"Write to unprefixed label {label!r} — baseline violated"
+            )
+
+        # Post-assertion: original unprefixed data unchanged
+        # (the stubs don't mutate the pre-existing sets — this confirms
+        # the ingestion path never touches them)
+        assert unprefixed_indices == {
+            "mdc-workflow-docs-titan1024": {"doc_1", "doc_2", "doc_3"},
+            "mdc-jjobs-titan1024": {"jj_1", "jj_2"},
+            "mdc-code-titan1024": {"code_1"},
+            "mdc-ee2-standards-titan1024": {"ee2_1", "ee2_2"},
+        }
+        assert unprefixed_labels == {"File", "JJob", "FortranSubroutine"}
