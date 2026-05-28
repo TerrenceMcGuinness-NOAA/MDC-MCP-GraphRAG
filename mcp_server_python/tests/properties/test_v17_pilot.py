@@ -525,3 +525,133 @@ class TestLifecycleToModeMapping:
         from _ingest_common import derive_mode_from_lifecycle
         with pytest.raises(ValueError, match="stale"):
             derive_mode_from_lifecycle("stale")
+
+
+# ---------------------------------------------------------------------------
+# Secondary property: Probe skip semantics
+# Feature: omd-tenants-2-v17-pilot, Property: Probe skip semantics
+# ---------------------------------------------------------------------------
+
+
+class TestProbeSkipSemantics:
+    """_smoke_branch_isolation raises SkipProbe when catalog lacks gw or gw_v17,
+    returns True when isolation holds, raises RuntimeError on leak."""
+
+    @pytest.mark.asyncio
+    async def test_skip_when_catalog_missing_gw_v17(self, monkeypatch, tmp_path):
+        """Catalog without gw_v17 → SkipProbe raised."""
+        import yaml
+        sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+        from tools.smoke_queries import _smoke_branch_isolation, SkipProbe
+
+        # Write a catalog with only gw
+        catalog_yaml = tmp_path / "tenants.yaml"
+        catalog_yaml.write_text(yaml.dump({
+            "schema_version": 1,
+            "defaults": {"tenant_id": "gw", "staleness_threshold_days": 30},
+            "tenants": [{
+                "tenant_id": "gw", "repo_ref": "NOAA-EMC/global-workflow",
+                "branch": "develop", "index_prefix": "", "label_prefix": "",
+                "workflow_subdir": "develop", "lifecycle": "production",
+                "description": "test", "extends": [],
+            }],
+        }))
+        monkeypatch.setenv("MCP_TENANT_CATALOG_PATH", str(catalog_yaml))
+
+        with pytest.raises(SkipProbe):
+            await _smoke_branch_isolation(None, None)
+
+    @pytest.mark.asyncio
+    async def test_skip_when_catalog_missing_gw(self, monkeypatch, tmp_path):
+        """Catalog without gw → SkipProbe raised."""
+        import yaml
+        sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+        from tools.smoke_queries import _smoke_branch_isolation, SkipProbe
+
+        catalog_yaml = tmp_path / "tenants.yaml"
+        catalog_yaml.write_text(yaml.dump({
+            "schema_version": 1,
+            "defaults": {"tenant_id": "gw_v17", "staleness_threshold_days": 30},
+            "tenants": [{
+                "tenant_id": "gw_v17", "repo_ref": "NOAA-EMC/global-workflow",
+                "branch": "dev/gfs.v17", "index_prefix": "gw_v17_",
+                "label_prefix": "GW_V17_", "workflow_subdir": "dev-v17",
+                "lifecycle": "staging", "description": "test", "extends": [],
+            }],
+        }))
+        monkeypatch.setenv("MCP_TENANT_CATALOG_PATH", str(catalog_yaml))
+
+        with pytest.raises(SkipProbe):
+            await _smoke_branch_isolation(None, None)
+
+    @pytest.mark.asyncio
+    async def test_pass_when_isolation_holds(self, monkeypatch, tmp_path):
+        """Both tenants present + isolation holds → returns True."""
+        import yaml
+        sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+        from tools.smoke_queries import _smoke_branch_isolation, SkipProbe
+        from unittest.mock import AsyncMock, MagicMock
+
+        catalog_yaml = tmp_path / "tenants.yaml"
+        catalog_yaml.write_text(yaml.dump({
+            "schema_version": 1,
+            "defaults": {"tenant_id": "gw", "staleness_threshold_days": 30},
+            "tenants": [
+                {"tenant_id": "gw", "repo_ref": "NOAA-EMC/global-workflow",
+                 "branch": "develop", "index_prefix": "", "label_prefix": "",
+                 "workflow_subdir": "develop", "lifecycle": "production",
+                 "description": "t", "extends": []},
+                {"tenant_id": "gw_v17", "repo_ref": "NOAA-EMC/global-workflow",
+                 "branch": "dev/gfs.v17", "index_prefix": "gw_v17_",
+                 "label_prefix": "GW_V17_", "workflow_subdir": "dev-v17",
+                 "lifecycle": "staging", "description": "t", "extends": []},
+            ],
+        }))
+        monkeypatch.setenv("MCP_TENANT_CATALOG_PATH", str(catalog_yaml))
+
+        # Stub data layer
+        data = MagicMock()
+        data.graph_db.query = AsyncMock(side_effect=[
+            [{"name": "JGDAS_ATMOS_ANALYSIS_WDQMS"}],  # assertion 1: v17 has it
+            [],  # assertion 2: gw doesn't
+        ])
+        data.vector_db.query = AsyncMock(side_effect=[
+            [{"metadata": {"source": "/mnt/workflow/develop/docs/mpas.md"}}],  # assertion 3: gw has MPAS
+            [],  # assertion 4: v17 has no develop-sourced MPAS
+        ])
+
+        result = await _smoke_branch_isolation(data, None)
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_fail_with_r41_prefix_on_leak(self, monkeypatch, tmp_path):
+        """Isolation violated → RuntimeError with R4.1#N prefix."""
+        import yaml
+        sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+        from tools.smoke_queries import _smoke_branch_isolation
+        from unittest.mock import AsyncMock, MagicMock
+
+        catalog_yaml = tmp_path / "tenants.yaml"
+        catalog_yaml.write_text(yaml.dump({
+            "schema_version": 1,
+            "defaults": {"tenant_id": "gw", "staleness_threshold_days": 30},
+            "tenants": [
+                {"tenant_id": "gw", "repo_ref": "NOAA-EMC/global-workflow",
+                 "branch": "develop", "index_prefix": "", "label_prefix": "",
+                 "workflow_subdir": "develop", "lifecycle": "production",
+                 "description": "t", "extends": []},
+                {"tenant_id": "gw_v17", "repo_ref": "NOAA-EMC/global-workflow",
+                 "branch": "dev/gfs.v17", "index_prefix": "gw_v17_",
+                 "label_prefix": "GW_V17_", "workflow_subdir": "dev-v17",
+                 "lifecycle": "staging", "description": "t", "extends": []},
+            ],
+        }))
+        monkeypatch.setenv("MCP_TENANT_CATALOG_PATH", str(catalog_yaml))
+
+        # Simulate assertion 1 failure: v17 doesn't have the J-Job
+        data = MagicMock()
+        data.graph_db.query = AsyncMock(return_value=[])
+        data.vector_db.query = AsyncMock(return_value=[])
+
+        with pytest.raises(RuntimeError, match="R4.1#1"):
+            await _smoke_branch_isolation(data, None)

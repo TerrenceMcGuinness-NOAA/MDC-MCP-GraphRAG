@@ -57,6 +57,19 @@ from typing import Any, Awaitable, Callable, Literal
 
 log = logging.getLogger(__name__)
 
+
+# ── exceptions ─────────────────────────────────────────────────────────
+
+
+class SkipProbe(Exception):
+    """Raised by a probe to signal a graceful skip (not a failure).
+
+    When a probe raises SkipProbe, the registry reports status="skip"
+    rather than status="fail". Use for probes that require specific
+    catalog entries or data that may not be present in all deployments.
+    """
+
+
 # ── module canon ───────────────────────────────────────────────────────
 
 #: Order matters — this is the order results are reported in. Mirrors
@@ -300,6 +313,85 @@ async def _smoke_utility(_data: Any, mcp: Any) -> bool:
     return True
 
 
+async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
+    """R4.1 — assert v17 J-Job is visible only to gw_v17, develop content
+    only to gw, and bidirectional isolation holds for cross-tenant search.
+
+    Skipped (raises SkipProbe) if either gw or gw_v17 is absent from the
+    catalog (R4.2 — graceful skip).
+
+    Implements: Requirements 4.1, 4.2, 4.3, 4.4 of omd-tenants-2-v17-pilot.
+    """
+    from src.config.tenants import load_catalog
+
+    catalog_path = os.environ.get(
+        "MCP_TENANT_CATALOG_PATH", "/app/src/config/tenants.yaml"
+    )
+    catalog = load_catalog(catalog_path)
+    tids = catalog.tenant_ids
+    if "gw" not in tids or "gw_v17" not in tids:
+        raise SkipProbe("requires both gw and gw_v17 in catalog")
+
+    gw = catalog.by_id("gw")
+    v17 = catalog.by_id("gw_v17")
+
+    # Assertion 1: v17-only J-Job exists under gw_v17
+    deps_v17 = await data.graph_db.query(
+        "MATCH (f {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m) "
+        "RETURN f.name AS name LIMIT 1",
+        tenant=v17,
+    )
+    if not deps_v17:
+        raise RuntimeError(
+            "R4.1#1: JGDAS_ATMOS_ANALYSIS_WDQMS not found under gw_v17 — "
+            "ingestion may be incomplete"
+        )
+
+    # Assertion 2: same query returns nothing under gw
+    deps_gw = await data.graph_db.query(
+        "MATCH (f {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m) "
+        "RETURN f.name AS name LIMIT 1",
+        tenant=gw,
+    )
+    if deps_gw:
+        raise RuntimeError(
+            "R4.1#2: JGDAS_ATMOS_ANALYSIS_WDQMS unexpectedly returned "
+            "under gw — tenant isolation violated"
+        )
+
+    # Assertion 3: develop-only content visible to gw
+    mpas_gw = await data.vector_db.query(
+        "mdc-workflow-docs-titan1024",
+        "MPAS Voronoi",
+        k=3,
+        tenant=gw,
+    )
+    if not mpas_gw:
+        raise RuntimeError(
+            "R4.1#3: MPAS Voronoi not found under gw — "
+            "smoke probe assumption failure"
+        )
+
+    # Assertion 4: cross-tenant search does not leak develop content
+    mpas_v17 = await data.vector_db.query(
+        f"{v17.index_prefix}mdc-workflow-docs-titan1024",
+        "MPAS Voronoi",
+        k=3,
+        tenant=v17,
+    )
+    leaked = [
+        h for h in (mpas_v17 or [])
+        if "/develop/" in (h.get("metadata", {}).get("source") or "")
+    ]
+    if leaked:
+        raise RuntimeError(
+            f"R4.1#4: gw_v17 search returned develop-sourced content "
+            f"({len(leaked)} hit(s)) — tenant isolation violated"
+        )
+
+    return True
+
+
 # ── registry / runner ─────────────────────────────────────────────────
 
 
@@ -382,6 +474,14 @@ class SmokeQueryRegistry:
             module="utility",
             description="FastMCP registers >= 50 tools",
             query_fn=_smoke_utility,
+        ),
+        "branch_isolation": SmokeQueryDef(
+            module="branch_isolation",
+            description=(
+                "v17-only J-Job visible under gw_v17, not gw; "
+                "no cross-tenant leaks"
+            ),
+            query_fn=_smoke_branch_isolation,
         ),
     }
 
@@ -521,6 +621,15 @@ class SmokeQueryRegistry:
                 error=f"timeout after {elapsed_ms}ms (limit {self.TIMEOUT_MS}ms)",
                 description=qd.description,
             )
+        except SkipProbe as exc:
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            return ModuleResult(
+                module=qd.module,
+                status="skip",
+                latency_ms=elapsed_ms,
+                error=str(exc),
+                description=qd.description,
+            )
         except Exception as exc:
             elapsed_ms = int((time.perf_counter() - start) * 1000)
             log.warning(
@@ -558,6 +667,7 @@ class SmokeQueryRegistry:
 __all__ = [
     "ALL_MODULES",
     "ModuleResult",
+    "SkipProbe",
     "SmokeQueryDef",
     "SmokeQueryRegistry",
 ]
