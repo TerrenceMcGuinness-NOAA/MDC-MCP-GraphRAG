@@ -487,3 +487,41 @@ class TestWorktreeFetchMergeAgainstBareRepo:
             )
             assert result.returncode == 0
             assert (wt / "f.txt").read_text() == "v2"
+
+
+# ---------------------------------------------------------------------------
+# Secondary property: Lifecycle → mode mapping
+# Feature: omd-tenants-2-v17-pilot, Property: Lifecycle to mode mapping
+# ---------------------------------------------------------------------------
+
+
+class TestLifecycleToModeMapping:
+    """For each lifecycle value, _derive_mode_from_lifecycle returns the
+    correct mode or raises ValueError for refused lifecycles."""
+
+    def test_experimental_maps_to_diff(self):
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_common import derive_mode_from_lifecycle
+        assert derive_mode_from_lifecycle("experimental") == "diff"
+
+    def test_staging_maps_to_full(self):
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_common import derive_mode_from_lifecycle
+        assert derive_mode_from_lifecycle("staging") == "full"
+
+    def test_production_maps_to_full(self):
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_common import derive_mode_from_lifecycle
+        assert derive_mode_from_lifecycle("production") == "full"
+
+    def test_merged_raises(self):
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_common import derive_mode_from_lifecycle
+        with pytest.raises(ValueError, match="merged"):
+            derive_mode_from_lifecycle("merged")
+
+    def test_stale_raises(self):
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_common import derive_mode_from_lifecycle
+        with pytest.raises(ValueError, match="stale"):
+            derive_mode_from_lifecycle("stale")
