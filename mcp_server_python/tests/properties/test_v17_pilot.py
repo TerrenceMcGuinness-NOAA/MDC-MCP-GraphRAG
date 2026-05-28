@@ -257,3 +257,233 @@ class TestP5DedupeCorrectnessAndCounts:
             assert dedupe_pct == 100.0
             assert embedding_calls_a == total_files
             assert embedding_calls_b == total_files - documents_deduped
+
+
+# ---------------------------------------------------------------------------
+# Property 3: Worktree containment and populate idempotence
+# Feature: omd-tenants-2-v17-pilot, Property 3: Worktree containment and populate idempotence
+# ---------------------------------------------------------------------------
+
+import shutil
+import subprocess
+import tempfile
+
+_GIT_AVAILABLE = shutil.which("git") is not None
+
+
+def _init_bare_with_branches(bare_path: Path, branches: list[str]):
+    """Create a bare repo with an initial commit and named branches.
+
+    Sets origin to point to itself so fetch operations are no-ops
+    (the test doesn't need real remote advancement).
+    """
+    # Use a temporary working clone to create commits
+    with tempfile.TemporaryDirectory() as work_dir:
+        work = Path(work_dir) / "work"
+        subprocess.run(["git", "init", str(work)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(work), "config", "user.email", "t@t.com"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(work), "config", "user.name", "T"],
+                       check=True, capture_output=True)
+        (work / "README.md").write_text("init")
+        subprocess.run(["git", "-C", str(work), "add", "."], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(work), "commit", "-m", "init"],
+                       check=True, capture_output=True)
+        # Create each branch
+        for br in branches:
+            subprocess.run(["git", "-C", str(work), "branch", br],
+                           check=True, capture_output=True)
+        # Clone as bare
+        subprocess.run(["git", "clone", "--bare", str(work), str(bare_path)],
+                       check=True, capture_output=True)
+    # Point origin to self so fetch is a no-op in tests
+    subprocess.run(["git", "-C", str(bare_path), "remote", "set-url", "origin", str(bare_path)],
+                   check=True, capture_output=True)
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not on PATH")
+class TestP3WorktreeContainmentAndIdempotence:
+    """Property 3: Worktree containment and populate idempotence.
+
+    Uses max_examples=20 (not 100) because each iteration creates real
+    git repos — keeps CI fast while still exercising varied catalogs.
+    """
+
+    @given(
+        num_tenants=st.integers(min_value=1, max_value=4),
+    )
+    @settings(max_examples=20, deadline=None)
+    def test_populate_creates_one_worktree_per_tenant_idempotent(self, num_tenants):
+        """Populate creates exactly one worktree per tenant; re-running is idempotent."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _populate_worktrees import populate_all
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            bare_path = tmp_path / ".git"
+            ap_root = tmp_path / "supported_repos" / "global-workflow"
+            ap_root.mkdir(parents=True)
+
+            # Generate tenant configs with distinct subdirs and branches
+            tenants = []
+            branches = []
+            for i in range(num_tenants):
+                subdir = f"tenant-{i}"
+                branch = f"branch-{i}"
+                tenants.append({"tenant_id": f"t{i}", "workflow_subdir": subdir, "branch": branch})
+                branches.append(branch)
+
+            _init_bare_with_branches(bare_path, branches)
+
+            # Run populate once
+            populate_all(bare_repo=bare_path, ap_root=ap_root, tenants=tenants)
+
+            # Assert: one worktree per tenant at correct path
+            for t in tenants:
+                wt = ap_root / t["workflow_subdir"]
+                assert wt.is_dir(), f"worktree {wt} not created"
+                # Check HEAD is on the correct branch
+                head_ref = subprocess.check_output(
+                    ["git", "-C", str(wt), "rev-parse", "--abbrev-ref", "HEAD"],
+                    text=True,
+                ).strip()
+                assert head_ref == t["branch"], f"expected {t['branch']}, got {head_ref}"
+
+            # Snapshot directory listing
+            snapshot_1 = sorted(p.name for p in ap_root.iterdir() if p.is_dir())
+
+            # Run populate again (idempotence)
+            populate_all(bare_repo=bare_path, ap_root=ap_root, tenants=tenants)
+
+            snapshot_2 = sorted(p.name for p in ap_root.iterdir() if p.is_dir())
+            assert snapshot_1 == snapshot_2, "idempotence violated"
+
+    @given(num_tenants=st.integers(min_value=2, max_value=3))
+    @settings(max_examples=10, deadline=None)
+    def test_removing_tenant_from_catalog_does_not_remove_worktree(self, num_tenants):
+        """Removing a tenant from the catalog does NOT delete its worktree."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _populate_worktrees import populate_all
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            bare_path = tmp_path / ".git"
+            ap_root = tmp_path / "supported_repos" / "global-workflow"
+            ap_root.mkdir(parents=True)
+
+            tenants = []
+            branches = []
+            for i in range(num_tenants):
+                tenants.append({"tenant_id": f"t{i}", "workflow_subdir": f"t-{i}", "branch": f"b-{i}"})
+                branches.append(f"b-{i}")
+
+            _init_bare_with_branches(bare_path, branches)
+            populate_all(bare_repo=bare_path, ap_root=ap_root, tenants=tenants)
+
+            # Remove last tenant from catalog and re-run
+            removed = tenants[-1]
+            populate_all(bare_repo=bare_path, ap_root=ap_root, tenants=tenants[:-1])
+
+            # The removed tenant's worktree still exists
+            assert (ap_root / removed["workflow_subdir"]).is_dir()
+
+
+# ---------------------------------------------------------------------------
+# Secondary property: Worktree fetch+merge against bare repo
+# Feature: omd-tenants-2-v17-pilot, Property: Worktree fetch+merge against bare repo
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not on PATH")
+class TestWorktreeFetchMergeAgainstBareRepo:
+    """Bare-repo worktrees lack refs/remotes/origin/*, so git pull fails.
+    The correct pattern is fetch origin <branch> + merge --ff-only FETCH_HEAD.
+    """
+
+    def test_pull_fails_on_bare_repo_worktree(self):
+        """git pull fails on a bare-repo worktree without a remote."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            # Create a bare repo directly (no origin remote)
+            bare_path = tmp_path / "bare.git"
+            subprocess.run(["git", "init", "--bare", str(bare_path)], check=True, capture_output=True)
+
+            # Create a commit via a temp working tree
+            work = tmp_path / "work"
+            subprocess.run(["git", "clone", str(bare_path), str(work)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work), "config", "user.email", "t@t.com"],
+                           check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work), "config", "user.name", "T"],
+                           check=True, capture_output=True)
+            (work / "f.txt").write_text("x")
+            subprocess.run(["git", "-C", str(work), "add", "."], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work), "commit", "-m", "init"],
+                           check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(work), "push"], check=True, capture_output=True)
+
+            # Remove the origin remote from the bare repo
+            subprocess.run(["git", "-C", str(bare_path), "remote", "remove", "origin"],
+                           capture_output=True)
+
+            # Add worktree from the bare repo
+            wt = tmp_path / "wt"
+            subprocess.run(
+                ["git", "-C", str(bare_path), "worktree", "add", str(wt), "master"],
+                check=True, capture_output=True,
+            )
+
+            # git pull should fail — no remote configured
+            result = subprocess.run(
+                ["git", "-C", str(wt), "pull"],
+                capture_output=True, text=True,
+            )
+            assert result.returncode != 0
+
+    def test_fetch_merge_succeeds_on_bare_repo_worktree(self):
+        """fetch origin <branch> + merge --ff-only FETCH_HEAD works."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+
+            # Create a non-bare "remote" repo with a commit
+            remote = tmp_path / "remote"
+            subprocess.run(["git", "init", str(remote)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(remote), "config", "user.email", "t@t.com"],
+                           check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(remote), "config", "user.name", "T"],
+                           check=True, capture_output=True)
+            (remote / "f.txt").write_text("v1")
+            subprocess.run(["git", "-C", str(remote), "add", "."], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(remote), "commit", "-m", "v1"],
+                           check=True, capture_output=True)
+
+            # Clone as bare
+            bare_path = tmp_path / "bare.git"
+            subprocess.run(["git", "clone", "--bare", str(remote), str(bare_path)],
+                           check=True, capture_output=True)
+
+            # Add worktree
+            wt = tmp_path / "wt"
+            subprocess.run(
+                ["git", "-C", str(bare_path), "worktree", "add", str(wt), "master"],
+                check=True, capture_output=True,
+            )
+
+            # Advance the remote
+            (remote / "f.txt").write_text("v2")
+            subprocess.run(["git", "-C", str(remote), "add", "."], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(remote), "commit", "-m", "v2"],
+                           check=True, capture_output=True)
+
+            # Fetch into the worktree (this sets FETCH_HEAD in the worktree)
+            subprocess.run(
+                ["git", "-C", str(wt), "fetch", "origin", "master"],
+                check=True, capture_output=True,
+            )
+
+            # merge --ff-only FETCH_HEAD from the worktree
+            result = subprocess.run(
+                ["git", "-C", str(wt), "merge", "--ff-only", "FETCH_HEAD"],
+                capture_output=True, text=True,
+            )
+            assert result.returncode == 0
+            assert (wt / "f.txt").read_text() == "v2"
