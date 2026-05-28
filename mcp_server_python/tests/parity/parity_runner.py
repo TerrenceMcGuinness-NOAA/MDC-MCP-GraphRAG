@@ -704,6 +704,24 @@ if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     sys.exit(main())
 
 
+# ── tenant header normalizer ────────────────────────────────────────────
+
+import re
+
+_TENANT_HEADER_RE = re.compile(r"^\*Tenant: [a-z][a-z0-9_]*\*\n\n")
+
+
+def strip_tenant_header(text: str) -> str:
+    """Remove the leading ``*Tenant: <id>*\\n\\n`` attribution header.
+
+    Returns the body unchanged if no header is present.
+    Used by self-parity tests so the attribution header (new in
+    omd-tenants-1-foundation) doesn't cause false diffs against
+    pre-tenancy baselines or between explicit/implicit tenant calls.
+    """
+    return _TENANT_HEADER_RE.sub("", text, count=1)
+
+
 __all__ = [
     "ComparisonMode",
     "DEFAULT_TOLERANCE",
@@ -714,4 +732,5 @@ __all__ = [
     "ParitySummary",
     "ToolCaller",
     "main",
+    "strip_tenant_header",
 ]

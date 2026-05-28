@@ -1,0 +1,64 @@
+{
+  "runtime_version": 21,
+  "image": "python-tenants-v1",
+  "captured_at": "2026-05-28T14:35:00+00:00",
+  "queries": [
+    {
+      "tool": "search_documentation",
+      "args": {
+        "query": "FV3 dynamical core",
+        "max_results": 3
+      },
+      "golden_file": "search_documentation_6f4e3c65e5f6.txt",
+      "size_bytes": 4095
+    },
+    {
+      "tool": "find_related_files",
+      "args": {
+        "file_path": "jobs/JGLOBAL_FORECAST"
+      },
+      "golden_file": "find_related_files_daea9464071b.txt",
+      "size_bytes": 240
+    },
+    {
+      "tool": "get_code_context",
+      "args": {
+        "symbol": "JGLOBAL_FORECAST"
+      },
+      "golden_file": "get_code_context_1b9a091a2318.txt",
+      "size_bytes": 2437
+    },
+    {
+      "tool": "search_ee2_standards",
+      "args": {
+        "query": "error handling err_chk"
+      },
+      "golden_file": "search_ee2_standards_2d545a870d67.txt",
+      "size_bytes": 2091
+    },
+    {
+      "tool": "get_operational_guidance",
+      "args": {
+        "operation": "forecast"
+      },
+      "golden_file": "get_operational_guidance_7a7326d53cc4.txt",
+      "size_bytes": 607
+    },
+    {
+      "tool": "get_workflow_structure",
+      "args": {
+        "component": "jobs"
+      },
+      "golden_file": "get_workflow_structure_80083eb06add.txt",
+      "size_bytes": 207
+    },
+    {
+      "tool": "describe_component",
+      "args": {
+        "component": "JGLOBAL_FORECAST"
+      },
+      "golden_file": "describe_component_713873eb469c.txt",
+      "size_bytes": 114
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# Operational Guidance: forecast
+
+**Platform:** GENERIC
+**Urgency:** ROUTINE
+
+## Procedure
+
+- 1. Contributing to the Global Workflow
+- 2. Testing Global Workflow Jobs
+- 3. Global Workflow Components
+- 4. GFS Configuration
+- 5. HPC Settings and Help
+- 6. Plotting Output
+- 7. Run Global Workflow
+- 8. Wave Component
+- 9. Configuring NOAA Cloud Service Providers
+- 10. Common Errors Known Issues
+- 11. Setup Globus Connections for HPSS
+- 12. Global Chemistry and Aerosol Forecast System (GCAFS)
+
+## Platform-Specific Notes
+
+- Platform-agnostic procedures
+- Adapt to local scheduler
+- Check platform detection

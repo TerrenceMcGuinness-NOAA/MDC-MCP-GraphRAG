@@ -1,0 +1,9 @@
+# Related Files by Dependencies
+
+Query: "jobs/JGLOBAL_FORECAST"
+
+No related files found for: "jobs/JGLOBAL_FORECAST"
+
+This tool finds files with similar import dependencies. The file must exist in the graph database.
+
+Found 0 related files

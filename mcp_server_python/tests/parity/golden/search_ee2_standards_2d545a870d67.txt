@@ -1,0 +1,39 @@
+# EE2 Standards Search: error handling err_chk
+
+Found 8 standards
+
+## Standard 1
+**Similarity:** 100.0%
+
+``postmsg`` *
+  ``postmsg`` writes a message to a log file.
+  The first argument is the log file name and the second is the message.
+  The log file will default to stdout.
+
+*startmsg and postmsg are no longer required in operations but the utilities will continue to be maintained.
+
+``err_chk`` / ``err_exit``
+  It is imperative that all production code and scripts broadly employ error checking to catch and recover from errors as quickly as possible.
+  The context of the error must be communicated as descriptively as possible and prefaced with "WARNING:" or "FATAL ERROR:".
+  Failures must not be allowed to propagate downstream of the point where the problem can first be detected;
+  jobs should fail with ``err_chk`` or ``err_exit`` as soon as a fatal error is encountered.
+  ``err_chk`` is used to check and handle the ``$err`` variable which has been set to a program's return code and exported into the environment.
+  If ``$err=0``, err_chk does nothing and job execution continues.
+  If ``$err`` is non-zero, the job is aborted.
+  ``err_exit`` will write an error message with the time of the error, and immediately abort the job in PBS Pro.
+  It accepts an error string as input to which it will prepend "FATAL ERROR."
+
+``cpreq``
+  ``cpreq`` is used to copy files that are essential to an application.
+  If the copy is unsuccessful for any reason, then a FATAL ERROR will be printed and the job will abort immediately.
+  It has the same usage as the standard ``cp`` command.
+
+``cpfs``
+  ``cpfs`` is used to copy files while ensuring that the whole file has been copied before it becomes accessible so that downstream applications will not attempt to copy or read a partial file.
+  It has the same usage as the standard ``cp`` command with the limitation that it may only copy one file at a time (no globbing).
+  It is most useful for copies across file systems or for very large files.
+  ``cpfs $COMIN/$file $new_file`` will execute the following:
+
+.. code-block:: bash
+
+---

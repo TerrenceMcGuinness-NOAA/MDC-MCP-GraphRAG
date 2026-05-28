@@ -1,5 +1,84 @@
 # MCP Server Changelog
 
+## [8.25.0] - Phase B of omd-tenants-1-foundation: deploy python-tenants-v1 with 5-tenant catalog (May 28, 2026)
+
+### Summary
+
+Phase B of `.kiro/specs/omd-tenants-1-foundation/` — builds and deploys
+the first image containing the full multi-tenant foundation (Groups A–G
+from the spec). The runtime now ships with a 5-tenant catalog, request-
+scoped `TenantContext`, prefix resolution on OpenSearch and Neptune
+adapters, attribution headers on every tool response, and the EFS mount
+at `/mnt/workflow` (carried forward from Phase 0).
+
+### Deployment artefacts
+
+| Artefact | Value |
+|---|---|
+| Image tag | `python-tenants-v1` |
+| ECR manifest digest | `sha256:009f4c3a398e7147c9dfff9a1b9bc26fb04ce9ff208720444c73b6dc638584a4` |
+| Local image SHA | `sha256:68878be64ca092096441a6a542477ac349e62514bfaf8c0c599cee3157c06bda` |
+| Compressed size | ~191 MB |
+| Runtime version | 21 |
+| Runtime status | READY (2026-05-28T13:49:14 UTC) |
+| Rollback target | `python-titan-v5` (v20) |
+
+### Tenant catalog (5 tenants)
+
+| tenant_id | branch | lifecycle | index_prefix | label_prefix | workflow_subdir | reachable |
+|---|---|---|---|---|---|---|
+| gw | develop | production | (empty) | (empty) | develop | yes |
+| gw_sfs | dev/sfs | experimental | gw_sfs_ | GW_SFS_ | dev-sfs | no |
+| gw_jedi_gfs | dev/jedi-gfs | experimental | gw_jedi_gfs_ | GW_JEDI_GFS_ | dev-jedi-gfs | no |
+| gw_v17 | dev/gfs.v17 | staging | gw_v17_ | GW_V17_ | dev-v17 | no |
+| gw_gefs_v12 | release/gefs_v12 | production | gw_gefs_v12_ | GW_GEFS_V12_ | gefs-v12 | no |
+
+Non-`gw` tenants show "no" for reachability because their EFS worktrees
+have not been created yet — that is `omd-tenants-2-sfs-pilot` and
+follow-on work.
+
+### Health check results (post-deploy)
+
+- **Functional**: 8/9 passed, 0 failed, 1 skipped (github_tools —
+  missing GITHUB_TOKEN, expected)
+- **Detailed**: 4/4 components healthy, Tenants section lists all 5,
+  Workflow Filesystem mounted with `develop` subdirectory
+- **Server info**: 52 tools, 9/9 modules, Tenants: 5 (default: gw)
+- **Attribution**: `*Tenant: gw*` header present on all tool responses
+- **Prefix scoping**: `gw_sfs_` prefix correctly resolves to
+  `index_not_found` (no ingested data — expected)
+
+### What's preserved from Phase 0 (v20)
+
+- EFS mount: `/mnt/workflow` via `fsap-03e641f056b341f29`
+- `MCP_WORKFLOW_ROOT=/mnt/workflow/develop`
+- Subnets: `subnet-0e13af6b3a9a6416f` (use1-az1),
+  `subnet-04447750c61bd7e06` (use1-az2)
+- SG: `sg-096489a0876cc78c1`
+- All environment variables unchanged
+
+### Phase C closed 2026-05-28
+
+Self-parity validation passed. 7/7 corpus queries confirmed:
+- Resolution determinism: `tenant_id=gw` explicit == no `tenant_id`
+- Output stability: repeated calls produce byte-identical output
+- Attribution header: `*Tenant: gw*` present on all responses
+- Empty-prefix passthrough: `gw` tenant hits same indices/labels as
+  pre-tenancy (identity transform)
+
+Golden baseline captured at `tests/parity/golden/` (7 files +
+MANIFEST.json, runtime v21). The `test_self_parity.py` suite provides
+regression coverage for future deploys (gated on
+`MCP_TEST_AGAINST_LIVE=1`).
+
+**omd-tenants-1-foundation spec is COMPLETE through all phases (0, A, B, C).**
+
+### What's next
+
+- **omd-tenants-2-sfs-pilot**: Create `dev-sfs` worktree on EFS,
+  ingest data with `gw_sfs_` prefix, validate end-to-end isolation
+- **RAG gap closure**: 11 missing documentation sources
+
 ## [8.22.3] - Phase 0 of omd-tenants-1-foundation: workflow_info smoke fix (operational, partial) (May 26, 2026)
 
 ### Scope

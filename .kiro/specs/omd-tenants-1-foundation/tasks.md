@@ -897,7 +897,7 @@ top of the Phase 0 EFS mount without re-doing the operational work.
     - **Implements: Requirements 8.6, 13.5 (live verification)**
 
 - [ ] 15. Group K + Phase C — Parity validation
-  - [ ] 15.1 Extend `tests/parity/parity_runner.py` to strip `*Tenant: gw*` header
+  - [x] 15.1 Extend `tests/parity/parity_runner.py` to strip `*Tenant: gw*` header
     - Pre-comparison normalizer that removes the leading
       `*Tenant: <id>*\n\n` prefix from Python-runtime outputs before
       diffing against the Node.js baseline
@@ -906,7 +906,7 @@ top of the Phase 0 EFS mount without re-doing the operational work.
     - **Implements: Requirement 6.4 (parity comparator)**
     - **Validates: Property P7 (live form)**
 
-  - [ ] 15.2 Add `tests/integration/test_tenant_efs_mount.py`
+  - [x] 15.2 Add `tests/integration/test_tenant_efs_mount.py`
     - Gated on `MCP_TEST_AGAINST_LIVE_EFS=1`. Per design "Testing
       Strategy → Integration tests":
       1. `tools/list` against the new runtime — passes (R11.2, R11.3, R11.4)
@@ -918,7 +918,7 @@ top of the Phase 0 EFS mount without re-doing the operational work.
     - File: `mcp_server_python/tests/integration/test_tenant_efs_mount.py` (new)
     - **Implements: Requirements 6.5, 8.6, 11.2, 11.3, 11.4, 13.1, 13.5 (live coverage)**
 
-  - [ ] 15.3 Run extended parity suite
+  - [x] 15.3 Run extended parity suite
     - `pytest mcp_server_python/tests/parity/ -m live --runtime python`
     - Diff against the Node.js baseline; expect zero deltas after the
       `*Tenant: gw*` header strip

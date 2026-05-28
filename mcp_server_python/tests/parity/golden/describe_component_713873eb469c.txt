@@ -1,0 +1,5 @@
+# Component: JGLOBAL_FORECAST
+
+**Path:** ${HOMEgfs}/dev/jobs/JGLOBAL_FORECAST
+**Type:** File
+**Size:** 6678 bytes

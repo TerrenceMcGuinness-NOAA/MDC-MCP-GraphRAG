@@ -70,3 +70,47 @@
 	path = supported_repos/global-workflow_gefs-v12
 	url = https://github.com/NOAA-EMC/global-workflow.git
 	branch = release/gefs_v12
+[submodule "supported_repos/nceplibs/NCEPLIBS-bacio"]
+	path = supported_repos/nceplibs/NCEPLIBS-bacio
+	url = https://github.com/NOAA-EMC/NCEPLIBS-bacio.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-bufr"]
+	path = supported_repos/nceplibs/NCEPLIBS-bufr
+	url = https://github.com/NOAA-EMC/NCEPLIBS-bufr.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-g2"]
+	path = supported_repos/nceplibs/NCEPLIBS-g2
+	url = https://github.com/NOAA-EMC/NCEPLIBS-g2.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-g2tmpl"]
+	path = supported_repos/nceplibs/NCEPLIBS-g2tmpl
+	url = https://github.com/NOAA-EMC/NCEPLIBS-g2tmpl.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-ip"]
+	path = supported_repos/nceplibs/NCEPLIBS-ip
+	url = https://github.com/NOAA-EMC/NCEPLIBS-ip.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-landsfcutil"]
+	path = supported_repos/nceplibs/NCEPLIBS-landsfcutil
+	url = https://github.com/NOAA-EMC/NCEPLIBS-landsfcutil.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-ncio"]
+	path = supported_repos/nceplibs/NCEPLIBS-ncio
+	url = https://github.com/NOAA-EMC/NCEPLIBS-ncio.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-nemsio"]
+	path = supported_repos/nceplibs/NCEPLIBS-nemsio
+	url = https://github.com/NOAA-EMC/NCEPLIBS-nemsio.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-sfcio"]
+	path = supported_repos/nceplibs/NCEPLIBS-sfcio
+	url = https://github.com/NOAA-EMC/NCEPLIBS-sfcio.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-sigio"]
+	path = supported_repos/nceplibs/NCEPLIBS-sigio
+	url = https://github.com/NOAA-EMC/NCEPLIBS-sigio.git
+	branch = develop
+[submodule "supported_repos/nceplibs/NCEPLIBS-w3emc"]
+	path = supported_repos/nceplibs/NCEPLIBS-w3emc
+	url = https://github.com/NOAA-EMC/NCEPLIBS-w3emc.git
+	branch = develop

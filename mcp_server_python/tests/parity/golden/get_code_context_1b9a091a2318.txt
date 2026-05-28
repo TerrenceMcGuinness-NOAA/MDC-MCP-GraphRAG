@@ -1,0 +1,64 @@
+# Code Context: `JGLOBAL_FORECAST`
+
+**Type**: ShellScript
+
+## GGSR Neighborhood (15)
+
+*Scored neighbours (294 tokens, budget 4000)*
+
+| Target | Rel | Weight | Score | Hop |
+|--------|-----|--------|-------|-----|
+| `err` | EXPORTS | 0.60 | 0.300 | 1 |
+| `fv3gfs_remap_weights.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `wave_prnc_ice.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `extractvars_tools.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `regrid_gsiSfcIncr_to_tile.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `prep_sfc_ice_blend.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `gfs_sndp.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `gaussian_sfcanl.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `forecast_postdet.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `wave_prnc_cur.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `radmon_verf_bcor.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `radmon_verf_bcoef.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `wave_grid_moddef.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `gfs_bufr.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+| `radmon_verf_time.sh` | EXPORTS | 0.60 | 0.150 | 2 |
+
+## Semantic Snippets (5)
+
+- **`1f910b321027b2e9`** (similarity 0.584) — !! \date 20 March 2021
+!!
+!-------------------------------------------------------------------------------
+subroutine ufo_gnssro_refmetoffice_setup(self, vert_interp_ops, pseudo_ops, min_temp_grad)
+
+i...
+- **`cf266aaac2ab6d26`** (similarity 0.584) — !! \date 20 March 2021
+!!
+!-------------------------------------------------------------------------------
+subroutine ufo_gnssro_refmetoffice_setup(self, vert_interp_ops, pseudo_ops, min_temp_grad)
+
+i...
+- **`8607d2f707d8b34e`** (similarity 0.584) — integer,save :: jouter_def=0
+contains
+subroutine jfunc_init
+ mockbkg=.false. ! fake background state (internally generated)
+ jiter=1         ! used as index for output spread - wired for now
+ jitersta...
+- **`d31ffa3eacc8d516`** (similarity 0.584) — integer,save :: jouter_def=0
+contains
+subroutine jfunc_init
+ mockbkg=.false. ! fake background state (internally generated)
+ jiter=1         ! used as index for output spread - wired for now
+ jitersta...
+- **`eb44ef2a54021b1a`** (similarity 0.584) — integer,save :: jouter_def=0
+contains
+subroutine jfunc_init
+ mockbkg=.false. ! fake background state (internally generated)
+ jiter=1         ! used as index for output spread - wired for now
+ jitersta...
+
+## Subsystem Context
+
+**Community 20729**
+
+Community 20729: 1 nodes (Mixed). Composition: 1 Community. Community: Community_L0_20729

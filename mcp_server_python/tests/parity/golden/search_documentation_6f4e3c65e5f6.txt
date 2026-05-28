@@ -1,0 +1,80 @@
+# Search Results: FV3 dynamical core
+
+Found 3 results (multi-collection search)
+
+## FV3: Finite-Volume Cubed-Sphere Dynamical Core – Geophysical Fluid Dynamics Laboratory
+**Similarity:** 100.0%
+**Source:** fv3-dynamical-core | **Collection:** global-workflow-docs-v8-0-0
+
+## FV3: Finite-Volume Cubed-Sphere Dynamical Core
+
+- FV3 Home
+- Key Components
+- Grids
+- Performance
+- Applications
+- The FV3 Team
+
+## Quick Links
+
+The GFDL Finite­-Volume Cubed-Sphere Dynamical Core (FV3) is a scalable and flexible dynamical core capable of both hydrostatic and non-hydrostatic atmospheric simulations. The design of FV3 was guided by these tenets:
+
+- The discretization should be guided by physical principles as much as possible.
+- A fast model can be a good model, but a good model must be a fast model! Computational efficiency is crucial.
+
+FV3 was "reverse engineered" to incorporate properties which have been used in engineering for decades, but only first adopted in atmospheric science by FV3.
+
+FV3 is the dynamical core for all GFDL weather and climate models, including the world-leadingAM4and the powerfulSHiELDunified weather-to-subseasonal prediction model andSPEARseamless coupled prediction system. FV3 has been chosen as the dynamical core for theUnified Forecast System (UFS), formerly the Next Generation Global Prediction System project (NGGPS). The UFS is designed to unify the National Weather Service's suite of prediction models, including the operational Global Forecast System (GFS) and regional models to run as a unified, fully-coupled system in the NOAA Environmental Modeling System infrastructure. FV3 was successfully implemented within the GFS, and the FV3-based GFSv15 became operational on 12 June 2019. Since then, the GFS and GFS Ensemble have both received further updates to FV3 and other model components. An FV3-based limited area model was implemented operationally in 2019 in the High-Resolution Ensemble Forecast (HREF), and form a key role in the upcoming implementations of the Hurricane Analysis and Forecast System (HAFS) and Rapidly-Refreshing Forecast System (RRFS).
+
+FV3 is also the dynamical core forNASA's GEOS global model,NASA's next-generation Mars Climate Model, and for other systems worldwide.
+
+This website describes FV3, including the evolution of its development, basic algorithm, and its global variable resolution capabilities, in both nested and stretched grid configurations. The Performance page explains how efficient FV3 can be.
+
+---
+
+## FV3: Key Components – Geophysical Fluid Dynamics Laboratory
+**Similarity:** 100.0%
+**Source:** fv3-dynamical-core | **Collection:** global-workflow-docs-v8-0-0
+
+## FV3: Finite-Volume Cubed-Sphere Dynamical Core
+
+- FV3 Home
+- Key Components
+- Grids
+- Performance
+- Applications
+- The FV3 Team
+
+## Key Components
+
+## Horizontal Discretization
+
+The horizontal discretization of FV3 is essentially the same as the original FV core (Lin and Rood, 1997; Lin 2004), except that all spatial averaging and pressure gradient operators have been upgraded from the 2nd to formally 4th­order accurate in the FV3. The FV shallow-water solver has discretization on D-grid, with C-grid winds which are interpolated from D-grid winds to compute fluxes. For the nonlinear vorticity flux term in the momentum equation, using D-grid allows exact computation of absolute vorticity with no averaging.
+
+More details on the horizontal discretization in FV3 is given in Harris and Lin (2013) and Harris (2016 JCLI, accepted).
+
+---
+
+## FV3: Applications – Geophysical Fluid Dynamics Laboratory
+**Similarity:** 100.0%
+**Source:** fv3-dynamical-core | **Collection:** global-workflow-docs-v8-0-0
+
+## FV3: Finite-Volume Cubed-Sphere Dynamical Core
+
+- FV3 Home
+- Key Components
+- Grids
+- Performance
+- Applications
+- The FV3 Team
+
+## Applications
+
+- SHiELD (formerly fvGFS) Real-time Forecasts
+- NGGPS Phase I Idealized Tests
+- NGGPS Phase I Full Physics Cloud-permitting Simulation
+- DCMIP 2016 Tests
+- NGGPS Phase II Full Physics Cloud-permitting Simulation
+- DYAMOND Global Cloud-Resolving Model Intercomparison
+
+---

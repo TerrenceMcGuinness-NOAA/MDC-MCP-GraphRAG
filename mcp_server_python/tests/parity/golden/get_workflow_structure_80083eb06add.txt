@@ -1,0 +1,11 @@
+# Global Workflow Structure
+
+**Root:** /mnt/workflow/develop
+
+## Component: jobs
+
+**Description:** Production Job Control Language (JCL) scripts
+
+**Pattern:** J*
+
+**Note:** Entry points for operational jobs
