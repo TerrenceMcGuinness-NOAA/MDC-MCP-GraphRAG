@@ -655,3 +655,168 @@ class TestProbeSkipSemantics:
 
         with pytest.raises(RuntimeError, match="R4.1#1"):
             await _smoke_branch_isolation(data, None)
+
+
+# ---------------------------------------------------------------------------
+# Property 6: Rollback isolation across config and data layers
+# Feature: omd-tenants-2-v17-pilot, Property 6: Rollback isolation across config and data layers
+# ---------------------------------------------------------------------------
+
+
+class TestP6RollbackIsolation:
+    """Property 6: Rollback isolation.
+
+    Removing a tenant's data via delete_tenant_indices only removes that
+    tenant's prefixed indices and labels; no unprefixed or other-tenant
+    data is touched.
+    """
+
+    def test_config_layer_removal_preserves_other_tenants(self, tmp_path):
+        """Removing a tenant from catalog leaves others byte-equal."""
+        import yaml
+        sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+        from config.tenants import load_catalog
+
+        catalog_yaml = tmp_path / "tenants.yaml"
+        tenants_data = {
+            "schema_version": 1,
+            "defaults": {"tenant_id": "gw", "staleness_threshold_days": 30},
+            "tenants": [
+                {"tenant_id": "gw", "repo_ref": "R", "branch": "develop",
+                 "index_prefix": "", "label_prefix": "",
+                 "workflow_subdir": "develop", "lifecycle": "production",
+                 "description": "d", "extends": []},
+                {"tenant_id": "gw_v17", "repo_ref": "R", "branch": "dev/gfs.v17",
+                 "index_prefix": "gw_v17_", "label_prefix": "GW_V17_",
+                 "workflow_subdir": "dev-v17", "lifecycle": "staging",
+                 "description": "d", "extends": []},
+            ],
+        }
+        catalog_yaml.write_text(yaml.dump(tenants_data))
+
+        # Snapshot gw tenant before removal
+        cat_before = load_catalog(str(catalog_yaml))
+        gw_before = cat_before.by_id("gw")
+
+        # Remove gw_v17 from catalog
+        tenants_data["tenants"] = [t for t in tenants_data["tenants"] if t["tenant_id"] != "gw_v17"]
+        catalog_yaml.write_text(yaml.dump(tenants_data))
+
+        cat_after = load_catalog(str(catalog_yaml))
+        gw_after = cat_after.by_id("gw")
+
+        # gw tenant unchanged
+        assert gw_before == gw_after
+        assert cat_after.defaults.tenant_id == "gw"
+        assert "gw_v17" not in cat_after.tenant_ids
+
+    @pytest.mark.asyncio
+    async def test_data_layer_deletes_only_target_prefix(self):
+        """Delete logic removes only T's prefixed indices and labels."""
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from delete_tenant_indices import _delete_tenant_data
+
+        # Stub data layer
+        all_indices = [
+            "mdc-workflow-docs-titan1024",       # unprefixed (gw)
+            "mdc-code-titan1024",                # unprefixed (gw)
+            "gw_v17_mdc-workflow-docs-titan1024", # v17
+            "gw_v17_mdc-code-titan1024",          # v17
+            "gw_sfs_mdc-workflow-docs-titan1024",  # another tenant
+            "mdc-content-sha-registry",           # system index
+        ]
+        deleted_indices: list[str] = []
+        cypher_calls: list[dict] = []
+
+        class StubVectorDB:
+            async def list_indices(self):
+                return all_indices
+
+            async def delete_index(self, name):
+                deleted_indices.append(name)
+
+        class StubGraphDB:
+            async def execute_cypher(self, query, params):
+                cypher_calls.append({"query": query, "params": params})
+
+        result = await _delete_tenant_data(
+            vector_db=StubVectorDB(),
+            graph_db=StubGraphDB(),
+            index_prefix="gw_v17_",
+            label_prefix="GW_V17_",
+            dry_run=False,
+        )
+
+        # Only gw_v17_ indices deleted
+        assert set(deleted_indices) == {
+            "gw_v17_mdc-workflow-docs-titan1024",
+            "gw_v17_mdc-code-titan1024",
+        }
+        # Unprefixed indices untouched
+        assert "mdc-workflow-docs-titan1024" not in deleted_indices
+        assert "mdc-content-sha-registry" not in deleted_indices
+        # Other tenant untouched
+        assert "gw_sfs_mdc-workflow-docs-titan1024" not in deleted_indices
+        # Neptune cypher called with correct prefix
+        assert len(cypher_calls) == 1
+        assert cypher_calls[0]["params"]["prefix"] == "GW_V17_"
+
+
+# ---------------------------------------------------------------------------
+# Secondary property: Empty-prefix refusal
+# Feature: omd-tenants-2-v17-pilot, Property: Empty-prefix refusal
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyPrefixRefusal:
+    """delete_tenant_indices refuses tenants with empty prefix (protects gw)."""
+
+    @pytest.mark.asyncio
+    async def test_empty_index_prefix_exits_2(self, tmp_path, monkeypatch):
+        """Tenant with empty index_prefix → exit 2, no AWS calls."""
+        import yaml
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from delete_tenant_indices import run_delete
+
+        catalog_yaml = tmp_path / "tenants.yaml"
+        catalog_yaml.write_text(yaml.dump({
+            "schema_version": 1,
+            "defaults": {"tenant_id": "gw", "staleness_threshold_days": 30},
+            "tenants": [
+                {"tenant_id": "gw", "repo_ref": "R", "branch": "develop",
+                 "index_prefix": "", "label_prefix": "",
+                 "workflow_subdir": "develop", "lifecycle": "production",
+                 "description": "d", "extends": []},
+            ],
+        }))
+
+        exit_code = await run_delete(
+            tenant_id="gw", catalog_path=str(catalog_yaml), dry_run=False,
+            vector_db=None, graph_db=None,
+        )
+        assert exit_code == 2
+
+    @pytest.mark.asyncio
+    async def test_empty_label_prefix_exits_2(self, tmp_path):
+        """Tenant with empty label_prefix → exit 2."""
+        import yaml
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from delete_tenant_indices import run_delete
+
+        catalog_yaml = tmp_path / "tenants.yaml"
+        catalog_yaml.write_text(yaml.dump({
+            "schema_version": 1,
+            "defaults": {"tenant_id": "t1", "staleness_threshold_days": 30},
+            "tenants": [
+                {"tenant_id": "t1", "repo_ref": "R", "branch": "b",
+                 "index_prefix": "t1_", "label_prefix": "",
+                 "workflow_subdir": "t1", "lifecycle": "staging",
+                 "description": "d", "extends": []},
+            ],
+        }))
+
+        exit_code = await run_delete(
+            tenant_id="t1", catalog_path=str(catalog_yaml), dry_run=False,
+            vector_db=None, graph_db=None,
+        )
+        assert exit_code == 2
