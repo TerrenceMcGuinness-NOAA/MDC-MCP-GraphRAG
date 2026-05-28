@@ -31,5 +31,8 @@ def attribute(body, tenant: "Tenant", *, now=None):
     if not isinstance(body, str):
         return body
     stale = " [STALE]" if tenant.lifecycle == "stale" else ""
-    header = f"*Tenant: {tenant.tenant_id}*{stale}\n\n"
+    lines = [f"*Tenant: {tenant.tenant_id}*{stale}"]
+    if tenant.branch:
+        lines.append(f"*Branch: {tenant.branch}*")
+    header = "\n".join(lines) + "\n\n"
     return header + body
