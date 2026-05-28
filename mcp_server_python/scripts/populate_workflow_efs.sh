@@ -100,6 +100,15 @@ add_or_update_worktree() {
     echo "[STEP] git worktree add ${target} ${branch}"
     sudo git "${GIT_OPTS[@]}" -C "${STAGING_MNT}/.git" worktree add "${target}" "${branch}"
   fi
+
+  # Initialize submodules recursively so the full source tree is available
+  # for code ingestion (find_dependencies, find_callers_callees, etc.).
+  # Without this, sorc/ subdirectories are empty and the Neptune graph
+  # has no Fortran/Python nodes to traverse.
+  # --depth 1: only the pinned SHA's working tree, no history (~1-2 GB vs ~4 GB per tenant).
+  echo "[STEP] ${subdir}: submodule update --init --recursive --depth 1"
+  sudo git "${GIT_OPTS[@]}" -C "${target}" submodule update --init --recursive --depth 1
+
   sudo chown -R 1000:1000 "${target}"
 }
 

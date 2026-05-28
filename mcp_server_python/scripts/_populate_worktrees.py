@@ -27,7 +27,9 @@ def _worktree_exists(bare_repo: Path, target: Path) -> bool:
     return f"worktree {target}\n" in result.stdout
 
 
-def add_or_update_worktree(bare_repo: Path, target: Path, branch: str) -> None:
+def add_or_update_worktree(
+    bare_repo: Path, target: Path, branch: str, *, init_submodules: bool = True
+) -> None:
     """Add a new worktree or fast-forward an existing one.
 
     For existing worktrees: fetch origin <branch> from the worktree
@@ -36,6 +38,12 @@ def add_or_update_worktree(bare_repo: Path, target: Path, branch: str) -> None:
     worktrees lack refs/remotes/origin/*, so `git pull` fails.
 
     For new worktrees: `git worktree add <target> <branch>`.
+
+    When ``init_submodules`` is True (default), runs
+    ``git submodule update --init --recursive`` after create/update
+    so the full source tree (sorc/ufs_model, sorc/gsi, etc.) is
+    available for code ingestion and graph traversal tools
+    (find_dependencies, find_callers_callees, trace_execution_path).
     """
     if _worktree_exists(bare_repo, target):
         # Update: fetch + merge from the worktree directory
@@ -44,6 +52,13 @@ def add_or_update_worktree(bare_repo: Path, target: Path, branch: str) -> None:
     else:
         # Create
         _git(["worktree", "add", str(target), branch], cwd=bare_repo)
+
+    # Initialize submodules so the full dependency tree is on disk.
+    # Each branch pins its own submodule SHAs (different UFS, FV3, GSI
+    # versions per tenant), so this must run per-worktree.
+    # --depth 1: only the pinned SHA's tree, no history (saves ~50% disk).
+    if init_submodules:
+        _git(["submodule", "update", "--init", "--recursive", "--depth", "1"], cwd=target)
 
 
 def populate_all(
