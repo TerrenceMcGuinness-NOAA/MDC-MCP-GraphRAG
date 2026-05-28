@@ -82,3 +82,26 @@ def resolve_worktree_root(tenant: "Tenant") -> Path:
     if override:
         return Path(override) / tenant.workflow_subdir
     return tenant.workflow_root
+
+
+async def build_ingestion_data_access():
+    """Build and connect the data access layer for ingestion scripts.
+
+    Returns (uda, raw_os_client) where:
+      - uda is the UnifiedDataAccess facade (vector_db + graph_db)
+      - raw_os_client is the underlying opensearch-py client for
+        SHAIndex and direct document writes
+    """
+    from src.config.environment import load_config
+    from src.data.backend_selector import create_data_access
+
+    config = load_config()
+    uda = await create_data_access(config)
+
+    if uda.vector_db is None:
+        raise RuntimeError(
+            "vector_db is None — check OPENSEARCH_ENDPOINT env var"
+        )
+
+    raw_os_client = uda.vector_db._raw_client()
+    return uda, raw_os_client
