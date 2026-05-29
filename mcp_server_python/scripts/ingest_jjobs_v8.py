@@ -69,7 +69,9 @@ async def main() -> int:
     for path in files:
         try:
             content = path.read_text(errors="strict")
-        except (UnicodeDecodeError, ValueError):
+        except (UnicodeDecodeError, ValueError, OSError):
+            continue
+        if not content.strip():
             continue
 
         report.increment("total_files_processed")

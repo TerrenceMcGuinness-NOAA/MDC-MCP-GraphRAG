@@ -65,10 +65,12 @@ async def main() -> int:
     report = IngestionReportWriter(tenant.tenant_id, tenant.branch, mode)
 
     for path in files:
-        # Skip binary files
+        # Skip binary files, broken symlinks, and empty files
         try:
             content = path.read_text(errors="strict")
-        except (UnicodeDecodeError, ValueError):
+        except (UnicodeDecodeError, ValueError, OSError):
+            continue
+        if not content.strip():
             continue
 
         report.increment("total_files_processed")

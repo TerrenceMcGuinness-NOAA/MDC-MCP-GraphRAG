@@ -59,8 +59,12 @@ class SHAIndex:
         if self._client is None:
             return DedupeResult(is_duplicate=False, canonical_index=None, canonical_id=None)
 
+        import asyncio
+
         body = {"query": {"term": {"sha": sha}}, "size": 1}
-        resp = await self._client.search(index=self.REGISTRY_INDEX, body=body)
+        resp = await asyncio.to_thread(
+            self._client.search, index=self.REGISTRY_INDEX, body=body
+        )
         hits = resp.get("hits", {}).get("hits", [])
         if not hits:
             return DedupeResult(is_duplicate=False, canonical_index=None, canonical_id=None)
@@ -77,6 +81,7 @@ class SHAIndex:
         if self._client is None:
             return
 
+        import asyncio
         from datetime import datetime, timezone
 
         doc = {
@@ -86,9 +91,10 @@ class SHAIndex:
             "doc_id": doc_id,
             "first_seen_at": datetime.now(timezone.utc).isoformat(),
         }
-        await self._client.index(
+        await asyncio.to_thread(
+            self._client.index,
             index=self.REGISTRY_INDEX,
-            id=sha,  # upsert by SHA — idempotent
+            id=sha,
             body=doc,
         )
 
