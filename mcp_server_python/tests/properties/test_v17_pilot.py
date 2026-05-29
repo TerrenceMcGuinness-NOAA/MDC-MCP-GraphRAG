@@ -777,10 +777,11 @@ class TestP6RollbackIsolation:
     @pytest.mark.asyncio
     async def test_data_layer_deletes_only_target_prefix(self):
         """Delete logic removes only T's prefixed indices and labels."""
+        import fnmatch
         sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
         from delete_tenant_indices import _delete_tenant_data
 
-        # Stub data layer
+        # Real-contract doubles: the raw opensearch-py client + NeptuneAdapter.query.
         all_indices = [
             "mdc-workflow-docs-titan1024",       # unprefixed (gw)
             "mdc-code-titan1024",                # unprefixed (gw)
@@ -790,22 +791,26 @@ class TestP6RollbackIsolation:
             "mdc-content-sha-registry",           # system index
         ]
         deleted_indices: list[str] = []
-        cypher_calls: list[dict] = []
+        graph_queries: list[tuple] = []
 
-        class StubVectorDB:
-            async def list_indices(self):
-                return all_indices
+        class FakeIndices:
+            def get_alias(self, *, index):
+                return {n: {} for n in all_indices if fnmatch.fnmatch(n, index)}
 
-            async def delete_index(self, name):
-                deleted_indices.append(name)
+            def delete(self, *, index):
+                deleted_indices.append(index)
 
-        class StubGraphDB:
-            async def execute_cypher(self, query, params):
-                cypher_calls.append({"query": query, "params": params})
+        class FakeRawClient:
+            indices = FakeIndices()
+
+        class FakeGraphDB:
+            async def query(self, cypher, params=None, *, tenant=None):
+                graph_queries.append((cypher, params, tenant))
+                return []
 
         result = await _delete_tenant_data(
-            vector_db=StubVectorDB(),
-            graph_db=StubGraphDB(),
+            graph_db=FakeGraphDB(),
+            raw_os_client=FakeRawClient(),
             index_prefix="gw_v17_",
             label_prefix="GW_V17_",
             dry_run=False,
@@ -821,9 +826,10 @@ class TestP6RollbackIsolation:
         assert "mdc-content-sha-registry" not in deleted_indices
         # Other tenant untouched
         assert "gw_sfs_mdc-workflow-docs-titan1024" not in deleted_indices
-        # Neptune cypher called with correct prefix
-        assert len(cypher_calls) == 1
-        assert cypher_calls[0]["params"]["prefix"] == "GW_V17_"
+        # Neptune query called with correct prefix and tenant=None (no rewrite)
+        assert len(graph_queries) == 1
+        assert graph_queries[0][1] == {"prefix": "GW_V17_"}
+        assert graph_queries[0][2] is None
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,59 @@
 # MCP Server Changelog
 
+## [8.27.0] - Bugfix rollback-cli-real-adapters: make delete_tenant_indices.py run against real AWS (May 29, 2026)
+
+### Summary
+
+The tenant rollback CLI `delete_tenant_indices.py` passed its unit tests but
+could not run against real AWS — it failed on the first call with
+`AttributeError: 'NoneType' object has no attribute 'list_indices'`. Surfaced
+while preparing the `gw_v17` cleanup (Task 12 of `ingest-dedupe-and-graph-fix`).
+Spec: `.kiro/specs/rollback-cli-real-adapters/` (bugfix workflow). Tasks 1–8
+(code phase) complete; Task 9 (live dry-run) operator-run.
+
+### Defects fixed
+
+- **Data layer never wired.** `main()` hardcoded `vector_db = None` /
+  `graph_db = None` behind a `TODO(Phase C)` comment. Now builds a connected
+  `UnifiedDataAccess` via the existing `build_ingestion_data_access()` helper
+  (connect failure → exit 1; `uda.close()` in `finally`).
+- **Four fictional adapter methods.** The deletion logic called
+  `list_indices` / `delete_index` / `delete_by_query` / `execute_cypher` —
+  none of which exist on the real adapters. Re-implemented against the real
+  surface: the raw opensearch-py client (`OpenSearchAdapter._raw_client()`) for
+  `indices.get_alias` / `indices.delete` / `delete_by_query`, and
+  `NeptuneAdapter.query(cypher, params=, tenant=None)` for the `DETACH DELETE`.
+  `tenant=None` is required so `_rewrite_cypher` does not re-prefix the
+  already-prefixed label match. `get_alias` `NotFoundError` (no index matches
+  the glob) is treated as zero target indices.
+- **Mock-fidelity gap.** The unit doubles implemented the fictional methods, so
+  CI stayed green while the tool was non-functional. Doubles rewritten as a
+  `FakeRawClient` (`.indices.get_alias`/`.delete`, `delete_by_query`) and a
+  `FakeGraphDB.query(...)` matching the real contract, plus a `TestMockFidelity`
+  guard asserting the fictional methods are absent.
+
+### Preserved (regression prevention)
+
+Exit codes (unknown→1, empty-prefix `gw`→2, success→0), the `gw` empty-prefix
+guard (even with `--clear-registry-entries`), `--dry-run` zero-mutation, prefix-
+scoped deletion, registry-index preservation, and the `DETACH DELETE` label
+scoping — all unchanged.
+
+### Tests
+
+42 passed (16 rollback unit + 26 v17-pilot property, no regression). The
+exploration tests flip fail→pass on the fixed code; the P6 property test in
+`test_v17_pilot.py` was updated to the real-contract doubles to match the new
+`_delete_tenant_data` signature.
+
+### Operational tooling
+
+Adds `scripts/remediate_v17_reingest.sh` — idempotent/resumable overnight
+wrapper for Task 12: dry-run → (gated) destructive rollback → re-ingest
+documentation/code/jjobs → empirical verify (real code content, per-collection
+registry keys, non-empty `GW_V17_` graph). Pre-flight refuses unless both the
+rollback-cli and dedupe-graph fixes are present and `CONFIRM_DESTRUCTIVE=yes`.
+
 ## [8.26.0] - Bugfix ingest-dedupe-and-graph-fix: collection-scoped dedupe + unconditional graph write (May 29, 2026)
 
 ### Summary

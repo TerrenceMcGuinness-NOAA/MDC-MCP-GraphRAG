@@ -29,8 +29,8 @@ from _ingest_dedupe import SHAIndex  # noqa: E402  (shared registry-index name)
 
 async def _delete_tenant_data(
     *,
-    vector_db: Any,
     graph_db: Any,
+    raw_os_client: Any,
     index_prefix: str,
     label_prefix: str,
     dry_run: bool,
@@ -39,13 +39,24 @@ async def _delete_tenant_data(
 ) -> list[str]:
     """Core deletion logic (testable without argparse).
 
-    Returns list of deleted index names (empty on dry-run).
+    Index operations go through the raw opensearch-py client
+    (``raw_os_client.indices.get_alias`` / ``.delete`` and
+    ``raw_os_client.delete_by_query``); Neptune node deletion uses
+    ``graph_db.query(..., tenant=None)``. Returns the list of deleted index
+    names (empty on dry-run).
     """
-    all_indices = await vector_db.list_indices()
-    target_indices = [
-        idx for idx in all_indices
-        if idx.startswith(index_prefix)
-    ]
+    from opensearchpy.exceptions import NotFoundError
+
+    # 1. list candidate indices via the raw client; a glob with no match
+    #    raises NotFoundError → treat as zero indices, not an error.
+    try:
+        alias_map = await asyncio.to_thread(
+            raw_os_client.indices.get_alias, index=f"{index_prefix}*"
+        )
+        all_prefixed = list(alias_map.keys())
+    except NotFoundError:
+        all_prefixed = []
+    target_indices = [i for i in all_prefixed if i.startswith(index_prefix)]
 
     print(f"# OpenSearch indices to delete ({len(target_indices)}):")
     for idx in target_indices:
@@ -61,18 +72,23 @@ async def _delete_tenant_data(
         print("# [DRY-RUN] no mutations performed.")
         return []
 
+    # 2. delete each prefixed index
     for idx in target_indices:
-        await vector_db.delete_index(idx)
+        await asyncio.to_thread(raw_os_client.indices.delete, index=idx)
 
+    # 3. Neptune DETACH DELETE via the real query() — tenant=None so
+    #    _rewrite_cypher does not re-prefix the already-prefixed label match.
     cypher = (
         "MATCH (n) "
         "WHERE any(label IN labels(n) WHERE label STARTS WITH $prefix) "
         "DETACH DELETE n"
     )
-    await graph_db.execute_cypher(cypher, {"prefix": label_prefix})
+    await graph_db.query(cypher, params={"prefix": label_prefix}, tenant=None)
 
+    # 4. registry delete-by-query (only with the flag); index itself preserved.
     if clear_registry_entries:
-        await vector_db.delete_by_query(
+        await asyncio.to_thread(
+            raw_os_client.delete_by_query,
             index=SHAIndex.REGISTRY_INDEX,
             body={"query": {"term": {"tenant_id": tenant_id}}},
         )
@@ -89,9 +105,15 @@ async def run_delete(
     dry_run: bool,
     vector_db: Any | None = None,
     graph_db: Any | None = None,
+    raw_os_client: Any | None = None,
     clear_registry_entries: bool = False,
 ) -> int:
-    """Main logic — returns exit code (0=success, 1=unknown, 2=refused)."""
+    """Main logic — returns exit code (0=success, 1=unknown, 2=refused).
+
+    ``vector_db`` is accepted for call-site symmetry / the DI test seam but is
+    not used for index management — those operations go through the raw
+    opensearch-py client (``raw_os_client``).
+    """
     from src.config.tenants import load_catalog
 
     catalog = load_catalog(catalog_path)
@@ -116,8 +138,8 @@ async def run_delete(
     print(f"# Plan for tenant={tenant.tenant_id} (dry_run={dry_run})")
 
     await _delete_tenant_data(
-        vector_db=vector_db,
         graph_db=graph_db,
+        raw_os_client=raw_os_client,
         index_prefix=tenant.index_prefix,
         label_prefix=tenant.label_prefix,
         dry_run=dry_run,
@@ -142,19 +164,31 @@ async def main() -> int:
                         "mdc-content-sha-registry (the index itself is preserved).")
     args = p.parse_args()
 
-    # Build real data access layer (only when not testing)
-    # TODO(Phase C): wire build_unified_data_access() here
-    vector_db = None
-    graph_db = None
+    # Build the real connected data layer (same helper the ingestion scripts use).
+    from _ingest_common import build_ingestion_data_access
 
-    return await run_delete(
-        tenant_id=args.tenant,
-        catalog_path=args.catalog,
-        dry_run=args.dry_run,
-        vector_db=vector_db,
-        graph_db=graph_db,
-        clear_registry_entries=args.clear_registry_entries,
-    )
+    uda = None
+    try:
+        uda, raw_os_client = await build_ingestion_data_access()
+    except Exception as e:
+        print(f"[ERROR] failed to connect data layer: {e}", file=sys.stderr)
+        print("  Check DB_BACKEND / OPENSEARCH_ENDPOINT / NEPTUNE_ENDPOINT / AWS_REGION",
+              file=sys.stderr)
+        return 1
+
+    try:
+        return await run_delete(
+            tenant_id=args.tenant,
+            catalog_path=args.catalog,
+            dry_run=args.dry_run,
+            vector_db=uda.vector_db,
+            graph_db=uda.graph_db,
+            raw_os_client=raw_os_client,
+            clear_registry_entries=args.clear_registry_entries,
+        )
+    finally:
+        if uda is not None:
+            await uda.close()
 
 
 if __name__ == "__main__":
