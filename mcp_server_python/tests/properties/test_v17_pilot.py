@@ -179,16 +179,16 @@ class TestP5DedupeCorrectnessAndCounts:
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_bytes(content)
 
-            # Stub in-memory registry
-            registry: dict[str, dict] = {}
+            # Stub in-memory registry keyed by (collection, sha)
+            registry: dict[tuple[str, str], dict] = {}
 
             class StubSHAIndex(SHAIndex):
                 def __init__(self):
                     pass  # no real client
 
-                async def lookup(self, sha: str) -> DedupeResult:
-                    if sha in registry:
-                        r = registry[sha]
+                async def lookup(self, sha: str, *, collection: str) -> DedupeResult:
+                    if (collection, sha) in registry:
+                        r = registry[(collection, sha)]
                         return DedupeResult(
                             is_duplicate=True,
                             canonical_index=r["index"],
@@ -196,32 +196,35 @@ class TestP5DedupeCorrectnessAndCounts:
                         )
                     return DedupeResult(is_duplicate=False, canonical_index=None, canonical_id=None)
 
-                async def register(self, sha: str, *, tenant, index: str, doc_id: str) -> None:
-                    registry[sha] = {"tenant_id": tenant.tenant_id, "index": index, "doc_id": doc_id}
+                async def register(self, sha: str, *, collection: str, tenant, index: str, doc_id: str) -> None:
+                    registry[(collection, sha)] = {
+                        "tenant_id": tenant.tenant_id, "index": index, "doc_id": doc_id,
+                    }
 
             idx = StubSHAIndex()
             tenant_a = _FakeTenant(tenant_id="gw", branch="develop", lifecycle="production")
             tenant_b = _FakeTenant(tenant_id="gw_v17", branch="dev/gfs.v17", lifecycle="staging")
 
-            # Phase 1: ingest all files under tenant A
+            # Phase 1: ingest all files under tenant A (collection=code)
             embedding_calls_a = 0
             for relpath in tree:
                 p = tmp_path / relpath
                 sha = idx.hash_file(p)
-                result = await idx.lookup(sha)
+                result = await idx.lookup(sha, collection="code")
                 assert not result.is_duplicate
                 doc_id = f"a_{sha[:8]}"
-                await idx.register(sha, tenant=tenant_a, index="mdc-workflow-docs-titan1024", doc_id=doc_id)
+                await idx.register(sha, collection="code", tenant=tenant_a,
+                                   index="mdc-code-titan1024", doc_id=doc_id)
                 embedding_calls_a += 1
 
-            # Phase 2: ingest same files under tenant B
+            # Phase 2: ingest same files under tenant B (same collection=code)
             documents_deduped = 0
             embedding_calls_b = 0
             reference_docs = []
             for relpath in tree:
                 p = tmp_path / relpath
                 sha = idx.hash_file(p)
-                result = await idx.lookup(sha)
+                result = await idx.lookup(sha, collection="code")
                 if result.is_duplicate:
                     ref = make_reference_document(
                         tenant=tenant_b,
@@ -246,7 +249,7 @@ class TestP5DedupeCorrectnessAndCounts:
             for ref in reference_docs:
                 assert ref["metadata"]["is_reference"] is True
                 assert ref["metadata"]["canonical_tenant"] == "gw"
-                assert ref["metadata"]["canonical_index"] == "mdc-workflow-docs-titan1024"
+                assert ref["metadata"]["canonical_index"] == "mdc-code-titan1024"
                 assert ref["metadata"]["canonical_id"] is not None
                 assert ref["embedding"] is None
                 assert ref["content"] == "<reference: see canonical doc>"
@@ -257,6 +260,67 @@ class TestP5DedupeCorrectnessAndCounts:
             assert dedupe_pct == 100.0
             assert embedding_calls_a == total_files
             assert embedding_calls_b == total_files - documents_deduped
+
+    @pytest.mark.asyncio
+    async def test_collection_dimension_preservation(self):
+        """Preservation across the collection dimension (design P5 cases 1-4).
+
+        On the fixed (collection, sha)-keyed registry:
+        - a never-seen (collection, sha) is embedded (not a duplicate);
+        - docs-then-code in the SAME tenant is NOT a duplicate → embedded once
+          per collection (the formerly-buggy masking case is gone);
+        - cross-tenant WITHIN a collection still dedupes (preserved);
+        - the documentation ingestion pass models no graph node.
+        """
+        sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
+        from _ingest_dedupe import DedupeResult, SHAIndex
+
+        registry: dict[tuple[str, str], dict] = {}
+
+        class StubSHAIndex(SHAIndex):
+            def __init__(self):
+                pass
+
+            async def lookup(self, sha: str, *, collection: str) -> DedupeResult:
+                if (collection, sha) in registry:
+                    r = registry[(collection, sha)]
+                    return DedupeResult(True, r["index"], r["doc_id"])
+                return DedupeResult(False, None, None)
+
+            async def register(self, sha: str, *, collection: str, tenant, index: str, doc_id: str) -> None:
+                registry[(collection, sha)] = {
+                    "tenant_id": tenant.tenant_id, "index": index, "doc_id": doc_id,
+                }
+
+        idx = StubSHAIndex()
+        gw = _FakeTenant(tenant_id="gw", branch="develop", lifecycle="production")
+        v17 = _FakeTenant(tenant_id="gw_v17", branch="dev/gfs.v17", lifecycle="staging")
+
+        # Case 2: never-seen (collection, sha) → not a duplicate → embed.
+        assert (await idx.lookup("aaaa", collection="code")).is_duplicate is False
+
+        # Case 4: documentation registers a sha; the code pass over the SAME sha
+        # in the SAME tenant is NOT a duplicate (the formerly-buggy masking case)
+        # → embedded once per collection.
+        await idx.register("bbbb", collection="documentation", tenant=v17,
+                           index="gw_v17_mdc-workflow-docs-titan1024", doc_id="d1")
+        assert (await idx.lookup("bbbb", collection="code")).is_duplicate is False
+        await idx.register("bbbb", collection="code", tenant=v17,
+                           index="gw_v17_mdc-code-titan1024", doc_id="c1")
+        assert ("documentation", "bbbb") in registry
+        assert ("code", "bbbb") in registry
+
+        # Case 1: cross-tenant WITHIN a collection still dedupes (preserved).
+        await idx.register("cccc", collection="code", tenant=gw,
+                           index="mdc-code-titan1024", doc_id="canon")
+        dup = await idx.lookup("cccc", collection="code")
+        assert dup.is_duplicate is True
+        assert dup.canonical_index == "mdc-code-titan1024"
+
+        # Case 3: the documentation ingestion pass models NO graph node.
+        doc_src = (Path(__file__).parents[2] / "scripts"
+                   / "ingest_documentation_v8.py").read_text()
+        assert "graph_db" not in doc_src
 
 
 # ---------------------------------------------------------------------------

@@ -69,7 +69,7 @@ class TestSHAIndexNoClient:
     async def test_lookup_returns_not_duplicate_without_client(self):
         """lookup with no client returns DedupeResult(False, None, None)."""
         idx = SHAIndex(client=None)
-        result = await idx.lookup("abc123")
+        result = await idx.lookup("abc123", collection="code")
         assert result == DedupeResult(is_duplicate=False, canonical_index=None, canonical_id=None)
 
     @pytest.mark.asyncio
@@ -77,8 +77,67 @@ class TestSHAIndexNoClient:
         """register with no client does not raise."""
         idx = SHAIndex(client=None)
         t = _FakeTenant(tenant_id="gw", branch="develop", lifecycle="production")
-        await idx.register("abc", tenant=t, index="idx", doc_id="d1")
+        await idx.register("abc", collection="code", tenant=t, index="idx", doc_id="d1")
         # No exception = success
+
+
+# ---------------------------------------------------------------------------
+# SHAIndex (collection, sha) key — round-trip + composite id (against a fake
+# in-memory opensearch-py client)
+# ---------------------------------------------------------------------------
+
+
+class _FakeOSClient:
+    """In-memory double for the opensearch-py client (fixed query shape)."""
+
+    def __init__(self):
+        self.store: dict[str, dict] = {}
+
+    def index(self, index, id, body):  # noqa: A002
+        self.store[id] = dict(body)
+
+    def search(self, index, body):
+        want = {}
+        for f in body["query"]["bool"]["filter"]:
+            (field, value), = f["term"].items()
+            want[field] = value
+        for src in self.store.values():
+            if all(src.get(k) == v for k, v in want.items()):
+                return {"hits": {"hits": [{"_source": src}]}}
+        return {"hits": {"hits": []}}
+
+
+class TestSHAIndexCollectionKey:
+    @pytest.mark.asyncio
+    async def test_collection_sha_round_trip(self):
+        """A SHA registered under one collection is NOT found under another,
+        and IS found under the same collection."""
+        idx = SHAIndex(client=_FakeOSClient())
+        t = _FakeTenant(tenant_id="gw_v17", branch="dev/gfs.v17", lifecycle="staging")
+        await idx.register("sha1", collection="documentation", tenant=t,
+                           index="gw_v17_mdc-workflow-docs-titan1024", doc_id="d1")
+
+        assert (await idx.lookup("sha1", collection="code")).is_duplicate is False
+
+        same = await idx.lookup("sha1", collection="documentation")
+        assert same.is_duplicate is True
+        assert same.canonical_index == "gw_v17_mdc-workflow-docs-titan1024"
+        assert same.canonical_id == "d1"
+
+    @pytest.mark.asyncio
+    async def test_composite_id_and_collection_in_body(self):
+        """register writes id=f'{collection}:{sha}' and a collection field."""
+        client = _FakeOSClient()
+        idx = SHAIndex(client=client)
+        t = _FakeTenant(tenant_id="gw_v17", branch="dev/gfs.v17", lifecycle="staging")
+        await idx.register("9f8e", collection="code", tenant=t,
+                           index="gw_v17_mdc-code-titan1024", doc_id="code_9f8e")
+
+        assert "code:9f8e" in client.store
+        body = client.store["code:9f8e"]
+        assert body["collection"] == "code"
+        assert body["sha"] == "9f8e"
+        assert body["tenant_id"] == "gw_v17"
 
 
 # ---------------------------------------------------------------------------

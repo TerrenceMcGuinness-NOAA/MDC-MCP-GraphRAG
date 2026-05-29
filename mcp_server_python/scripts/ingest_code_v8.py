@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from _ingest_common import (
+    COLLECTION_CODE,
     build_ingestion_data_access,
     build_ingestion_parser,
     resolve_tenant_and_mode,
@@ -73,7 +74,7 @@ async def main() -> int:
         sha = sha_index.hash_file(path)
 
         try:
-            result = await sha_index.lookup(sha)
+            result = await sha_index.lookup(sha, collection=COLLECTION_CODE)
 
             if result.is_duplicate:
                 ref = make_reference_document(
@@ -107,18 +108,21 @@ async def main() -> int:
                 report.increment("estimated_tokens", len(truncated) // 4)
                 report.increment(f"docs:{index_name}")
 
-                # Graph node
-                cypher = (
-                    f"MERGE (n:`{label}` {{name: $name, path: $path}}) "
-                    f"SET n.tenant_id = $tenant_id, n.sha256 = $sha"
+                await sha_index.register(
+                    sha, collection=COLLECTION_CODE, tenant=tenant,
+                    index=index_name, doc_id=doc_id,
                 )
-                await uda.graph_db.query(cypher, params={
-                    "name": path.stem, "path": str(path),
-                    "tenant_id": tenant.tenant_id, "sha": sha,
-                })
-                report.increment(f"nodes:{label}")
 
-                await sha_index.register(sha, tenant=tenant, index=index_name, doc_id=doc_id)
+            # ALWAYS model the graph — independent of the embedding/dedupe decision
+            cypher = (
+                f"MERGE (n:`{label}` {{name: $name, path: $path}}) "
+                f"SET n.tenant_id = $tenant_id, n.sha256 = $sha"
+            )
+            await uda.graph_db.query(cypher, params={
+                "name": path.stem, "path": str(path),
+                "tenant_id": tenant.tenant_id, "sha": sha,
+            })
+            report.increment(f"nodes:{label}")
 
         except Exception as exc:
             print(f"[WARN] {path.name}: {exc}", file=sys.stderr)

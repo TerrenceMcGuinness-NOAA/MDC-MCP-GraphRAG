@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from _ingest_common import (
+    COLLECTION_DOCUMENTATION,
     build_ingestion_data_access,
     build_ingestion_parser,
     resolve_tenant_and_mode,
@@ -77,7 +78,7 @@ async def main() -> int:
         sha = sha_index.hash_file(path)
 
         try:
-            result = await sha_index.lookup(sha)
+            result = await sha_index.lookup(sha, collection=COLLECTION_DOCUMENTATION)
 
             if result.is_duplicate:
                 ref = make_reference_document(
@@ -112,7 +113,10 @@ async def main() -> int:
                 report.increment("bedrock_invocations")
                 report.increment("estimated_tokens", len(truncated) // 4)
                 report.increment(f"docs:{index_name}")
-                await sha_index.register(sha, tenant=tenant, index=index_name, doc_id=doc_id)
+                await sha_index.register(
+                    sha, collection=COLLECTION_DOCUMENTATION, tenant=tenant,
+                    index=index_name, doc_id=doc_id,
+                )
 
         except Exception as exc:
             print(f"[WARN] {path.name}: {exc}", file=sys.stderr)

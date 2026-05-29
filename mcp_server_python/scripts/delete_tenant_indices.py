@@ -24,6 +24,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
+from _ingest_dedupe import SHAIndex  # noqa: E402  (shared registry-index name)
+
 
 async def _delete_tenant_data(
     *,
@@ -32,6 +34,8 @@ async def _delete_tenant_data(
     index_prefix: str,
     label_prefix: str,
     dry_run: bool,
+    tenant_id: str = "",
+    clear_registry_entries: bool = False,
 ) -> list[str]:
     """Core deletion logic (testable without argparse).
 
@@ -47,6 +51,11 @@ async def _delete_tenant_data(
     for idx in target_indices:
         print(f"  - {idx}")
     print(f"# Neptune nodes to delete: labels starting with {label_prefix!r}")
+    if clear_registry_entries:
+        print(
+            f"# Registry entries to clear: {SHAIndex.REGISTRY_INDEX} "
+            f"where tenant_id == {tenant_id!r} (the index itself is preserved)"
+        )
 
     if dry_run:
         print("# [DRY-RUN] no mutations performed.")
@@ -62,6 +71,13 @@ async def _delete_tenant_data(
     )
     await graph_db.execute_cypher(cypher, {"prefix": label_prefix})
 
+    if clear_registry_entries:
+        await vector_db.delete_by_query(
+            index=SHAIndex.REGISTRY_INDEX,
+            body={"query": {"term": {"tenant_id": tenant_id}}},
+        )
+        print(f"[OK] cleared registry entries for tenant_id={tenant_id!r}.")
+
     print(f"[OK] tenant data cleaned up ({len(target_indices)} indices deleted).")
     return target_indices
 
@@ -73,6 +89,7 @@ async def run_delete(
     dry_run: bool,
     vector_db: Any | None = None,
     graph_db: Any | None = None,
+    clear_registry_entries: bool = False,
 ) -> int:
     """Main logic — returns exit code (0=success, 1=unknown, 2=refused)."""
     from src.config.tenants import load_catalog
@@ -104,6 +121,8 @@ async def run_delete(
         index_prefix=tenant.index_prefix,
         label_prefix=tenant.label_prefix,
         dry_run=dry_run,
+        tenant_id=tenant.tenant_id,
+        clear_registry_entries=clear_registry_entries,
     )
     return 0
 
@@ -118,6 +137,9 @@ async def main() -> int:
                    help="Print what would be deleted, then exit 0.")
     p.add_argument("--catalog", default="src/config/tenants.yaml",
                    help="Path to tenants.yaml catalog file.")
+    p.add_argument("--clear-registry-entries", action="store_true",
+                   help="Also clear this tenant's entries in the shared "
+                        "mdc-content-sha-registry (the index itself is preserved).")
     args = p.parse_args()
 
     # Build real data access layer (only when not testing)
@@ -131,6 +153,7 @@ async def main() -> int:
         dry_run=args.dry_run,
         vector_db=vector_db,
         graph_db=graph_db,
+        clear_registry_entries=args.clear_registry_entries,
     )
 
 

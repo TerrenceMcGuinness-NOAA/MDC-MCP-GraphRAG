@@ -33,7 +33,9 @@ class SHAIndex:
 
     The registry lives in a single unprefixed OpenSearch index
     ``mdc-content-sha-registry`` (lifecycle: shared, system-level).
-    Each entry: {sha, tenant_id, index, doc_id, first_seen_at}.
+    Each entry: {sha, collection, tenant_id, index, doc_id, first_seen_at},
+    keyed by the composite id ``f"{collection}:{sha}"`` so a SHA seen
+    under one collection does not mask it in another.
 
     Constructor accepts an optional ``client`` (OpenSearch-like object
     with async ``search`` and ``index`` methods) for dependency
@@ -54,14 +56,26 @@ class SHAIndex:
                 h.update(chunk)
         return h.hexdigest()
 
-    async def lookup(self, sha: str) -> DedupeResult:
-        """Check if a SHA exists in the cross-tenant registry."""
+    async def lookup(self, sha: str, *, collection: str) -> DedupeResult:
+        """Check if a (collection, sha) exists in the cross-tenant registry.
+
+        Scoped by ``(collection, sha)`` so a SHA registered under one
+        collection does not mask the same SHA in a different collection.
+        Lookup matches regardless of tenant — the canonical doc may belong
+        to any tenant (cross-tenant embedding optimization, clause 3.1).
+        """
         if self._client is None:
             return DedupeResult(is_duplicate=False, canonical_index=None, canonical_id=None)
 
         import asyncio
 
-        body = {"query": {"term": {"sha": sha}}, "size": 1}
+        body = {
+            "query": {"bool": {"filter": [
+                {"term": {"collection": collection}},
+                {"term": {"sha": sha}},
+            ]}},
+            "size": 1,
+        }
         resp = await asyncio.to_thread(
             self._client.search, index=self.REGISTRY_INDEX, body=body
         )
@@ -76,8 +90,15 @@ class SHAIndex:
             canonical_id=src["doc_id"],
         )
 
-    async def register(self, sha: str, *, tenant: Any, index: str, doc_id: str) -> None:
-        """Register a SHA in the cross-tenant registry (upsert)."""
+    async def register(
+        self, sha: str, *, collection: str, tenant: Any, index: str, doc_id: str
+    ) -> None:
+        """Register a (collection, sha) in the cross-tenant registry (upsert).
+
+        The composite id ``f"{collection}:{sha}"`` makes register an upsert
+        per ``(collection, sha)`` so same-tenant, same-collection re-runs are
+        idempotent.
+        """
         if self._client is None:
             return
 
@@ -86,6 +107,7 @@ class SHAIndex:
 
         doc = {
             "sha": sha,
+            "collection": collection,
             "tenant_id": tenant.tenant_id,
             "index": index,
             "doc_id": doc_id,
@@ -94,7 +116,7 @@ class SHAIndex:
         await asyncio.to_thread(
             self._client.index,
             index=self.REGISTRY_INDEX,
-            id=sha,
+            id=f"{collection}:{sha}",
             body=doc,
         )
 

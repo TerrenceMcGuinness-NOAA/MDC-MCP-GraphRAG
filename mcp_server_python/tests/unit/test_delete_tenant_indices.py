@@ -128,3 +128,113 @@ class TestSuccessfulDeletion:
         assert "gw_sfs_mdc-workflow-docs-titan1024" not in deleted_indices
         # Neptune called with correct prefix
         assert cypher_calls[0]["prefix"] == "GW_V17_"
+
+
+class TestClearRegistryEntries:
+    """--clear-registry-entries delete-by-query semantics (design Change 4)."""
+
+    @pytest.mark.asyncio
+    async def test_flag_issues_scoped_delete_by_query(self, tmp_path):
+        """Flag set → one delete-by-query scoped to tenant_id; registry index
+        itself is never deleted."""
+        path = _write_catalog(tmp_path, [_GW, _GW_V17])
+        deleted_indices = []
+        dbq_calls = []
+
+        class StubVectorDB:
+            async def list_indices(self):
+                return ["gw_v17_mdc-code-titan1024", "mdc-content-sha-registry"]
+            async def delete_index(self, name):
+                deleted_indices.append(name)
+            async def delete_by_query(self, index, body):
+                dbq_calls.append((index, body))
+
+        class StubGraphDB:
+            async def execute_cypher(self, q, p):
+                pass
+
+        code = await run_delete(
+            tenant_id="gw_v17", catalog_path=path, dry_run=False,
+            vector_db=StubVectorDB(), graph_db=StubGraphDB(),
+            clear_registry_entries=True,
+        )
+        assert code == 0
+        assert len(dbq_calls) == 1
+        index, body = dbq_calls[0]
+        assert index == "mdc-content-sha-registry"
+        assert body == {"query": {"term": {"tenant_id": "gw_v17"}}}
+        # The shared registry index is never deleted, only its tenant rows.
+        assert "mdc-content-sha-registry" not in deleted_indices
+
+    @pytest.mark.asyncio
+    async def test_without_flag_registry_untouched(self, tmp_path):
+        """No flag → no delete-by-query at all."""
+        path = _write_catalog(tmp_path, [_GW, _GW_V17])
+        dbq_calls = []
+
+        class StubVectorDB:
+            async def list_indices(self):
+                return ["gw_v17_mdc-code-titan1024"]
+            async def delete_index(self, name):
+                pass
+            async def delete_by_query(self, index, body):
+                dbq_calls.append((index, body))
+
+        class StubGraphDB:
+            async def execute_cypher(self, q, p):
+                pass
+
+        code = await run_delete(
+            tenant_id="gw_v17", catalog_path=path, dry_run=False,
+            vector_db=StubVectorDB(), graph_db=StubGraphDB(),
+        )
+        assert code == 0
+        assert dbq_calls == []
+
+    @pytest.mark.asyncio
+    async def test_dry_run_with_flag_no_mutation(self, tmp_path):
+        """--dry-run + flag → plan only, zero mutations."""
+        path = _write_catalog(tmp_path, [_GW, _GW_V17])
+        mutations = []
+
+        class StubVectorDB:
+            async def list_indices(self):
+                return ["gw_v17_mdc-code-titan1024", "mdc-content-sha-registry"]
+            async def delete_index(self, name):
+                mutations.append(("delete_index", name))
+            async def delete_by_query(self, index, body):
+                mutations.append(("delete_by_query", index))
+
+        class StubGraphDB:
+            async def execute_cypher(self, q, p):
+                mutations.append(("cypher", p))
+
+        code = await run_delete(
+            tenant_id="gw_v17", catalog_path=path, dry_run=True,
+            vector_db=StubVectorDB(), graph_db=StubGraphDB(),
+            clear_registry_entries=True,
+        )
+        assert code == 0
+        assert mutations == []
+
+    @pytest.mark.asyncio
+    async def test_gw_guard_refuses_even_with_flag(self, tmp_path):
+        """gw empty-prefix guard still refuses (exit 2); no delete-by-query."""
+        path = _write_catalog(tmp_path, [_GW, _GW_V17])
+        dbq_calls = []
+
+        class StubVectorDB:
+            async def list_indices(self):
+                return []
+            async def delete_index(self, name):
+                pass
+            async def delete_by_query(self, index, body):
+                dbq_calls.append((index, body))
+
+        code = await run_delete(
+            tenant_id="gw", catalog_path=path, dry_run=False,
+            vector_db=StubVectorDB(), graph_db=None,
+            clear_registry_entries=True,
+        )
+        assert code == 2
+        assert dbq_calls == []

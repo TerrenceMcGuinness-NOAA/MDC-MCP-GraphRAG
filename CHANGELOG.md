@@ -1,5 +1,62 @@
 # MCP Server Changelog
 
+## [8.26.0] - Bugfix ingest-dedupe-and-graph-fix: collection-scoped dedupe + unconditional graph write (May 29, 2026)
+
+### Summary
+
+Fixes two defects in the v8 tenant ingestion pipeline that the overnight
+`gw_v17` full-branch run exposed (it exited 0 but produced structurally
+broken data). Spec: `.kiro/specs/ingest-dedupe-and-graph-fix/` (bugfix
+workflow — requirements/design/tasks). Tasks 1–11 (code phase) complete;
+Task 12 (operational re-ingest) is gated/operator-run and pending.
+
+### Defects fixed
+
+- **Defect 1 — collection-blind dedupe.** `SHAIndex` keyed the shared
+  `mdc-content-sha-registry` by content SHA alone. Because the three entry
+  scripts walk the same worktree and the documentation pass runs first,
+  the code and jjobs passes saw every SHA as already-registered and wrote
+  100% reference documents (no embeddings). Re-keyed by `(collection, sha)`
+  (composite id `f"{collection}:{sha}"`, `collection` added to the doc
+  body, `lookup`/`register` take a `collection` kwarg). Cross-tenant
+  embedding dedupe within a collection is preserved.
+- **Defect 2 — empty graph.** In `ingest_code_v8.py` / `ingest_jjobs_v8.py`
+  the Neptune `MERGE` lived inside the dedupe `else` branch, so at 100%
+  dedupe zero graph nodes were created (`find_dependencies` etc. returned
+  empty for the tenant). The `MERGE` + `nodes:{label}` increment now run
+  unconditionally for every code/jjobs file; documentation stays graph-free.
+
+### Supporting changes
+
+- Shared `COLLECTION_DOCUMENTATION/CODE/JJOBS` tokens in `_ingest_common.py`
+  (no per-script literals — a typo can't silently regress dedupe).
+- `delete_tenant_indices.py --clear-registry-entries`: scoped
+  `delete_by_query` on the registry by `tenant_id` (shared index never
+  deleted; `gw` empty-prefix guard still refuses). Enables clean
+  remediation before re-ingest.
+
+### Tests
+
+- New `tests/properties/test_ingest_dedupe_graph_fix.py`: bug-condition
+  exploration test (failed 3/3 on unfixed code confirming C(X), flips to
+  pass on fixed code), Fix-Checking and unconditional-graph-write
+  properties.
+- `test_v17_pilot.py` P5 extended with the collection dimension
+  (preservation). Unit tests for the `(collection, sha)` round-trip,
+  composite id/body, and rollback flag.
+- Bugfix suite 52 passed (+12). Full suite 944 passed / 238 skipped / 1
+  failed — the single failure
+  (`test_trace_full_execution_chain_clamps_max_depth_to_ten`) is
+  pre-existing (tenant= kwarg drift in the code_analysis test mock,
+  unrelated to this work; fails identically with these changes stashed).
+
+### Still pending
+
+- The bad `gw_v17` data (reference-only code/jjobs indices, empty
+  `GW_V17_*` graph, stale single-sha registry rows) is NOT yet cleaned.
+  That is Task 12: gated `delete_tenant_indices.py --tenant gw_v17
+  --clear-registry-entries` then re-ingest documentation → code → jjobs.
+
 ## [8.25.0] - Phase B of omd-tenants-1-foundation: deploy python-tenants-v1 with 5-tenant catalog (May 28, 2026)
 
 ### Summary

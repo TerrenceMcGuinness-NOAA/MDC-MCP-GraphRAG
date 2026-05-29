@@ -13,6 +13,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.config.tenants import Tenant, TenantCatalog
 
+# Canonical collection tokens for the (collection, sha) dedupe key.
+# Entry scripts import these rather than using string literals so a typo
+# cannot silently regress dedupe (the token MUST be stable across runs).
+COLLECTION_DOCUMENTATION = "documentation"
+COLLECTION_CODE = "code"
+COLLECTION_JJOBS = "jjobs"
+
 _LIFECYCLE_MODE_MAP = {
     "experimental": "diff",
     "staging": "full",
