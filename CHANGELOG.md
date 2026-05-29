@@ -1,5 +1,40 @@
 # MCP Server Changelog
 
+## [8.27.1] - rollback-cli-real-adapters Defect 4: Neptune any() predicate unsupported (May 29, 2026)
+
+### Summary
+
+Follow-up to [8.27.0], found during the live verification (the rollback ran via
+the remediation wrapper). The Neptune node-deletion cypher used the openCypher
+`any()` list predicate, which Amazon Neptune rejects:
+`400 'any' predicate function is not supported`. Tasks 11–13 of
+`rollback-cli-real-adapters`. The OpenSearch deletes commit before the Neptune
+step, so the failed run left a SAFE partial state (3 `gw_v17_*` indices deleted;
+92 `GW_V17_JJob` nodes + 26,316 registry rows remaining) — the fixed,
+idempotent rollback completes it on a single re-run.
+
+### Fix
+
+`delete_tenant_indices.py::_delete_tenant_data` — replaced the `any()`-predicate
+`DETACH DELETE` with the Neptune-supported dialect (verified live):
+- discover labels via `MATCH (n) RETURN DISTINCT labels(n)` (Neptune supports
+  neither `any()` nor `CALL db.labels()`), flatten + filter by `label_prefix`
+  in Python;
+- delete per label via back-tick-quoted `MATCH (n:` `` `<label>` `` `) DETACH
+  DELETE n` (labels can't be parameterized), all with `tenant=None`.
+Discovery is read-only and runs before the dry-run gate; the plan now prints the
+discovered labels; deletion is idempotent (no matching labels → zero deletes).
+
+### Tests
+
+Same mock-fidelity family as Defect 3: `FakeGraphDB` made Neptune-faithful
+(raises on any cypher containing `any(`; serves seeded labels for the discovery
+query). Exploration test (`TestC4NeptuneAnyPredicate`) fails on the old code and
+flips to pass; added `TestC4SupportedDialectDeletion` for idempotence; updated
+the P6 test in `test_v17_pilot.py` to the discovery + per-label shape.
+44 passed (18 rollback unit + 26 v17-pilot); no new regressions (the lone
+full-suite failure is the pre-existing code_analysis mock drift).
+
 ## [8.27.0] - Bugfix rollback-cli-real-adapters: make delete_tenant_indices.py run against real AWS (May 29, 2026)
 
 ### Summary

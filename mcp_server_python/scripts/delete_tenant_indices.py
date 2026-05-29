@@ -58,10 +58,25 @@ async def _delete_tenant_data(
         all_prefixed = []
     target_indices = [i for i in all_prefixed if i.startswith(index_prefix)]
 
+    # discover Neptune labels (read-only). Neptune supports neither the any()
+    # list predicate nor CALL db.labels(); DISTINCT labels(n) + a Python-side
+    # filter is the supported dialect. tenant=None so _rewrite_cypher does not
+    # re-prefix the query.
+    label_rows = await graph_db.query(
+        "MATCH (n) RETURN DISTINCT labels(n) AS labels", tenant=None
+    )
+    seen: set[str] = set()
+    for row in label_rows:
+        for lbl in (row.get("labels") or []):
+            seen.add(lbl)
+    target_labels = sorted(lbl for lbl in seen if lbl.startswith(label_prefix))
+
     print(f"# OpenSearch indices to delete ({len(target_indices)}):")
     for idx in target_indices:
         print(f"  - {idx}")
-    print(f"# Neptune nodes to delete: labels starting with {label_prefix!r}")
+    print(f"# Neptune labels to delete ({len(target_labels)}):")
+    for lbl in target_labels:
+        print(f"  - {lbl}")
     if clear_registry_entries:
         print(
             f"# Registry entries to clear: {SHAIndex.REGISTRY_INDEX} "
@@ -76,14 +91,10 @@ async def _delete_tenant_data(
     for idx in target_indices:
         await asyncio.to_thread(raw_os_client.indices.delete, index=idx)
 
-    # 3. Neptune DETACH DELETE via the real query() — tenant=None so
-    #    _rewrite_cypher does not re-prefix the already-prefixed label match.
-    cypher = (
-        "MATCH (n) "
-        "WHERE any(label IN labels(n) WHERE label STARTS WITH $prefix) "
-        "DETACH DELETE n"
-    )
-    await graph_db.query(cypher, params={"prefix": label_prefix}, tenant=None)
+    # 3. Neptune: one back-tick-quoted DETACH DELETE per discovered label.
+    #    Labels cannot be parameterized → interpolate; tenant=None (no rewrite).
+    for lbl in target_labels:
+        await graph_db.query(f"MATCH (n:`{lbl}`) DETACH DELETE n", tenant=None)
 
     # 4. registry delete-by-query (only with the flag); index itself preserved.
     if clear_registry_entries:

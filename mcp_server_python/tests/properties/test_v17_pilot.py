@@ -804,8 +804,13 @@ class TestP6RollbackIsolation:
             indices = FakeIndices()
 
         class FakeGraphDB:
+            def __init__(self):
+                self.labels = ["GW_V17_File", "GW_V17_JJob", "File", "GW_SFS_JJob"]
+
             async def query(self, cypher, params=None, *, tenant=None):
                 graph_queries.append((cypher, params, tenant))
+                if "RETURN DISTINCT labels(n)" in cypher:
+                    return [{"labels": list(self.labels)}]
                 return []
 
         result = await _delete_tenant_data(
@@ -826,10 +831,15 @@ class TestP6RollbackIsolation:
         assert "mdc-content-sha-registry" not in deleted_indices
         # Other tenant untouched
         assert "gw_sfs_mdc-workflow-docs-titan1024" not in deleted_indices
-        # Neptune query called with correct prefix and tenant=None (no rewrite)
-        assert len(graph_queries) == 1
-        assert graph_queries[0][1] == {"prefix": "GW_V17_"}
-        assert graph_queries[0][2] is None
+        # Neptune: discover labels, then one DETACH DELETE per matching GW_V17_
+        # label (no any() predicate); every query passes tenant=None (no rewrite).
+        detach = [c for c, _, _ in graph_queries if "DETACH DELETE" in c]
+        assert detach == [
+            "MATCH (n:`GW_V17_File`) DETACH DELETE n",
+            "MATCH (n:`GW_V17_JJob`) DETACH DELETE n",
+        ]
+        assert not any("any(" in c for c, _, _ in graph_queries)
+        assert all(t is None for _, _, t in graph_queries)
 
 
 # ---------------------------------------------------------------------------

@@ -85,13 +85,24 @@ class FakeRawClient:
 
 
 class FakeGraphDB:
-    """Stand-in for ``NeptuneAdapter`` — only the real ``query`` method."""
+    """Stand-in for ``NeptuneAdapter`` — only the real ``query`` method.
 
-    def __init__(self):
+    Neptune-faithful: rejects the unsupported ``any()`` list predicate
+    (mirrors Neptune's ``400 'any' predicate function is not supported``) so a
+    regression to it is caught, and returns the seeded labels for the
+    ``DISTINCT labels(n)`` discovery query.
+    """
+
+    def __init__(self, labels=None):
+        self.labels = list(labels or [])
         self.queries: list[tuple] = []
 
     async def query(self, cypher, params=None, *, tenant=None):
         self.queries.append((cypher, params, tenant))
+        if "any(" in cypher:
+            raise RuntimeError("Neptune: 400 'any' predicate function is not supported")
+        if "RETURN DISTINCT labels(n)" in cypher:
+            return [{"labels": list(self.labels)}]
         return []
 
 
@@ -191,10 +202,11 @@ class TestEmptyPrefixProtection:
 class TestDryRun:
     @pytest.mark.asyncio
     async def test_dry_run_no_mutations(self, tmp_path):
-        """--dry-run lists the real indices, exit 0, zero mutating calls."""
+        """--dry-run lists indices + discovers Neptune labels (read-only),
+        exit 0, zero mutations (no index delete, no DETACH DELETE, no dbq)."""
         path = _write_catalog(tmp_path, [_GW, _GW_V17])
         raw = FakeRawClient(["gw_v17_mdc-docs", "mdc-docs", "mdc-content-sha-registry"])
-        graph = FakeGraphDB()
+        graph = FakeGraphDB(labels=["GW_V17_JJob"])
 
         code = await run_delete(
             tenant_id="gw_v17", catalog_path=path, dry_run=True,
@@ -203,14 +215,16 @@ class TestDryRun:
         assert code == 0
         assert raw.indices.deleted == []
         assert raw.dbq_calls == []
-        assert graph.queries == []
+        # Only the read-only discovery ran; no DETACH DELETE, no any() predicate.
+        assert not any("DETACH DELETE" in c for c, _, _ in graph.queries)
+        assert not any("any(" in c for c, _, _ in graph.queries)
 
 
 class TestSuccessfulDeletion:
     @pytest.mark.asyncio
     async def test_deletes_only_prefixed_data(self, tmp_path):
-        """Successful run deletes only prefixed indices via the raw client and
-        issues the DETACH DELETE through NeptuneAdapter.query (tenant=None)."""
+        """Deletes only prefixed indices via the raw client and issues one
+        back-tick-quoted DETACH DELETE per discovered GW_V17_ label (no any())."""
         path = _write_catalog(tmp_path, [_GW, _GW_V17])
         raw = FakeRawClient([
             "mdc-workflow-docs-titan1024",
@@ -219,7 +233,8 @@ class TestSuccessfulDeletion:
             "gw_sfs_mdc-workflow-docs-titan1024",
             "mdc-content-sha-registry",
         ])
-        graph = FakeGraphDB()
+        # discovery returns a mix; only GW_V17_ labels are deleted.
+        graph = FakeGraphDB(labels=["GW_V17_File", "GW_V17_JJob", "File", "GW_SFS_JJob"])
 
         code = await run_delete(
             tenant_id="gw_v17", catalog_path=path, dry_run=False,
@@ -233,12 +248,15 @@ class TestSuccessfulDeletion:
         # System index and other tenants never touched.
         assert "mdc-content-sha-registry" not in raw.indices.deleted
         assert "gw_sfs_mdc-workflow-docs-titan1024" not in raw.indices.deleted
-        # Neptune deletion via the real query() — scoped, tenant=None (no rewrite).
-        assert len(graph.queries) == 1
-        cypher, params, tenant = graph.queries[0]
-        assert params == {"prefix": "GW_V17_"}
-        assert tenant is None
-        assert "DETACH DELETE" in cypher
+        # Neptune: one DETACH DELETE per matching label (sorted), scoped to GW_V17_.
+        detach = [c for c, _, _ in graph.queries if "DETACH DELETE" in c]
+        assert detach == [
+            "MATCH (n:`GW_V17_File`) DETACH DELETE n",
+            "MATCH (n:`GW_V17_JJob`) DETACH DELETE n",
+        ]
+        # No any() predicate anywhere; every Neptune call passes tenant=None.
+        assert not any("any(" in c for c, _, _ in graph.queries)
+        assert all(t is None for _, _, t in graph.queries)
 
 
 class TestClearRegistryEntries:
@@ -279,10 +297,11 @@ class TestClearRegistryEntries:
 
     @pytest.mark.asyncio
     async def test_dry_run_with_flag_no_mutation(self, tmp_path):
-        """--dry-run + flag → plan only, zero mutations."""
+        """--dry-run + flag → plan only (incl. read-only label discovery),
+        zero mutations."""
         path = _write_catalog(tmp_path, [_GW, _GW_V17])
         raw = FakeRawClient(["gw_v17_mdc-code-titan1024", "mdc-content-sha-registry"])
-        graph = FakeGraphDB()
+        graph = FakeGraphDB(labels=["GW_V17_JJob"])
 
         code = await run_delete(
             tenant_id="gw_v17", catalog_path=path, dry_run=True,
@@ -292,7 +311,7 @@ class TestClearRegistryEntries:
         assert code == 0
         assert raw.indices.deleted == []
         assert raw.dbq_calls == []
-        assert graph.queries == []
+        assert not any("DETACH DELETE" in c for c, _, _ in graph.queries)
 
     @pytest.mark.asyncio
     async def test_gw_guard_refuses_even_with_flag(self, tmp_path):
@@ -421,8 +440,9 @@ class TestGetAliasNotFound:
         )
         assert code == 0
         assert raw.indices.deleted == []
-        # Neptune deletion still runs (graph nodes are independent of indices).
-        assert len(graph.queries) == 1
+        # Only the read-only label discovery ran; no DETACH DELETE.
+        assert not any("DETACH DELETE" in c for c, _, _ in graph.queries)
+        assert sum("RETURN DISTINCT labels(n)" in c for c, _, _ in graph.queries) == 1
 
     @pytest.mark.asyncio
     async def test_registry_index_never_deleted_only_rows(self, tmp_path):
@@ -441,3 +461,59 @@ class TestGetAliasNotFound:
         assert len(raw.dbq_calls) == 1
         assert raw.dbq_calls[0][0] == "mdc-content-sha-registry"
         assert "mdc-content-sha-registry" not in raw.indices.deleted
+
+
+# ===========================================================================
+# Task 11 — Defect 4 Bug Condition exploration (MUST FAIL on current code)
+# ===========================================================================
+
+
+class TestC4NeptuneAnyPredicate:
+    """Property 4 (Bug Condition): Neptune rejects the openCypher ``any()`` list
+    predicate. The rollback's node deletion must use a supported dialect.
+
+    EXPECTED on current code: FAILS — ``_delete_tenant_data`` emits
+    ``MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH $prefix)
+    DETACH DELETE n``, which the Neptune-faithful ``FakeGraphDB`` rejects with a
+    400. PASSES on the fixed code (task 13), which discovers labels and deletes
+    per label. Same body, re-run in task 13.
+    """
+
+    @pytest.mark.asyncio
+    async def test_neptune_deletion_avoids_any_predicate(self):
+        from delete_tenant_indices import _delete_tenant_data
+
+        raw = FakeRawClient(["gw_v17_mdc-code-titan1024"])
+        graph = FakeGraphDB(labels=["GW_V17_JJob", "GW_V17_File"])
+
+        await _delete_tenant_data(
+            graph_db=graph, raw_os_client=raw,
+            index_prefix="gw_v17_", label_prefix="GW_V17_",
+            dry_run=False,
+        )
+        # Completing means no any() cypher was emitted (the fake raises on it).
+        assert not any("any(" in c for c, _, _ in graph.queries)
+
+
+class TestC4SupportedDialectDeletion:
+    """Property 4 (Expected Behavior): supported-dialect Neptune deletion —
+    discovery + per-label DETACH DELETE, idempotent when labels are gone."""
+
+    @pytest.mark.asyncio
+    async def test_idempotent_no_op_when_no_matching_labels(self, tmp_path):
+        """A resumed run after the GW_V17_ labels are already gone discovers no
+        matching labels → zero DETACH DELETE (safe no-op)."""
+        path = _write_catalog(tmp_path, [_GW, _GW_V17])
+        raw = FakeRawClient(["gw_v17_mdc-code-titan1024"])
+        graph = FakeGraphDB(labels=["File", "JJob"])  # no GW_V17_ labels remain
+
+        code = await run_delete(
+            tenant_id="gw_v17", catalog_path=path, dry_run=False,
+            vector_db=None, graph_db=graph, raw_os_client=raw,
+        )
+        assert code == 0
+        detach = [c for c, _, _ in graph.queries if "DETACH DELETE" in c]
+        assert detach == []
+        # discovery still ran exactly once, with tenant=None
+        assert sum("RETURN DISTINCT labels(n)" in c for c, _, _ in graph.queries) == 1
+        assert all(t is None for _, _, t in graph.queries)
