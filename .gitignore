@@ -13,6 +13,9 @@ logs/
 *.log.*
 *.log.gz
 
+# Operator-run remediation checkpoints (runtime state, not source)
+.remediation_state/
+
 # Dependencies - NEVER commit
 node_modules/
 __pycache__/

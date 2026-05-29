@@ -17,6 +17,14 @@ adapter call with `AttributeError: 'NoneType' object has no attribute
 - **Defect 3 — tests validate a fiction.** The unit doubles implement those
   four methods, so the suite is green while the tool is non-functional; the
   real-wiring `main()` path is untested.
+- **Defect 4 (follow-up, found during Task 9 live verification) — Neptune
+  rejects `any()`.** The node-deletion cypher used the openCypher `any()` list
+  predicate (`WHERE any(label IN labels(n) WHERE label STARTS WITH $prefix)`),
+  which Neptune does not implement → `400 'any' predicate function is not
+  supported`. The OpenSearch deletes ran first, so the failed run left a partial
+  state (indices gone; 92 `GW_V17_JJob` nodes + 26,316 registry rows remaining).
+  Replaced with label discovery (`MATCH (n) RETURN DISTINCT labels(n)`) + a
+  per-label `DETACH DELETE`.
 
 The fix is surgical and confined to the script and its tests — **no public
 adapter API changes**:
@@ -26,10 +34,12 @@ adapter API changes**:
 2. **Re-implement the four operations** against the real adapter surface: the
    raw opensearch-py client (reached through `OpenSearchAdapter._raw_client()`)
    for index list/delete/delete-by-query, and `NeptuneAdapter.query(...)` for
-   the `DETACH DELETE`.
+   Neptune work.
 3. **Rewrite the test doubles** to conform to the real adapter contract and add
    a test that exercises the real method names, so this mock-fidelity gap is
    caught going forward.
+4. **Delete Neptune nodes via label discovery + per-label `DETACH DELETE`**
+   (no `any()` predicate) — Defect 4.
 
 This unblocks Task 12 of `ingest-dedupe-and-graph-fix` (the gated `gw_v17`
 cleanup + re-ingest). It corrects the implementation of
@@ -129,7 +139,7 @@ resolution, exit codes, guard, dry-run gating, prefix filtering) is unchanged.
 | `vector_db.list_indices()` | `raw = vector_db._raw_client()`; `await asyncio.to_thread(raw.indices.get_alias, index=f"{index_prefix}*")` → keys are index names. (Use `get_alias` with the prefix glob so only candidate indices return; still filter by `startswith(index_prefix)` defensively.) |
 | `vector_db.delete_index(name)` | `await asyncio.to_thread(raw.indices.delete, index=name)` |
 | `vector_db.delete_by_query(index, body)` | `await asyncio.to_thread(raw.delete_by_query, index=SHAIndex.REGISTRY_INDEX, body={"query": {"term": {"tenant_id": tenant_id}}})` |
-| `graph_db.execute_cypher(cypher, params)` | `await graph_db.query(cypher, params={"prefix": label_prefix}, tenant=None)` — **`tenant=None` is required** so `NeptuneAdapter._rewrite_cypher` does not rewrite the cypher (the `DETACH DELETE` already targets prefixed labels by string match). |
+| `graph_db.execute_cypher(cypher, params)` | **Label discovery + per-label delete (Neptune does NOT support `any()` or `CALL db.labels()`):** `await graph_db.query("MATCH (n) RETURN DISTINCT labels(n) AS labels", tenant=None)` → flatten + filter by `label_prefix` in Python; then for each matching label `await graph_db.query(f"MATCH (n:` `` `<label>` `` `) DETACH DELETE n", tenant=None)`. **`tenant=None`** so `_rewrite_cypher` does not re-prefix. |
 
 Note the `get_alias` glob can raise `NotFoundError` (404) when no index matches
 the prefix — treat that as "zero indices to delete", not an error.
@@ -182,6 +192,18 @@ calls and the real adapter API is caught by the suite rather than passing green.
 
 **Validates: Requirements 2.6, 2.8, 3.4, 3.5, 3.6**
 
+Property 4: Neptune deletion uses a supported dialect (no `any()` predicate)
+
+_For any_ tenant `T` with non-empty `label_prefix`, the fixed CLI `F'` SHALL
+delete `T`'s Neptune nodes by discovering labels via
+`MATCH (n) RETURN DISTINCT labels(n)`, filtering to labels starting with
+`T.label_prefix`, and issuing one back-tick-quoted `MATCH (n:` `` `<label>` `` `)
+DETACH DELETE n` per matching label — never the `any()` list predicate. The
+deletion SHALL be idempotent: a resumed run after the labels are already gone
+matches zero nodes and is a safe no-op.
+
+**Validates: Requirements 2.5, 2.9, 2.10, 3.7**
+
 ## Fix Implementation
 
 ### Corrected rollback flow
@@ -199,7 +221,7 @@ flowchart TD
     I --> J{dry-run?}
     J -->|yes| K[exit 0 - zero mutations]
     J -->|no| L["raw.indices.delete(each index)"]
-    L --> M["graph_db.query(DETACH DELETE, params, tenant=None)"]
+    L --> M["discover labels: DISTINCT labels(n)<br/>filter by prefix; DETACH DELETE per label"]
     M --> N{clear-registry-entries?}
     N -->|yes| O["raw.delete_by_query(registry, term tenant_id)"]
     N -->|no| P[done]
@@ -274,12 +296,21 @@ if dry_run:
 for idx in target_indices:
     await asyncio.to_thread(raw_os_client.indices.delete, index=idx)
 
-# 3. Neptune DETACH DELETE via the real query() — tenant=None (no rewrite)
-cypher = (
-    "MATCH (n) WHERE any(label IN labels(n) "
-    "WHERE label STARTS WITH $prefix) DETACH DELETE n"
+# 3. Neptune deletion — discover labels then DETACH DELETE per label.
+#    Neptune does NOT support the any() predicate or CALL db.labels(); it DOES
+#    support DISTINCT labels(n) for discovery and per-label MATCH for deletion.
+#    tenant=None on every query so _rewrite_cypher does not re-prefix.
+label_rows = await graph_db.query(
+    "MATCH (n) RETURN DISTINCT labels(n) AS labels", tenant=None
 )
-await graph_db.query(cypher, params={"prefix": label_prefix}, tenant=None)
+seen = set()
+for row in label_rows:
+    for lbl in (row.get("labels") or []):
+        seen.add(lbl)
+target_labels = sorted(l for l in seen if l.startswith(label_prefix))
+for lbl in target_labels:
+    # back-tick-quote the label; no params (labels cannot be parameterized)
+    await graph_db.query(f"MATCH (n:`{lbl}`) DETACH DELETE n", tenant=None)
 
 # 4. registry delete-by-query (only with the flag)
 if clear_registry_entries:
@@ -408,6 +439,26 @@ END FOR
   performs zero mutations, exits 0 (this is the gate that was failing).
 - The execute path is exercised as Task 12 of `ingest-dedupe-and-graph-fix`
   (operator-run, gated) — not in this spec's automated suite.
+
+## Partial-State Recovery (current gw_v17 situation)
+
+The failed live run (2026-05-29) left `gw_v17` in a partial state, verified
+empirically:
+
+- ✅ All 3 `gw_v17_*` OpenSearch indices **deleted** (the broken doc/code/jjobs
+  data is gone).
+- ❌ **92 `GW_V17_JJob` Neptune nodes remain** (orphans from the original broken
+  ingest; `GW_V17_File` was already 0 due to the dedupe-graph bug).
+- ❌ **26,316 stale `gw_v17` rows remain** in `mdc-content-sha-registry` (the
+  delete-by-query runs after the Neptune step, so it never executed).
+
+Because the fixed rollback is idempotent (index deletes skip already-absent
+indices via the `get_alias` `NotFoundError` path; per-label `DETACH DELETE` is a
+no-op when the label is gone; registry delete-by-query is naturally idempotent),
+**re-running `delete_tenant_indices.py --tenant gw_v17 --clear-registry-entries`
+after this fix lands will complete the cleanup** — clearing the 92 Neptune nodes
+and the 26,316 registry rows — and leave the tenant fully clean for re-ingest.
+No manual surgery is required.
 
 ## Out of Scope
 

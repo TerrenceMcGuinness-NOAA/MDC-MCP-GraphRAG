@@ -122,6 +122,52 @@ References:
   - Confirm task 1 (now passing) plus tasks 2, 5, 6, 7 all pass on the fixed code with no regressions, and the live dry-run (task 9) succeeded
   - Ask the user if questions arise
 
+## Follow-up: Defect 4 — Neptune `any()` predicate (found during Task 9)
+
+> **Status note (2026-05-29):** Tasks 1–8 landed (commit c317c91). The live
+> verification (originally framed as a dry-run gate) was run as the full
+> remediation wrapper, which exposed **Defect 4**: the Neptune node-deletion
+> cypher uses the `any()` list predicate, unsupported by Neptune
+> (`400 'any' predicate function is not supported`). The OpenSearch deletes had
+> already committed, leaving a partial state (3 indices gone; 92 `GW_V17_JJob`
+> nodes + 26,316 registry rows remain). Tasks 11–14 fix Defect 4. The fixed
+> rollback is idempotent, so a single re-run completes the partial cleanup.
+
+- [ ]* 11. Write the Defect 4 exploration test (BEFORE the fix)
+  - **Property 4: Bug Condition** — Neptune Rejects the `any()` Predicate
+  - **CRITICAL**: MUST FAIL on the current code — the failure confirms Defect 4
+  - Add to `mcp_server_python/tests/unit/test_delete_tenant_indices.py`
+  - With a `FakeGraphDB` that raises on a cypher containing `any(` (simulating Neptune's 400), drive `_delete_tenant_data` and assert it completes without that error. On current code it FAILS (the code emits the `any()` cypher)
+  - Optionally add a `@pytest.mark.live` integration test that runs the real DISTINCT-labels + per-label delete against Neptune (skipped by default)
+  - Run on current code → **EXPECTED OUTCOME: FAILS**. Document the counterexample (the `any()` cypher string)
+  - _Requirements: 1.6, 1.7_
+
+- [ ] 12. Replace the Neptune deletion with label-discovery + per-label DETACH DELETE
+  - Per design Change (Defect 4) + the mapping-table row. **File**: `mcp_server_python/scripts/delete_tenant_indices.py` (`_delete_tenant_data`)
+  - Discover labels: `await graph_db.query("MATCH (n) RETURN DISTINCT labels(n) AS labels", tenant=None)`; flatten; filter to labels starting with `label_prefix` in Python
+  - Delete per label: for each matching label, `await graph_db.query(f"MATCH (n:` `` `{lbl}` `` `) DETACH DELETE n", tenant=None)` (back-tick-quoted; no `any()`; no params — labels can't be parameterized)
+  - Dry-run prints the discovered labels (read-only DISTINCT-labels query is allowed) without issuing deletes
+  - _Bug_Condition: 1.6 (Neptune rejects any())_
+  - _Expected_Behavior: 2.5, 2.9, 2.10_
+  - _Preservation: 3.7 (idempotent no-op when labels absent)_
+  - _Requirements: 2.5, 2.9, 2.10, 3.7_
+
+- [ ]* 13. Update the test doubles + Fix/Preservation tests for Defect 4
+  - **Property 4: Expected Behavior** — Supported-Dialect Neptune Deletion
+  - `FakeGraphDB.query` records all cypher calls; assert: (a) one DISTINCT-labels discovery query, (b) one `DETACH DELETE` per matching label, (c) NO call contains `any(`, (d) all calls pass `tenant=None`
+  - Preservation/idempotence: when discovery returns no matching labels, zero DETACH DELETE calls are made (safe no-op)
+  - Fidelity: the `FakeGraphDB` rejects an `any(`-containing cypher (mirrors Neptune) so a regression to the old predicate is caught
+  - File: `mcp_server_python/tests/unit/test_delete_tenant_indices.py`
+  - Run on FIXED code → **EXPECTED OUTCOME: PASSES**; task-11 test flips fail→pass
+  - _Requirements: 2.5, 2.9, 2.10, 3.7_
+
+- [ ] 14. Re-run live dry-run + complete the partial cleanup (OPERATOR-RUN, GATED)
+  - Live dry-run (read-only): same command as task 9; confirm it now also prints the discovered `GW_V17_*` labels and exits 0 with zero mutations
+  - **STOP-AND-CONFIRM** before the destructive execute
+  - Execute: `delete_tenant_indices.py --tenant gw_v17 --clear-registry-entries` — idempotently completes the partial cleanup (skips already-deleted indices, deletes the 92 `GW_V17_JJob` nodes, clears the 26,316 registry rows)
+  - Verify: `gw_v17_*` indices absent, `GW_V17_*` Neptune nodes == 0, registry `tenant_id==gw_v17` rows == 0 → tenant fully clean, ready for re-ingest (Task 12 of `ingest-dedupe-and-graph-fix`)
+  - _Requirements: 2.7, 3.7_
+
 ## Notes
 
 - **Three faults, one surgical fix.** Fix A (wire main, task 3), Fix B
@@ -135,9 +181,12 @@ References:
 - **The `tenant=None` detail.** The Neptune `DETACH DELETE` must pass
   `tenant=None` so `_rewrite_cypher` does not re-prefix the already-prefixed
   label match — a silent-corruption trap if missed.
-- **This unblocks Task 12 of `ingest-dedupe-and-graph-fix`.** Once task 9's
-  dry-run succeeds, the gated destructive cleanup + overnight re-ingest can
-  proceed.
+- **This unblocks Task 12 of `ingest-dedupe-and-graph-fix`.** Once task 14's
+  cleanup completes, the gated destructive re-ingest can proceed.
+- **Defect 4 (Neptune `any()`).** Found during the live run of task 9 (executed
+  via the remediation wrapper). Neptune supports neither `any()` nor
+  `CALL db.labels()`; the fix discovers labels with `DISTINCT labels(n)` and
+  deletes per label. Tasks 11–14.
 
 ## Task Dependency Graph
 
@@ -151,7 +200,11 @@ References:
     { "id": 4, "tasks": ["5", "6", "7"] },
     { "id": 5, "tasks": ["8"] },
     { "id": 6, "tasks": ["9"] },
-    { "id": 7, "tasks": ["10"] }
+    { "id": 7, "tasks": ["10"] },
+    { "id": 8, "tasks": ["11"] },
+    { "id": 9, "tasks": ["12"] },
+    { "id": 10, "tasks": ["13"] },
+    { "id": 11, "tasks": ["14"] }
   ]
 }
 ```

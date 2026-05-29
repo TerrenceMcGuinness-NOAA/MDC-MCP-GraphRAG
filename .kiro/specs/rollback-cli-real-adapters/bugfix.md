@@ -72,14 +72,41 @@ The `main()` path that wires the real data layer (the `None` stub) is never
 exercised by any test. This is a mock-fidelity defect: the doubles defined an
 interface the real code never implemented.
 
+**Defect 4 (follow-up, found during Task 9 live verification) — Neptune
+rejects the `any()` predicate.** After Defects 1–3 were fixed, the live run of
+the destructive rollback failed in the Neptune step with
+`400 'any' predicate function is not supported`. The node-deletion cypher
+
+```
+MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH $prefix) DETACH DELETE n
+```
+
+uses the openCypher `any()` list predicate, which Amazon Neptune's openCypher
+engine does not implement. This cypher came verbatim from
+`omd-tenants-2-v17-pilot` design §6 and was never executed against real Neptune
+— the test double (`FakeGraphDB.query`) only records the cypher string, so the
+mocks again validated a fiction (the same mock-fidelity family as Defect 3).
+The OpenSearch index deletes run *before* the Neptune step, so the failed run
+left a **partial state**: the three `gw_v17_*` indices were deleted, but the
+`GW_V17_*` Neptune nodes (verified: 92 `GW_V17_JJob` orphans from the original
+broken ingest) and the 26,316 stale registry rows were NOT cleared.
+
+The Neptune-compatible approach (verified live): `CALL db.labels()` is also
+unsupported, but `MATCH (n) RETURN DISTINCT labels(n)` works for label
+discovery, and per-label `MATCH (n:` + "`" + `<Label>` + "`" + `) DETACH DELETE n`
+works for deletion. The fix discovers the tenant's labels, filters by
+`label_prefix` in Python, and issues one `DETACH DELETE` per matching label.
+
 **Root cause.** A dependency-injection test seam (passing `vector_db` /
-`graph_db` into `run_delete`) was paired with stub doubles whose API diverged
-from the real adapters, while production `main()` wiring was deferred as a
-`TODO(Phase C)` `None` stub. The fix must (a) wire `main()` to the real data
-layer via the existing `build_ingestion_data_access()` helper, (b) implement
-the four operations against the real adapter surface (raw opensearch-py client
-+ Neptune `query`), and (c) make the test doubles conform to the real adapter
-contract so this class of bug is caught going forward.
+`graph_db` into `run_delete`) was paired with stub doubles whose API and query
+semantics diverged from the real adapters, while production `main()` wiring was
+deferred as a `TODO(Phase C)` `None` stub. The fix must (a) wire `main()` to the
+real data layer via the existing `build_ingestion_data_access()` helper, (b)
+implement the four operations against the real adapter surface (raw opensearch-py
+client + Neptune `query`), (c) make the test doubles conform to the real adapter
+contract so this class of bug is caught going forward, and (d) replace the
+Neptune `any()`-predicate cypher with a label-discovery + per-label
+`DETACH DELETE` that Neptune's openCypher engine actually supports.
 
 This bug blocks Task 12 of `ingest-dedupe-and-graph-fix` (the gated cleanup +
 re-ingest of `gw_v17`). It is in the implementation of
@@ -108,6 +135,10 @@ infrastructure.
 
 1.5 WHEN an operator attempts the documented rollback (R7.1–R7.3) or Task 12 of `ingest-dedupe-and-graph-fix` THEN the cleanup cannot be performed at all, blocking the `gw_v17` remediation.
 
+1.6 WHEN the destructive rollback reaches the Neptune step (after Defects 1–3 are fixed) THEN the cypher `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH $prefix) DETACH DELETE n` raises `400 'any' predicate function is not supported` because Neptune's openCypher engine does not implement the `any()` list predicate.
+
+1.7 WHEN that Neptune step fails THEN the OpenSearch index deletes (which run first) have already committed, leaving a partial state: the `gw_v17_*` indices are deleted but the `GW_V17_*` Neptune nodes and the stale registry rows remain.
+
 ### Expected Behavior (Correct)
 
 What should happen once the data layer is wired and operations target the real
@@ -121,13 +152,17 @@ adapter surface.
 
 2.4 WHEN `--clear-registry-entries` is set THEN the script SHALL issue a real `delete_by_query` against `mdc-content-sha-registry` scoped to `{"term": {"tenant_id": <tenant>}}` through the opensearch-py client, and SHALL NOT delete the registry index itself.
 
-2.5 WHEN the script deletes Neptune nodes THEN it SHALL call the real `NeptuneAdapter.query(cypher, params=...)` method (not `execute_cypher`) with the `DETACH DELETE` cypher scoped to labels starting with the tenant's `label_prefix`.
+2.5 WHEN the script deletes Neptune nodes THEN it SHALL call the real `NeptuneAdapter.query(cypher, params=..., tenant=None)` method (not `execute_cypher`) using a Neptune-compatible deletion that does NOT use the unsupported `any()` predicate (see 2.9, 2.10).
 
 2.6 WHEN `--dry-run` is set THEN the script SHALL connect, list the real target indices, print the full plan (indices, Neptune label prefix, and — if `--clear-registry-entries` — the scoped registry delete-by-query), and perform ZERO mutations.
 
 2.7 WHEN the rollback completes against live AWS THEN the tenant's prefixed OpenSearch indices, its `label_prefix` Neptune nodes, and (with the flag) its registry rows SHALL be removed, unblocking Task 12 of `ingest-dedupe-and-graph-fix`.
 
 2.8 WHEN the unit tests run THEN the test doubles SHALL conform to the REAL adapter contract (the opensearch-py client surface used: `indices.get_alias`, `indices.delete`, `delete_by_query`; and `NeptuneAdapter.query`), so a future divergence between the script's calls and the real adapter API is caught by the suite.
+
+2.9 WHEN the script determines which Neptune labels to delete THEN it SHALL discover labels via `MATCH (n) RETURN DISTINCT labels(n)` (Neptune does NOT support `CALL db.labels()`), flatten the result, and filter to labels starting with the tenant's `label_prefix` in Python.
+
+2.10 WHEN the script deletes the discovered labels THEN it SHALL issue one `MATCH (n:` `` `<Label>` `` `) DETACH DELETE n` per matching label (back-tick-quoted label, no `any()` predicate); for `gw_v17` this resolves to `GW_V17_JJob` (verified: 92 orphan nodes) and any other `GW_V17_*` labels present.
 
 ### Unchanged Behavior (Regression Prevention)
 
@@ -142,6 +177,8 @@ Existing behavior that must be preserved.
 3.4 WHEN deletion runs THEN it SHALL CONTINUE TO delete ONLY indices whose names start with the tenant's `index_prefix`; the shared `mdc-content-sha-registry` system index and other tenants' prefixed indices SHALL remain untouched.
 
 3.5 WHEN `--clear-registry-entries` clears registry rows THEN it SHALL CONTINUE TO scope the delete-by-query to `tenant_id == <tenant>` and SHALL CONTINUE TO preserve the registry index itself (only the tenant's rows are removed).
+
+3.7 WHEN the Neptune deletion runs against a tenant whose labels are already absent (e.g. a resumed run after a partial failure) THEN per-label `DETACH DELETE` SHALL be a safe no-op (zero nodes matched), keeping the operation idempotent.
 
 3.6 WHEN Neptune nodes are deleted THEN the cypher SHALL CONTINUE TO be a `DETACH DELETE` scoped to labels starting with the tenant's `label_prefix`.
 
@@ -162,7 +199,8 @@ FUNCTION isBugCondition(X)
   OUTPUT: boolean
 
   // Production main() leaves the data layer unwired; even if wired,
-  // the operations call methods absent from the real adapters.
+  // the operations call methods absent from the real adapters, and the
+  // Neptune deletion uses the unsupported any() predicate.
   RETURN X.entrypoint = "cli_main"          // not a stub-injected test call
          AND T.index_prefix ≠ ""             // passes the empty-prefix guard
          AND T.label_prefix ≠ ""
@@ -171,7 +209,9 @@ END FUNCTION
 
 Under F, `isBugCondition(X)` causes the process to raise `AttributeError`
 (either `NoneType.list_indices` because the data layer is `None`, or a missing
-method on the real adapter once wired) before any deletion plan executes.
+method on the real adapter once wired) or, after Defects 1–3 are fixed, a
+Neptune `400 'any' predicate function is not supported` error — in every case
+before the rollback fully completes.
 
 **Fix property (Fix Checking)** — desired behavior for buggy inputs:
 
@@ -184,8 +224,12 @@ FOR ALL X WHERE isBugCondition(X) DO
   // Operations target the real adapter surface (raw opensearch-py + Neptune query)
   ASSERT result.used_raw_opensearch_client = TRUE
   ASSERT result.used_neptune_query = TRUE
+  // Neptune deletion uses label-discovery + per-label DETACH DELETE (no any())
+  ASSERT result.neptune_delete_used_per_label = TRUE
+  ASSERT result.neptune_delete_used_any_predicate = FALSE
   // Dry-run produces a plan with zero mutations; execute removes only prefixed data
   ASSERT result.completed_without_attribute_error = TRUE
+  ASSERT result.completed_without_neptune_400 = TRUE
 END FOR
 ```
 
