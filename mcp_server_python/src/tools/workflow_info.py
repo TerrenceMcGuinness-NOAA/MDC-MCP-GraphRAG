@@ -615,6 +615,7 @@ def register(
     mcp: FastMCP,
     data: Any = None,
     *,
+    catalog: "Any | None" = None,
     workflow_root: str | os.PathLike[str] | None = None,
 ) -> None:
     """Register all 3 workflow-info tools on ``mcp``.
@@ -639,7 +640,20 @@ def register(
         ``get_system_configs`` and ``describe_component`` accept
         ``content=...`` to bypass filesystem entirely).
     """
+    from src.tenancy.runtime import get_catalog as _get_catalog
+    catalog = catalog or _get_catalog()
+    from src.tools._tenant_helper import run_tenant_scoped
     del data  # explicitly unused — kept for register-signature parity
+
+    # Capture the registered workflow_root for this registration.
+    # When set (e.g. in tests), it takes precedence over tenant context.
+    _registered_root = Path(workflow_root).resolve() if workflow_root else None
+
+    def _root():
+        """Resolve workflow root: registered override → tenant → env → default."""
+        if _registered_root is not None:
+            return _registered_root
+        return _resolve_workflow_root_with_tenant()
 
     @mcp.tool(
         name="get_workflow_structure",
@@ -654,16 +668,19 @@ def register(
         ]
         | None = None,
         structure_data: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
-        try:
-            return _tool_get_workflow_structure(
-                _resolve_workflow_root_with_tenant(),
-                component=component,
-                structure_data=structure_data,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            log.exception("get_workflow_structure failed")
-            return _error_text(f"getting workflow structure: {exc}")
+        async def _body():
+            try:
+                return _tool_get_workflow_structure(
+                    _root(),
+                    component=component,
+                    structure_data=structure_data,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                log.exception("get_workflow_structure failed")
+                return _error_text(f"getting workflow structure: {exc}")
+        return await run_tenant_scoped(tenant_id, catalog, _body)
 
     @mcp.tool(
         name="get_system_configs",
@@ -680,17 +697,20 @@ def register(
         config_type: Literal["modules", "resources", "paths", "all"]
         | None = None,
         content: str | None = None,
+        tenant_id: str | None = None,
     ) -> str:
-        try:
-            return _tool_get_system_configs(
-                _resolve_workflow_root_with_tenant(),
-                platform=platform,
-                config_type=config_type,
-                content=content,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            log.exception("get_system_configs failed")
-            return _error_text(f"getting system configs: {exc}")
+        async def _body():
+            try:
+                return _tool_get_system_configs(
+                    _root(),
+                    platform=platform,
+                    config_type=config_type,
+                    content=content,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                log.exception("get_system_configs failed")
+                return _error_text(f"getting system configs: {exc}")
+        return await run_tenant_scoped(tenant_id, catalog, _body)
 
     @mcp.tool(
         name="describe_component",
@@ -704,18 +724,21 @@ def register(
         show_content: bool = False,
         content: str | None = None,
         file_type: Literal["file", "directory"] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
-        try:
-            return _tool_describe_component(
-                _resolve_workflow_root_with_tenant(),
-                component=component,
-                show_content=show_content,
-                content=content,
-                file_type=file_type,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            log.exception("describe_component failed")
-            return _error_text(f"describing component: {exc}")
+        async def _body():
+            try:
+                return _tool_describe_component(
+                    _root(),
+                    component=component,
+                    show_content=show_content,
+                    content=content,
+                    file_type=file_type,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                log.exception("describe_component failed")
+                return _error_text(f"describing component: {exc}")
+        return await run_tenant_scoped(tenant_id, catalog, _body)
 
 
 __all__ = [

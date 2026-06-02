@@ -180,6 +180,7 @@ def register(
     mcp: FastMCP,
     data: Any = None,
     *,
+    catalog: "Any | None" = None,
     manifest_registry: ManifestRegistry | None = None,
     documentation_sources_path: str | os.PathLike[str] | None = None,
     repo_base: str | os.PathLike[str] | None = None,
@@ -212,8 +213,12 @@ def register(
         ``supported_repos/global-workflow`` relative to the working
         tree, matching the Node.js layout.
     """
+    from src.tenancy.runtime import get_catalog
+    catalog = catalog or get_catalog()
     doc_sources_resolver = _make_doc_sources_resolver(documentation_sources_path)
     repo_base_path = _resolve_repo_base(repo_base)
+
+    from src.tools._tenant_helper import run_tenant_scoped
 
     @mcp.tool(
         name="search_documentation",
@@ -230,14 +235,15 @@ def register(
         max_results: int = 8,
         include_graph: bool = True,
         similarity_threshold: float = 0.1,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_search_documentation(
-            data,
-            query=query,
-            collection=collection,
-            max_results=max_results,
-            include_graph=include_graph,
-            similarity_threshold=similarity_threshold,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_search_documentation(
+                data, query=query, collection=collection,
+                max_results=max_results, include_graph=include_graph,
+                similarity_threshold=similarity_threshold,
+            ),
         )
 
     @mcp.tool(
@@ -253,12 +259,14 @@ def register(
         file_path: str,
         max_results: int = 10,
         include_documentation: bool = True,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_find_related_files(
-            data,
-            file_path=file_path,
-            max_results=max_results,
-            include_documentation=include_documentation,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_find_related_files(
+                data, file_path=file_path, max_results=max_results,
+                include_documentation=include_documentation,
+            ),
         )
 
     @mcp.tool(
@@ -275,12 +283,14 @@ def register(
             "technical", "operational", "configuration", "all"
         ] = "all",
         detail_level: Literal["basic", "intermediate", "advanced"] = "intermediate",
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_explain_with_context(
-            data,
-            topic=topic,
-            context_type=context_type,
-            detail_level=detail_level,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_explain_with_context(
+                data, topic=topic, context_type=context_type,
+                detail_level=detail_level,
+            ),
         )
 
     @mcp.tool(
@@ -297,11 +307,14 @@ def register(
     async def get_knowledge_base_status(
         include_graph: bool = True,
         include_vector: bool = True,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_get_knowledge_base_status(
-            data,
-            include_graph=include_graph,
-            include_vector=include_vector,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_get_knowledge_base_status(
+                data, include_graph=include_graph,
+                include_vector=include_vector,
+            ),
         )
 
     @mcp.tool(
@@ -383,11 +396,13 @@ def register(
     )
     async def check_knowledge_integrity(
         sample_size: int = DEFAULT_INTEGRITY_SAMPLE_SIZE,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_check_knowledge_integrity(
-            data,
-            sample_size=sample_size,
-            repo_base=repo_base_path,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_check_knowledge_integrity(
+                data, sample_size=sample_size, repo_base=repo_base_path,
+            ),
         )
 
     log.info(

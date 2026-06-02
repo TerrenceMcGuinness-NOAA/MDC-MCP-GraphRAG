@@ -219,7 +219,7 @@ def _error_text(message: str) -> str:
 # ── public entrypoint ──────────────────────────────────────────────────
 
 
-def register(mcp: FastMCP, data: Any = None) -> None:
+def register(mcp: FastMCP, data: Any = None, *, catalog: "Any | None" = None) -> None:
     """Register all 4 operational tools on ``mcp``.
 
     Parameters
@@ -231,6 +231,9 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         degraded-mode for all 4 tools — they return ``[ERROR]``
         markdown rather than crashing.
     """
+    from src.tenancy.runtime import get_catalog as _get_catalog
+    catalog = catalog or _get_catalog()
+    from src.tools._tenant_helper import run_tenant_scoped
 
     @mcp.tool(
         name="get_operational_guidance",
@@ -247,12 +250,13 @@ def register(mcp: FastMCP, data: Any = None) -> None:
             "hera", "hercules", "orion", "wcoss2", "gaea", "generic"
         ] = "generic",
         urgency: Literal["routine", "urgent", "emergency"] = "routine",
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_get_operational_guidance(
-            data,
-            operation=operation,
-            platform=platform,
-            urgency=urgency,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_get_operational_guidance(
+                data, operation=operation, platform=platform, urgency=urgency,
+            ),
         )
 
     @mcp.tool(
@@ -266,11 +270,13 @@ def register(mcp: FastMCP, data: Any = None) -> None:
     async def explain_workflow_component(
         component: str,
         detail_level: Literal["basic", "detailed", "expert"] = "detailed",
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_explain_workflow_component(
-            data,
-            component=component,
-            detail_level=detail_level,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_explain_workflow_component(
+                data, component=component, detail_level=detail_level,
+            ),
         )
 
     @mcp.tool(
@@ -296,14 +302,14 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         format: Literal["summary", "detailed", "json"] = "summary",
         job_list: list[str] | None = None,
         files: list[dict[str, Any]] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_list_job_scripts(
-            data,
-            category=category,
-            search=search,
-            fmt=format,
-            job_list=list(job_list or []),
-            files=list(files or []),
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_list_job_scripts(
+                data, category=category, search=search, fmt=format,
+                job_list=list(job_list or []), files=list(files or []),
+            ),
         )
 
     @mcp.tool(
@@ -320,13 +326,14 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         include_content: bool = False,
         include_config: bool = True,
         include_chromadb: bool = True,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_get_job_details(
-            data,
-            job_name=job_name,
-            include_content=include_content,
-            include_config=include_config,
-            include_chromadb=include_chromadb,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_get_job_details(
+                data, job_name=job_name, include_content=include_content,
+                include_config=include_config, include_chromadb=include_chromadb,
+            ),
         )
 
     log.info(

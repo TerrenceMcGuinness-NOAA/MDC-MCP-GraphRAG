@@ -679,7 +679,7 @@ def _extract_from_content(
 # ── public entrypoint ──────────────────────────────────────────────────
 
 
-def register(mcp: FastMCP, data: Any = None) -> None:
+def register(mcp: FastMCP, data: Any = None, *, catalog: "Any | None" = None) -> None:
     """Register all 5 EE2 compliance tools on ``mcp``.
 
     Parameters
@@ -693,6 +693,9 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         regardless of ``data`` — they emit an ``[INFO]`` footer when
         the vector store is missing but do not fail.
     """
+    from src.tenancy.runtime import get_catalog as _get_catalog
+    catalog = catalog or _get_catalog()
+    from src.tools._tenant_helper import run_tenant_scoped
 
     @mcp.tool(
         name="search_ee2_standards",
@@ -716,15 +719,15 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         | None = None,
         max_results: int = SEARCH_RESULTS_DEFAULT,
         include_examples: bool = True,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_search_ee2_standards(
-            data,
-            query=query,
-            category=category,
-            max_results=_clamp(
-                max_results, SEARCH_RESULTS_MIN, SEARCH_RESULTS_MAX
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_search_ee2_standards(
+                data, query=query, category=category,
+                max_results=_clamp(max_results, SEARCH_RESULTS_MIN, SEARCH_RESULTS_MAX),
+                include_examples=include_examples,
             ),
-            include_examples=include_examples,
         )
 
     @mcp.tool(

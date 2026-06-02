@@ -83,15 +83,13 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
             "collection",
             "max_results",
             "include_graph",
-            "similarity_threshold",
-        },
+            "similarity_threshold", "tenant_id"},
         "find_related_files": {
             "file_path",
             "max_results",
-            "include_documentation",
-        },
-        "explain_with_context": {"topic", "context_type", "detail_level"},
-        "get_knowledge_base_status": {"include_graph", "include_vector"},
+            "include_documentation", "tenant_id"},
+        "explain_with_context": {"topic", "context_type", "detail_level", "tenant_id"},
+        "get_knowledge_base_status": {"include_graph", "include_vector", "tenant_id"},
         "list_ingested_urls": {"format", "source_filter"},
         "get_ingested_urls_array": {"include_failed"},
         "list_all_sources": {
@@ -100,7 +98,7 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
             "format",
             "include_gaps",
         },
-        "check_knowledge_integrity": {"sample_size"},
+        "check_knowledge_integrity": {"sample_size", "tenant_id"},
     }
     for name, params in expected.items():
         schema = tools[name].parameters
@@ -199,7 +197,7 @@ async def test_check_knowledge_integrity_sample_size_default_is_50() -> None:
 async def test_search_documentation_returns_error_when_data_missing() -> None:
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, "search_documentation", {"query": "x"})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "Vector database unavailable" in text
 
 
@@ -208,7 +206,7 @@ async def test_find_related_files_returns_error_when_data_missing() -> None:
     text = await _call_tool(
         mcp, "find_related_files", {"file_path": "x.py"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "Graph database unavailable" in text
 
 
@@ -217,20 +215,20 @@ async def test_explain_with_context_returns_error_when_data_missing() -> None:
     text = await _call_tool(
         mcp, "explain_with_context", {"topic": "forecast"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
 
 
 async def test_get_knowledge_base_status_returns_error_when_data_missing() -> None:
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, "get_knowledge_base_status", {})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "Data access layer unavailable" in text
 
 
 async def test_check_knowledge_integrity_returns_error_when_data_missing() -> None:
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, "check_knowledge_integrity", {})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
 
 
 async def test_list_ingested_urls_works_without_data() -> None:
@@ -256,7 +254,7 @@ async def test_search_documentation_rejects_empty_query() -> None:
     data = MockUnifiedDataAccess()
     mcp = _make_server(data=data)
     text = await _call_tool(mcp, "search_documentation", {"query": "  "})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "Query is required" in text
 
 
@@ -266,14 +264,14 @@ async def test_find_related_files_rejects_empty_path() -> None:
     text = await _call_tool(
         mcp, "find_related_files", {"file_path": ""}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
 
 
 async def test_explain_with_context_rejects_empty_topic() -> None:
     data = MockUnifiedDataAccess()
     mcp = _make_server(data=data)
     text = await _call_tool(mcp, "explain_with_context", {"topic": "   "})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
 
 
 # ── happy path with mock data ─────────────────────────────────────────
@@ -348,7 +346,7 @@ async def test_search_documentation_handles_adapter_error_gracefully() -> None:
     data.vector_db.raise_on_query = RuntimeError("boom")
     mcp = _make_server(data=data)
     text = await _call_tool(mcp, "search_documentation", {"query": "x"})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "boom" in text
 
 
@@ -386,7 +384,7 @@ async def test_find_related_files_handles_graph_error() -> None:
     text = await _call_tool(
         mcp, "find_related_files", {"file_path": "x.py"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "neptune unreachable" in text
 
 

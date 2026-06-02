@@ -159,7 +159,7 @@ class _DataAccess(Protocol):
 # ── public entrypoint ───────────────────────────────────────────────────
 
 
-def register(mcp: FastMCP, data: Any = None) -> None:
+def register(mcp: FastMCP, data: Any = None, *, catalog: "Any | None" = None) -> None:
     """Register all 6 code-analysis tools on ``mcp``.
 
     Parameters
@@ -171,6 +171,9 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         degraded-mode — tools return ``[ERROR]`` messages rather than
         crashing.
     """
+    from src.tenancy.runtime import get_catalog as _get_catalog
+    catalog = catalog or _get_catalog()
+    from src.tools._tenant_helper import run_tenant_scoped
 
     @mcp.tool(
         name="analyze_code_structure",
@@ -184,13 +187,16 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         include_dependencies: bool = True,
         depth: int = 2,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_analyze_code_structure(
-            data,
-            file_path=file_path,
-            include_dependencies=include_dependencies,
-            depth=_clamp(depth, ANALYZE_DEPTH_MIN, ANALYZE_DEPTH_MAX),
-            token_budget=max(0, int(token_budget)),
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_analyze_code_structure(
+                data, file_path=file_path,
+                include_dependencies=include_dependencies,
+                depth=_clamp(depth, ANALYZE_DEPTH_MIN, ANALYZE_DEPTH_MAX),
+                token_budget=max(0, int(token_budget)),
+            ),
         )
 
     @mcp.tool(
@@ -205,13 +211,15 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         direction: Literal["upstream", "downstream", "both"] = "both",
         max_depth: int = 3,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_find_dependencies(
-            data,
-            target=target,
-            direction=direction,
-            max_depth=_clamp(max_depth, DEPENDENCY_DEPTH_MIN, DEPENDENCY_DEPTH_MAX),
-            token_budget=max(0, int(token_budget)),
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_find_dependencies(
+                data, target=target, direction=direction,
+                max_depth=_clamp(max_depth, DEPENDENCY_DEPTH_MIN, DEPENDENCY_DEPTH_MAX),
+                token_budget=max(0, int(token_budget)),
+            ),
         )
 
     @mcp.tool(
@@ -228,15 +236,16 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         include_callers: bool = False,
         include_weights: bool = True,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_trace_execution_path(
-            data,
-            function_name=function_name,
-            file_path=file_path,
-            max_depth=_clamp(max_depth, DEPENDENCY_DEPTH_MIN, DEPENDENCY_DEPTH_MAX),
-            include_callers=include_callers,
-            include_weights=include_weights,
-            token_budget=max(0, int(token_budget)),
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_trace_execution_path(
+                data, function_name=function_name, file_path=file_path,
+                max_depth=_clamp(max_depth, DEPENDENCY_DEPTH_MIN, DEPENDENCY_DEPTH_MAX),
+                include_callers=include_callers, include_weights=include_weights,
+                token_budget=max(0, int(token_budget)),
+            ),
         )
 
     @mcp.tool(
@@ -252,14 +261,16 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         include_source: bool = False,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
         cross_language: bool = False,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_find_callers_callees(
-            data,
-            function_name=function_name,
-            file_path=file_path,
-            include_source=include_source,
-            token_budget=max(0, int(token_budget)),
-            cross_language=cross_language,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_find_callers_callees(
+                data, function_name=function_name, file_path=file_path,
+                include_source=include_source,
+                token_budget=max(0, int(token_budget)),
+                cross_language=cross_language,
+            ),
         )
 
     @mcp.tool(
@@ -277,13 +288,15 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         direction: Literal["forward", "reverse", "both"] = "forward",
         max_depth: int = 5,
         languages: list[Literal["shell", "fortran", "python"]] | None = None,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_trace_full_execution_chain(
-            data,
-            start=start,
-            direction=direction,
-            max_depth=_clamp(max_depth, FULL_CHAIN_DEPTH_MIN, FULL_CHAIN_DEPTH_MAX),
-            languages=tuple(languages) if languages else None,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_trace_full_execution_chain(
+                data, start=start, direction=direction,
+                max_depth=_clamp(max_depth, FULL_CHAIN_DEPTH_MIN, FULL_CHAIN_DEPTH_MAX),
+                languages=tuple(languages) if languages else None,
+            ),
         )
 
     @mcp.tool(
@@ -298,13 +311,15 @@ def register(mcp: FastMCP, data: Any = None) -> None:
         show_exports: bool = True,
         limit: int = 50,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_find_env_dependencies(
-            data,
-            variable_name=variable_name,
-            show_exports=show_exports,
-            limit=_clamp(int(limit or 50), ENV_LIMIT_MIN, ENV_LIMIT_MAX),
-            token_budget=max(0, int(token_budget)),
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_find_env_dependencies(
+                data, variable_name=variable_name, show_exports=show_exports,
+                limit=_clamp(int(limit or 50), ENV_LIMIT_MIN, ENV_LIMIT_MAX),
+                token_budget=max(0, int(token_budget)),
+            ),
         )
 
     log.info(

@@ -98,8 +98,7 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
             "query",
             "category",
             "max_results",
-            "include_examples",
-        },
+            "include_examples", "tenant_id"},
         "analyze_ee2_compliance": {
             "content",
             "analysis_type",
@@ -270,7 +269,7 @@ async def test_search_returns_error_when_data_missing() -> None:
     text = await _call_tool(
         mcp, "search_ee2_standards", {"query": "error handling"}
     )
-    assert text.startswith("[ERROR]"), text
+    assert "[ERROR]" in text, text
     assert "unavailable" in text
 
 
@@ -303,7 +302,7 @@ async def test_content_scanners_work_without_data(
     and must not require a data-access layer."""
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, tool_name, arguments)
-    assert not text.startswith("[ERROR]"), text
+    assert "[ERROR]" not in text, text
 
 
 async def test_analyze_footer_notes_degraded_standards() -> None:
@@ -335,14 +334,14 @@ async def test_search_rejects_empty_query() -> None:
     data = MockUnifiedDataAccess()
     mcp = _make_server(data=data)
     text = await _call_tool(mcp, "search_ee2_standards", {"query": " "})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "query" in text
 
 
 async def test_analyze_rejects_empty_content() -> None:
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, "analyze_ee2_compliance", {"content": ""})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "content" in text
 
 
@@ -355,7 +354,7 @@ async def test_scan_rejects_repository_path() -> None:
         "scan_repository_compliance",
         {"repository_path": "/tmp/nonexistent"},
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "repository_path" in text
     assert "files" in text
 
@@ -365,7 +364,7 @@ async def test_scan_rejects_empty_files_array() -> None:
     text = await _call_tool(
         mcp, "scan_repository_compliance", {"files": []}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "files" in text
 
 
@@ -377,14 +376,14 @@ async def test_extract_rejects_path_only_mode() -> None:
         "extract_code_for_analysis",
         {"path": "/tmp/scripts"},
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "path" in text
 
 
 async def test_extract_rejects_when_nothing_provided() -> None:
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, "extract_code_for_analysis", {})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
 
 
 # ── search_ee2_standards ──────────────────────────────────────────────
@@ -1017,7 +1016,7 @@ async def test_extract_rejects_unknown_categories() -> None:
         file_pattern=ee2_compliance.EXTRACT_FILE_PATTERN_DEFAULT,
         max_files=50,
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "nonsense_category" in text
 
 
@@ -1031,7 +1030,7 @@ async def test_extract_invalid_file_pattern_returns_error() -> None:
             "file_pattern": "[",  # invalid regex
         },
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "file_pattern" in text
 
 

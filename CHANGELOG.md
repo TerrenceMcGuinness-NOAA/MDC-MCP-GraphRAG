@@ -1,5 +1,56 @@
 # MCP Server Changelog
 
+## [8.28.0] - Bugfix tenant-id-tool-exposure: wire tenant_id onto 24 tenant-scoped tools (Gap A) (Jun 2, 2026)
+
+### Summary
+
+Closes Gap A from `.kiro/steering/07-tenant-usability-gaps.md`. The multi-tenant
+resolution stack (`resolve_tenant`, `_ctx_var`, adapter prefix-scoping,
+attribution) was complete but never wired to the tool surface — zero of the
+tenant-scoped `@mcp.tool` registrations exposed a `tenant_id` parameter, so every
+call fell through to the default `gw` tenant and the freshly-ingested `gw_v17`
+data was unreachable from any MCP client.
+
+### Fix (Approach B — explicit param + signature-preserving scope)
+
+FastMCP builds each tool's input schema by introspecting the decorated function's
+signature, so the prior `_wire_tenant_aware` monkey-patch (an `*args/**kwargs`
+wrapper) could never surface `tenant_id` in the schema. Approach B replaces it:
+
+- `src/tenancy/resolver.py` — new `tenant_scope(tenant_id, catalog)` async
+  context manager: resolves the tenant, binds `_ctx_var` for the call duration,
+  resets on exit.
+- `src/tools/_tenant_helper.py` (new) — `run_tenant_scoped(tenant_id, catalog,
+  coro_factory)`: resolves tenant, runs the body inside the scope, applies
+  attribution, renders `[ERROR] ...` on `UnknownTenantError` (no silent
+  fallback).
+- `src/mcp_server.py` — threads the loaded `TenantCatalog` into the six
+  tenant-scoped modules' `register()` calls; removed the broken
+  `_wire_tenant_aware` monkey-patch (call site + now-orphaned definition and
+  `_UTILITY_TOOLS` helper).
+- 24 tenant-scoped tools gain an explicit `tenant_id: str | None = None`
+  parameter (exposed in the schema) and route their bodies through
+  `run_tenant_scoped`: `semantic_search` (5), `code_analysis` (6), `graph_rag`
+  (5 data tools), `operational` (4), `ee2_compliance` (1, `search_ee2_standards`),
+  `workflow_info` (3).
+- Server-global tools left untouched: `utility`, `sdd_workflow`, `graph_rag`
+  session tools, `ee2_compliance` content-analysis tools, `github_tools`.
+
+### Tests
+
+Exploration tests in `test_tenant_tool_exposure.py` (schema lacks `tenant_id`;
+call routes to `gw` regardless of intent) fail on the old code and flip to pass.
+`test_tenant_helper.py` covers `run_tenant_scoped` success + unknown-tenant
+error path. All 522 tenant/tool tests pass; the six tool-module suites (340) and
+mcp_server suite stay green.
+
+### Deploy (gated, operator-run)
+
+Task 14 — image rebuild + `update-agent-runtime` — deploys the wired tools to
+runtime `mdc_mcp_rag_server_python-v5K2F8BGrN`. Until then the data is reachable
+only in tests. Gap B (graph relationships for `gw_v17`) remains tracked under the
+`graph-port-*` series.
+
 ## [8.27.1] - rollback-cli-real-adapters Defect 4: Neptune any() predicate unsupported (May 29, 2026)
 
 ### Summary

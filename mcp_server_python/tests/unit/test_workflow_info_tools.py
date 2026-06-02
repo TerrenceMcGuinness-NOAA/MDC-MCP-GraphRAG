@@ -138,14 +138,13 @@ async def test_tool_schemas_match_nodejs_parameter_names(
     tools = {t.name: t for t in await mcp.list_tools(run_middleware=False)}
 
     expected = {
-        "get_workflow_structure": {"component", "structure_data"},
-        "get_system_configs": {"platform", "config_type", "content"},
+        "get_workflow_structure": {"component", "structure_data", "tenant_id"},
+        "get_system_configs": {"platform", "config_type", "content", "tenant_id"},
         "describe_component": {
             "component",
             "show_content",
             "content",
-            "file_type",
-        },
+            "file_type", "tenant_id"},
     }
     for name, want in expected.items():
         schema = tools[name].parameters

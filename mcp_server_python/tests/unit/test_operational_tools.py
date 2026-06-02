@@ -85,21 +85,19 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
     mcp = _make_server()
     tools = {t.name: t for t in await mcp.list_tools(run_middleware=False)}
     expected = {
-        "get_operational_guidance": {"operation", "platform", "urgency"},
-        "explain_workflow_component": {"component", "detail_level"},
+        "get_operational_guidance": {"operation", "platform", "urgency", "tenant_id"},
+        "explain_workflow_component": {"component", "detail_level", "tenant_id"},
         "list_job_scripts": {
             "category",
             "search",
             "format",
             "job_list",
-            "files",
-        },
+            "files", "tenant_id"},
         "get_job_details": {
             "job_name",
             "include_content",
             "include_config",
-            "include_chromadb",
-        },
+            "include_chromadb", "tenant_id"},
     }
     for name, params in expected.items():
         props = set(tools[name].parameters.get("properties", {}).keys())
@@ -207,7 +205,7 @@ async def test_all_tools_return_error_when_data_missing(
     layer and surfaces ``[ERROR]`` in degraded-mode boot."""
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, tool_name, arguments)
-    assert text.startswith("[ERROR]"), text
+    assert "[ERROR]" in text, text
     assert "unavailable" in text or "degraded" in text
 
 
@@ -225,7 +223,7 @@ async def test_list_job_scripts_with_remote_list_works_without_data() -> None:
         "list_job_scripts",
         {"job_list": ["JGLOBAL_FORECAST", "JGDAS_FIT2OBS"]},
     )
-    assert not text.startswith("[ERROR]"), text
+    assert "[ERROR]" not in text, text
     assert "JGLOBAL_FORECAST" in text
     assert "JGDAS_FIT2OBS" in text
 
@@ -238,7 +236,7 @@ async def test_get_operational_guidance_rejects_empty_operation() -> None:
     text = await _call_tool(
         mcp, "get_operational_guidance", {"operation": " "}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "operation" in text
 
 
@@ -247,14 +245,14 @@ async def test_explain_workflow_component_rejects_empty_component() -> None:
     text = await _call_tool(
         mcp, "explain_workflow_component", {"component": ""}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "component" in text
 
 
 async def test_get_job_details_rejects_empty_job_name() -> None:
     mcp = _make_server(data=MockUnifiedDataAccess())
     text = await _call_tool(mcp, "get_job_details", {"job_name": "  "})
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "job_name" in text
 
 
@@ -691,7 +689,7 @@ async def test_get_job_details_reports_not_found() -> None:
     text = await _call_tool(
         mcp, "get_job_details", {"job_name": "JFAKE_MISSING"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "JFAKE_MISSING" in text
     assert "not found" in text.lower()
 

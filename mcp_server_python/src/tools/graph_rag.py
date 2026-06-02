@@ -168,6 +168,7 @@ def register(
     mcp: FastMCP,
     data: Any = None,
     *,
+    catalog: "Any | None" = None,
     session_manager: SessionManager | None = None,
 ) -> None:
     """Register all 9 GraphRAG tools on ``mcp``.
@@ -186,6 +187,9 @@ def register(
         (``sdd_framework/execution_state``). Tests inject a tmp-dir
         manager here for an isolated session lifecycle.
     """
+    from src.tenancy.runtime import get_catalog as _get_catalog
+    catalog = catalog or _get_catalog()
+    from src.tools._tenant_helper import run_tenant_scoped
     session = session_manager or SessionManager()
 
     @mcp.tool(
@@ -202,14 +206,16 @@ def register(
         depth: int = 2,
         include_community: bool = True,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_get_code_context(
-            data,
-            session,
-            symbol=symbol,
-            depth=_clamp(depth, DEPTH_MIN, DEPTH_MAX),
-            include_community=include_community,
-            token_budget=max(0, int(token_budget)),
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_get_code_context(
+                data, session, symbol=symbol,
+                depth=_clamp(depth, DEPTH_MIN, DEPTH_MAX),
+                include_community=include_community,
+                token_budget=max(0, int(token_budget)),
+            ),
         )
 
     @mcp.tool(
@@ -224,12 +230,13 @@ def register(
     async def search_architecture(
         query: str,
         max_results: int = 5,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_search_architecture(
-            data,
-            query=query,
-            max_results=_clamp(
-                max_results, ARCH_RESULTS_MIN, ARCH_RESULTS_MAX
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_search_architecture(
+                data, query=query,
+                max_results=_clamp(max_results, ARCH_RESULTS_MIN, ARCH_RESULTS_MAX),
             ),
         )
 
@@ -245,13 +252,14 @@ def register(
         code_or_symbol: str,
         similarity_threshold: float = 0.7,
         max_results: int = 10,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_find_similar_code(
-            data,
-            code_or_symbol=code_or_symbol,
-            similarity_threshold=max(0.0, min(float(similarity_threshold), 1.0)),
-            max_results=_clamp(
-                max_results, SIMILAR_RESULTS_MIN, SIMILAR_RESULTS_MAX
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_find_similar_code(
+                data, code_or_symbol=code_or_symbol,
+                similarity_threshold=max(0.0, min(float(similarity_threshold), 1.0)),
+                max_results=_clamp(max_results, SIMILAR_RESULTS_MIN, SIMILAR_RESULTS_MAX),
             ),
         )
 
@@ -267,12 +275,14 @@ def register(
         symbol: str,
         change_type: Literal["signature", "behavior", "delete", "rename"] = "behavior",
         include_indirect: bool = True,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_get_change_impact(
-            data,
-            symbol=symbol,
-            change_type=change_type,
-            include_indirect=include_indirect,
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_get_change_impact(
+                data, symbol=symbol, change_type=change_type,
+                include_indirect=include_indirect,
+            ),
         )
 
     @mcp.tool(
@@ -288,12 +298,14 @@ def register(
         from_symbol: str,
         to_symbol: str | None = None,
         max_depth: int = 5,
+        tenant_id: str | None = None,
     ) -> str:
-        return await _tool_trace_data_flow(
-            data,
-            from_symbol=from_symbol,
-            to_symbol=to_symbol,
-            max_depth=_clamp(max_depth, TRACE_DEPTH_MIN, TRACE_DEPTH_MAX),
+        return await run_tenant_scoped(
+            tenant_id, catalog,
+            lambda: _tool_trace_data_flow(
+                data, from_symbol=from_symbol, to_symbol=to_symbol,
+                max_depth=_clamp(max_depth, TRACE_DEPTH_MIN, TRACE_DEPTH_MAX),
+            ),
         )
 
     @mcp.tool(

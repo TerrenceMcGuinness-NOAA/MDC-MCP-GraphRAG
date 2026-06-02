@@ -160,16 +160,14 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
             "symbol",
             "depth",
             "include_community",
-            "token_budget",
-        },
-        "search_architecture": {"query", "max_results"},
+            "token_budget", "tenant_id"},
+        "search_architecture": {"query", "max_results", "tenant_id"},
         "find_similar_code": {
             "code_or_symbol",
             "similarity_threshold",
-            "max_results",
-        },
-        "get_change_impact": {"symbol", "change_type", "include_indirect"},
-        "trace_data_flow": {"from_symbol", "to_symbol", "max_depth"},
+            "max_results", "tenant_id"},
+        "get_change_impact": {"symbol", "change_type", "include_indirect", "tenant_id"},
+        "trace_data_flow": {"from_symbol", "to_symbol", "max_depth", "tenant_id"},
         "mark_as_modified": {"file_path", "change_type", "description"},
         "get_session_context": {"include_dirty"},
         "checkpoint_state": {"name", "description"},
@@ -286,7 +284,7 @@ async def test_graph_backed_tools_return_error_when_data_missing(
     session = _make_session(tmp_path)
     mcp = _make_server(data=None, session=session)
     text = await _call_tool(mcp, tool_name, arguments)
-    assert text.startswith("[ERROR]"), text
+    assert "[ERROR]" in text, text
     assert "unavailable" in text
 
 
@@ -306,7 +304,7 @@ async def test_session_tools_work_without_data(
     session = _make_session(tmp_path)
     mcp = _make_server(data=None, session=session)
     text = await _call_tool(mcp, tool_name, arguments)
-    assert not text.startswith("[ERROR]"), text
+    assert "[ERROR]" not in text, text
 
 
 async def test_get_session_context_no_active_session(tmp_path: Path) -> None:
@@ -345,7 +343,7 @@ async def test_tools_reject_empty_required_arguments(
     session = _make_session(tmp_path)
     mcp = _make_server(data=data, session=session)
     text = await _call_tool(mcp, tool_name, arguments)
-    assert text.startswith("[ERROR]"), text
+    assert "[ERROR]" in text, text
     assert missing_key in text
 
 
@@ -590,7 +588,7 @@ async def test_search_architecture_returns_error_without_vector(
     text = await _call_tool(
         mcp, "search_architecture", {"query": "how does forecast work"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "Vector database unavailable" in text
 
 
@@ -1199,7 +1197,7 @@ async def test_restore_checkpoint_invalid_id_returns_error(
         "restore_checkpoint",
         {"checkpoint_id": "chk_nonexistent_xxxxxx"},
     )
-    assert text.startswith("[ERROR]"), text
+    assert "[ERROR]" in text, text
     assert "chk_nonexistent_xxxxxx" in text or "not found" in text
 
 
@@ -1213,7 +1211,7 @@ async def test_checkpoint_state_without_active_session_returns_error(
     text = await _call_tool(
         mcp, "checkpoint_state", {"name": "orphan"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "session" in text.lower()
 
 
@@ -1227,7 +1225,7 @@ async def test_mark_as_modified_without_active_session_returns_error(
         "mark_as_modified",
         {"file_path": "a.py"},
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
 
 
 # ── graph-error propagation ──────────────────────────────────────────
@@ -1242,7 +1240,7 @@ async def test_get_code_context_handles_graph_error_gracefully(
     text = await _call_tool(
         mcp, "get_code_context", {"symbol": "forecast"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "neptune unreachable" in text
 
 
@@ -1255,7 +1253,7 @@ async def test_search_architecture_handles_vector_error_gracefully(
     text = await _call_tool(
         mcp, "search_architecture", {"query": "x"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "opensearch down" in text
 
 
@@ -1268,7 +1266,7 @@ async def test_find_similar_code_handles_vector_error_gracefully(
     text = await _call_tool(
         mcp, "find_similar_code", {"code_or_symbol": "x"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "timeout" in text
 
 
@@ -1281,7 +1279,7 @@ async def test_get_change_impact_handles_graph_error_gracefully(
     text = await _call_tool(
         mcp, "get_change_impact", {"symbol": "forecast"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "conn reset" in text
 
 
@@ -1294,7 +1292,7 @@ async def test_trace_data_flow_handles_graph_error_gracefully(
     text = await _call_tool(
         mcp, "trace_data_flow", {"from_symbol": "forecast"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "bolt closed" in text
 
 

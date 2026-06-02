@@ -5,10 +5,11 @@ Implements Requirements 2.1-2.8, 5.5, 6.3.
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, AsyncGenerator, Callable
 
 if TYPE_CHECKING:
     from src.config.tenants import Tenant, TenantCatalog
@@ -120,6 +121,28 @@ def get_current_tenant_or_none() -> TenantContext | None:
     is wired into all tools).
     """
     return _ctx_var.get()
+
+
+# ---------------------------------------------------------------------------
+# tenant_scope context manager (Approach B — explicit tenant_id on tools)
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def tenant_scope(
+    tenant_id: str | None, catalog: "TenantCatalog"
+) -> AsyncGenerator[TenantContext, None]:
+    """Resolve tenant_id and bind the ContextVar for the call's duration.
+
+    Yields the resolved TenantContext. Raises UnknownTenantError on an
+    unknown id (caller renders the error).
+    """
+    ctx = resolve_tenant(request_tenant_id=tenant_id, catalog=catalog)
+    token = _ctx_var.set(ctx)
+    try:
+        yield ctx
+    finally:
+        _ctx_var.reset(token)
 
 
 # ---------------------------------------------------------------------------

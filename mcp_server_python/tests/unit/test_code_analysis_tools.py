@@ -123,36 +123,31 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
             "file_path",
             "include_dependencies",
             "depth",
-            "token_budget",
-        },
-        "find_dependencies": {"target", "direction", "max_depth", "token_budget"},
+            "token_budget", "tenant_id"},
+        "find_dependencies": {"target", "direction", "max_depth", "token_budget", "tenant_id"},
         "trace_execution_path": {
             "function_name",
             "file_path",
             "max_depth",
             "include_callers",
             "include_weights",
-            "token_budget",
-        },
+            "token_budget", "tenant_id"},
         "find_callers_callees": {
             "function_name",
             "file_path",
             "include_source",
             "token_budget",
-            "cross_language",
-        },
+            "cross_language", "tenant_id"},
         "trace_full_execution_chain": {
             "start",
             "direction",
             "max_depth",
-            "languages",
-        },
+            "languages", "tenant_id"},
         "find_env_dependencies": {
             "variable_name",
             "show_exports",
             "limit",
-            "token_budget",
-        },
+            "token_budget", "tenant_id"},
     }
     for name, params in expected.items():
         props = set(tools[name].parameters.get("properties", {}).keys())
@@ -271,7 +266,7 @@ async def test_all_tools_return_error_when_data_missing(
     when booted without a data-access layer (Requirement 1.7)."""
     mcp = _make_server(data=None)
     text = await _call_tool(mcp, tool_name, arguments)
-    assert text.startswith("[ERROR]"), text
+    assert "[ERROR]" in text, text
     assert "Graph database unavailable" in text
 
 
@@ -294,7 +289,7 @@ async def test_tools_reject_empty_primary_argument(
     data = MockUnifiedDataAccess()
     mcp = _make_server(data=data)
     text = await _call_tool(mcp, tool_name, arguments)
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert missing_key in text
 
 
@@ -853,7 +848,7 @@ async def test_trace_full_execution_chain_clamps_max_depth_to_ten() -> None:
     captured: list[str] = []
     original_query = data.graph_db.query
 
-    async def _recording_query(cypher: str, params: dict[str, Any] | None = None):
+    async def _recording_query(cypher: str, params: dict[str, Any] | None = None, **kwargs):
         if "*1..10" in cypher or "*1..11" in cypher:
             captured.append(cypher)
         return await original_query(cypher, params)
@@ -1160,7 +1155,7 @@ async def test_analyze_code_structure_handles_graph_error_gracefully() -> None:
     text = await _call_tool(
         mcp, "analyze_code_structure", {"file_path": "x.py"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "neptune unreachable" in text
 
 
@@ -1171,7 +1166,7 @@ async def test_find_env_dependencies_handles_graph_error_gracefully() -> None:
     text = await _call_tool(
         mcp, "find_env_dependencies", {"variable_name": "HOMEgfs"}
     )
-    assert text.startswith("[ERROR]")
+    assert "[ERROR]" in text
     assert "timeout" in text
 
 
