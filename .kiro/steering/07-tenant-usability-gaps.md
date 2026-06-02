@@ -23,12 +23,24 @@ OpenSearch `gw_v17_*` indices hold real embedded content (not references).
 The `mdc-content-sha-registry` has correct `(collection, sha)` composite keys.
 Both defects from the bugfix specs are resolved.
 
-## Gap A — Tool interface does not expose `tenant_id` (BLOCKER)
+## Gap A — Tool interface does not expose `tenant_id` (RESOLVED 2026-06-02)
 
-**Symptom.** Every MCP query tool resolves to the default `gw` tenant. There
-is no client-reachable way to query `gw_v17` (or any non-default tenant).
-A `search_documentation` call returns `*Tenant: gw*` and hits the legacy
-unprefixed collections.
+**Status: FIXED** — commit `ca44057` on `develop_aws` (CHANGELOG `[8.28.0]`).
+Code landed and all 522 tenant/tool tests pass. Deploy to the runtime
+(Task 14: image rebuild + `update-agent-runtime`) remains the only gated,
+operator-run step before clients can exercise it live.
+
+**Fix shipped (Approach B).** 24 tenant-scoped tools now declare an explicit
+`tenant_id: str | None = None` parameter (surfaced in the FastMCP schema) and
+route their bodies through `run_tenant_scoped()` → `tenant_scope()` →
+`_ctx_var`. The broken `_wire_tenant_aware` monkey-patch (an `*args/**kwargs`
+wrapper that could never surface `tenant_id` in the schema) was removed. See
+`.kiro/specs/tenant-id-tool-exposure/`.
+
+**Symptom (historical).** Every MCP query tool resolved to the default `gw`
+tenant. There was no client-reachable way to query `gw_v17` (or any
+non-default tenant). A `search_documentation` call returned `*Tenant: gw*`
+and hit the legacy unprefixed collections.
 
 **Root cause (confirmed in source).** The tenancy plumbing is COMPLETE —
 `src/tenancy/resolver.py::tenant_aware(catalog)` already pops a
@@ -76,12 +88,13 @@ extension of shell-ops).
 
 ## Priority order to reach a usable multi-tenant system
 
-1. **Gap A — `tenant_id` on the tools** (gating; nothing reachable without it).
-   Smallest, highest-value. Scope as a bugfix spec next.
+1. ~~**Gap A — `tenant_id` on the tools**~~ **DONE** (`ca44057`, [8.28.0]).
+   Code landed + tested; only the gated runtime deploy (Task 14) remains.
 2. **Gap B — relationship ingesters** (`graph-port-*` series). shell-ops is
-   ready to implement.
+   ready to implement (requirements + design done).
 3. Rebuild image → update runtime → run v17-pilot Phase C smoke probe (which
-   validates both gaps via branch_isolation).
+   validates both gaps via branch_isolation). The Gap A deploy and this step
+   are the same `update-agent-runtime` action.
 
 ## Spec inventory (as of 2026-05-30)
 
@@ -92,4 +105,4 @@ extension of shell-ops).
 | `graph-port-shell-ops` | requirements + design DONE; tasks pending |
 | `graph-port-workflow-structure` | requirements STUB |
 | `graph-port-python-community` | requirements STUB |
-| `tenant-id-tool-exposure` (Gap A) | NOT YET CREATED — next |
+| `tenant-id-tool-exposure` (Gap A) | FIXED — `ca44057`, [8.28.0]; Task 14 deploy gated |
