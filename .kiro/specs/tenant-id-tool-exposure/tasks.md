@@ -119,11 +119,22 @@ References:
   - Run tasks 10, 11, 12, 3.1 + the existing resolver/adapter/attribution suites; confirm no regressions
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 14. Gated live verification (OPERATOR-RUN, after image rebuild)
-  - This requires the fixed code deployed to the runtime (image rebuild + update-agent-runtime) — a separate gated step
-  - **STOP-AND-CONFIRM** before the AWS deploy
-  - After deploy: from the MCP client, call `search_documentation("MPAS Voronoi", tenant_id="gw_v17")` → confirm `*Tenant: gw_v17*` and `gw_v17_*` collection hits; call without `tenant_id` → confirm `*Tenant: gw*`
-  - Then run `mcp_health_check(functional=True)` → the `branch_isolation` probe can now issue tenant-scoped calls (R2.7)
+- [x] 14. Gated live verification (OPERATOR-RUN, after image rebuild)
+  - **DONE 2026-06-03.** Built + pushed `python-tenants-v2`
+    (digest `sha256:341891b9...`); `update-agent-runtime` cut the runtime
+    `mdc_mcp_rag_server_python-v5K2F8BGrN` from v21/`python-tenants-v1` to
+    **v22/`python-tenants-v2`** (READY). Rollback target `python-tenants-v1`
+    preserved.
+  - **Gap A VERIFIED LIVE**: `search_documentation(..., tenant_id="gw_v17")`
+    returns `*Tenant: gw_v17*` / `*Branch: dev/gfs.v17*`; same call without
+    `tenant_id` returns `*Tenant: gw*` / `*Branch: develop*` with real hits.
+    `tenant_id` is accepted (no more pydantic ValidationError). R2.3/R2.4 met.
+  - **branch_isolation probe still RED — by Gap B, not Gap A**: assertion 1
+    `MATCH (f {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m)` requires a
+    relationship; confirmed directly in Neptune the node exists under
+    `GW_V17_JJob` with `rel_count=0`. Goes green once `graph-port-shell-ops`
+    (Gap B) lands. R2.7 plumbing works (probe now issues tenant-scoped calls);
+    the data assertion is gated on Gap B.
   - _Requirements: 2.3, 2.4, 2.7_
 
 - [x] 15. Checkpoint — Ensure all tests pass

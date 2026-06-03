@@ -6,6 +6,41 @@ Short-form progress log for the Python port of the Node.js MCP server
 port (`mcp_server_python/`) is validated module-by-module via parity
 tests before cutover.
 
+## 2026-06-03 — Gap A deployed: tenant_id reachable on the live runtime (v22)
+
+### Status
+
+- **`tenant-id-tool-exposure` Task 14 DONE.** Built + pushed
+  `python-tenants-v2` (ECR digest `sha256:341891b9...`) and cut the
+  runtime `mdc_mcp_rag_server_python-v5K2F8BGrN` from
+  v21/`python-tenants-v1` → **v22/`python-tenants-v2`** (READY).
+- **Gap A verified live.** `search_documentation(query, tenant_id="gw_v17")`
+  → `*Tenant: gw_v17*` / `*Branch: dev/gfs.v17*`; without `tenant_id`
+  → `*Tenant: gw*` / `*Branch: develop*` with real doc hits. The
+  pydantic `Unexpected keyword argument` error is gone — `tenant_id`
+  is in the schema for all 24 tenant-scoped tools.
+- **`mcp_health_check(functional=True)`**: 8/10 pass, github SKIP
+  (no GITHUB_TOKEN), `branch_isolation` FAIL — but the failure is
+  **Gap B, not Gap A**. Probe assertion 1 needs a relationship
+  (`MATCH (f {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m)`); confirmed
+  directly in Neptune the node exists under `GW_V17_JJob` with
+  `rel_count=0`. Goes green when `graph-port-shell-ops` lands.
+
+### Rollback
+
+Same `update-agent-runtime` call with
+`containerUri=...:python-tenants-v1`. v1 image preserved in ECR.
+
+### Deploy payload note
+
+The full lossless payload (captured from the live v21 config) includes
+`--metadata-configuration '{"requireMMDSV2":true}'` and
+`requireServiceS3Endpoint:true` inside the network config — both are
+easy to drop and both must be carried on every `update-agent-runtime`.
+6 env vars, 2 subnets (`subnet-0e13af6b3a9a6416f`,
+`subnet-04447750c61bd7e06`), sg `sg-096489a0876cc78c1`, EFS access
+point `fsap-03e641f056b341f29` at `/mnt/workflow`.
+
 ## 2026-05-21 — MPAS RAG bug: path-prefix scoping for non-RTD Sphinx sites
 
 ### Status
