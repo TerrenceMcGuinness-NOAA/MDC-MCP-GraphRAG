@@ -1,0 +1,20 @@
+#! /usr/bin/env bash
+
+########## config.atmensanl ##########
+# configuration common to all atm ens analysis tasks
+
+echo "BEGIN: config.atmensanl"
+
+export OBS_LIST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/atm_obs_list_ufs_hybatmDA.yaml.j2"
+export LETKF_JEDI_TEST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/jedi-test_lgetkf_ufs_hybatmDA.yaml.j2"
+export OBS_JEDI_TEST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/jedi-test_lgetkf-observer_ufs_hybatmDA.yaml.j2"
+export SOL_JEDI_TEST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/jedi-test_lgetkf-solver_ufs_hybatmDA.yaml.j2"
+export FV3INC_JEDI_TEST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/jedi-test_lgetkf-fv3inc_ufs_hybatmDA.yaml.j2"
+export layout_x_atmensanl="4"
+export layout_y_atmensanl="4"
+export io_layout_x="1"
+export io_layout_y="1"
+
+export TASK_CONFIG_YAML="${PARMglobal}/gdas/atm/atm_ens_config.yaml.j2"
+
+echo "END: config.atmensanl"

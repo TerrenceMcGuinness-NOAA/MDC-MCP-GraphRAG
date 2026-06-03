@@ -1,0 +1,1426 @@
+<?xml version="1.0"?>
+<!DOCTYPE workflow
+[
+	<!--
+	PROGRAM
+		Main workflow manager for Global Forecast System
+
+	NOTES:
+		This workflow was automatically generated at 2026-06-03 02:19:17.531297
+	-->
+	<!ENTITY PSLOT "C48mx500_hybAOWCDA_0025bd03-25562">
+	<!ENTITY ROTDIR "/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562">
+	<!ENTITY MAXTRIES "2">
+]>
+
+<workflow realtime="F" scheduler="slurm" cyclethrottle="3" taskthrottle="25">
+
+	<log verbosity="10"><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H.log</cyclestr></log>
+
+	<!-- Define the cycles -->
+	<cycledef group="gdas_half">202103241800 202103241800 06:00:00</cycledef>
+	<cycledef group="gdas">202103250000 202103250000 06:00:00</cycledef>
+
+<task name="gdas_prep" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/prep.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_prep_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:30:00</walltime>
+	<cores>14</cores>
+	<memory>360GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_prep.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<metataskdep metatask="gdas_atmos_prod" cycle_offset="-06:00:00"/>
+		<datadep><cyclestr offset="-06:00:00">&ROTDIR;/gdas.@Y@m@d/@H//model/atmos/history/gdas.t@Hz.atm.f009.nc</cyclestr></datadep>
+		<datadep><cyclestr>/scratch3/NCEPDEV/global/role.glopara/dump/gdas.@Y@m@d/@H/atmos/gdas.t@Hz.updated.status.tm00.bufr_d</cyclestr></datadep>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_anal" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/anal.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_anal_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>01:20:00</walltime>
+	<nodes>3:ppn=38:tpp=5</nodes>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_anal.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_prep"/>
+		<metataskdep metatask="enkfgdas_epmn" cycle_offset="-06:00:00"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_analcalc" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/analcalc.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_analcalc_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<cores>192</cores>
+	<memory>48GB</memory>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_analcalc.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_anal"/>
+		<taskdep task="gdas_sfcanl_gcycle"/>
+		<taskdep task="enkfgdas_echgres" cycle_offset="-06:00:00"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_prepoceanobs" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/prepoceanobs.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_prepoceanobs_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:10:00</walltime>
+	<cores>192</cores>
+	<memory>48GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_prepoceanobs.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<datadep><cyclestr offset="-06:00:00">&ROTDIR;/gdas.@Y@m@d/@H//model/ocean/history/gdas.t@Hz.inst.f009.nc</cyclestr></datadep>
+		<datadep><cyclestr>/scratch3/NCEPDEV/global/role.glopara/data/experimental_obs/gdas.@Y@m@d/@H/ocean/gdas.t@Hz.obsforge_marine_status.log</cyclestr></datadep>
+		<datadep><cyclestr>/scratch3/NCEPDEV/global/role.glopara/data/experimental_obs/gdas.@Y@m@d/@H/ocean/insitu/gdas.t@Hz.obsforge_marine_bufr_status.log</cyclestr></datadep>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_marinebmatinit" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marinebmatinit.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_marinebmatinit_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:20:00</walltime>
+	<cores>192</cores>
+	<memory>24GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_marinebmatinit.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<datadep><cyclestr offset="-06:00:00">&ROTDIR;/gdas.@Y@m@d/@H//model/ocean/history/gdas.t@Hz.inst.f009.nc</cyclestr></datadep>
+		<metataskdep metatask="enkfgdas_fcst" cycle_offset="-06:00:00"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_marinebmat" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marinebmat.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_marinebmat_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:30:00</walltime>
+	<cores>96</cores>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_marinebmat.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_marinebmatinit"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_marineanlinit" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marineanlinit.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_marineanlinit_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:10:00</walltime>
+	<cores>192</cores>
+	<memory>24GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_marineanlinit.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_prepoceanobs"/>
+		<taskdep task="gdas_marinebmat"/>
+		<metataskdep metatask="gdas_fcst" cycle_offset="-06:00:00"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_marineanlvar" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marineanlvar.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_marineanlvar_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:30:00</walltime>
+	<cores>96</cores>
+	<memory>24GB</memory>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_marineanlvar.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_marineanlinit"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_marineanlchkpt" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marineanlchkpt.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_marineanlchkpt_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:10:00</walltime>
+	<cores>192</cores>
+	<memory>32GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_marineanlchkpt.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_marineanlvar"/>
+		<taskdep task="enkfgdas_marineanlecen"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_marineanlfinal" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marineanlfinal.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_marineanlfinal_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:30:00</walltime>
+	<cores>192</cores>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_marineanlfinal.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_marineanlchkpt"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_sfcanl_gcycle" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/sfcanl_gcycle.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_sfcanl_gcycle_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:20:00</walltime>
+	<nodes>1:ppn=48:tpp=4</nodes>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_sfcanl_gcycle.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_anal"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_analdiag" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/analdiag.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_analdiag_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<cores>192</cores>
+	<memory>48GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_analdiag.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_anal"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_stage_ic" cycledefs="gdas_half" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/stage_ic.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_stage_ic_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-service</partition>
+	<walltime>00:15:00</walltime>
+	<cores>1</cores>
+	<memory>4096M</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_stage_ic.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+</task>
+
+<task name="gdas_atmanlupp" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/upp.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_atmanlupp_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<cores>48</cores>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_atmanlupp.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>FHR3</name><value>000</value></envar>
+	<envar><name>UPP_RUN</name><value>analysis</value></envar>
+
+	<dependency>
+		<and>
+		<datadep age="120"><cyclestr>&ROTDIR;/gdas.@Y@m@d/@H//analysis/atmos/gdas.t@Hz.analysis.atm.a006.nc</cyclestr></datadep>
+		<datadep age="120"><cyclestr>&ROTDIR;/gdas.@Y@m@d/@H//analysis/atmos/gdas.t@Hz.analysis.sfc.a006.nc</cyclestr></datadep>
+		<datadep age="60"><cyclestr>&ROTDIR;/gdas.@Y@m@d/@H//analysis/atmos/gdas.t@Hz.analysis.done.txt</cyclestr></datadep>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_atmanlprod" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/atmos_products.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_atmanlprod_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<cores>24</cores>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_atmanlprod.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>FHR_LIST</name><value>-1</value></envar>
+
+	<dependency>
+		<datadep age="120"><cyclestr>&ROTDIR;/gdas.@Y@m@d/@H//model/atmos/master/gdas.t@Hz.master.analysis.grib2</cyclestr></datadep>
+	</dependency>
+
+</task>
+
+<metatask name="gdas_fcst" mode="serial">
+
+	<var name="seg">0</var>
+
+	<task name="gdas_fcst_seg#seg#" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+		<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/fcst.sh</command>
+
+		<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_fcst_seg#seg#_@H</cyclestr></jobname>
+		<account>hfv3gfs</account>
+		<queue>batch</queue>
+		<partition>u1-compute</partition>
+		<walltime>00:20:00</walltime>
+		<cores>192</cores>
+		<native>--exclusive</native>
+
+		<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_fcst_seg#seg#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>gdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>FCST_SEGMENT</name><value>#seg#</value></envar>
+
+		<dependency>
+			<or>
+			<and>
+			<taskdep task="gdas_sfcanl_gcycle"/>
+			<taskdep task="gdas_marineanlfinal"/>
+			</and>
+			<and>
+			<taskdep task="gdas_stage_ic"/>
+			<not><cycleexistdep cycle_offset="-06:00:00"/></not>
+			</and>
+			</or>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<metatask name="gdas_atmos_prod" mode="parallel">
+
+	<var name="fhr_list">0 1 2 3 4 5 6 7 8 9</var>
+	<var name="fhr_label">f000 f001 f002 f003 f004 f005 f006 f007 f008 f009</var>
+	<var name="seg_dep">seg0 seg0 seg0 seg0 seg0 seg0 seg0 seg0 seg0 seg0</var>
+	<var name="fhr3_last">000 001 002 003 004 005 006 007 008 009</var>
+	<var name="fhr3_next">001 002 003 004 005 006 007 008 009 010</var>
+
+	<task name="gdas_atmos_prod_#fhr_label#" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+		<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/atmos_products.sh</command>
+
+		<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_atmos_prod_#fhr_label#_@H</cyclestr></jobname>
+		<account>hfv3gfs</account>
+		<queue>batch</queue>
+		<partition>u1-compute</partition>
+		<walltime>00:15:00</walltime>
+		<cores>24</cores>
+		<native>--exclusive</native>
+
+		<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_atmos_prod_#fhr_label#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>gdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>FHR_LIST</name><value>#fhr_list#</value></envar>
+		<envar><name>COMPONENT</name><value>atmos</value></envar>
+
+		<dependency>
+			<or>
+			<datadep age="120"><cyclestr>&ROTDIR;/gdas.@Y@m@d/@H//model/atmos/history/gdas.t@Hz.log.f#fhr3_last#.txt</cyclestr></datadep>
+			<metataskdep metatask="gdas_fcst"/>
+			</or>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="gdas_fit2obs" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/fit2obs.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_fit2obs_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:20:00</walltime>
+	<nodes>3:ppn=1:tpp=1</nodes>
+	<memory>20GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_fit2obs.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<metataskdep metatask="gdas_atmos_prod"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_verfozn" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/verfozn.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_verfozn_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:10:00</walltime>
+	<cores>1</cores>
+	<memory>1G</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_verfozn.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_analdiag"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_verfrad" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/verfrad.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_verfrad_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:40:00</walltime>
+	<cores>1</cores>
+	<memory>10G</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_verfrad.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_analdiag"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_anlstat" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/anlstat.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_anlstat_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:30:00</walltime>
+	<cores>20</cores>
+	<memory>150GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_anlstat.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_analdiag"/>
+		<taskdep task="gdas_marineanlfinal"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="gdas_vminmon" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/vminmon.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_vminmon_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:05:00</walltime>
+	<cores>1</cores>
+	<memory>1G</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_vminmon.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_anal"/>
+	</dependency>
+
+</task>
+
+<task name="gdas_arch_vrfy" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/arch_vrfy.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_arch_vrfy_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-service</partition>
+	<walltime>00:30:00</walltime>
+	<cores>1</cores>
+	<memory>4096M</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_arch_vrfy.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_atmanlprod"/>
+		<taskdep task="gdas_fit2obs"/>
+		<metataskdep metatask="gdas_atmos_prod"/>
+		</and>
+	</dependency>
+
+</task>
+
+<metatask name="gdas_arch_tars" mode="parallel">
+
+	<var name="tartype">gdas gdasice gdasocean gdasocean_analysis gdas_restarta gdas_restartb gdasice_restart gdasocean_restart</var>
+
+	<task name="gdas_arch_tar_#tartype#" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+		<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/arch_tars.sh</command>
+
+		<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_arch_tar_#tartype#_@H</cyclestr></jobname>
+		<account>hfv3gfs</account>
+		<queue>batch</queue>
+		<partition>u1-service</partition>
+		<walltime>06:00:00</walltime>
+		<cores>1</cores>
+		<memory>4096M</memory>
+		<native>--export=NONE</native>
+
+		<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_arch_tar_#tartype#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>gdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>TARBALL_TYPE</name><value>#tartype#</value></envar>
+
+		<dependency>
+			<and>
+			<taskdep task="gdas_atmanlprod"/>
+			<taskdep task="gdas_fit2obs"/>
+			<taskdep task="gdas_verfozn"/>
+			<taskdep task="gdas_verfrad"/>
+			<taskdep task="gdas_vminmon"/>
+			<taskdep task="gdas_anlstat"/>
+			<metataskdep metatask="gdas_atmos_prod"/>
+			<taskdep task="gdas_arch_vrfy"/>
+			</and>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="gdas_cleanup" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/cleanup.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_gdas_cleanup_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<cores>1</cores>
+	<memory>4096M</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/gdas_cleanup.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>gdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/gdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<metataskdep metatask="gdas_atmos_prod"/>
+		<or>
+		<streq><left><cyclestr>@Y@m@d@H</cyclestr></left><right>2021032418</right></streq>
+		<and>
+		<taskdep task="gdas_atmanlprod"/>
+		<taskdep task="gdas_fit2obs"/>
+		<taskdep task="gdas_verfozn"/>
+		<taskdep task="gdas_verfrad"/>
+		<taskdep task="gdas_vminmon"/>
+		<taskdep task="gdas_arch_vrfy"/>
+		<metataskdep metatask="gdas_arch_tars"/>
+		</and>
+		</or>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_stage_ic" cycledefs="gdas_half" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/stage_ic.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_stage_ic_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-service</partition>
+	<walltime>00:15:00</walltime>
+	<cores>1</cores>
+	<memory>4096M</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_stage_ic.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+</task>
+
+<task name="enkfgdas_eobs" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/eobs.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_eobs_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<nodes>1:ppn=96:tpp=2</nodes>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_eobs.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_prep"/>
+		<metataskdep metatask="enkfgdas_epmn" cycle_offset="-06:00:00"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_eupd" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/eupd.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_eupd_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:45:00</walltime>
+	<nodes>1:ppn=96:tpp=2</nodes>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_eupd.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="enkfgdas_ediag"/>
+	</dependency>
+
+</task>
+
+<metatask name="enkfgdas_ecmn" mode="parallel">
+
+	<var name="grp">000 001 002</var>
+	<var name="dep">003 006 009</var>
+	<var name="lst">003 006 009</var>
+
+	<task name="enkfgdas_ecen#grp#" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+		<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/ecen.sh</command>
+
+		<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_ecen#grp#_@H</cyclestr></jobname>
+		<account>hfv3gfs</account>
+		<queue>batch</queue>
+		<partition>u1-compute</partition>
+		<walltime>00:20:00</walltime>
+		<nodes>1:ppn=96:tpp=2</nodes>
+		<native>--exclusive</native>
+
+		<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_ecen#grp#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>FHRGRP</name><value>#grp#</value></envar>
+		<envar><name>FHRLST</name><value>#lst#</value></envar>
+
+		<dependency>
+			<and>
+			<taskdep task="gdas_analcalc"/>
+			<taskdep task="enkfgdas_eupd"/>
+			</and>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="enkfgdas_echgres" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/echgres.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_echgres_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:10:00</walltime>
+	<nodes>3:ppn=1:tpp=192</nodes>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_echgres.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<metataskdep metatask="gdas_fcst"/>
+		<taskdep task="enkfgdas_fcst_mem001"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_ediag" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/ediag.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_ediag_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<cores>192</cores>
+	<memory>48GB</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_ediag.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="enkfgdas_eobs"/>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_marineanlletkf" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marineanlletkf.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_marineanlletkf_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:30:00</walltime>
+	<cores>96</cores>
+	<memory>24GB</memory>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_marineanlletkf.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<taskdep task="gdas_prepoceanobs"/>
+		<taskdep task="gdas_marinebmat"/>
+		</and>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_marineanlecen" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/marineanlecen.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_marineanlecen_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:10:00</walltime>
+	<cores>96</cores>
+	<memory>24GB</memory>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_marineanlecen.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="gdas_marinebmatinit"/>
+	</dependency>
+
+</task>
+
+<metatask name="enkfgdas_fcst" mode="parallel">
+
+	<var name="member">001 002</var>
+
+	<task name="enkfgdas_fcst_mem#member#" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+		<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/fcst.sh</command>
+
+		<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_fcst_mem#member#_@H</cyclestr></jobname>
+		<account>hfv3gfs</account>
+		<queue>batch</queue>
+		<partition>u1-compute</partition>
+		<walltime>00:20:00</walltime>
+		<cores>192</cores>
+		<native>--exclusive</native>
+
+		<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_fcst_mem#member#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>ENSMEM</name><value>#member#</value></envar>
+		<envar><name>MEMDIR</name><value>mem#member#</value></envar>
+
+		<dependency>
+			<or>
+			<and>
+			<metataskdep metatask="enkfgdas_ecmn"/>
+			<taskdep task="enkfgdas_esfc_gcycle"/>
+			<taskdep task="enkfgdas_marineanlecen"/>
+			</and>
+			<taskdep task="enkfgdas_stage_ic"/>
+			</or>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<metatask name="enkfgdas_epmn" mode="parallel">
+
+	<var name="grp">000 001 002 003 004 005 006</var>
+	<var name="dep">f003 f004 f005 f006 f007 f008 f009</var>
+	<var name="lst">f003 f004 f005 f006 f007 f008 f009</var>
+
+	<task name="enkfgdas_epos#grp#" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+		<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/epos.sh</command>
+
+		<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_epos#grp#_@H</cyclestr></jobname>
+		<account>hfv3gfs</account>
+		<queue>batch</queue>
+		<partition>u1-compute</partition>
+		<walltime>00:15:00</walltime>
+		<cores>192</cores>
+		<memory>360GB</memory>
+		<native>--exclusive</native>
+
+		<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_epos#grp#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>FHRGRP</name><value>#grp#</value></envar>
+		<envar><name>FHRLST</name><value>#lst#</value></envar>
+
+		<dependency>
+			<metataskdep metatask="enkfgdas_fcst"/>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="enkfgdas_esfc_gcycle" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/esfc_gcycle.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_esfc_gcycle_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>01:00:00</walltime>
+	<cores>96</cores>
+	<native>--exclusive</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_esfc_gcycle.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<taskdep task="enkfgdas_eupd"/>
+	</dependency>
+
+</task>
+
+<task name="enkfgdas_earc_vrfy" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/earc_vrfy.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_earc_vrfy_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-service</partition>
+	<walltime>00:30:00</walltime>
+	<cores>1</cores>
+	<memory>4096M</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_earc_vrfy.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>ENSGRP</name><value>#grp#</value></envar>
+
+	<dependency>
+		<and>
+		<metataskdep metatask="enkfgdas_epmn"/>
+		<taskdep task="enkfgdas_echgres"/>
+		</and>
+	</dependency>
+
+</task>
+
+<metatask name="enkfgdas_earc_tars" mode="parallel">
+
+	<var name="grp">00 01</var>
+
+	<task name="enkfgdas_earc_tars_#grp#" cycledefs="gdas" maxtries="&MAXTRIES;">
+
+		<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/earc_tars.sh</command>
+
+		<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_earc_tars_#grp#_@H</cyclestr></jobname>
+		<account>hfv3gfs</account>
+		<queue>batch</queue>
+		<partition>u1-service</partition>
+		<walltime>06:00:00</walltime>
+		<cores>1</cores>
+		<memory>4096M</memory>
+		<native>--export=NONE</native>
+
+		<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_earc_tars_#grp#.log</cyclestr></join>
+
+		<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+		<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+		<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+		<envar><name>NET</name><value>gfs</value></envar>
+		<envar><name>RUN</name><value>enkfgdas</value></envar>
+		<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+		<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+		<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+		<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+		<envar><name>ENSGRP</name><value>#grp#</value></envar>
+
+		<dependency>
+			<and>
+			<metataskdep metatask="enkfgdas_epmn"/>
+			<taskdep task="enkfgdas_echgres"/>
+			<taskdep task="enkfgdas_marineanlletkf"/>
+			</and>
+		</dependency>
+
+	</task>
+
+</metatask>
+
+<task name="enkfgdas_cleanup" cycledefs="gdas_half,gdas" maxtries="&MAXTRIES;">
+
+	<command>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow/dev/job_cards/rocoto/cleanup.sh</command>
+
+	<jobname><cyclestr>C48mx500_hybAOWCDA_0025bd03-25562_enkfgdas_cleanup_@H</cyclestr></jobname>
+	<account>hfv3gfs</account>
+	<queue>batch</queue>
+	<partition>u1-compute</partition>
+	<walltime>00:15:00</walltime>
+	<cores>1</cores>
+	<memory>4096M</memory>
+	<native>--export=NONE</native>
+
+	<join><cyclestr>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT/C48mx500_hybAOWCDA_0025bd03-25562/logs/@Y@m@d@H/enkfgdas_cleanup.log</cyclestr></join>
+
+	<envar><name>RUN_ENVIR</name><value>emc</value></envar>
+	<envar><name>HOMEglobal</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/global-workflow</value></envar>
+	<envar><name>EXPDIR</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C48mx500_hybAOWCDA_0025bd03-25562</value></envar>
+	<envar><name>NET</name><value>gfs</value></envar>
+	<envar><name>RUN</name><value>enkfgdas</value></envar>
+	<envar><name>CDATE</name><value><cyclestr>@Y@m@d@H</cyclestr></value></envar>
+	<envar><name>PDY</name><value><cyclestr>@Y@m@d</cyclestr></value></envar>
+	<envar><name>cyc</name><value><cyclestr>@H</cyclestr></value></envar>
+	<envar><name>COMROOT</name><value>/scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/COMROOT</value></envar>
+	<envar><name>DATAROOT</name><value>/scratch4/NCEPDEV/stmp/role.glopara/RUNDIRS/C48mx500_hybAOWCDA_0025bd03-25562/enkfgdas.<cyclestr>@Y@m@d@H</cyclestr></value></envar>
+
+	<dependency>
+		<and>
+		<or>
+		<and>
+		<streq><left><cyclestr>@Y@m@d@H</cyclestr></left><right>2021032418</right></streq>
+		<metataskdep metatask="enkfgdas_epmn"/>
+		<taskdep task="enkfgdas_echgres"/>
+		</and>
+		<and>
+		<taskdep task="enkfgdas_earc_vrfy"/>
+		<metataskdep metatask="enkfgdas_earc_tars"/>
+		</and>
+		</or>
+		</and>
+	</dependency>
+
+</task>
+
+</workflow>

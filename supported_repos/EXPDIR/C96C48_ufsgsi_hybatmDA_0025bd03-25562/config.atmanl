@@ -1,0 +1,25 @@
+#! /usr/bin/env bash
+
+########## config.atmanl ##########
+# configuration common to all atm var analysis tasks
+
+echo "BEGIN: config.atmanl"
+
+export OBS_LIST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/atm_obs_list_ufs_hybatmDA.yaml.j2"
+export VAR_JEDI_TEST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/jedi-test_3dvar_ufs_hybatmDA.yaml.j2"
+export FV3INC_JEDI_TEST_YAML="${HOMEglobal}/sorc/gdas.cd/test/gw-ci/atm/jedi-test_3dvar-fv3inc_ufs_hybatmDA.yaml.j2"
+export STATICB_TYPE="gsibec"
+export layout_x_atmanl="4"
+export layout_y_atmanl="4"
+export io_layout_x="1"
+export io_layout_y="1"
+
+export TASK_CONFIG_YAML="${PARMglobal}/gdas/atm/atm_det_config.yaml.j2"
+
+export LOCALIZATION_TYPE="bump"
+
+export NUMBER_OUTER_LOOPS="2"
+export NINNER_LOOP1="2"
+export NINNER_LOOP2="4"
+
+echo "END: config.atmanl"

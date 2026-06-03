@@ -1,0 +1,16 @@
+#!/bin/bash
+
+########## config.marineanlecen ##########
+# Ocn Analysis specific
+
+echo "BEGIN: config.marineanlecen"
+
+# Get task specific resources
+source "${EXPDIR}/config.resources" marineanlecen
+
+export INPUT_FIX_DIR="${FIXglobal}/gdas/soca/72x35x25/soca"
+export ANL_GEOM="${FIXglobal}/gdas/soca/72x35x25/soca"
+
+export TASK_CONFIG_YAML="${PARMglobal}/gdas/marine/marine_ecen_config.yaml.j2"
+
+echo "END: config.marineanlecen"
