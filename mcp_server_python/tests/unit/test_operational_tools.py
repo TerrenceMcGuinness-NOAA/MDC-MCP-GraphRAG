@@ -715,30 +715,30 @@ async def test_get_job_details_renders_relationship_blocks() -> None:
     data.graph_db.canned_rows = []
     _seed_jjob_node(data)
     data.graph_db.add_response(
-        "(j {name: $name})-[:USES_CONFIG|DEPENDS_ON]->(c:ConfigFile)",
+        "(j:ShellScript {name: $name})-[:USES_CONFIG|DEPENDS_ON]->(c:ConfigFile)",
         [
             {"name": "config.fcst", "path": "parm/config/gfs/config.fcst"},
             {"name": "config.resources", "path": "parm/config/gfs/config.resources"},
         ],
     )
     data.graph_db.add_response(
-        "(j {name: $name})-[r:SOURCES]->(s)",
+        "(j:ShellScript {name: $name})-[r:SOURCES]->(s)",
         [{"script": "preamble.sh", "path": "ush/preamble.sh", "line": 10}],
     )
     data.graph_db.add_response(
-        "(j {name: $name})-[r:CALLS|INVOKES|EXECUTES]->(s)",
+        "(j:ShellScript {name: $name})-[r:CALLS|INVOKES|EXECUTES]->(s)",
         [{"script": "exgfs_forecast.sh", "variable": "SCRIPTgfs", "line": 50}],
     )
     data.graph_db.add_response(
-        "(j {name: $name})-[:CONSUMES|READS]->(i)",
+        "(j:ShellScript {name: $name})-[:CONSUMES|READS]->(i)",
         [{"variable": "COMIN_ATMOS", "pattern": "*.atmf*.nc"}],
     )
     data.graph_db.add_response(
-        "(j {name: $name})-[:PRODUCES|WRITES]->(o)",
+        "(j:ShellScript {name: $name})-[:PRODUCES|WRITES]->(o)",
         [{"variable": "COMOUT", "path": "${COMOUT}/output.nc"}],
     )
     data.graph_db.add_response(
-        "(j {name: $name})-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable)",
+        "(j:ShellScript {name: $name})-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable)",
         [
             {"name": "HOMEgfs", "value": "/path/to/gfs"},
             {"name": "PDY", "value": "${YMD}"},
@@ -852,7 +852,7 @@ async def test_get_job_details_env_var_truncation() -> None:
     data.graph_db.canned_rows = []
     _seed_jjob_node(data)
     data.graph_db.add_response(
-        "(j {name: $name})-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable)",
+        "(j:ShellScript {name: $name})-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable)",
         [{"name": f"VAR{i}", "value": f"v{i}"} for i in range(20)],
     )
     mcp = _make_server(data=data)

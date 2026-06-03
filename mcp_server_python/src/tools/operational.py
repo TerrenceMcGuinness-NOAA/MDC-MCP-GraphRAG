@@ -731,28 +731,28 @@ async def _tool_get_job_details(
             return []
 
     config_rows = await _relation_rows(
-        "MATCH (j {name: $name})-[:USES_CONFIG|DEPENDS_ON]->(c:ConfigFile) "
+        "MATCH (j:ShellScript {name: $name})-[:USES_CONFIG|DEPENDS_ON]->(c:ConfigFile) "
         "RETURN c.name AS name, c.absolutePath AS path"
     )
     source_rows = await _relation_rows(
-        "MATCH (j {name: $name})-[r:SOURCES]->(s) "
+        "MATCH (j:ShellScript {name: $name})-[r:SOURCES]->(s) "
         "RETURN s.name AS script, s.absolutePath AS path, "
         "r.line AS line"
     )
     call_rows = await _relation_rows(
-        "MATCH (j {name: $name})-[r:CALLS|INVOKES|EXECUTES]->(s) "
+        "MATCH (j:ShellScript {name: $name})-[r:CALLS|INVOKES|EXECUTES]->(s) "
         "RETURN s.name AS script, r.variable AS variable, r.line AS line"
     )
     input_rows = await _relation_rows(
-        "MATCH (j {name: $name})-[:CONSUMES|READS]->(i) "
+        "MATCH (j:ShellScript {name: $name})-[:CONSUMES|READS]->(i) "
         "RETURN i.variable AS variable, i.pattern AS pattern"
     )
     output_rows = await _relation_rows(
-        "MATCH (j {name: $name})-[:PRODUCES|WRITES]->(o) "
+        "MATCH (j:ShellScript {name: $name})-[:PRODUCES|WRITES]->(o) "
         "RETURN o.variable AS variable, o.path AS path"
     )
     env_rows = await _relation_rows(
-        "MATCH (j {name: $name})-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable) "
+        "MATCH (j:ShellScript {name: $name})-[:DEPENDS_ON_ENV|EXPORTS]->(e:EnvironmentVariable) "
         "RETURN e.name AS name, e.value AS value LIMIT 50"
     )
 

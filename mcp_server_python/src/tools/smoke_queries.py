@@ -164,13 +164,13 @@ async def _smoke_semantic_search(data: Any, _mcp: Any) -> bool:
 async def _smoke_code_analysis(data: Any, _mcp: Any) -> bool:
     """Neptune outgoing-edge traversal from ``JGLOBAL_FORECAST``.
 
-    Match by ``name`` only (no label) so the test survives label
-    drift between ``ShellScript`` / ``CodeFile`` / ``File``.
+    Uses :ShellScript label to scope to gw-baseline nodes and avoid
+    cross-tenant leakage from prefixed labels (e.g. GW_V17_ShellScript).
     """
     if data is None or data.graph_db is None:
         raise RuntimeError("graph_db is not configured")
     rows = await data.graph_db.query(
-        "MATCH (f {name:'JGLOBAL_FORECAST'})-[r]->(t) "
+        "MATCH (f:ShellScript {name:'JGLOBAL_FORECAST'})-[r]->(t) "
         "RETURN type(r) AS rel, t.name AS name LIMIT 3"
     )
     if not rows:
@@ -185,7 +185,7 @@ async def _smoke_graph_rag(data: Any, _mcp: Any) -> bool:
     if data is None or data.graph_db is None:
         raise RuntimeError("graph_db is not configured")
     rows = await data.graph_db.query(
-        "MATCH (n {name:'JGLOBAL_FORECAST'})-[r]-(m) "
+        "MATCH (n:ShellScript {name:'JGLOBAL_FORECAST'})-[r]-(m) "
         "RETURN n.name AS src, type(r) AS rel, m.name AS tgt LIMIT 5"
     )
     if not rows:
@@ -336,8 +336,10 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
     v17 = catalog.by_id("gw_v17")
 
     # Assertion 1: v17-only J-Job exists under gw_v17
+    # NOTE: queries MUST include a :Label so _rewrite_cypher can scope
+    # them. For v17, :ShellScript becomes :GW_V17_ShellScript.
     deps_v17 = await data.graph_db.query(
-        "MATCH (f {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m) "
+        "MATCH (f:ShellScript {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m) "
         "RETURN f.name AS name LIMIT 1",
         tenant=v17,
     )
@@ -348,8 +350,10 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
         )
 
     # Assertion 2: same query returns nothing under gw
+    # For gw (empty prefix), :ShellScript stays as :ShellScript —
+    # only matches unprefixed nodes, not GW_V17_ShellScript.
     deps_gw = await data.graph_db.query(
-        "MATCH (f {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m) "
+        "MATCH (f:ShellScript {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'})-[r]-(m) "
         "RETURN f.name AS name LIMIT 1",
         tenant=gw,
     )
