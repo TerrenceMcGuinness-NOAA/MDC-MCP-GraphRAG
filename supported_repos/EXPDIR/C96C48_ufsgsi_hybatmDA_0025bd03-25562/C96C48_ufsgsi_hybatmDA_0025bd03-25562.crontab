@@ -1,6 +1,0 @@
-
-#################### C96C48_ufsgsi_hybatmDA_0025bd03-25562 ####################
-SHELL="/bin/bash"
-MAILTO="None"
-*/5 * * * * /apps/rocoto/1.3.7/bin/rocotorun -d /scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C96C48_ufsgsi_hybatmDA_0025bd03-25562/C96C48_ufsgsi_hybatmDA_0025bd03-25562.db -w /scratch3/NCEPDEV/global/role.glopara/GFS_CI_CD/URSA/BUILDS/GITLAB/nightly_0_0025bd03_25562/RUNTESTS/EXPDIR/C96C48_ufsgsi_hybatmDA_0025bd03-25562/C96C48_ufsgsi_hybatmDA_0025bd03-25562.xml
-#################################################################
