@@ -377,8 +377,9 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
         )
 
     # Assertion 4: cross-tenant search does not leak develop content
+    # Use the bare index name — the adapter applies the tenant prefix.
     mpas_v17 = await data.vector_db.query(
-        f"{v17.index_prefix}mdc-workflow-docs-titan1024",
+        "mdc-workflow-docs-titan1024",
         "MPAS Voronoi",
         k=3,
         tenant=v17,
