@@ -196,6 +196,12 @@ async def initialize(
         for mod_name in _TENANT_SCOPED_MODULES:
             extra_kwargs.setdefault(mod_name, {})["catalog"] = catalog
 
+    # Fetch GitHub token from Secrets Manager (AWS-standard secure injection).
+    # Falls back to GITHUB_TOKEN env var if Secrets Manager is unavailable.
+    github_token = _fetch_github_token()
+    if github_token:
+        extra_kwargs.setdefault("github_tools", {})["github_token"] = github_token
+
     results = [
         _register_module(mcp, name, data, extra_kwargs.get(name))
         for name in _modules_to_register(config)
@@ -212,6 +218,46 @@ async def initialize(
         )
 
     return data, results
+
+
+# ── GitHub token from Secrets Manager ──────────────────────────────────
+
+
+_GITHUB_SECRET_ID = os.environ.get(
+    "MCP_GITHUB_SECRET_ID", "mdc-mcp-rag/github/token"
+)
+
+
+def _fetch_github_token() -> str | None:
+    """Fetch the GitHub PAT from AWS Secrets Manager.
+
+    Precedence: Secrets Manager → GITHUB_TOKEN env var → None.
+    Non-fatal: returns None on any failure (the github_tools module
+    handles the no-token case gracefully).
+    """
+    # If GITHUB_TOKEN env var is set, use it directly (local dev).
+    env_token = os.environ.get("GITHUB_TOKEN")
+    if env_token:
+        log.info("[OK] github_token sourced from GITHUB_TOKEN env var")
+        return env_token
+
+    try:
+        import boto3
+
+        client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+        response = client.get_secret_value(SecretId=_GITHUB_SECRET_ID)
+        token = response.get("SecretString", "").strip()
+        if token:
+            log.info("[OK] github_token fetched from Secrets Manager (%s)", _GITHUB_SECRET_ID)
+            return token
+        log.warning("[WARN] Secrets Manager secret %s is empty", _GITHUB_SECRET_ID)
+        return None
+    except ImportError:
+        log.warning("[WARN] boto3 not available — cannot fetch github_token from Secrets Manager")
+        return None
+    except Exception as exc:
+        log.warning("[WARN] failed to fetch github_token from Secrets Manager: %s", exc)
+        return None
 
 
 def _load_manifest_registry() -> Any | None:
