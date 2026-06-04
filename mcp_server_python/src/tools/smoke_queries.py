@@ -281,14 +281,44 @@ def _smoke_workflow_info_check(workflow_root: Path) -> bool:
 
 
 async def _smoke_github_tools(_data: Any, _mcp: Any) -> bool:
-    """GitHub API smoke probe placeholder.
+    """GitHub API smoke probe — verifies token was fetched from Secrets Manager.
 
-    Always returns ``True`` when invoked — but the registry's
-    ``requires=("GITHUB_TOKEN",)`` means this function only runs
-    when the token is set, in which case "the module is wired up
-    and credentials are present" is the meaningful signal we want.
+    Calls the GitHub rate_limit endpoint (no repo access needed, just
+    authentication). If the token is missing or invalid, raises RuntimeError.
     """
+    import os
+    try:
+        import httpx
+    except ImportError:
+        raise RuntimeError("httpx not available for GitHub probe")
+
+    # Check if the module got a token (either via Secrets Manager or env var)
+    token = os.environ.get("GITHUB_TOKEN") or _fetch_github_token_for_probe()
+    if not token:
+        raise SkipProbe("no GitHub token available (Secrets Manager + env var both empty)")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://api.github.com/rate_limit",
+            headers={"Authorization": f"token {token}", "Accept": "application/vnd.github+json"},
+            timeout=10,
+        )
+    if resp.status_code == 401:
+        raise RuntimeError("GitHub token is invalid (HTTP 401)")
+    if resp.status_code != 200:
+        raise RuntimeError(f"GitHub API returned HTTP {resp.status_code}")
     return True
+
+
+def _fetch_github_token_for_probe() -> str | None:
+    """Lightweight fetch from Secrets Manager for the smoke probe."""
+    try:
+        import boto3
+        client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+        response = client.get_secret_value(SecretId=os.environ.get("MCP_GITHUB_SECRET_ID", "mdc-mcp-rag/github/token"))
+        return response.get("SecretString", "").strip() or None
+    except Exception:
+        return None
 
 
 async def _smoke_utility(_data: Any, mcp: Any) -> bool:
@@ -477,9 +507,8 @@ class SmokeQueryRegistry:
         ),
         "github_tools": SmokeQueryDef(
             module="github_tools",
-            description="GitHub API connectivity (requires GITHUB_TOKEN)",
+            description="GitHub API connectivity (Secrets Manager token)",
             query_fn=_smoke_github_tools,
-            requires=("GITHUB_TOKEN",),
         ),
         "utility": SmokeQueryDef(
             module="utility",
