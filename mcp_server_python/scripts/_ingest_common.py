@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 COLLECTION_DOCUMENTATION = "documentation"
 COLLECTION_CODE = "code"
 COLLECTION_JJOBS = "jjobs"
+COLLECTION_CONFIG = "config"
 
 _LIFECYCLE_MODE_MAP = {
     "experimental": "diff",
