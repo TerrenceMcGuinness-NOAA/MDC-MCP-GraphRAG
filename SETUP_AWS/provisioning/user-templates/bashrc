@@ -17,7 +17,6 @@ export AWS_REGION=us-east-1
 
 # Workspace shortcuts
 export MCP_WORKSPACE=/mdc-mcp-rag/eib-mcp-rag-server
-export SCRATCH=/mdc-mcp-rag/SCRATCH/$USER
 
 # Fix TTY variable for Kiro CLI (suppresses "not a tty" errors over SSH)
 if [[ -z "${TTY:-}" ]]; then

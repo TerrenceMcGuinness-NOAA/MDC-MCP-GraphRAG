@@ -164,13 +164,20 @@ EOF
   BASHRC="${HOME_DIR}/.bashrc"
   if [[ ! -f "${BASHRC}" ]] || [[ "${FORCE}" == "true" ]]; then
     cp "${TEMPLATES_DIR}/bashrc" "${BASHRC}"
+    # Derive CamelCase scratch dir name from full name (First.Last)
+    first=$(echo "${fullname}" | awk '{print $1}')
+    last=$(echo "${fullname}" | awk '{print $NF}')
+    SCRATCH_NAME="${first}.${last}"
+    echo "export SCRATCH=/mdc-mcp-rag/SCRATCH/${SCRATCH_NAME}" >> "${BASHRC}"
     echo "  [OK] .bashrc installed"
   else
     echo "  [SKIP] .bashrc exists (use --force to overwrite)"
   fi
 
-  # 6. Create scratch workspace
-  SCRATCH_DIR="/mdc-mcp-rag/SCRATCH/${username}"
+  # 6. Create scratch workspace (CamelCase: First.Last)
+  first=$(echo "${fullname}" | awk '{print $1}')
+  last=$(echo "${fullname}" | awk '{print $NF}')
+  SCRATCH_DIR="/mdc-mcp-rag/SCRATCH/${first}.${last}"
   mkdir -p "${SCRATCH_DIR}"
   chown "${username}:${username}" "${SCRATCH_DIR}"
   echo "  [OK] scratch: ${SCRATCH_DIR}"
