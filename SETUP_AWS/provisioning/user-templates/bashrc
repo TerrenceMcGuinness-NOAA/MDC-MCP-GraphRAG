@@ -1,0 +1,29 @@
+# .bashrc — MDC MCP Developer Environment
+# Provisioned by provision-user-accounts.sh
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+    . /etc/bashrc
+fi
+
+# User-local bin (pip install --user, kiro-cli, etc.)
+if ! [[ "$PATH" =~ "$HOME/.local/bin" ]]; then
+    PATH="$HOME/.local/bin:$PATH"
+fi
+export PATH
+
+# AWS region default
+export AWS_REGION=us-east-1
+
+# Workspace shortcut
+export MCP_WORKSPACE=/mdc-mcp-rag/eib-mcp-rag-server
+
+# Fix TTY variable for Kiro CLI (suppresses "not a tty" errors over SSH)
+if [[ -z "${TTY:-}" ]]; then
+    TTY=$(tty 2>/dev/null) || TTY="/dev/null"
+fi
+export TTY
+
+# Aliases for common MCP operations
+alias mcp-health='python3.12 -c "import boto3; c=boto3.client(\"bedrock-agentcore\",region_name=\"us-east-1\"); print(\"AWS OK\")"'
+alias ws='cd $MCP_WORKSPACE'

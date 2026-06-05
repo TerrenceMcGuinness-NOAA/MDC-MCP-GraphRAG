@@ -160,7 +160,16 @@ EOF
     echo "  [OK] Git config installed"
   fi
 
-  # 5. Set ownership
+  # 5. Set up .bashrc (PATH, env vars, aliases)
+  BASHRC="${HOME_DIR}/.bashrc"
+  if [[ ! -f "${BASHRC}" ]] || [[ "${FORCE}" == "true" ]]; then
+    cp "${TEMPLATES_DIR}/bashrc" "${BASHRC}"
+    echo "  [OK] .bashrc installed"
+  else
+    echo "  [SKIP] .bashrc exists (use --force to overwrite)"
+  fi
+
+  # 6. Set ownership
   chown -R "${username}:${username}" "${HOME_DIR}"
 
   echo ""
