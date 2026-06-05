@@ -20,6 +20,10 @@ COLLECTION_DOCUMENTATION = "documentation"
 COLLECTION_CODE = "code"
 COLLECTION_JJOBS = "jjobs"
 COLLECTION_CONFIG = "config"
+# Graph-only token for the Fortran AST ingester. Unused for dedupe (Fortran
+# ingestion is graph-only and relies on Neptune MERGE for idempotency) but
+# kept consistent with the other collection tokens.
+COLLECTION_FORTRAN_GRAPH = "fortran_graph"
 
 _LIFECYCLE_MODE_MAP = {
     "experimental": "diff",

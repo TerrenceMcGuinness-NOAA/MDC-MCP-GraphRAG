@@ -23,7 +23,7 @@ References:
 
 ## Tasks
 
-- [ ] 1. Implement `_fortran_parser.py` (FortranParser + FortranParseResult)
+- [x] 1. Implement `_fortran_parser.py` (FortranParser + FortranParseResult)
   - Per design §1. New file: `mcp_server_python/scripts/_fortran_parser.py`
   - `FortranParseResult` dataclass (file_path, relative_path, modules, subroutines, functions, programs, calls, uses)
   - `FortranParser.__init__(worktree_root)`: `ParserFactory(std='f2003')`, cached `_include_dirs`
@@ -39,7 +39,7 @@ References:
   - Temp file cleanup in `finally` block regardless of success/failure
   - **Implements: R2.1–R2.5, R3.1–R3.4, R4.1–R4.7, R10.2, R10.3**
 
-  - [ ]* 1.1 Unit tests for FortranParser
+  - [x]* 1.1 Unit tests for FortranParser
     - Synthetic Fortran snippets exercising each extraction: MODULE, SUBROUTINE, FUNCTION, PROGRAM, CALL, USE statements
     - Preprocessing detection: file with `#ifdef` → `_needs_preprocessing()` returns True; plain Fortran → False
     - Sanitization: dangling continuation fixed, merge conflict markers commented, non-standard write commas repaired
@@ -50,7 +50,7 @@ References:
     - File: `mcp_server_python/tests/unit/test_fortran_parser.py` (new)
     - **Validates: R2.1–R2.5, R3.1–R3.4, R4.1–R4.7**
 
-- [ ] 2. Implement Fortran file discovery
+- [x] 2. Implement Fortran file discovery
   - Per design §1 `discover_fortran_files()`. Exercised as part of `_fortran_parser.py` but tested in isolation
   - All 10 Fortran extensions: `.F90`, `.f90`, `.F`, `.f`, `.F95`, `.f95`, `.F03`, `.f03`, `.F08`, `.f08`
   - Exclude `.git/`, `build/`, `test/` directories
@@ -59,7 +59,7 @@ References:
   - Log informational message for empty submodules (R13.1)
   - **Implements: R1.1–R1.5, R13.1–R13.3**
 
-  - [ ]* 2.1 Unit tests for Fortran file discovery
+  - [x]* 2.1 Unit tests for Fortran file discovery
     - Synthetic tmp directory tree with mixed extensions → only Fortran extensions discovered
     - `.git/`, `build/`, `test/` dirs excluded
     - No `sorc/` dir → raises FileNotFoundError
@@ -67,7 +67,7 @@ References:
     - File: `mcp_server_python/tests/unit/test_fortran_parser.py` (append to existing)
     - **Validates: R1.1–R1.5, R13.1–R13.3**
 
-- [ ] 3. Implement `ingest_fortran_graph_v8.py` entry script + Neptune write helpers
+- [x] 3. Implement `ingest_fortran_graph_v8.py` entry script + Neptune write helpers
   - Per design §2/§3. New file: `mcp_server_python/scripts/ingest_fortran_graph_v8.py`
   - `build_ingestion_parser`, `resolve_tenant_and_mode`, `resolve_worktree_root` from `_ingest_common.py`
   - Add `COLLECTION_FORTRAN_GRAPH = "fortran_graph"` constant to `_ingest_common.py`
@@ -83,7 +83,7 @@ References:
   - Parse success rate percentage in final summary
   - **Implements: R5.1–R5.6, R6.1–R6.5, R7.1–R7.4, R8.1–R8.5, R9.1–R9.4, R10.1–R10.6, R11.1–R11.3, R12.1–R12.4**
 
-  - [ ]* 3.1 Unit tests for Neptune write helpers
+  - [x]* 3.1 Unit tests for Neptune write helpers
     - Each `_write_*` builds expected back-tick-quoted, prefix-interpolated cypher with `tenant=None`; verify against a stub graph_db recording (cypher, params, tenant)
     - Empty-prefix tenant (gw) → unprefixed labels (`:FortranModule`, not `:_FortranModule`)
     - `_write_calls` creates placeholder FortranSubroutine for unresolved callee (R6.5)
@@ -91,12 +91,12 @@ References:
     - File: `mcp_server_python/tests/unit/test_fortran_graph_writes.py` (new)
     - **Validates: R5.1–R5.6, R6.1–R6.5**
 
-- [ ] 4. Checkpoint — parser + script importable, unit tests green
+- [x] 4. Checkpoint — parser + script importable, unit tests green
   - `python3.12 -c "import sys; sys.path.insert(0,'mcp_server_python/scripts'); from _fortran_parser import FortranParser; from ingest_fortran_graph_v8 import main"`
   - `pytest mcp_server_python/tests/unit/test_fortran_parser.py mcp_server_python/tests/unit/test_fortran_graph_writes.py -v`
   - Ensure all pass; ask the user if questions arise
 
-- [ ]* 5. Write property tests P1 + P7 — graph completeness + parse failure resilience
+- [x]* 5. Write property tests P1 + P7 — graph completeness + parse failure resilience
   - **Property 1: Fortran graph completeness**
   - Synthetic worktree (tmp dir) with N Fortran files containing MODULE/SUBROUTINE/FUNCTION/PROGRAM stmts; drive write logic against stub graph_db; assert N files contribute nodes (N distinct file_path values across all node MERGE calls)
   - **Property 7: Parse failure resilience**
@@ -104,7 +104,7 @@ References:
   - File: `mcp_server_python/tests/properties/test_fortran_graph_props.py` (new)
   - **Validates: R1.1, R5.1–R5.4, R10.1–R10.3**
 
-- [ ]* 6. Write property tests P2 + P3 — CALLS and USES edge correctness
+- [x]* 6. Write property tests P2 + P3 — CALLS and USES edge correctness
   - **Property 2: CALLS edge correctness**
   - Generate Fortran with random CALL statements → parse → verify each call produces a CALLS MERGE to a FortranSubroutine with the correct callee name
   - **Property 3: USES edge correctness**
@@ -112,7 +112,7 @@ References:
   - File: `mcp_server_python/tests/properties/test_fortran_graph_props.py`
   - **Validates: R4.6, R4.7, R6.1, R6.2**
 
-- [ ]* 7. Write property tests P4 + P5 — CONTAINS hierarchy + idempotence
+- [x]* 7. Write property tests P4 + P5 — CONTAINS hierarchy + idempotence
   - **Property 4: CONTAINS hierarchy**
   - Generate Fortran with subroutines/functions inside MODULE blocks → parse → verify each contained entity gets a CONTAINS edge from its parent module
   - **Property 5: Idempotence**
@@ -120,7 +120,7 @@ References:
   - File: `mcp_server_python/tests/properties/test_fortran_graph_props.py`
   - **Validates: R5.5, R6.3, R6.4, R7.4**
 
-- [ ]* 8. Write property test P6 — tenant isolation
+- [x]* 8. Write property test P6 — tenant isolation
   - **Property 6: Tenant isolation**
   - Two tenants (gw_v17, gw_sfs) over the same synthetic Fortran content; assert all node labels for tenant A start with A's label_prefix and are disjoint from labels produced for B
   - File: `mcp_server_python/tests/properties/test_fortran_graph_props.py`
