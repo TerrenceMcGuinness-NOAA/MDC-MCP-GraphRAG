@@ -1029,6 +1029,46 @@
       "doc_count": 751,
       "job_script_root": "supported_repos/global-workflow/jobs",
       "documentation_format": "header_block"
+    },
+    {
+      "name": "ecmwf-atlas",
+      "source_type": "url_crawl",
+      "collection_target": "global-workflow-docs-v8-0-0",
+      "embedding_profile": "titan1024",
+      "enabled": true,
+      "description": "ECMWF Atlas \u2014 grid/mesh library for NWP (foundation for JEDI unstructured grids)",
+      "url": "https://sites.ecmwf.int/docs/atlas/",
+      "crawl_type": "generic_sphinx",
+      "max_pages": 100,
+      "tier": "tier3_models",
+      "priority": 3
+    },
+    {
+      "name": "jedi-academy-2021-10",
+      "source_type": "url_crawl",
+      "collection_target": "global-workflow-docs-v8-0-0",
+      "embedding_profile": "titan1024",
+      "enabled": true,
+      "description": "JEDI Academy Oct 2021 \u2014 hands-on DA tutorials (variational, ensemble, hybrid)",
+      "url": "http://academy.jcsda.org/2021-10/",
+      "crawl_type": "generic_sphinx",
+      "max_pages": 80,
+      "tier": "tier3_models",
+      "priority": 3
+    },
+    {
+      "name": "jedi-academy-2021-06",
+      "source_type": "url_crawl",
+      "collection_target": "global-workflow-docs-v8-0-0",
+      "embedding_profile": "titan1024",
+      "enabled": true,
+      "description": "JEDI Academy Jun 2021 \u2014 model interface tutorials (FV3, MPAS, advanced features)",
+      "url": "http://academy.jcsda.org/2021-06/",
+      "crawl_type": "generic_sphinx",
+      "max_pages": 80,
+      "tier": "tier3_models",
+      "priority": 3
     }
-  ]
+  ],
+  "total_sources": 67
 }
