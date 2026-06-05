@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "agentcore-mcp-rag": {
-      "command": "python3",
+      "command": "python3.12",
       "args": [
         "/mdc-mcp-rag/eib-mcp-rag-server/tools/agentcore-kiro-proxy.py",
         "--runtime-id",
