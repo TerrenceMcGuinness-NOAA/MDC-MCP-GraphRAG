@@ -15,8 +15,9 @@ export PATH
 # AWS region default
 export AWS_REGION=us-east-1
 
-# Workspace shortcut
+# Workspace shortcuts
 export MCP_WORKSPACE=/mdc-mcp-rag/eib-mcp-rag-server
+export SCRATCH=/mdc-mcp-rag/SCRATCH/$USER
 
 # Fix TTY variable for Kiro CLI (suppresses "not a tty" errors over SSH)
 if [[ -z "${TTY:-}" ]]; then
@@ -24,6 +25,17 @@ if [[ -z "${TTY:-}" ]]; then
 fi
 export TTY
 
-# Aliases for common MCP operations
-alias mcp-health='python3.12 -c "import boto3; c=boto3.client(\"bedrock-agentcore\",region_name=\"us-east-1\"); print(\"AWS OK\")"'
+# Git branch in prompt
+__git_branch() {
+    local branch
+    branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+    [[ -n "$branch" ]] && echo " ($branch)"
+}
+
+# Prompt: user@host basename (branch)$
+PS1='\u@\h \W$(__git_branch)\$ '
+
+# Aliases
 alias ws='cd $MCP_WORKSPACE'
+alias work='cd $SCRATCH'
+alias mcp-health='python3.12 -c "import boto3; c=boto3.client(\"bedrock-agentcore\",region_name=\"us-east-1\"); print(\"AWS OK\")"'

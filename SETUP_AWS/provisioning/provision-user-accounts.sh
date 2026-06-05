@@ -160,7 +160,7 @@ EOF
     echo "  [OK] Git config installed"
   fi
 
-  # 5. Set up .bashrc (PATH, env vars, aliases)
+  # 5. Set up .bashrc (PATH, env vars, aliases, prompt)
   BASHRC="${HOME_DIR}/.bashrc"
   if [[ ! -f "${BASHRC}" ]] || [[ "${FORCE}" == "true" ]]; then
     cp "${TEMPLATES_DIR}/bashrc" "${BASHRC}"
@@ -169,7 +169,13 @@ EOF
     echo "  [SKIP] .bashrc exists (use --force to overwrite)"
   fi
 
-  # 6. Set ownership
+  # 6. Create scratch workspace
+  SCRATCH_DIR="/mdc-mcp-rag/SCRATCH/${username}"
+  mkdir -p "${SCRATCH_DIR}"
+  chown "${username}:${username}" "${SCRATCH_DIR}"
+  echo "  [OK] scratch: ${SCRATCH_DIR}"
+
+  # 7. Set ownership
   chown -R "${username}:${username}" "${HOME_DIR}"
 
   echo ""
