@@ -1,0 +1,59 @@
+{
+  "mcpServers": {
+    "agentcore-mcp-rag": {
+      "command": "python3",
+      "args": [
+        "/mdc-mcp-rag/eib-mcp-rag-server/tools/agentcore-kiro-proxy.py",
+        "--runtime-id",
+        "arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "search_documentation",
+        "explain_with_context",
+        "search_architecture",
+        "get_workflow_structure",
+        "list_job_scripts",
+        "get_job_details",
+        "get_server_info",
+        "mcp_health_check",
+        "get_knowledge_base_status",
+        "find_dependencies",
+        "get_change_impact",
+        "trace_full_execution_chain",
+        "find_callers_callees",
+        "get_code_context",
+        "trace_data_flow",
+        "analyze_code_structure",
+        "explain_workflow_component",
+        "search_ee2_standards",
+        "get_operational_guidance",
+        "find_env_dependencies",
+        "find_related_files",
+        "find_similar_code"
+      ]
+    }
+  },
+  "powers": {
+    "mcpServers": {
+      "power-aws-agentcore-agentcore-mcp-server": {
+        "command": "uvx",
+        "args": [
+          "awslabs.amazon-bedrock-agentcore-mcp-server@latest"
+        ],
+        "env": {
+          "FASTMCP_LOG_LEVEL": "ERROR",
+          "AWS_REGION": "us-east-1"
+        },
+        "disabled": false,
+        "autoApprove": [
+          "fetch_agentcore_doc",
+          "search_agentcore_docs"
+        ]
+      }
+    }
+  }
+}
