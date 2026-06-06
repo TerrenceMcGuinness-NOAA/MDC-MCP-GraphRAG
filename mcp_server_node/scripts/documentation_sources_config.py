@@ -382,6 +382,33 @@ DOCUMENTATION_SOURCES = {
             'description': 'HAFS - Hurricane Analysis and Forecast System (user guide, workflow, CDEPS integration)',
             'max_pages': 100,
             'enabled': True
+        },
+        {
+            'name': 'ecmwf-atlas',
+            'url': 'https://sites.ecmwf.int/docs/atlas/',
+            'type': 'generic_sphinx',
+            'priority': 3,
+            'description': 'ECMWF Atlas — grid/mesh library for NWP (foundation for JEDI unstructured grids)',
+            'max_pages': 100,
+            'enabled': True
+        },
+        {
+            'name': 'jedi-academy-2021-10',
+            'url': 'http://academy.jcsda.org/2021-10/',
+            'type': 'generic_sphinx',
+            'priority': 3,
+            'description': 'JEDI Academy Oct 2021 — hands-on DA tutorials (variational, ensemble, hybrid)',
+            'max_pages': 80,
+            'enabled': True
+        },
+        {
+            'name': 'jedi-academy-2021-06',
+            'url': 'http://academy.jcsda.org/2021-06/',
+            'type': 'generic_sphinx',
+            'priority': 3,
+            'description': 'JEDI Academy Jun 2021 — model interface tutorials (FV3, MPAS, advanced features)',
+            'max_pages': 80,
+            'enabled': True
         }
     ],
 
