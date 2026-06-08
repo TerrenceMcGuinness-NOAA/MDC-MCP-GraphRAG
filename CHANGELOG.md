@@ -1,5 +1,100 @@
 # MCP Server Changelog
 
+## [8.30.0] - Fix tenant label-prefix scoping in graph queries (Jun 8, 2026)
+
+### Summary
+
+Graph tool queries were returning `gw` (develop) baseline data regardless of the
+`tenant_id` parameter because the Neptune label-rewrite mechanism had no label
+tokens to process. This fix adds proper `tenant=` passing and label-anchored query
+patterns so `get_knowledge_base_status`, `list_job_scripts`, `get_job_details`,
+`explain_workflow_component`, and all graph-enrichment helpers correctly scope to
+the requested tenant's labelled subgraph.
+
+### Fixed
+
+- `src/tools/semantic_search.py`:
+  - `_safe_label_counts()` now accepts and passes `tenant=` to `graph_db.query()`
+  - `_safe_relationship_counts()` now accepts `tenant=` and uses source-label
+    anchors (`:FortranSubroutine`, `:File`, `:ShellScript`) for non-default tenants
+    so the rewriter can prefix them
+  - `_render_graph_status_block()` passes `tenant=` to label/rel count helpers
+  - `_tool_get_knowledge_base_status` passes `tenant=_tenant()` to graph block
+  - `_enrich_with_graph_counts()` now passes `tenant=` to each hit's neighbour query
+  - `_check_orphaned_graph_nodes()` passes `tenant=` to `:File` count queries
+  - `explain_with_context` graph query now passes `tenant=_tenant()`
+- `src/tools/operational.py`:
+  - `list_job_scripts` graph fallback restructured from label-less `MATCH (j)` with
+    `labels(j)` string checks to a UNION of `MATCH (j:RocotoTask)`, `MATCH (j:ShellScript)`,
+    `MATCH (j:JJob)` — each label token gets prefixed by the rewriter
+  - `get_job_details` initial node lookup uses label-based MATCH with JJob/RocotoTask/ShellScript
+    fallback chain instead of label-less `MATCH (j)`
+  - `explain_workflow_component` graph query and dependency probe now pass `tenant=_tenant()`
+- `tests/unit/test_operational_tools.py`:
+  - `_seed_jjob_node` mock updated to match new `MATCH (j:JJob)` query pattern
+  - `test_get_job_details_reports_not_found` mock updated for label-based queries
+
+### Impact
+
+With this deployed, `get_knowledge_base_status(tenant_id="gw_v17")` returns the
+v17-specific node/relationship counts (e.g., 29,605 FortranSubroutine, 738K CALLS)
+instead of the gw baseline numbers. `list_job_scripts(tenant_id="gw_v17")` returns
+the 92 v17 J-Jobs instead of the 182 gw J-Jobs.
+
+## [8.29.0] - graph-port-fortran-ast tasks 1–8: Fortran AST graph ingestion (code + tests) (Jun 5, 2026)
+
+### Summary
+
+Ports the legacy Fortran graph ingestion (`mcp_server_node/scripts/ingest_fortran_graph.py`,
+1108 lines) to the Python tenant-aware pipeline. Uses fparser2 to parse Fortran
+source and creates `FortranModule`, `FortranSubroutine`, `FortranFunction`, and
+`FortranProgram` nodes plus `CALLS`, `USES`, and `CONTAINS` relationships, all
+scoped per tenant via Neptune label-prefix isolation. Graph-only — no Bedrock,
+no OpenSearch, no SHAIndex; Neptune `MERGE` provides idempotency.
+
+This commit lands tasks 1–8 (pure code + tests). Task 9 (operator-gated live
+`gw_v17` Neptune run + Shell→Fortran bridge) is intentionally NOT started.
+
+### Added
+
+- `mcp_server_python/scripts/_fortran_parser.py` (new) — `FortranParser` +
+  `FortranParseResult`. Wraps fparser2 (`ParserFactory(std='f2003')` +
+  `FortranFileReader`) with the legacy preprocessing pipeline: source
+  sanitization (dangling continuations, merge-conflict markers, non-standard
+  write commas), CPP preprocessing (`cpp -traditional-cpp -nostdinc -P` with
+  discovered `-I` dirs, directive-stripping fallback), include-dir discovery,
+  AST extraction (Module/Subroutine/Function/Program/Call/Use statements),
+  module containment resolution, and `sorc/<name>.fd → <name>.x` executable
+  inference. `parse_file` catches both `Exception` and `SystemExit` per file
+  (fparser2's ~15% failure rate is expected) and always cleans up temp files.
+- `mcp_server_python/scripts/ingest_fortran_graph_v8.py` (new) — tenant-aware
+  entry script mirroring `ingest_shell_graph_v8.py`. Two-pass write strategy
+  (Phase 1 nodes, Phase 2 relationships) so MERGE targets exist before edges.
+  Seven write helpers use f-string back-tick-quoted, prefix-interpolated labels
+  with `tenant=None` (bypassing `_rewrite_cypher`). CALLS MERGEs a placeholder
+  callee by name; CONTAINS only for entities with a resolved `parent_module`.
+  `--dry-run` parses + summarizes without any Neptune connection.
+- `_ingest_common.py` — added `COLLECTION_FORTRAN_GRAPH = "fortran_graph"` token.
+
+### Tests
+
+- `tests/unit/test_fortran_parser.py` (new, 40 cases) — extraction, preprocessing
+  detection + cpp pipeline, sanitization, resilience (SystemExit/None/missing
+  file), executable inference, discovery (extensions, `.git`/`build`/`test`
+  exclusion, submodule traversal, missing-`sorc/` `FileNotFoundError`, empty
+  submodules), include-dir discovery.
+- `tests/unit/test_fortran_graph_writes.py` (new) — cypher generation for all
+  seven write helpers (prefixed labels, empty-prefix no-underscore, placeholder
+  callee, CONTAINS gating, `tenant=None` bypass).
+- `tests/properties/test_fortran_graph_props.py` (new) — Hypothesis P1–P7 at
+  100 examples each: graph completeness, CALLS/USES correctness, CONTAINS
+  hierarchy, idempotence (MERGE-modeling stub), tenant isolation, parse-failure
+  resilience.
+
+93 tests pass (47 Fortran + 46 shell, no regression from the `_ingest_common`
+change). Entry-script `--dry-run` smoke-tested end-to-end (discovery + submodule
+traversal + cpp preprocessing + containment) with no Neptune connection.
+
 ## [8.28.0] - Bugfix tenant-id-tool-exposure: wire tenant_id onto 24 tenant-scoped tools (Gap A) (Jun 2, 2026)
 
 ### Summary

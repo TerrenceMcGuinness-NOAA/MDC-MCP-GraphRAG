@@ -461,6 +461,7 @@ async def _tool_explain_workflow_component(
                 "n.absolutePath AS path, n.language AS language "
                 "LIMIT 5",
                 {"component": component},
+                tenant=_tenant(),
             )
         except Exception as exc:
             log.debug("graph query failed: %s", exc)
@@ -510,6 +511,7 @@ async def _tool_explain_workflow_component(
                     "RETURN dep.name AS importedFile, dep.absolutePath AS path "
                     "LIMIT 5",
                     {"path": target},
+                    tenant=_tenant(),
                 )
             except Exception as exc:
                 log.debug("imports query failed: %s", exc)
@@ -590,11 +592,17 @@ async def _tool_list_job_scripts(
         if data is None or getattr(data, "graph_db", None) is None:
             return _error_text(_DEGRADED_MSG)
         try:
+            # Use UNION of label-based matches so the tenant rewriter
+            # can prefix each :Label token correctly.
             rows = await data.graph_db.query(
-                "MATCH (j) WHERE j.name STARTS WITH 'J' "
-                "AND ('RocotoTask' IN labels(j) OR 'ShellScript' IN labels(j) "
-                "OR labels(j)[0] CONTAINS 'Job') "
-                "RETURN j.name AS name ORDER BY j.name",
+                "MATCH (j:RocotoTask) WHERE j.name STARTS WITH 'J' "
+                "RETURN j.name AS name "
+                "UNION "
+                "MATCH (j:ShellScript) WHERE j.name STARTS WITH 'J' "
+                "RETURN j.name AS name "
+                "UNION "
+                "MATCH (j:JJob) WHERE j.name STARTS WITH 'J' "
+                "RETURN j.name AS name",
                 {},
                 tenant=_tenant(),
             )
@@ -699,13 +707,32 @@ async def _tool_get_job_details(
     # 1. Look up the J-Job node and its stored metadata.
     try:
         node_rows = await data.graph_db.query(
-            "MATCH (j) WHERE j.name = $name "
+            "MATCH (j:JJob) WHERE j.name = $name "
             "RETURN j.name AS name, j.absolutePath AS path, "
             "j.lineCount AS lineCount, j.jobTask AS jobTask, "
             "labels(j) AS labels LIMIT 1",
             {"name": job_name},
             tenant=_tenant(),
         )
+        # Fallback: try RocotoTask or ShellScript labels if JJob misses
+        if not node_rows:
+            node_rows = await data.graph_db.query(
+                "MATCH (j:RocotoTask) WHERE j.name = $name "
+                "RETURN j.name AS name, j.absolutePath AS path, "
+                "j.lineCount AS lineCount, j.jobTask AS jobTask, "
+                "labels(j) AS labels LIMIT 1",
+                {"name": job_name},
+                tenant=_tenant(),
+            )
+        if not node_rows:
+            node_rows = await data.graph_db.query(
+                "MATCH (j:ShellScript) WHERE j.name = $name "
+                "RETURN j.name AS name, j.absolutePath AS path, "
+                "j.lineCount AS lineCount, j.jobTask AS jobTask, "
+                "labels(j) AS labels LIMIT 1",
+                {"name": job_name},
+                tenant=_tenant(),
+            )
     except Exception as exc:
         log.warning("get_job_details node query failed: %s", exc)
         return _error_text(f"get_job_details failed: {exc}")

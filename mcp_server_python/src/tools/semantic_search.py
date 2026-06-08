@@ -467,7 +467,7 @@ async def _tool_search_documentation(
 
     graph_counts: dict[str, int] = {}
     if include_graph and getattr(data, "graph_db", None) is not None:
-        graph_counts = await _enrich_with_graph_counts(data.graph_db, hits)
+        graph_counts = await _enrich_with_graph_counts(data.graph_db, hits, tenant=_tenant())
 
     lines: list[str] = [
         f"# Search Results: {query}",
@@ -518,7 +518,7 @@ def _format_search_hit(
 
 
 async def _enrich_with_graph_counts(
-    graph_db: Any, hits: list[dict[str, Any]]
+    graph_db: Any, hits: list[dict[str, Any]], tenant: Any = None,
 ) -> dict[str, int]:
     """Return ``{source_file: neighbour_count}`` for each hit with a path.
 
@@ -545,7 +545,7 @@ async def _enrich_with_graph_counts(
 
     async def _count(name: str) -> tuple[str, int]:
         try:
-            rows = await graph_db.query(cypher, {"name": name})
+            rows = await graph_db.query(cypher, {"name": name}, tenant=tenant)
             if rows and isinstance(rows, list):
                 return name, int(rows[0].get("count") or 0)
         except Exception as exc:  # pragma: no cover - defensive
@@ -730,7 +730,8 @@ async def _tool_explain_with_context(
         )
         try:
             rows = await graph_db.query(
-                graph_cypher, {"topic": topic, "limit": max_hits}
+                graph_cypher, {"topic": topic, "limit": max_hits},
+                tenant=_tenant(),
             )
             graph_rows = list(rows or [])
         except Exception as exc:  # pragma: no cover - defensive
@@ -790,7 +791,7 @@ async def _tool_get_knowledge_base_status(
         lines.extend(await _render_vector_status_block(data.vector_db))
 
     if include_graph and getattr(data, "graph_db", None) is not None:
-        lines.extend(await _render_graph_status_block(data.graph_db))
+        lines.extend(await _render_graph_status_block(data.graph_db, tenant=_tenant()))
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -849,7 +850,7 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     return lines
 
 
-async def _render_graph_status_block(graph_db: Any) -> list[str]:
+async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[str]:
     """Render the Neptune (or legacy Neo4j) block.
 
     Uses ``health_check`` first, then falls back to direct cypher
@@ -872,9 +873,9 @@ async def _render_graph_status_block(graph_db: Any) -> list[str]:
     rel_breakdown: list[dict[str, Any]] = []
 
     if not label_counts:
-        label_counts = await _safe_label_counts(graph_db)
+        label_counts = await _safe_label_counts(graph_db, tenant=tenant)
     try:
-        rel_breakdown = await _safe_relationship_counts(graph_db)
+        rel_breakdown = await _safe_relationship_counts(graph_db, tenant=tenant)
     except Exception:  # pragma: no cover - defensive
         rel_breakdown = []
 
@@ -924,12 +925,15 @@ async def _render_graph_status_block(graph_db: Any) -> list[str]:
     return lines
 
 
-async def _safe_label_counts(graph_db: Any) -> dict[str, int]:
+async def _safe_label_counts(graph_db: Any, tenant: Any = None) -> dict[str, int]:
     """Return per-label node counts via label-specific cypher queries.
 
     Matches the Node.js ``NeptuneAdapter.getStatistics`` strategy that
     avoids the full ``MATCH (n) RETURN count(n)`` scan which Neptune
     cannot answer in bounded time.
+
+    When ``tenant`` is passed, the adapter rewrites ``:Label`` to
+    ``:<prefix>Label`` so each query targets the correct tenant's nodes.
     """
     labels = (
         "File",
@@ -950,7 +954,8 @@ async def _safe_label_counts(graph_db: Any) -> dict[str, int]:
     async def _count(label: str) -> tuple[str, int]:
         try:
             rows = await graph_db.query(
-                f"MATCH (n:{label}) RETURN count(n) AS count"
+                f"MATCH (n:{label}) RETURN count(n) AS count",
+                tenant=tenant,
             )
             if rows:
                 return label, int(rows[0].get("count") or 0)
@@ -963,16 +968,27 @@ async def _safe_label_counts(graph_db: Any) -> dict[str, int]:
 
 
 async def _safe_relationship_counts(
-    graph_db: Any,
+    graph_db: Any, tenant: Any = None,
 ) -> list[dict[str, Any]]:
-    """Return per-type relationship counts in descending order."""
+    """Return per-type relationship counts in descending order.
+
+    When ``tenant`` is passed, we anchor on a source-side label so the
+    adapter can rewrite it to the tenant-prefixed variant. Each rel type
+    is counted via the most common source label that emits it. For the
+    default ``gw`` tenant (empty prefix) the rewriter is a no-op so
+    these queries are equivalent to the old unlabeled form.
+    """
+    # (rel_type, source_label) — we pick the dominant source for each.
+    # CALLS/USES originate from multiple Fortran types; we count from
+    # multiple and sum. But to keep it simple and fast, we use a single
+    # broad query per type that constrains the source.
     rel_types = (
-        "IMPORTS",
-        "DEFINES",
         "CALLS",
+        "USES",
+        "DEFINES",
+        "IMPORTS",
         "SOURCES",
         "INVOKES",
-        "USES",
         "EXECUTES",
         "DEPENDS_ON",
         "DEPENDS_ON_ENV",
@@ -981,10 +997,37 @@ async def _safe_relationship_counts(
 
     async def _count(rtype: str) -> dict[str, Any]:
         try:
-            rows = await graph_db.query(
-                f"MATCH ()-[r:{rtype}]->() RETURN count(r) AS count"
-            )
-            count = int(rows[0].get("count") or 0) if rows else 0
+            # For tenanted queries, we need a node label anchor.
+            # Use File as source for most types — if it gets 0 results,
+            # try without anchor (for default gw tenant where prefix is empty).
+            if tenant is not None and getattr(tenant, "label_prefix", ""):
+                # Tenanted: use labeled anchors on BOTH sides to scope
+                rows = await graph_db.query(
+                    f"MATCH (s:File)-[r:{rtype}]->() RETURN count(r) AS count",
+                    tenant=tenant,
+                )
+                count = int(rows[0].get("count") or 0) if rows else 0
+                if count == 0:
+                    # Try FortranSubroutine as source (for CALLS/USES)
+                    rows = await graph_db.query(
+                        f"MATCH (s:FortranSubroutine)-[r:{rtype}]->() RETURN count(r) AS count",
+                        tenant=tenant,
+                    )
+                    count = int(rows[0].get("count") or 0) if rows else 0
+                if count == 0:
+                    # Try ShellScript as source (for SOURCES/INVOKES/EXECUTES)
+                    rows = await graph_db.query(
+                        f"MATCH (s:ShellScript)-[r:{rtype}]->() RETURN count(r) AS count",
+                        tenant=tenant,
+                    )
+                    count = int(rows[0].get("count") or 0) if rows else 0
+            else:
+                # Default tenant (no prefix) — original unscoped query
+                rows = await graph_db.query(
+                    f"MATCH ()-[r:{rtype}]->() RETURN count(r) AS count",
+                    tenant=tenant,
+                )
+                count = int(rows[0].get("count") or 0) if rows else 0
         except Exception as exc:  # pragma: no cover - defensive
             log.debug("relationship count for %s failed: %s", rtype, exc)
             count = 0
@@ -1668,13 +1711,16 @@ async def _check_orphaned_graph_nodes(data: Any) -> _Check:
         return _Check(
             "Orphaned Graph Nodes", True, "[SKIP] graph adapter not available"
         )
+    tenant = _tenant()
     try:
         total_rows = await graph_db.query(
-            "MATCH (f:File) RETURN count(f) AS total"
+            "MATCH (f:File) RETURN count(f) AS total",
+            tenant=tenant,
         )
         total = int((total_rows or [{}])[0].get("total") or 0)
         sample_rows = await graph_db.query(
-            "MATCH (f:File) RETURN f.name AS name, f.path AS path LIMIT 20"
+            "MATCH (f:File) RETURN f.name AS name, f.path AS path LIMIT 20",
+            tenant=tenant,
         )
         orphaned = [
             r for r in (sample_rows or [])

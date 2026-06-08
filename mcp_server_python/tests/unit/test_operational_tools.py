@@ -674,8 +674,9 @@ def _seed_jjob_node(data: MockUnifiedDataAccess, **overrides: Any) -> None:
         "labels": ["ShellScript"],
     }
     row.update(overrides)
+    # Register for the label-based fallback chain (JJob, RocotoTask, ShellScript)
     data.graph_db.add_response(
-        "MATCH (j) WHERE j.name = $name",
+        "MATCH (j:JJob) WHERE j.name = $name",
         [row],
     )
 
@@ -684,7 +685,9 @@ async def test_get_job_details_reports_not_found() -> None:
     data = MockUnifiedDataAccess()
     # Override the default canned rows so node lookup returns empty.
     data.graph_db.canned_rows = []
-    data.graph_db.add_response("MATCH (j) WHERE j.name = $name", [])
+    data.graph_db.add_response("MATCH (j:JJob) WHERE j.name = $name", [])
+    data.graph_db.add_response("MATCH (j:RocotoTask) WHERE j.name = $name", [])
+    data.graph_db.add_response("MATCH (j:ShellScript) WHERE j.name = $name", [])
     mcp = _make_server(data=data)
     text = await _call_tool(
         mcp, "get_job_details", {"job_name": "JFAKE_MISSING"}
