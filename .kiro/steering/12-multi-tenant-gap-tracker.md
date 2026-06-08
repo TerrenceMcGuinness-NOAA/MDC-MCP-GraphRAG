@@ -13,7 +13,7 @@ Last updated: 2026-06-08
 | B | Shell graph relationships incomplete for non-gw | MEDIUM | gw_v17 | PARTIAL | `graph-port-shell-ops` (req+design done) | v17 DOES have shell rels (SOURCES 928, INVOKES 1.7K, EXPORTS 6K, DEPENDS_ON_ENV 20K, DEFINES 337, EXECUTES 11) — but counts are lower than gw; a full shell ingest run may add more. Fortran rels are complete (CALLS 738K, USES 167K). Re-assessed after Gap D fix. |
 | C | Graph queries used hardcoded labels / no tenant= | HIGH | all non-gw | RESOLVED | [8.30.0] commit `9c66084` | Deployed v29, 2026-06-08. |
 | D | Rewriter mangled relationship types for non-gw | HIGH | all non-gw | RESOLVED | [8.31.0] commit `a8f76ec` | `_rewrite_cypher` prefixed `:CALLS` → `:GW_V17_CALLS`. Now bracket-aware. Was the real root cause behind much of what looked like "Gap B empty results". Deployed v30, 2026-06-08. Verified: v17 shows 934,873 rels; find_callers_callees works. |
-| E | Label-less graph queries leak across tenants | LOW | all non-gw | OPEN | — | `MATCH (n) WHERE n.name = $name` in graph_rag.py / code_analysis.py hits any tenant. Low impact: symbol names are mostly unique. Fix: add `tenant_id` property filter or add label anchors. |
+| E | Label-less graph queries leak across tenants | LOW | all non-gw | RESOLVED (code) | [8.32.0] | `tenant_label_predicate()` scopes label-less / name-anchored queries via `labels(n)` (tenant_id property is unreliable — null on placeholder nodes). Applied to ~16 queries in graph_rag.py + code_analysis.py. Pending deploy (v31). |
 | F | Fortran parse failures (15% / 1,020 files) | MEDIUM | gw_v17 | OPEN | `.kiro/specs/fortran-parse-fallback/` (dir exists, no requirements.md) | Regex-based CALL/USE fallback when fparser2 fails. Would recover ~50K additional relationships. |
 | G | Deep traversal OOMs on Neptune | MEDIUM | gw (JGLOBAL_FORECAST) | OPEN | — | Highly-connected nodes (JGLOBAL_FORECAST, 500+ edges) cause timeout/OOM on multi-hop traversal. Needs depth-limit + fan-out cap in traversal tools. |
 | H | No tenant-specific docs collection | BY DESIGN | non-gw | N/A | — | All tenants share the documentation vector indices. Code embeddings are tenant-prefixed. Docs are branch-agnostic (RTD, EE2 standards, etc.). |
@@ -67,24 +67,33 @@ relationships" was actually this rewriter bug masking relationships that DO exis
 
 ---
 
-### Gap E — Label-less queries (cross-tenant leakage)
+### Gap E — Label-less queries (RESOLVED in code 2026-06-08)
 
-**Queries affected:**
-- `graph_rag.py`: `get_code_context`, `get_change_impact`, `trace_data_flow`,
-  `mark_as_modified` — all use `MATCH (n) WHERE n.name = $name`
-- `code_analysis.py`: `_detect_entity_type`, `trace_full_execution_chain` seed
+**Symptom:** Label-less queries (`MATCH (n) WHERE n.name = $name`) and
+name-anchored relationship queries matched nodes from ANY tenant — the
+label-prefix rewriter only acts on `:Label` tokens, of which these have none.
+A `gw_v17` lookup could surface `gw` baseline nodes and vice versa.
 
-**Behavior:** These queries match nodes from ANY tenant since there's no label
-in the MATCH pattern for the rewriter to prefix. Neptune returns whichever node
-it finds first (typically `gw` baseline). Results are usually correct because
-symbol names are unique, but could return stale/wrong data for identically-named
-symbols that differ between branches.
+**Why not tenant_id property:** The obvious fix (filter `n.tenant_id = $tid`)
+is unreliable. Confirmed in Neptune: 4,168 of 29,605 `GW_V17_FortranSubroutine`
+nodes have `tenant_id = null` (placeholder nodes the Fortran ingester's CALLS
+MERGE creates without the property), and several label types
+(`GW_V17_EnvironmentVariable`, `GW_V17_ShellFunction`, `GW_V17_DataDependency`)
+carry no `tenant_id` at all. All gw baseline nodes also have null. The **label**
+is the only reliable discriminator.
 
-**Fix options:**
-1. Add `AND n.tenant_id = $tid` property filter (simple, works for v17 nodes
-   which have `tenant_id` set; gw baseline nodes have `tenant_id = null`)
-2. Add a label anchor (requires knowing the node type upfront — harder)
-3. Accept as-is for now (low user impact)
+**Fix:** `tenant_label_predicate(var)` in `resolver.py` builds a `labels(n)`-based
+WHERE fragment using Neptune's list-comprehension `size([l IN labels(n) WHERE
+l STARTS WITH '<prefix>'])`:
+- Non-default tenant: `... > 0` (node owns a label with the tenant's prefix).
+- Default gw: `... = 0` over all OTHER tenant prefixes (node is base/unprefixed).
+
+Applied via a `_scope_and(var)` helper to ~16 leaky queries across
+`graph_rag.py` and `code_analysis.py`. For name-anchored relationship queries,
+only the named anchor needs scoping (edges are within-tenant). [8.32.0].
+
+**Verified live:** the `setuprad` lookup that returned 5 nodes across both tenants
+now returns 2 (v17) or 3 (gw) correctly.
 
 ---
 

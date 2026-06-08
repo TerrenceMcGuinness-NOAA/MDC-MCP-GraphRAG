@@ -93,7 +93,10 @@ from src.graphrag import (
     GraphGuidedRetrieval,
 )
 from src.sdd.session_manager import SessionError, SessionManager
-from src.tenancy.resolver import get_current_tenant_or_none
+from src.tenancy.resolver import (
+    get_current_tenant_or_none,
+    tenant_label_predicate,
+)
 
 log = logging.getLogger(__name__)
 
@@ -102,6 +105,16 @@ def _tenant():
     """Return the active tenant or None (for adapter kwarg)."""
     ctx = get_current_tenant_or_none()
     return ctx.tenant if ctx else None
+
+
+def _scope_and(var: str) -> str:
+    """Return `` AND <predicate>`` to tenant-scope a label-less node, else ``""``.
+
+    Use to constrain label-less ``MATCH (var)`` patterns to the active tenant's
+    nodes (the label-prefix rewriter cannot scope them — no ``:Label`` token).
+    """
+    pred = tenant_label_predicate(var)
+    return f" AND {pred}" if pred else ""
 
 
 # ── constants ──────────────────────────────────────────────────────────
@@ -405,7 +418,8 @@ async def _tool_get_code_context(
     try:
         node_rows = await graph.query(
             "MATCH (n) "
-            "WHERE n.name = $name OR n.absolutePath CONTAINS $name "
+            "WHERE (n.name = $name OR n.absolutePath CONTAINS $name)"
+            f"{_scope_and('n')} "
             "RETURN n.name AS name, labels(n) AS labels, "
             "n.absolutePath AS path, n.type AS type, "
             "n.communityId AS communityId LIMIT 1",
@@ -421,7 +435,8 @@ async def _tool_get_code_context(
         # caller can disambiguate.
         try:
             fuzzy_rows = await graph.query(
-                "MATCH (n) WHERE toLower(n.name) CONTAINS toLower($name) "
+                "MATCH (n) WHERE toLower(n.name) CONTAINS toLower($name)"
+                f"{_scope_and('n')} "
                 "RETURN n.name AS name, labels(n) AS labels LIMIT 5",
                 {"name": symbol},
                 tenant=_tenant(),
@@ -469,7 +484,8 @@ async def _tool_get_code_context(
     try:
         caller_rows = await graph.query(
             "MATCH (caller)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES]->(target) "
-            "WHERE target.name = $name "
+            "WHERE target.name = $name"
+            f"{_scope_and('target')} "
             "RETURN caller.name AS name, labels(caller)[0] AS type, "
             "type(r) AS relType LIMIT 10",
             {"name": symbol},
@@ -770,7 +786,8 @@ async def _tool_get_change_impact(
         direct_rows = await graph.query(
             "MATCH (dependent)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES]"
             "->(target) "
-            "WHERE target.name = $name "
+            "WHERE target.name = $name"
+            f"{_scope_and('target')} "
             "RETURN DISTINCT dependent.name AS name, "
             "labels(dependent)[0] AS type, type(r) AS relType, "
             "dependent.absolutePath AS path "
@@ -795,7 +812,8 @@ async def _tool_get_change_impact(
                 "-[:CALLS|USES|IMPORTS]->(target) "
                 "WHERE target.name = $name "
                 "AND NOT indirect.name IN $directNames "
-                "AND indirect.name <> $name "
+                "AND indirect.name <> $name"
+                f"{_scope_and('target')} "
                 "RETURN DISTINCT indirect.name AS name, "
                 "labels(indirect)[0] AS type, "
                 "indirect.absolutePath AS path "
@@ -877,7 +895,8 @@ async def _fetch_community_context(data: Any, symbol: str) -> str:
         return ""
     try:
         community = await graph.query(
-            "MATCH (n) WHERE n.name = $name "
+            "MATCH (n) WHERE n.name = $name"
+            f"{_scope_and('n')} "
             "RETURN n.communityId AS communityId LIMIT 1",
             {"name": symbol},
             tenant=_tenant(),
@@ -995,7 +1014,8 @@ async def _tool_trace_data_flow(
         outgoing_rows = await graph.query(
             "MATCH (source)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES]"
             "->(target) "
-            "WHERE source.name = $name "
+            "WHERE source.name = $name"
+            f"{_scope_and('source')} "
             "RETURN target.name AS name, labels(target)[0] AS type, "
             "type(r) AS relType "
             "ORDER BY type(r), target.name LIMIT 25",
@@ -1015,7 +1035,8 @@ async def _tool_trace_data_flow(
             "MATCH path = shortestPath("
             "(source)-[:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES*1.."
             f"{depth}]->(dest)) "
-            "WHERE source.name = $from AND dest.name = $to "
+            "WHERE source.name = $from AND dest.name = $to"
+            f"{_scope_and('source')} "
             "RETURN [n IN nodes(path) | n.name] AS nodeNames, "
             "[r IN relationships(path) | type(r)] AS relTypes, "
             "length(path) AS hops LIMIT 3"
@@ -1110,7 +1131,8 @@ async def _tool_mark_as_modified(
     if graph is not None:
         try:
             await graph.query(
-                "MATCH (n) WHERE n.absolutePath CONTAINS $path "
+                "MATCH (n) WHERE n.absolutePath CONTAINS $path"
+                f"{_scope_and('n')} "
                 "SET n._dirty = true, n._dirtyAt = $now "
                 "RETURN count(n) AS updated",
                 {"path": file_path, "now": _utc_now_iso()},

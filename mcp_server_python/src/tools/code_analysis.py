@@ -71,7 +71,10 @@ from src.graphrag import (
     GGSRTraversal,
     estimate_row_tokens,
 )
-from src.tenancy.resolver import get_current_tenant_or_none
+from src.tenancy.resolver import (
+    get_current_tenant_or_none,
+    tenant_label_predicate,
+)
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +83,16 @@ def _tenant():
     """Return the active tenant or None (for adapter kwarg)."""
     ctx = get_current_tenant_or_none()
     return ctx.tenant if ctx else None
+
+
+def _scope_and(var: str) -> str:
+    """Return `` AND <predicate>`` to tenant-scope a label-less node, else ``""``.
+
+    Constrains label-less ``MATCH (var)`` patterns to the active tenant's nodes
+    (the label-prefix rewriter cannot scope them — no ``:Label`` token).
+    """
+    pred = tenant_label_predicate(var)
+    return f" AND {pred}" if pred else ""
 
 
 # ── constants ───────────────────────────────────────────────────────────
@@ -1124,7 +1137,8 @@ async def _file_symbols(graph_db: Any, file_path: str) -> list[dict[str, Any]]:
     """
     cypher = (
         "MATCH (f)-[:DEFINES|CONTAINS]->(s) "
-        "WHERE (f.path CONTAINS $path OR f.name = $path) "
+        "WHERE (f.path CONTAINS $path OR f.name = $path)"
+        f"{_scope_and('f')} "
         "RETURN s.name AS name, labels(s) AS labels, "
         "s.docstring AS docstring, s.lineNumber AS lineNumber "
         "LIMIT 500"
@@ -1155,7 +1169,8 @@ async def _file_imports(graph_db: Any, target: str) -> list[str]:
     """Return module / file names that ``target`` imports."""
     cypher = (
         "MATCH (f)-[:IMPORTS|USES|SOURCES|INVOKES]->(m) "
-        "WHERE f.path CONTAINS $path OR f.name = $path "
+        "WHERE (f.path CONTAINS $path OR f.name = $path)"
+        f"{_scope_and('f')} "
         "RETURN DISTINCT coalesce(m.name, m.path) AS moduleName LIMIT 200"
     )
     rows = await graph_db.query(cypher, {"path": target}, tenant=_tenant())
@@ -1166,7 +1181,8 @@ async def _file_importers(graph_db: Any, target: str) -> list[str]:
     """Return file paths that import ``target``."""
     cypher = (
         "MATCH (src)-[:IMPORTS|USES|SOURCES|INVOKES]->(t) "
-        "WHERE t.path CONTAINS $path OR t.name = $path "
+        "WHERE (t.path CONTAINS $path OR t.name = $path)"
+        f"{_scope_and('t')} "
         "RETURN DISTINCT coalesce(src.path, src.name) AS filePath LIMIT 200"
     )
     rows = await graph_db.query(cypher, {"path": target}, tenant=_tenant())
@@ -1177,6 +1193,7 @@ async def _circular_dependencies(graph_db: Any) -> list[dict[str, Any]]:
     """Return a bounded list of cycles in the IMPORTS graph."""
     cypher = (
         "MATCH p=(a)-[:IMPORTS*2..5]->(a) "
+        f"WHERE {tenant_label_predicate('a') or 'true'} "
         "RETURN [n IN nodes(p) | coalesce(n.name, n.path)] AS path LIMIT 20"
     )
     rows = await graph_db.query(cypher, {}, tenant=_tenant())
@@ -1198,14 +1215,16 @@ async def _call_chain(
     if entity_type == "shell":
         cypher = (
             "MATCH p=(f)-[:SOURCES|INVOKES|EXECUTES*1.." + str(depth) + "]->(callee) "
-            "WHERE f.name = $name "
+            "WHERE f.name = $name"
+            + _scope_and("f") + " "
             "RETURN callee.name AS callee, callee.path AS file, "
             "length(p) AS depth LIMIT 200"
         )
     else:
         cypher = (
             "MATCH p=(f)-[:CALLS*1.." + str(depth) + "]->(callee) "
-            "WHERE f.name = $name "
+            "WHERE f.name = $name"
+            + _scope_and("f") + " "
             "RETURN callee.name AS callee, callee.filepath AS file, "
             "length(p) AS depth LIMIT 200"
         )
@@ -1220,13 +1239,15 @@ async def _callers(
     if entity_type == "shell":
         cypher = (
             "MATCH (caller)-[:SOURCES|INVOKES|EXECUTES]->(f) "
-            "WHERE f.name = $name "
+            "WHERE f.name = $name"
+            + _scope_and("f") + " "
             "RETURN DISTINCT caller.name AS name, caller.path AS file LIMIT 200"
         )
     else:
         cypher = (
             "MATCH (caller)-[:CALLS]->(f) "
-            "WHERE f.name = $name "
+            "WHERE f.name = $name"
+            + _scope_and("f") + " "
             "RETURN DISTINCT caller.name AS name, "
             "caller.filepath AS file LIMIT 200"
         )
@@ -1244,7 +1265,8 @@ async def _detect_entity_type(
     when no node matches.
     """
     cypher = (
-        "MATCH (n) WHERE n.name = $name "
+        "MATCH (n) WHERE n.name = $name"
+        f"{_scope_and('n')} "
         "RETURN labels(n) AS labels LIMIT 1"
     )
     rows = await graph_db.query(cypher, {"name": name}, tenant=_tenant())
@@ -1293,8 +1315,9 @@ async def _cross_language_nodes(
         pattern = f"MATCH p = (start)-[:{edge_union}*1..{depth}]->(n)"
     cypher = (
         pattern
-        + " WHERE start.name = $name OR start.path = $name "
-        "RETURN DISTINCT n.name AS name, n.path AS path, labels(n) AS labels, "
+        + " WHERE (start.name = $name OR start.path = $name)"
+        + _scope_and("start")
+        + " RETURN DISTINCT n.name AS name, n.path AS path, labels(n) AS labels, "
         "length(p) AS hop, "
         "[rel IN relationships(p) | type(rel)][-1] AS relType "
         "LIMIT 200"
@@ -1304,7 +1327,8 @@ async def _cross_language_nodes(
     out: list[dict[str, Any]] = []
     # Always include the seed node at hop 0 when we have it.
     seed_rows = await graph_db.query(
-        "MATCH (n) WHERE n.name = $name OR n.path = $name "
+        "MATCH (n) WHERE (n.name = $name OR n.path = $name)"
+        f"{_scope_and('n')} "
         "RETURN n.name AS name, labels(n) AS labels LIMIT 1",
         {"name": start},
         tenant=_tenant(),

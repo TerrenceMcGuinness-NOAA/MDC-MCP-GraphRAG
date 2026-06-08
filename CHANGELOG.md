@@ -1,5 +1,47 @@
 # MCP Server Changelog
 
+## [8.32.0] - Tenant-scope label-less graph queries (Gap E) (Jun 8, 2026)
+
+### Summary
+
+Label-less graph queries (`MATCH (n) WHERE n.name = $x`) and relationship-typed
+queries anchored by name leaked across tenants — the label-prefix rewriter cannot
+scope them because there is no `:Label` token to rewrite. A `gw_v17` lookup could
+return `gw` baseline nodes and vice versa. Fixed by adding a `labels(n)`-based
+scoping predicate, since the `tenant_id` property is unreliable (absent on
+placeholder nodes created by the Fortran ingester's CALLS MERGE).
+
+### Added
+
+- `src/tenancy/resolver.py`:
+  - `_all_prefixes_var` ContextVar + `_catalog_label_prefixes()` — the catalog's
+    non-empty label prefixes, set alongside the tenant context in `tenant_scope`
+    and `tenant_aware`.
+  - `get_all_label_prefixes()` and `tenant_label_predicate(var)` — the latter
+    builds a Cypher WHERE fragment: non-default tenants require a label starting
+    with their prefix; the gw default excludes nodes carrying any other tenant's
+    prefix. Returns `""` when no scoping applies.
+- `tests/unit/test_tenant_label_predicate.py`: 5 tests covering non-default,
+  default-exclusion, variable-name substitution, no-scope, and single-tenant cases.
+
+### Fixed
+
+- `src/tools/graph_rag.py` — scoped label-less / name-anchored queries in
+  `get_code_context` (node lookup + fuzzy fallback), `_fetch_community_context`,
+  `mark_as_modified`, `find_callers_callees`, `get_change_impact` (direct +
+  indirect), and `trace_data_flow` (outgoing + shortest-path). Added `_scope_and()`.
+- `src/tools/code_analysis.py` — scoped `_detect_entity_type`, the cross-language
+  seed lookup, `_cross_language_nodes`, `_file_symbols`, `_file_imports`,
+  `_file_importers`, `_circular_dependencies`, `_call_chain`, and `_callers`.
+  Added `_scope_and()`.
+
+### Impact
+
+A `tenant_id="gw_v17"` query now returns only `GW_V17_*` nodes; a `gw` query
+returns only base/unprefixed nodes. Verified against live Neptune: the `setuprad`
+lookup that previously returned 5 nodes spanning both tenants now returns the
+correct 2 (v17) or 3 (gw) depending on the active tenant.
+
 ## [8.31.0] - Fix relationship-type mangling in tenant label rewriter (Jun 8, 2026)
 
 ### Summary
