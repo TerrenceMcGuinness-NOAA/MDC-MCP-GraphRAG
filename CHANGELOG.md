@@ -1,5 +1,41 @@
 # MCP Server Changelog
 
+## [8.31.0] - Fix relationship-type mangling in tenant label rewriter (Jun 8, 2026)
+
+### Summary
+
+Root-cause fix for graph relationship queries returning empty/zero for non-default
+tenants. The Neptune label rewriter (`_rewrite_cypher`) was prefixing relationship
+types as well as node labels: `MATCH (s:File)-[r:CALLS]->()` became
+`MATCH (s:GW_V17_File)-[r:GW_V17_CALLS]->()`. Since Neptune only prefixes node
+labels (never relationship types), the mangled `:GW_V17_CALLS` matched nothing and
+every relationship-traversal query silently returned empty for non-gw tenants.
+
+This affected far more than the relationship-count display: any tenant-scoped query
+with a relationship type in the pattern (`find_related_files`, `find_callers_callees`,
+`trace_execution_path`, etc.) was broken for `gw_v17` and the other prefixed tenants.
+
+### Fixed
+
+- `src/data/neptune_adapter.py`:
+  - New `_square_bracket_mask()` computes which characters fall inside `[...]`.
+  - `_label_token_offsets()` now skips `:Token` matches inside square brackets, so
+    relationship types (`[r:CALLS]`, `[:USES|IMPORTS]`, `[:CALLS*1..3]`) are left
+    untouched while node labels (`(n:File)`) are still prefixed.
+
+### Added
+
+- `tests/unit/test_data_layer.py`: 4 regression tests covering relationship-type
+  safety — single rel type, multi-type `[:A|B|C]`, variable-length `[:CALLS*1..3]`,
+  and empty-prefix identity.
+
+### Impact
+
+`get_knowledge_base_status(tenant_id="gw_v17")` now reports the correct relationship
+breakdown (CALLS 738K, USES 167K, DEPENDS_ON_ENV 20K, EXPORTS 6K, INVOKES 1.7K,
+SOURCES 928, DEFINES 337, EXECUTES 11) instead of 0. All relationship-traversal
+tools now work for non-gw tenants.
+
 ## [8.30.0] - Fix tenant label-prefix scoping in graph queries (Jun 8, 2026)
 
 ### Summary

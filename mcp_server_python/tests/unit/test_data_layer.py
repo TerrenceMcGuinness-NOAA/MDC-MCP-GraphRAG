@@ -92,6 +92,80 @@ def test_neptune_adapter_requires_endpoint() -> None:
         NeptuneAdapter("")
 
 
+# ── tenant label-prefix rewriting (relationship-type safety) ──────────────
+
+
+def _rewrite_tenant(prefix: str):
+    """Build a Tenant with the given label_prefix for rewrite tests."""
+    from src.config.tenants import Tenant
+
+    return Tenant(
+        tenant_id="t", repo_ref="R", branch="b",
+        index_prefix="", label_prefix=prefix,
+        workflow_subdir="d", lifecycle="production",
+    )
+
+
+def test_rewrite_does_not_prefix_relationship_types() -> None:
+    """Relationship types inside [...] must NOT be prefixed — only node labels.
+
+    Regression for the bug where ``MATCH (s:File)-[r:CALLS]->()`` was
+    rewritten to ``(s:GW_V17_File)-[r:GW_V17_CALLS]->()``; since Neptune
+    only prefixes node labels (not relationship types), the mangled
+    ``:GW_V17_CALLS`` matched nothing and counts came back 0.
+    """
+    adapter = NeptuneAdapter.__new__(NeptuneAdapter)
+    tenant = _rewrite_tenant("GW_V17_")
+
+    cypher = "MATCH (s:File)-[r:CALLS]->() RETURN count(r) AS count"
+    out = adapter._rewrite_cypher(cypher, tenant)
+
+    assert ":GW_V17_File" in out          # node label IS prefixed
+    assert ":CALLS" in out                # rel type preserved
+    assert ":GW_V17_CALLS" not in out     # rel type NOT prefixed
+
+
+def test_rewrite_handles_multi_type_relationships() -> None:
+    """Multiple rel types in one bracket (``[:A|B|C]``) are all preserved."""
+    adapter = NeptuneAdapter.__new__(NeptuneAdapter)
+    tenant = _rewrite_tenant("GW_V17_")
+
+    cypher = (
+        "MATCH (f:File)-[:IMPORTS|USES|SOURCES|INVOKES]->(m:Module) "
+        "RETURN m.name AS name"
+    )
+    out = adapter._rewrite_cypher(cypher, tenant)
+
+    assert ":GW_V17_File" in out
+    assert ":GW_V17_Module" in out
+    # The relationship bracket content is preserved verbatim.
+    assert "[:IMPORTS|USES|SOURCES|INVOKES]" in out
+    for rel in ("IMPORTS", "USES", "SOURCES", "INVOKES"):
+        assert f"GW_V17_{rel}" not in out
+
+
+def test_rewrite_handles_variable_length_relationships() -> None:
+    """Variable-length rel patterns (``[:CALLS*1..3]``) keep the rel type."""
+    adapter = NeptuneAdapter.__new__(NeptuneAdapter)
+    tenant = _rewrite_tenant("GW_V17_")
+
+    cypher = "MATCH (s:FortranSubroutine)-[:CALLS*1..3]->(t) RETURN t"
+    out = adapter._rewrite_cypher(cypher, tenant)
+
+    assert ":GW_V17_FortranSubroutine" in out
+    assert ":CALLS" in out
+    assert ":GW_V17_CALLS" not in out
+
+
+def test_rewrite_empty_prefix_is_identity_with_relationships() -> None:
+    """Default gw tenant (empty prefix) leaves the query untouched."""
+    adapter = NeptuneAdapter.__new__(NeptuneAdapter)
+    tenant = _rewrite_tenant("")
+
+    cypher = "MATCH (s:File)-[r:CALLS]->() RETURN count(r) AS count"
+    assert adapter._rewrite_cypher(cypher, tenant) == cypher
+
+
 @pytest.mark.asyncio
 async def test_neptune_adapter_connect_is_idempotent(fake_driver) -> None:
     adapter = NeptuneAdapter(endpoint="https://np.example/opencypher")

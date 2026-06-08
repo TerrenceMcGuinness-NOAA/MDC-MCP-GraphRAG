@@ -102,13 +102,44 @@ def _strip_quoted(cypher: str) -> str:
     return "".join(out)
 
 
+def _square_bracket_mask(cleaned: str) -> list[bool]:
+    """Return a per-character mask where True means 'inside [ ... ]'.
+
+    Relationship-type tokens (``[r:CALLS]``, ``[:USES|IMPORTS]``,
+    ``[:CALLS*1..3]``) live inside square brackets. Node-label tokens
+    (``(n:File)``) and bare label predicates (``WHERE n:File``) do not.
+    The mask lets the rewriter skip relationship types — Neptune only
+    prefixes node labels, never relationship types.
+    """
+    mask = [False] * len(cleaned)
+    depth = 0
+    for i, ch in enumerate(cleaned):
+        if ch == "[":
+            depth += 1
+            mask[i] = depth > 0
+        elif ch == "]":
+            mask[i] = depth > 0
+            if depth > 0:
+                depth -= 1
+        else:
+            mask[i] = depth > 0
+    return mask
+
+
 def _label_token_offsets(cleaned: str):
-    """Yield (start, end, label) for every :Label token in cleaned cypher.
+    """Yield (start, end, label) for every node-label :Label token.
 
     ``cleaned`` is the output of ``_strip_quoted`` — quoted regions are
-    spaces so regex matches only structural tokens.
+    spaces so regex matches only structural tokens. Tokens that fall
+    inside square brackets are relationship types and are skipped, so
+    only node labels are surfaced to the rewriter.
     """
+    mask = _square_bracket_mask(cleaned)
     for m in _LABEL_TOKEN_RE.finditer(cleaned):
+        # The ':' is at m.start(); the label name follows. If the ':'
+        # is inside square brackets it's a relationship type — skip.
+        if mask[m.start()]:
+            continue
         yield m.start(), m.end(), m.group(1)
 
 
