@@ -1412,7 +1412,8 @@ def main(
             records.append(record)
 
         summary = RunSummary(records, cfg.output_format)
-        stdout.write(summary.render())
+        # Scrub stdout too: R12.1 forbids the keys on stdout under any setting.
+        stdout.write(redactor.scrub(summary.render()))
         return summary.exit_code()
     except ProvisioningError as exc:
         return exc.code

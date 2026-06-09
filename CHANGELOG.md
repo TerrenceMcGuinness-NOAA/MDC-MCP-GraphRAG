@@ -1,5 +1,58 @@
 # MCP Server Changelog
 
+## [8.35.0] - agentcore-mcp-rag per-user credential provisioning (agentcore-creds-provisioning) (Jun 9, 2026)
+
+### Summary
+
+Adds `tools/provision-agentcore-creds.py`, a Python 3.12 stdlib-only host-side
+provisioning tool that brings every eligible per-user OS account on the shared
+EC2 host up to spec for the `agentcore-mcp-rag` MCP server: a `[agentcore-rag]`
+profile in each user's `~/.aws/credentials` (sourced from the master keys in
+`/home/ec2-user/.aws/credentials [default]`) plus an `agentcore-mcp-rag` entry
+in each user's `~/.kiro/settings/mcp.json` with `AWS_PROFILE=agentcore-rag` and
+`AWS_REGION`. The tool is identity-gated (refuses to run as anyone but
+`ec2-user`), idempotent, atomic (temp-file + rename + `fsync`), escalates via
+`sudo` only for per-target writes (never opening another user's home from its
+own UID), and never logs the master keys.
+
+This implements waves 0-8 of the `agentcore-creds-provisioning` spec (Tasks
+1-17). The gated live rollout (waves 9-12: Phase A/B/C smoke + single-user +
+bulk runs, and the stop-gap cleanup) is operator-driven and not part of this
+change.
+
+### Added
+
+- `tools/provision-agentcore-creds.py` (NEW, mode 0750, shebang
+  `#!/usr/bin/env python3.12`): single-file provisioning tool. Components:
+  `SecretRedactor`/`Logger` (R12), `IdentityGate` (R1), `ConfigResolver` (R2,
+  R10, R13), `CredentialsLoader` (R3), `Eligibility`/`UserDiscovery` (R2, R9),
+  `Privileged`/`SudoPrivileged` sudo abstraction, `AwsConfigDir` (R4),
+  `AwsCredsWriter` section-aware INI editor (R5, R7, R14), `McpConfigWriter`
+  order-preserving JSON editor (R6, R7, R14), `Idempotency` cross-file check
+  (R14), `VerificationProbe` (R8), `UserProvisioner` (R4-R7), `RunSummary`
+  (R11), and `main()` dispatch (R9, R10).
+- `mcp_server_python/tests/unit/test_provision_*.py` (NEW): 8 unit modules
+  (redactor, identity, config, creds_loader, eligibility, configdir,
+  creds_writer, mcp_writer, verify, main, corner_cases) — 119 unit tests.
+- `mcp_server_python/tests/properties/test_provision_props.py` (NEW): the five
+  R17 properties (idempotency, preservation, no-leak, cross-file profile match,
+  single-user isolation) under Hypothesis.
+- `mcp_server_python/tests/unit/_provision_loader.py`,
+  `_provision_fakes.py` (NEW): test infrastructure — module loader plus
+  `LocalPrivileged` (real sandbox) and `RecordingPrivileged` (in-memory) ops
+  doubles.
+- `SETUP_AWS/provisioning/RUNBOOK_agentcore_creds.md` (NEW): operator runbook.
+- `SETUP_AWS/provisioning/sudoers-agentcore-creds.example` (NEW): narrow sudo
+  allow-list plus wide fallback.
+
+### Notes
+
+- Stdlib-only production tool; no new runtime dependencies. No AgentCore runtime
+  change, container rebuild, or `update-agent-runtime`.
+- Tests use stdlib `tempfile` real-FS sandboxes (pyfakefs is not installed on
+  the host and the stdlib-only/no-pip constraint applies).
+- Test count: 1144 -> 1263 (+119).
+
 ## [8.34.0] - Parallel ingestion pipeline Phase 1 (scalable-ingestion-pipeline) (Jun 9, 2026)
 
 ### Summary

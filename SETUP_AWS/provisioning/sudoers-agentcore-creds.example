@@ -1,0 +1,60 @@
+# Sudoers allow-list for tools/provision-agentcore-creds.py
+#
+# Install as a drop-in file with `visudo -f /etc/sudoers.d/agentcore-creds`
+# (mode 0440, owned root:root). The provisioning tool runs as ec2-user and
+# escalates via `sudo -n` only for the per-target filesystem operations and the
+# verification probe enumerated below.
+#
+# --------------------------------------------------------------------------
+# OPTION A — narrow allow-list (recommended; defense-in-depth)
+# --------------------------------------------------------------------------
+# Adjust the python interpreter path to match `sys.executable` on this host
+# (the tool invokes the same interpreter it runs under for the inspect/read/
+# rename helpers). Confirm with: ec2-user$ python3.12 -c 'import sys;print(sys.executable)'
+#
+# The tool issues these privileged commands (all under sudo -n):
+#   /usr/bin/install -d -m 0700 -o <uid> -g <gid> /home/<user>/.aws
+#   /usr/bin/install -d -m 0700 -o <uid> -g <gid> /home/<user>/.kiro/settings
+#   /usr/bin/install -m 0600 -o <uid> -g <gid> /tmp/provision-acreds-* /home/<user>/.../<file>.tmp.<pid>
+#   /usr/bin/chmod 0600 /home/<user>/.../<file>
+#   /usr/bin/chown <uid>:<gid> /home/<user>/.../<file>
+#   <python> -c "<os.rename + fsync>" <src>.tmp.<pid> <dst>      # atomic rename
+#   <python> -c "<lstat/stat inspect>" <path>                    # path inspection
+#   <python> -c "<read bytes>" <path>                            # read existing file
+#   sudo -u <user> -H env AWS_PROFILE=... AWS_REGION=... HOME=... aws ...   # --verify probe
+#
+# Because the python `-c` fragments and the per-user `aws` probe take
+# arbitrary arguments, a byte-exact Cmnd_Alias is impractical; scope by binary
+# path instead. Restricting the install/chmod/chown commands to /home and the
+# probe to the aws CLI gives meaningful narrowing.
+
+Cmnd_Alias AGENTCORE_INSTALL = \
+    /usr/bin/install -d -m 0700 -o * -g * /home/*, \
+    /usr/bin/install -m 0600 -o * -g * /tmp/provision-acreds-* /home/*
+
+Cmnd_Alias AGENTCORE_PERMS = \
+    /usr/bin/chmod 0600 /home/*, \
+    /usr/bin/chown * /home/*
+
+# Replace /usr/bin/python3.12 with the interpreter path confirmed above.
+Cmnd_Alias AGENTCORE_PY = /usr/bin/python3.12 -c *
+
+# Verification probe (read-only AWS calls run as the target user).
+Cmnd_Alias AGENTCORE_PROBE = /usr/bin/aws *
+
+ec2-user ALL=(root) NOPASSWD: AGENTCORE_INSTALL, AGENTCORE_PERMS, AGENTCORE_PY
+ec2-user ALL=(%users) NOPASSWD: AGENTCORE_PROBE
+
+# Note: AGENTCORE_PY allows `python -c` as root with any argument, which is a
+# broad grant. If your security posture requires tighter control, run the tool
+# without --verify and pre-create the directories out-of-band, or wrap the
+# rename/inspect/read helpers in fixed, reviewed scripts and allow only those.
+#
+# --------------------------------------------------------------------------
+# OPTION B — wide fallback (already present on many hosts)
+# --------------------------------------------------------------------------
+# If the host already grants ec2-user broad sudo, the tool works as-is:
+#
+#   ec2-user ALL=(ALL) NOPASSWD: ALL
+#
+# This is the least restrictive option. Prefer Option A where practical.

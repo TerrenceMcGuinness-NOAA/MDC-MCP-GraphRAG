@@ -25,7 +25,7 @@ and gated rollout.
 
 ## Tasks
 
-- [ ] 1. Scaffold the script and shared data models
+- [x] 1. Scaffold the script and shared data models
   - Create `mcp_server_python/tools/provision-agentcore-creds.py` (mode 0750,
     owner `ec2-user:ec2-user`, shebang `#!/usr/bin/env python3.12`) with the
     module docstring and stdlib-only imports declared in design §"Implementation
@@ -39,7 +39,7 @@ and gated rollout.
     Proxy_Path default.
   - _Requirements: 6.4, 6.5, 6.6, 6.7, design §"Module decomposition"_
 
-- [ ] 2. Implement `SecretRedactor` and `Logger`
+- [x] 2. Implement `SecretRedactor` and `Logger`
   - `SecretRedactor` per design §"Secret redaction (R12)": `register(value, label)`,
     `scrub(text)`. Scrub returns the same string when no tokens are registered or
     none are present. Empty-string registrations are no-ops.
@@ -51,7 +51,7 @@ and gated rollout.
     the redactor before re-raising for clean exit.
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
 
-  - [ ]* 2.1 Unit tests for `SecretRedactor` and `Logger`
+  - [x]* 2.1 Unit tests for `SecretRedactor` and `Logger`
     - Scrubs literal access-key and secret values from arbitrary text including
       JSON, INI, and traceback formats.
     - Empty / unset values do not register (don't replace empty substrings).
@@ -60,7 +60,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_redactor.py` (new)
     - _Validates: 12.1, 12.4, 12.5, 12.6_
 
-- [ ] 3. Implement `IdentityGate`
+- [x] 3. Implement `IdentityGate`
   - Per design §"Identity gate (R1)". Determine `euid`, `euser` via
     `pwd.getpwuid(os.geteuid())`, and `SUDO_USER` env var.
   - Refuse with `Logger` error and exit code 3 when running as anything other than
@@ -68,7 +68,7 @@ and gated rollout.
   - Must be called before any filesystem read of source creds or target homes.
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-  - [ ]* 3.1 Unit tests for `IdentityGate`
+  - [x]* 3.1 Unit tests for `IdentityGate`
     - Parametrize over (euid, euser, SUDO_USER) tuples covering: ec2-user direct,
       root+SUDO_USER=ec2-user, root+empty SUDO_USER, root+wrong SUDO_USER, other
       non-root user.
@@ -77,7 +77,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_identity.py` (new)
     - _Validates: 1.1, 1.2, 1.3_
 
-- [ ] 4. Implement `ConfigResolver` (CLI parser + validation)
+- [x] 4. Implement `ConfigResolver` (CLI parser + validation)
   - `argparse` setup for every flag in design §"CLI surface": `--all`, `--user`,
     `--exclude-file`, `--verify`, `--verbose`, `--dry-run`, `--format`,
     `--runtime-arn`, `--region`, `--proxy-path`.
@@ -94,7 +94,7 @@ and gated rollout.
     union into `Config.exclusions`. Missing/unreadable file → exit code as per R2.5.
   - _Requirements: 2.4, 2.5, 9.4, 10.1, 10.4, 10.5, 13.1, 13.2, 13.3, 13.6, 13.7, 13.8_
 
-  - [ ]* 4.1 Unit tests for `ConfigResolver`
+  - [x]* 4.1 Unit tests for `ConfigResolver`
     - Each precedence path (CLI / env / default) for ARN, region, proxy path.
     - Regex passes and fails for ARN and region.
     - Proxy path: existing regular file, missing path, symlink to regular file,
@@ -104,7 +104,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_config.py` (new)
     - _Validates: 2.4, 2.5, 10.4, 10.5, 13.1–13.3, 13.6–13.8_
 
-- [ ] 5. Implement `CredentialsLoader`
+- [x] 5. Implement `CredentialsLoader`
   - Per design §"Source credential loading (R3)". Use
     `configparser.ConfigParser(interpolation=None, comment_prefixes=("#", ";"))`.
     Strip surrounding whitespace and a single matching pair of `'` or `"`.
@@ -117,7 +117,7 @@ and gated rollout.
   - Treat missing `aws_session_token` as non-fatal (per R3.6).
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [ ]* 5.1 Unit tests for `CredentialsLoader`
+  - [x]* 5.1 Unit tests for `CredentialsLoader`
     - Source files with quoted values (single/double), comments (`#` and `;`),
       missing section, missing field, empty field.
     - Optional `aws_session_token` round-trip and absence (no error).
@@ -125,7 +125,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_creds_loader.py` (new)
     - _Validates: 3.1, 3.2, 3.3, 3.4, 3.6_
 
-- [ ] 6. Implement `UserDiscovery` and `Eligibility`
+- [x] 6. Implement `UserDiscovery` and `Eligibility`
   - `Eligibility.is_eligible(pwd_entry, exclusions) -> (bool, reason)` — pure
     predicate per design §"User discovery (R2)": UID ≥ 1000, shell not in
     `NOLOGIN_SHELLS`, `pw_dir == /home/<pw_name>`, not in
@@ -139,7 +139,7 @@ and gated rollout.
     in sorted order before any side effect.
   - _Requirements: 2.1, 2.2, 2.3, 2.6, 9.3, 9.4, 9.5, 9.6, 9.7_
 
-  - [ ]* 6.1 Unit tests for eligibility
+  - [x]* 6.1 Unit tests for eligibility
     - Synthetic passwd entries that pass and fail every predicate clause:
       UID < 1000, nologin shells, mismatched `pw_dir`, in builtin exclusions, in
       `--exclude-file` exclusions.
@@ -148,7 +148,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_eligibility.py` (new)
     - _Validates: 2.2, 2.3, 9.3–9.7_
 
-- [ ] 7. Implement `AwsConfigDir`
+- [x] 7. Implement `AwsConfigDir`
   - Per design §"Filesystem write protocol". `ensure(target)` creates the dir if
     absent via `sudo install -d -m 0700 -o <u> -g <u> /home/<u>/.aws`; otherwise
     runs `sudo chmod 0700 ...` and `sudo chown <u>:<g> ...` to re-assert.
@@ -158,7 +158,7 @@ and gated rollout.
   - Same logic, factored, for `/home/<u>/.kiro/settings`.
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 6.1_
 
-- [ ] 8. Implement `AwsCredsWriter` (section-aware INI editor)
+- [x] 8. Implement `AwsCredsWriter` (section-aware INI editor)
   - Per design §"Credentials file write (R5, R7, R14)". Tokenize into ordered
     `Section[]` preserving every comment, blank line, and section ordering.
     Replace exactly the `[agentcore-rag]` section (or append if absent) with
@@ -177,7 +177,7 @@ and gated rollout.
     `updated` (existed and bytes changed), `skipped` (existed and bytes equal).
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 7.1, 7.5, 14.1, 14.2, 14.3_
 
-  - [ ]* 8.1 Unit tests for `AwsCredsWriter` (use `pyfakefs`)
+  - [x]* 8.1 Unit tests for `AwsCredsWriter` (use `pyfakefs`)
     - Pre-existing files with multiple sections, comments, blank lines: assert
       every section other than `[agentcore-rag]` is byte-preserved.
     - `[agentcore-rag]` already present with extra fields: assert extras are
@@ -189,7 +189,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_creds_writer.py` (new)
     - _Validates: 5.6, 5.7, 5.8, 5.9, 7.1, 7.5_
 
-- [ ] 9. Implement `McpConfigWriter` (JSON editor)
+- [x] 9. Implement `McpConfigWriter` (JSON editor)
   - Per design §"MCP config file write (R6, R7, R14)". `json.loads` strict.
     Invalid JSON → `failed` per R6.11 (do not modify file).
   - Mutate `obj["mcpServers"]["agentcore-mcp-rag"]`'s four `Managed_Keys` only:
@@ -205,7 +205,7 @@ and gated rollout.
     dict; new Managed_Keys appended at end of their object level (R6.13).
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 6.12, 6.13, 7.2, 7.6, 14.1, 14.2, 14.3_
 
-  - [ ]* 9.1 Unit tests for `McpConfigWriter`
+  - [x]* 9.1 Unit tests for `McpConfigWriter`
     - Pre-existing files with `powers`, multiple servers, custom `autoApprove`,
       `disabledTools`, and other env vars: assert preservation and key ordering.
     - Managed_Keys written with correct types; verify `args` is a list of three
@@ -216,7 +216,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_mcp_writer.py` (new)
     - _Validates: 6.8, 6.9, 6.10, 6.11, 7.2, 7.6_
 
-- [ ] 10. Implement `Idempotency` cross-file invariant check
+- [x] 10. Implement `Idempotency` cross-file invariant check
   - After both file writes succeed, parse the written `[agentcore-rag]` section
     header and the written `mcp.json` `agentcore-mcp-rag.env.AWS_PROFILE` and
     assert byte equality. Mismatch is a contract bug → `failed`
@@ -224,7 +224,7 @@ and gated rollout.
   - Used by `UserProvisioner` after each per-user write pair.
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 14.1, 14.2_
 
-- [ ] 11. Implement `VerificationProbe` (`--verify`)
+- [x] 11. Implement `VerificationProbe` (`--verify`)
   - Per design §"Verification probe (R8)". Two AWS calls under target user via
     `sudo -n -u <name> -H env AWS_PROFILE=agentcore-rag AWS_REGION=<region>
     HOME=/home/<name> PATH=/usr/local/bin:/usr/bin:/bin aws ...`.
@@ -237,7 +237,7 @@ and gated rollout.
     `Logger` (so `SecretRedactor` scrubs it) when verbose.
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-  - [ ]* 11.1 Unit tests for `VerificationProbe`
+  - [x]* 11.1 Unit tests for `VerificationProbe`
     - Mock `subprocess.run`. Assert timeout=30 honored.
     - Distinguish timeout-failure reason vs exit-code-failure reason in the
       `RunRecord.reason` field.
@@ -245,7 +245,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_verify.py` (new)
     - _Validates: 8.3, 8.4, 8.5_
 
-- [ ] 12. Implement `UserProvisioner` (per-user driver)
+- [x] 12. Implement `UserProvisioner` (per-user driver)
   - Orchestrates per target: pre-checks (home dir validity), `AwsConfigDir.ensure`,
     `AwsCredsWriter.write`, `AwsConfigDir.ensure` for `~/.kiro/settings/`,
     `McpConfigWriter.write`, `Idempotency.cross_file_check`. Returns a
@@ -256,7 +256,7 @@ and gated rollout.
     without writing; the per-user disposition reflects the union per R10.6.
   - _Requirements: 4.5, 4.6, 7.4, 10.6_
 
-- [ ] 13. Implement `RunSummary` and exit-code mapping
+- [x] 13. Implement `RunSummary` and exit-code mapping
   - Per design §"Run_Summary table form" / "JSON form". Truncate reason strings
     to 200 ASCII chars with `...` suffix per R11.2.
   - Aggregate counts for every disposition including zero-counts.
@@ -265,7 +265,7 @@ and gated rollout.
   - JSON output schema exactly as documented.
   - _Requirements: 10.7, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
 
-- [ ] 14. Wire `main()` and CLI dispatch
+- [x] 14. Wire `main()` and CLI dispatch
   - Per design §"Single-user vs bulk dispatch (R9, R10)". Order: argparse →
     `IdentityGate.gate()` → `ConfigResolver.resolve()` → `CredentialsLoader.load()`
     → branch on `--all` vs `--user` for `UserDiscovery` vs `Eligibility.check_or_die`
@@ -275,7 +275,7 @@ and gated rollout.
     per R11.6.
   - _Requirements: 9.1, 9.2, 10.1, 10.2, 10.3, 10.6, 10.7_
 
-  - [ ]* 14.1 Unit tests for `main()` orchestration
+  - [x]* 14.1 Unit tests for `main()` orchestration
     - `--all` resolves to full eligible set, processes each exactly once.
     - `--user <name>` validates eligibility before any side effect.
     - `--dry-run` produces a Run_Summary with no filesystem changes (assert via
@@ -284,7 +284,7 @@ and gated rollout.
     - File: `mcp_server_python/tests/unit/test_provision_main.py` (new)
     - _Validates: 9.2, 10.1, 10.6, 10.7, 11.4, 11.5_
 
-- [ ]* 15. Property-based tests (Hypothesis, R17)
+- [x]* 15. Property-based tests (Hypothesis, R17)
   - Property 1 (Idempotency, R17.1): generate 1–32 fake target users + fake home
     fs (pyfakefs); run script twice with identical inputs; assert byte-equality
     of every produced file across the two runs.
@@ -304,7 +304,7 @@ and gated rollout.
   - File: `mcp_server_python/tests/properties/test_provision_props.py` (new)
   - _Validates: 7.1, 7.2, 7.3, 12.1, 14.1, 14.2, 9.2, 17.1, 17.2, 17.3, 17.4, 17.5_
 
-- [ ]* 16. Fixed corner-case corpus tests (R17.6)
+- [x]* 16. Fixed corner-case corpus tests (R17.6)
   - Empty creds file, malformed JSON mcp.json, max-length OS user name (32 char),
     secret containing JSON-significant chars (`"`, `\`, `\n`), absent credentials
     file, absent mcp.json, mcp.json already in target state.
@@ -312,7 +312,7 @@ and gated rollout.
     `test_provision_corner_cases.py`.
   - _Validates: 5.6, 6.11, 7.1, 7.2, 12.1_
 
-- [ ] 17. Runbook + sudoers fragment
+- [x] 17. Runbook + sudoers fragment
   - `SETUP_AWS/provisioning/RUNBOOK_agentcore_creds.md` documents:
     - Operator workflow (`sudo -u ec2-user python3.12 tools/provision-agentcore-creds.py --all --verify`).
     - Master-key rotation: replace `/home/ec2-user/.aws/credentials [default]`
