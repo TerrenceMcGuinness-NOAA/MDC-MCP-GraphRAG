@@ -1,0 +1,668 @@
+#!/usr/bin/env python3.12
+"""Provision per-user AWS credentials and Kiro MCP config for agentcore-mcp-rag.
+
+This is the ``Provisioning_Script`` defined by the
+``agentcore-creds-provisioning`` Kiro spec. It runs once (or on demand) as the
+operator account ``ec2-user`` on the shared EC2 host and brings every eligible
+per-user OS account up to spec for the ``agentcore-mcp-rag`` MCP server:
+
+* a ``[agentcore-rag]`` profile in each target user's ``~/.aws/credentials``,
+  sourced from the master IAM keys in ``/home/ec2-user/.aws/credentials``
+  ``[default]``; and
+* an ``agentcore-mcp-rag`` server entry in each target user's
+  ``~/.kiro/settings/mcp.json`` whose ``env`` references ``AWS_PROFILE`` =
+  ``agentcore-rag`` and ``AWS_REGION`` = the configured region.
+
+Design guarantees:
+
+* **Identity-gated** -- refuses to run as anyone but ``ec2-user`` before any
+  filesystem read of source creds or any target home directory.
+* **Idempotent** -- re-running with the same source keys leaves every file
+  byte-equal; users are classified ``created`` / ``updated`` / ``skipped`` /
+  ``failed``.
+* **Atomic** -- every target file is written via a temp-file-then-rename
+  protocol with an ``fsync`` of the parent directory; readers never observe a
+  torn file.
+* **Secret-safe** -- the master keys are registered with the
+  :class:`SecretRedactor` immediately after load and never appear in any log,
+  traceback, or subprocess echo.
+* **Least-privilege** -- the script process runs as ``ec2-user`` and escalates
+  via ``sudo`` only for the specific per-target filesystem operations; it never
+  opens another user's home directory from its own UID.
+
+Stdlib only -- no third-party dependencies -- so master-key rotation is a
+single file copy plus a re-run with no ``pip`` step.
+
+Usage::
+
+    sudo -u ec2-user python3.12 tools/provision-agentcore-creds.py --all --verify
+    sudo -u ec2-user python3.12 tools/provision-agentcore-creds.py --user alice
+    sudo -u ec2-user python3.12 tools/provision-agentcore-creds.py --all --dry-run --format json
+
+See ``SETUP_AWS/provisioning/RUNBOOK_agentcore_creds.md`` for the operator
+runbook and ``SETUP_AWS/provisioning/sudoers-agentcore-creds.example`` for the
+minimal sudoers allow-list.
+"""
+
+from __future__ import annotations
+
+import argparse
+import configparser
+import json
+import os
+import pwd
+import re
+import signal
+import subprocess
+import sys
+import tempfile
+import traceback
+from dataclasses import dataclass, field
+from typing import Literal, Optional
+
+# --------------------------------------------------------------------------- #
+# Constants
+# --------------------------------------------------------------------------- #
+
+#: The only OS account permitted to run this script (Requirement 1).
+OPERATOR = "ec2-user"
+
+#: Fixed source of the master IAM keys (Requirement 3).
+SOURCE_CREDENTIALS_FILE = "/home/ec2-user/.aws/credentials"
+SOURCE_PROFILE_NAME = "default"
+
+#: Fixed profile-section name written into every target file (Requirement 14).
+#: This is NOT configurable.
+AWS_PROFILE_NAME = "agentcore-rag"
+
+#: Fixed MCP server-entry key managed in each target's mcp.json (Requirement 6).
+MCP_SERVER_KEY = "agentcore-mcp-rag"
+
+#: Eligibility predicate constants (Requirement 2).
+MIN_UID = 1000
+NOLOGIN_SHELLS = frozenset({"/sbin/nologin", "/usr/sbin/nologin", "/bin/false"})
+BUILTIN_EXCLUSIONS = frozenset({"ec2-user", "root"})
+
+#: Configurable-parameter defaults (Requirement 13 glossary).
+DEFAULT_RUNTIME_ARN = (
+    "arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/"
+    "mdc_mcp_rag_server_python-v5K2F8BGrN"
+)
+DEFAULT_REGION = "us-east-1"
+DEFAULT_PROXY_PATH = "/mdc-mcp-rag/eib-mcp-rag-server/tools/agentcore-kiro-proxy.py"
+
+#: The command the MCP server entry launches (Requirement 6.4).
+MCP_COMMAND = "python3.12"
+
+#: Validation regexes (Requirements 13.6, 13.7). These are the authoritative
+#: forms from requirements.md (the dot is allowed in the ARN runtime segment).
+ARN_RE = re.compile(
+    r"^arn:aws:bedrock-agentcore:[a-z0-9-]+:[0-9]{12}:runtime/[A-Za-z0-9_.-]+$"
+)
+REGION_RE = re.compile(r"^[a-z]{2}-[a-z]+-[0-9]+$")
+
+#: Verification-probe timeout in seconds (Requirement 8).
+PROBE_TIMEOUT = 30
+
+#: Maximum reason-string length in the Run_Summary (Requirement 11.2).
+MAX_REASON_LEN = 200
+
+#: Exit codes (design "Exit codes"). Distinct so callers can tell argument
+#: errors from provisioning errors (Requirement 10.7).
+EXIT_OK = 0
+EXIT_ARG = 2
+EXIT_IDENTITY = 3
+EXIT_CREDS = 4
+EXIT_CONFIG = 5
+EXIT_FAILED = 6
+
+
+# --------------------------------------------------------------------------- #
+# Data models (design "Data Models")
+# --------------------------------------------------------------------------- #
+
+Disposition = Literal["created", "updated", "skipped", "failed"]
+ParamSource = Literal["cli", "env", "default"]
+
+
+@dataclass(frozen=True)
+class Config:
+    """Resolved runtime configuration for a single invocation."""
+
+    runtime_arn: str
+    region: str
+    proxy_path: str  # already symlink-resolved and existence-checked
+    runtime_arn_source: ParamSource
+    region_source: ParamSource
+    proxy_path_source: ParamSource
+    mode: Literal["bulk", "single"]
+    target_user: Optional[str]  # only set in single mode
+    exclusions: frozenset
+    verify: bool
+    verbose: bool
+    dry_run: bool
+    output_format: Literal["table", "json"]
+
+
+@dataclass(frozen=True)
+class IamCreds:
+    """Master IAM credentials loaded from the Source_Credentials_File."""
+
+    access_key_id: str
+    secret_access_key: str
+    session_token: Optional[str]
+
+
+@dataclass(frozen=True)
+class TargetUser:
+    """A single per-user OS account to provision."""
+
+    name: str
+    uid: int
+    gid: int
+    home: str
+    shell: str
+
+
+@dataclass
+class RunRecord:
+    """Per-user outcome row for the Run_Summary."""
+
+    user: str
+    disposition: Disposition
+    reason: str = ""
+
+
+@dataclass
+class FileChange:
+    """Result of a single file write attempt."""
+
+    path: str
+    disposition: Disposition
+    reason: str = ""
+    profile: str = ""  # profile name guaranteed by the writer (cross-file check)
+
+
+@dataclass
+class Section:
+    """One section of an INI-style credentials file with raw lines preserved."""
+
+    header: Optional[str]  # None for the leading anonymous block
+    raw_lines: list = field(default_factory=list)  # original lines incl. comments
+
+
+# --------------------------------------------------------------------------- #
+# Secret redaction and logging (Requirement 12)
+# --------------------------------------------------------------------------- #
+
+
+class SecretRedactor:
+    """Substitute registered secret values with literal redaction strings.
+
+    Values are registered once (at credential-load time) and every text routed
+    through :class:`Logger`, every subprocess argv echo, and the installed
+    ``sys.excepthook`` is scrubbed before it reaches any sink. Empty values are
+    never registered so an empty secret can never blank-replace arbitrary text.
+    """
+
+    def __init__(self) -> None:
+        # (raw_value, replacement) pairs, longest raw first so overlapping
+        # values (e.g. a secret that contains the access key) are masked fully.
+        self._tokens: list = []
+
+    def register(self, value: Optional[str], label: str) -> None:
+        """Register ``value`` to be replaced by ``<label redacted>``.
+
+        No-op when ``value`` is falsy (empty or ``None``).
+        """
+        if not value:
+            return
+        replacement = f"<{label} redacted>"
+        if (value, replacement) in self._tokens:
+            return
+        self._tokens.append((value, replacement))
+        # Keep the longest raw values first.
+        self._tokens.sort(key=lambda pair: len(pair[0]), reverse=True)
+
+    def scrub(self, text: str) -> str:
+        """Return ``text`` with every registered secret replaced."""
+        if not text:
+            return text
+        for raw, replacement in self._tokens:
+            if raw and raw in text:
+                text = text.replace(raw, replacement)
+        return text
+
+    @property
+    def registered_count(self) -> int:
+        return len(self._tokens)
+
+
+class Logger:
+    """Single diagnostic sink (stderr) that scrubs every write (Requirement 12)."""
+
+    def __init__(
+        self,
+        redactor: SecretRedactor,
+        stream=None,
+        verbose: bool = False,
+    ) -> None:
+        self.redactor = redactor
+        self.stream = stream if stream is not None else sys.stderr
+        self.verbose = verbose
+
+    def raw(self, text: str) -> None:
+        """Write pre-formatted ``text`` (scrubbed) to the stream."""
+        self.stream.write(self.redactor.scrub(text))
+        self.stream.flush()
+
+    def error(self, message: str) -> None:
+        self.raw(f"[ERROR] {message}\n")
+
+    def warn(self, message: str) -> None:
+        self.raw(f"[WARN] {message}\n")
+
+    def info(self, message: str) -> None:
+        self.raw(f"[INFO] {message}\n")
+
+    def debug(self, message: str) -> None:
+        if self.verbose:
+            self.raw(f"[DEBUG] {message}\n")
+
+
+class ProvisioningError(Exception):
+    """Raised for a global, non-recoverable failure with an explicit exit code."""
+
+    def __init__(self, message: str, code: int) -> None:
+        super().__init__(message)
+        self.message = message
+        self.code = code
+
+
+def die(logger: Logger, message: str, code: int) -> "ProvisioningError":
+    """Log ``message`` as an error and return a :class:`ProvisioningError`.
+
+    The caller raises the returned exception so control flow is explicit at the
+    call site (``raise die(log, ..., EXIT_X)``).
+    """
+    logger.error(message)
+    return ProvisioningError(message, code)
+
+
+def install_excepthook(logger: Logger) -> None:
+    """Replace ``sys.excepthook`` so unhandled tracebacks are redacted (R12.4)."""
+
+    def _hook(exc_type, exc, tb) -> None:
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc, tb)
+            return
+        text = "".join(traceback.format_exception(exc_type, exc, tb))
+        logger.raw(text)
+
+    sys.excepthook = _hook
+
+
+def install_signal_handlers(logger: Logger, flush_callback) -> None:
+    """Install SIGINT/SIGTERM handlers that flush a partial summary (R12.7).
+
+    ``flush_callback`` is invoked with the :class:`Logger`; it must emit any
+    in-progress Run_Summary through the (scrubbing) logger. After flushing the
+    handler exits with a non-zero status.
+    """
+
+    def _handler(signum, frame) -> None:
+        try:
+            flush_callback(logger)
+        finally:
+            # Non-zero exit on signal per R12.7.
+            raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGINT, _handler)
+    signal.signal(signal.SIGTERM, _handler)
+
+
+# --------------------------------------------------------------------------- #
+# Identity gate (Requirement 1)
+# --------------------------------------------------------------------------- #
+
+
+class IdentityGate:
+    """Refuse to run as anyone other than ``ec2-user`` (Requirement 1).
+
+    Dependencies are injectable so the gate can be exercised in tests without
+    actually being root.
+    """
+
+    @staticmethod
+    def gate(logger: Logger, *, geteuid=None, getpwuid=None, environ=None) -> None:
+        geteuid = geteuid or os.geteuid
+        getpwuid = getpwuid or pwd.getpwuid
+        environ = environ if environ is not None else os.environ
+
+        euid = geteuid()
+        euser = getpwuid(euid).pw_name
+        sudo_user = environ.get("SUDO_USER", "")
+
+        if euid == 0:
+            if sudo_user != OPERATOR:
+                raise die(
+                    logger,
+                    f"Operator must be {OPERATOR} "
+                    f"(refusing root with SUDO_USER={sudo_user!r})",
+                    EXIT_IDENTITY,
+                )
+        elif euser != OPERATOR:
+            raise die(
+                logger,
+                f"Operator must be {OPERATOR} (running as {euser!r})",
+                EXIT_IDENTITY,
+            )
+        # No filesystem read/write occurs before this point.
+
+
+# --------------------------------------------------------------------------- #
+# Configuration resolution (Requirement 13) and argument parsing (R10, R2)
+# --------------------------------------------------------------------------- #
+
+
+def _dequote(value: str) -> str:
+    """Strip surrounding whitespace and a single matching pair of quotes."""
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1]
+    return value
+
+
+def _resolve_param(cli_value, env_value, default_value):
+    """Resolve one parameter with CLI > env (if non-empty) > default precedence."""
+    if cli_value is not None:
+        return cli_value, "cli"
+    if env_value:
+        return env_value, "env"
+    return default_value, "default"
+
+
+def _read_exclude_file(path: str, logger: Logger) -> set:
+    """Read an exclusion-list file (Requirement 2.4, 2.5)."""
+    if not os.path.isfile(path) or not os.access(path, os.R_OK):
+        raise die(logger, f"--exclude-file path not readable: {path}", EXIT_CONFIG)
+    out: set = set()
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped[0] == "#":
+                continue
+            out.add(stripped)
+    return out
+
+
+class ConfigResolver:
+    """Parse arguments and resolve runtime configuration (Requirements 2, 10, 13)."""
+
+    @staticmethod
+    def build_parser() -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(
+            prog="provision-agentcore-creds.py",
+            description=(
+                "Provision per-user AWS credentials and Kiro MCP config for the "
+                "agentcore-mcp-rag MCP server. Run as ec2-user."
+            ),
+        )
+        parser.add_argument("--all", action="store_true", help="Bulk mode: provision every eligible user.")
+        parser.add_argument("--user", metavar="NAME", help="Single-user mode: provision exactly NAME.")
+        parser.add_argument("--exclude-file", metavar="PATH", help="Path to a newline-delimited exclusion list.")
+        parser.add_argument("--verify", action="store_true", help="Run the AWS verification probe per user.")
+        parser.add_argument("--verbose", action="store_true", help="Echo (redacted) probe output and debug logs.")
+        parser.add_argument("--dry-run", action="store_true", help="Plan only; make no filesystem changes.")
+        parser.add_argument("--format", choices=["table", "json"], default="table", help="Run_Summary output form.")
+        parser.add_argument("--runtime-arn", metavar="ARN", help="AgentCore runtime ARN (else env/default).")
+        parser.add_argument("--region", metavar="NAME", help="AWS region (else env/default).")
+        parser.add_argument("--proxy-path", metavar="PATH", help="Absolute path to the MCP stdio proxy (else env/default).")
+        return parser
+
+    @staticmethod
+    def resolve(
+        args: argparse.Namespace,
+        logger: Logger,
+        *,
+        environ=None,
+        isfile=None,
+        access=None,
+        realpath=None,
+    ) -> Config:
+        environ = environ if environ is not None else os.environ
+        isfile = isfile or os.path.isfile
+        access = access or os.access
+        realpath = realpath or os.path.realpath
+
+        # Mode mutual-exclusion (Requirements 10.4, 10.5).
+        if args.all and args.user:
+            raise die(logger, "--all and --user are mutually exclusive", EXIT_ARG)
+        if not args.all and not args.user:
+            raise die(logger, "exactly one of --all or --user is required", EXIT_ARG)
+
+        runtime_arn, arn_src = _resolve_param(
+            args.runtime_arn, environ.get("AGENTCORE_RUNTIME_ARN"), DEFAULT_RUNTIME_ARN
+        )
+        region, region_src = _resolve_param(
+            args.region, environ.get("AWS_REGION"), DEFAULT_REGION
+        )
+        proxy_path, proxy_src = _resolve_param(
+            args.proxy_path, environ.get("AGENTCORE_PROXY_PATH"), DEFAULT_PROXY_PATH
+        )
+
+        if not ARN_RE.match(runtime_arn):
+            raise die(
+                logger,
+                f"malformed AgentCore runtime ARN {runtime_arn!r} (resolved from {arn_src})",
+                EXIT_CONFIG,
+            )
+        if not REGION_RE.match(region):
+            raise die(
+                logger,
+                f"malformed AWS region {region!r} (resolved from {region_src})",
+                EXIT_CONFIG,
+            )
+
+        resolved_proxy = realpath(proxy_path)
+        if not isfile(resolved_proxy) or not access(resolved_proxy, os.R_OK):
+            raise die(
+                logger,
+                f"proxy path not an existing readable file: {proxy_path!r} "
+                f"(resolved to {resolved_proxy!r}, from {proxy_src})",
+                EXIT_CONFIG,
+            )
+
+        exclusions: set = set()
+        if args.exclude_file:
+            exclusions = _read_exclude_file(args.exclude_file, logger)
+
+        return Config(
+            runtime_arn=runtime_arn,
+            region=region,
+            proxy_path=resolved_proxy,
+            runtime_arn_source=arn_src,
+            region_source=region_src,
+            proxy_path_source=proxy_src,
+            mode="single" if args.user else "bulk",
+            target_user=args.user,
+            exclusions=frozenset(exclusions),
+            verify=args.verify,
+            verbose=args.verbose,
+            dry_run=args.dry_run,
+            output_format=args.format,
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Source credential loading (Requirement 3)
+# --------------------------------------------------------------------------- #
+
+
+class CredentialsLoader:
+    """Load the master IAM keys from the Source_Credentials_File (Requirement 3)."""
+
+    @staticmethod
+    def load(
+        redactor: SecretRedactor,
+        logger: Logger,
+        *,
+        path: str = SOURCE_CREDENTIALS_FILE,
+        section: str = SOURCE_PROFILE_NAME,
+    ) -> IamCreds:
+        if not os.path.isfile(path) or not os.access(path, os.R_OK):
+            raise die(logger, f"source credentials file not readable: {path}", EXIT_CREDS)
+
+        parser = configparser.ConfigParser(
+            interpolation=None, comment_prefixes=("#", ";")
+        )
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                parser.read_file(fh)
+        except (configparser.Error, OSError) as exc:
+            # Do not include any credential value; the parse error text from
+            # configparser references only structure, never our keys.
+            raise die(
+                logger,
+                f"source credentials file could not be parsed: {path} ({exc.__class__.__name__})",
+                EXIT_CREDS,
+            )
+
+        if not parser.has_section(section):
+            raise die(
+                logger,
+                f"source credentials file {path} has no [{section}] section",
+                EXIT_CREDS,
+            )
+
+        def _field(key: str, required: bool) -> Optional[str]:
+            if not parser.has_option(section, key):
+                if required:
+                    raise die(
+                        logger,
+                        f"source credentials file {path} [{section}] is missing {key}",
+                        EXIT_CREDS,
+                    )
+                return None
+            value = _dequote(parser.get(section, key))
+            if required and not value:
+                raise die(
+                    logger,
+                    f"source credentials file {path} [{section}] has an empty {key}",
+                    EXIT_CREDS,
+                )
+            return value or None
+
+        access_key_id = _field("aws_access_key_id", required=True)
+        secret_access_key = _field("aws_secret_access_key", required=True)
+        session_token = _field("aws_session_token", required=False)
+
+        # Register secrets with the redactor BEFORE returning so every later
+        # log/print/raise is scrubbed (Requirement 3.4, 12.1).
+        redactor.register(access_key_id, "aws_access_key_id")
+        redactor.register(secret_access_key, "aws_secret_access_key")
+        redactor.register(session_token, "aws_session_token")
+
+        return IamCreds(
+            access_key_id=access_key_id,
+            secret_access_key=secret_access_key,
+            session_token=session_token,
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Eligibility predicate and user discovery (Requirements 2, 9)
+# --------------------------------------------------------------------------- #
+
+
+class Eligibility:
+    """Pure eligibility predicate and single-user validation (Requirements 2, 9)."""
+
+    @staticmethod
+    def is_eligible(entry, exclusions: frozenset):
+        """Return ``(eligible, reason)`` for an NSS passwd entry."""
+        if entry.pw_uid < MIN_UID:
+            return False, f"uid {entry.pw_uid} < {MIN_UID}"
+        if entry.pw_shell in NOLOGIN_SHELLS:
+            return False, f"non-interactive shell {entry.pw_shell}"
+        if entry.pw_dir != f"/home/{entry.pw_name}":
+            return False, f"home {entry.pw_dir} != /home/{entry.pw_name}"
+        if entry.pw_name in BUILTIN_EXCLUSIONS or entry.pw_name in exclusions:
+            return False, "excluded"
+        return True, ""
+
+    @staticmethod
+    def check_or_die(
+        name: str,
+        exclusions: frozenset,
+        logger: Logger,
+        *,
+        getpwnam=None,
+    ) -> TargetUser:
+        """Validate a single named user for Single_User_Mode (Requirement 9)."""
+        getpwnam = getpwnam or pwd.getpwnam
+        try:
+            entry = getpwnam(name)
+        except KeyError:
+            raise die(logger, f"user {name!r} does not exist in the passwd database", EXIT_ARG)
+
+        if name in BUILTIN_EXCLUSIONS or name in exclusions:
+            raise die(
+                logger,
+                f"user {name!r} is excluded (ec2-user, root, or in the exclusion list)",
+                EXIT_ARG,
+            )
+        if entry.pw_uid < MIN_UID:
+            raise die(
+                logger,
+                f"user {name!r} has uid {entry.pw_uid} below the eligibility threshold {MIN_UID}",
+                EXIT_ARG,
+            )
+        if entry.pw_shell in NOLOGIN_SHELLS:
+            raise die(
+                logger,
+                f"user {name!r} has a non-interactive login shell {entry.pw_shell}",
+                EXIT_ARG,
+            )
+        if entry.pw_dir != f"/home/{name}":
+            raise die(
+                logger,
+                f"user {name!r} has home directory {entry.pw_dir} which is not /home/{name}",
+                EXIT_ARG,
+            )
+        return TargetUser(name, entry.pw_uid, entry.pw_gid, entry.pw_dir, entry.pw_shell)
+
+
+class UserDiscovery:
+    """Enumerate the Eligible_User_Set from the NSS passwd database (Requirement 2)."""
+
+    @staticmethod
+    def eligible(
+        exclusions: frozenset,
+        logger: Logger,
+        *,
+        getpwall=None,
+    ) -> list:
+        getpwall = getpwall or pwd.getpwall
+        out: list = []
+        for entry in getpwall():
+            ok, _reason = Eligibility.is_eligible(entry, exclusions)
+            if ok:
+                out.append(
+                    TargetUser(
+                        entry.pw_name,
+                        entry.pw_uid,
+                        entry.pw_gid,
+                        entry.pw_dir,
+                        entry.pw_shell,
+                    )
+                )
+        # Ascending byte-wise (C-locale) order (Requirement 2.6, 10.2).
+        out.sort(key=lambda u: u.name.encode("utf-8"))
+        logger.info(
+            "Eligible users (%d): %s"
+            % (len(out), ", ".join(u.name for u in out) if out else "(none)")
+        )
+        return out
