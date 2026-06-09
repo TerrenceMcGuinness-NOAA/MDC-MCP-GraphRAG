@@ -1,5 +1,78 @@
 # MCP Server Changelog
 
+## [8.33.0] - Regex fallback for unparseable Fortran (fortran-parse-fallback) (Jun 8, 2026)
+
+### Summary
+
+The Fortran AST ingester drops the ~15% of files fparser2 cannot parse (1,020 of
+6,935 on `gw_v17`), losing their MODULE/SUBROUTINE/FUNCTION/PROGRAM nodes and
+CALLS/USES edges. This adds a regex-based fallback extractor in `_fortran_parser.py`
+that runs **only** when the fparser2 path yields no tree, recovering definition
+nodes and relationship edges from the already-sanitized/preprocessed source text
+and returning the identical `FortranParseResult` shape. fparser2 successes keep
+full fidelity; the fallback never runs on a non-None tree, and a fallback bug
+degrades to "recovered nothing" rather than aborting a run.
+
+Blast radius is two production files (`_fortran_parser.py`, `ingest_fortran_graph_v8.py`)
+— the Neptune write helpers, tenant logic, and runtime/tool code are untouched
+because the fallback emits the same result shape the two-pass writer already
+consumes.
+
+### Added
+
+- `scripts/_fortran_parser.py`:
+  - `FortranParseResult.source: str = "fparser2"` — parse-provenance marker
+    (`"fparser2"` | `"fallback"`), defaulted and appended last so every existing
+    constructor/test stays valid.
+  - `FortranParser.stats` gains `files_parsed_fparser2`, `files_parsed_fallback`,
+    and `files_failed` counters, incremented in `parse_file` (the single choke
+    point) so live and `--dry-run` see the same split.
+  - Class-level regexes `_FB_END_MODULE`, `_FB_END`, `_FB_MODULE`, `_FB_PROGRAM`,
+    `_FB_SUBROUTINE`, `_FB_FUNCTION`, `_FB_CALL`, `_FB_USE` — all `IGNORECASE` and
+    anchored to line start (so `recall`, `arr(call_count)`, `IF (`, `DO ` never
+    match). `_FB_MODULE` excludes `MODULE PROCEDURE`/`MODULE SUBROUTINE`/`MODULE
+    FUNCTION`; `_FB_FUNCTION`'s prefix class excludes `=` so assignments never match.
+  - `_is_full_comment`, `_strip_inline_comment` (string-literal aware, handles
+    doubled-quote escapes), and `_logical_lines` (drops comments, joins free-form
+    trailing-`&` continuations, carries the first physical line number).
+  - `_fallback_extract(actual_path, original_path)` — pure-text recovery returning
+    `FortranParseResult(source="fallback")` or `None`; tracks current MODULE
+    context for best-effort containment, dedups calls on `(callee, line)`, infers
+    program executables via `_infer_executable`, and is wrapped so it never raises.
+- `tests/unit/test_fortran_fallback.py` — 18 tests: triggering, prefixed/END-skipped
+  definitions, CALL/USE incl. ONLY + continuations, false-positive guard, containment,
+  provenance counters, never-raises, and result-shape via the counting helpers.
+- `tests/properties/test_fortran_fallback_props.py` — 8 Hypothesis properties
+  (no-fallback-on-success, never-raises on arbitrary bytes, definition/edge
+  completeness, no invented edges, result-shape invariance, containment soundness,
+  provenance accounting).
+
+### Changed
+
+- `scripts/_fortran_parser.py::parse_file` — wraps the fparser2 call in an inner
+  `try/except (Exception, SystemExit)` so a fparser2 failure falls through to the
+  fallback rather than the outer never-raise guard; sets `source` and increments
+  the provenance counter on each path.
+- `scripts/ingest_fortran_graph_v8.py` — the live and `--dry-run` summaries now
+  print the fparser2/fallback/failed provenance split; the live run augments the
+  JSON report with a `parse_provenance` block (done in the ingester, guarded, to
+  keep the shared `IngestionReportWriter` out of this feature's blast radius).
+- `tests/unit/test_fortran_parser.py::TestResilience` — the three
+  monkeypatched-failure tests now use non-recoverable content. The pre-fallback
+  contract (any parse failure → `None`) used a recoverable `module m` fixture that
+  now correctly triggers the fallback; the tests retain their original intent
+  (failure modes do not propagate and yield `None`).
+
+### Impact
+
+Files fparser2 cannot parse now contribute FortranModule/Subroutine/Function/Program
+nodes plus CALLS/USES edges, lifting parse coverage from ~85% toward ~99%.
+No graph schema or writer change; Neptune MERGE keeps fallback-recovered
+nodes/edges idempotent against any later accurate parse. Test suite: 1125 passed
+(was 1099). The operator-gated live `--dry-run` verification (Task 8) against the
+EFS `gw_v17` worktree remains to be run on the operator host; no container rebuild
+or runtime deploy is required (offline ingestion script only).
+
 ## [8.32.0] - Tenant-scope label-less graph queries (Gap E) (Jun 8, 2026)
 
 ### Summary

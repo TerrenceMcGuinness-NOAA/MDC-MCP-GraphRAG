@@ -268,6 +268,10 @@ def _dry_run(fortran_parser: FortranParser, files: list[Path]) -> int:
     print(f"  Files parsed:        {parsed}")
     print(f"  Files failed:        {failed}")
     print(f"  Parse success rate:  {rate:.1f}%")
+    print("  Parse provenance:")
+    print(f"    via fparser2:      {fortran_parser.stats['files_parsed_fparser2']}")
+    print(f"    via fallback:      {fortran_parser.stats['files_parsed_fallback']}")
+    print(f"    failed both:       {fortran_parser.stats['files_failed']}")
     print(f"  Files preprocessed:  {fortran_parser.stats['files_preprocessed']}")
     print(f"  Files sanitized:     {fortran_parser.stats['files_sanitized']}")
     print("  Nodes that would be created:")
@@ -402,13 +406,42 @@ async def main() -> int:
     print(f"  Files parsed:       {parsed}")
     print(f"  Files failed:       {failed}")
     print(f"  Parse success rate: {rate:.1f}%")
+    print("  Parse provenance:")
+    print(f"    via fparser2:     {fortran_parser.stats['files_parsed_fparser2']}")
+    print(f"    via fallback:     {fortran_parser.stats['files_parsed_fallback']}")
+    print(f"    failed both:      {fortran_parser.stats['files_failed']}")
     print(f"  Files preprocessed: {fortran_parser.stats['files_preprocessed']}")
     print(f"  Files sanitized:    {fortran_parser.stats['files_sanitized']}")
     print(f"  Nodes created:      {total_nodes:,}")
     print(f"  Relationships:      {total_rels:,}")
     print(f"  Write errors:       {len(errors)}")
 
+    # Record the fparser2/fallback/failed provenance split in the report
+    # counters (R5.2). These also land in the JSON via the augment step below.
+    report.increment("files_parsed_fparser2",
+                     fortran_parser.stats["files_parsed_fparser2"])
+    report.increment("files_parsed_fallback",
+                     fortran_parser.stats["files_parsed_fallback"])
+    report.increment("files_failed", fortran_parser.stats["files_failed"])
+
     report_path = report.finalize()
+    # Augment the JSON report with the parse-provenance breakdown (R5.2).
+    # Done here (not in the shared report writer) to keep this feature's blast
+    # radius to the parser + this ingester only. Guarded so a report-write
+    # hiccup never affects the (already-committed) Neptune ingest.
+    try:
+        import json
+
+        report_data = json.loads(Path(report_path).read_text())
+        report_data["parse_provenance"] = {
+            "files_parsed_fparser2": fortran_parser.stats["files_parsed_fparser2"],
+            "files_parsed_fallback": fortran_parser.stats["files_parsed_fallback"],
+            "files_failed": fortran_parser.stats["files_failed"],
+        }
+        Path(report_path).write_text(json.dumps(report_data, indent=2) + "\n")
+    except Exception as e:  # noqa: BLE001 - report augmentation is best-effort
+        print(f"[WARN] could not augment report with provenance: {e}",
+              file=sys.stderr)
     print(f"[DONE] report: {report_path}")
     await uda.close()
     return 0

@@ -15,14 +15,14 @@ partial progress cannot regress the current parse path or the Neptune write logi
 
 ## Tasks
 
-- [ ] 1. Add provenance field and counters
+- [x] 1. Add provenance field and counters
   - Add `source: str = "fparser2"` to the `FortranParseResult` dataclass (defaulted
     so all existing constructors and tests stay valid).
   - Extend `FortranParser.stats` with `files_parsed_fparser2`, `files_parsed_fallback`,
     and `files_failed` (initialized to 0).
   - _Requirements: 4.1, 5.1, 5.3_
 
-- [ ] 2. Build the logical-line preprocessor for the fallback
+- [x] 2. Build the logical-line preprocessor for the fallback
   - Add a private helper that, given source text, yields `(physical_line_no,
     logical_line)` tuples: strip full-line comments (`!` first non-blank;
     `c`/`C`/`*` in column 1 for fixed-form), strip inline `!` comments outside
@@ -31,7 +31,7 @@ partial progress cannot regress the current parse path or the Neptune write logi
   - Unit-test the joiner on continuation-split `CALL`/`USE` and on comment forms.
   - _Requirements: 2.6, 3.3, 6.3_
 
-- [ ] 3. Implement the regex set and `_fallback_extract`
+- [x] 3. Implement the regex set and `_fallback_extract`
   - Compile the seven class-level regexes (`END_RE`, `MODULE_RE`, `SUBROUTINE_RE`,
     `FUNCTION_RE`, `PROGRAM_RE`, `CALL_RE`, `USE_RE`), all `IGNORECASE` and anchored
     to line start.
@@ -43,7 +43,7 @@ partial progress cannot regress the current parse path or the Neptune write logi
     all six lists are empty. Wrap the whole body so it never raises.
   - _Requirements: 1.3, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 2.7, 3.1, 3.2, 3.4, 3.5, 3.6, 4.2, 4.3, 4.4, 6.1, 6.2_
 
-- [ ] 4. Wire the fallback into `parse_file`
+- [x] 4. Wire the fallback into `parse_file`
   - Wrap the fparser2 call in an inner `try/except (Exception, SystemExit)` so a
     fparser2 failure falls through to the fallback rather than the outer guard.
   - On non-None tree: set `result.source = "fparser2"`, increment
@@ -53,7 +53,7 @@ partial progress cannot regress the current parse path or the Neptune write logi
   - Preserve the outer never-raise guard and the temp-file `finally` cleanup.
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.1_
 
-- [ ] 5. Unit tests for the fallback extractor
+- [x] 5. Unit tests for the fallback extractor
   - New `tests/unit/test_fortran_fallback.py` with `tmp_path` source fixtures:
     triggering (fparser2 success vs malformed-recoverable), definition recovery
     (prefixed subroutine/function, module, program, END skipped), edge recovery
@@ -63,14 +63,14 @@ partial progress cannot regress the current parse path or the Neptune write logi
     `_result_rel_counts`.
   - _Requirements: 1.1, 1.2, 1.5, 2.2, 2.3, 2.4, 2.7, 3.1, 3.2, 3.3, 4.2, 4.5, 6.2, 6.3_
 
-- [ ] 6. Provenance in the ingester summary and report
+- [x] 6. Provenance in the ingester summary and report
   - In `ingest_fortran_graph_v8.py`, add the `files_parsed_fparser2 /
     files_parsed_fallback / files_failed` breakdown to the live end-of-run summary
     and to `_dry_run`'s summary, reading from `fortran_parser.stats`.
   - Record the same breakdown in the `IngestionReportWriter` output.
   - _Requirements: 5.2, 5.4_
 
-- [ ] 7. Property-based tests for the correctness properties
+- [x] 7. Property-based tests for the correctness properties
   - New `tests/properties/test_fortran_fallback_props.py` (Hypothesis, 100 examples):
     Property 1 (no fallback on success), Property 2 (never raises on arbitrary
     bytes), Property 3 (definition completeness), Property 4 (edge completeness incl.

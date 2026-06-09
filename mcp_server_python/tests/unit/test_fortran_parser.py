@@ -265,10 +265,22 @@ class TestSanitization:
 
 
 class TestResilience:
-    """Parse failures return None, never raise."""
+    """Parse failures never raise.
+
+    With the fortran-parse-fallback feature, an fparser2 failure (SystemExit,
+    exception, or ``None`` tree) no longer short-circuits to ``None`` — it
+    falls through to the regex fallback. These tests therefore use content the
+    fallback also cannot recover (no MODULE/SUBROUTINE/FUNCTION/PROGRAM/CALL/
+    USE statements), so the contract under test stays "failure modes do not
+    propagate and yield ``None``". The fallback-recovery path is covered in
+    ``test_fortran_fallback.py``.
+    """
+
+    # No structural Fortran keywords → fallback recovers nothing → None.
+    _UNRECOVERABLE = "%%% not fortran %%%\n@@@ 123 garbage @@@\n"
 
     def test_systemexit_caught(self, tmp_path):
-        f = _write(tmp_path / "ok.f90", "module m\nend module m\n")
+        f = _write(tmp_path / "ok.f90", self._UNRECOVERABLE)
         parser = FortranParser(tmp_path)
 
         def _boom(_reader):
@@ -278,13 +290,13 @@ class TestResilience:
         assert parser.parse_file(f) is None  # no SystemExit propagates
 
     def test_none_return_handled(self, tmp_path):
-        f = _write(tmp_path / "ok.f90", "module m\nend module m\n")
+        f = _write(tmp_path / "ok.f90", self._UNRECOVERABLE)
         parser = FortranParser(tmp_path)
         parser._parser = lambda _reader: None
         assert parser.parse_file(f) is None
 
     def test_generic_exception_caught(self, tmp_path):
-        f = _write(tmp_path / "ok.f90", "module m\nend module m\n")
+        f = _write(tmp_path / "ok.f90", self._UNRECOVERABLE)
         parser = FortranParser(tmp_path)
 
         def _raise(_reader):

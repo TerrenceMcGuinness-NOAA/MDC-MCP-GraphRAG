@@ -37,6 +37,10 @@ class FortranParseResult:
     programs: list[dict] = field(default_factory=list)       # {name, executable_name}
     calls: list[dict] = field(default_factory=list)          # {callee, line, caller}
     uses: list[dict] = field(default_factory=list)           # {module, only}
+    # Parse provenance (R4.1, R5.3): "fparser2" for an AST parse, "fallback"
+    # for a regex recovery. Defaulted so every existing constructor and test
+    # stays valid; placed last so field order is unchanged.
+    source: str = "fparser2"
 
 
 # CPP directives that indicate preprocessing is needed (verbatim from legacy)
@@ -68,6 +72,40 @@ class FortranParser:
     _MERGE_CONFLICT = re.compile(r'^(<{7}|>{7}|={7})')
     _WRITE_COMMA = re.compile(r'(\bwrite\s*\([^)]*\))\s*,', re.IGNORECASE)
 
+    # -- Fallback extractor regexes (fortran-parse-fallback R2, R3, R6) --
+    # All IGNORECASE and anchored to the start of the stripped logical line so
+    # mid-line identifiers (e.g. ``recall``, ``arr(call_count)``) and control
+    # constructs (``IF (``, ``DO ``) can never match a definition/edge keyword.
+    _FB_END_MODULE = re.compile(r'^\s*end\s*module\b', re.IGNORECASE)
+    _FB_END = re.compile(r'^\s*end\b', re.IGNORECASE)
+    # MODULE <name>, excluding ``MODULE PROCEDURE`` and the module-prefixed
+    # ``MODULE SUBROUTINE`` / ``MODULE FUNCTION`` definition forms.
+    _FB_MODULE = re.compile(
+        r'^\s*module\s+(?!procedure\b|subroutine\b|function\b)([a-z]\w*)',
+        re.IGNORECASE,
+    )
+    _FB_PROGRAM = re.compile(r'^\s*program\s+([a-z]\w*)', re.IGNORECASE)
+    # Prefix-aware SUBROUTINE (PURE/ELEMENTAL/RECURSIVE/IMPURE/MODULE prefixes).
+    _FB_SUBROUTINE = re.compile(
+        r'^\s*(?:(?:pure|elemental|recursive|impure|module)\s+)*'
+        r'subroutine\s+([a-z]\w*)',
+        re.IGNORECASE,
+    )
+    # Type/attribute-prefixed FUNCTION (e.g. ``REAL FUNCTION``,
+    # ``INTEGER(i_kind) FUNCTION``, ``PURE FUNCTION``). The prefix char class
+    # excludes ``=`` so assignments like ``r = function(x)`` never match.
+    _FB_FUNCTION = re.compile(
+        r'^\s*(?:[a-z][\w()*:, ]*?\s+)?function\s+([a-z]\w*)',
+        re.IGNORECASE,
+    )
+    # CALL <name>: name only; an argument list is excluded by the capture.
+    _FB_CALL = re.compile(r'^\s*call\s+([a-z]\w*)', re.IGNORECASE)
+    # USE <module>[, ONLY: ...]: captures module name and optional ONLY clause.
+    _FB_USE = re.compile(
+        r'^\s*use\s+([a-z]\w*)\s*(?:,\s*only\s*:\s*(.*))?$',
+        re.IGNORECASE,
+    )
+
     # New-statement keywords that signal "this is NOT a continuation".
     _NEW_STMT_KEYWORDS = (
         'TYPE', 'END', 'INTEGER', 'REAL', 'CHARACTER', 'LOGICAL',
@@ -87,6 +125,11 @@ class FortranParser:
         self.stats: dict[str, int] = {
             'files_preprocessed': 0,
             'files_sanitized': 0,
+            # Parse-provenance counters (R5.1). Incremented in parse_file (the
+            # single choke point) so both live and --dry-run see the same split.
+            'files_parsed_fparser2': 0,
+            'files_parsed_fallback': 0,
+            'files_failed': 0,
         }
 
     # -- Discovery ------------------------------------------------------
@@ -175,17 +218,38 @@ class FortranParser:
                     temp_paths.append(preprocessed)
                     self.stats['files_preprocessed'] += 1
 
-            # Step 3: Parse with fparser2.
-            reader = FortranFileReader(actual_path, ignore_comments=True)
-            tree = self._parser(reader)
+            # Step 3: Parse with fparser2 (primary path). Wrap in an inner
+            # guard so a fparser2 failure (including its ``SystemExit``) falls
+            # through to the regex fallback rather than the outer never-raise
+            # guard, which would skip the fallback entirely.
+            tree = None
+            try:
+                reader = FortranFileReader(actual_path, ignore_comments=True)
+                tree = self._parser(reader)
+            except (Exception, SystemExit):
+                tree = None
 
-            if tree is None:
-                return None
+            if tree is not None:
+                # Step 4: AST extraction (uses ORIGINAL filepath for metadata).
+                result = self._extract_structure(tree, filepath)
+                result.source = 'fparser2'
+                self.stats['files_parsed_fparser2'] += 1
+                return result
 
-            # Step 4: Extract structure (uses ORIGINAL filepath for metadata).
-            return self._extract_structure(tree, filepath)
+            # Step 5: Fallback — regex recovery over the same sanitized /
+            # preprocessed text fparser2 was given (R1.2, R1.4).
+            result = self._fallback_extract(actual_path, filepath)
+            if result is not None:
+                self.stats['files_parsed_fallback'] += 1
+                return result
+
+            self.stats['files_failed'] += 1
+            return None
 
         except (Exception, SystemExit):
+            # Defensive outer guard preserves the never-raise contract even if
+            # both branches misbehave (R1.5, R10.2, R10.3).
+            self.stats['files_failed'] += 1
             return None
         finally:
             for p in temp_paths:
@@ -516,3 +580,213 @@ class FortranParser:
             if part.endswith('.fd'):
                 return part.replace('.fd', '') + '.x'
         return None
+
+    # -- Regex fallback extractor (fortran-parse-fallback) --------------
+
+    @staticmethod
+    def _is_full_comment(line: str) -> bool:
+        """Return True if a physical line is a whole-line Fortran comment.
+
+        Recognizes free-form ``!`` comments (first non-blank character) and
+        fixed-form column-1 comment markers ``*`` (always) and ``c``/``C``
+        (only when not the start of an identifier such as ``call`` /
+        ``continue`` — i.e. the next character is not a word character).
+        Blank lines are not comments (handled separately). (R2.6)
+        """
+        stripped = line.strip()
+        if not stripped:
+            return False
+        if stripped.startswith('!'):
+            return True
+        c0 = line[0]
+        if c0 == '*':
+            return True
+        if c0 in ('c', 'C'):
+            nxt = line[1] if len(line) > 1 else ''
+            if not (nxt.isalnum() or nxt == '_'):
+                return True
+        return False
+
+    @staticmethod
+    def _strip_inline_comment(line: str) -> str:
+        """Strip an inline ``!`` comment, ignoring ``!`` inside string literals.
+
+        Handles single- and double-quoted strings and Fortran's doubled-quote
+        escape (``''`` / ``""``). (R3, R6.3)
+        """
+        in_quote: str | None = None
+        out: list[str] = []
+        i = 0
+        n = len(line)
+        while i < n:
+            ch = line[i]
+            if in_quote:
+                out.append(ch)
+                if ch == in_quote:
+                    if i + 1 < n and line[i + 1] == in_quote:
+                        out.append(line[i + 1])
+                        i += 2
+                        continue
+                    in_quote = None
+                i += 1
+                continue
+            if ch == '!':
+                break
+            if ch in ("'", '"'):
+                in_quote = ch
+            out.append(ch)
+            i += 1
+        return ''.join(out)
+
+    def _logical_lines(self, text: str) -> list[tuple[int, str]]:
+        """Yield ``(physical_line_no, logical_line)`` for the fallback.
+
+        Drops whole-line comments, strips inline ``!`` comments outside string
+        literals, and joins free-form trailing-``&`` continuation lines into a
+        single logical line carrying the first physical line number. (R2.6,
+        R3.3, R6.3)
+        """
+        physical = text.split('\n')
+        n = len(physical)
+        results: list[tuple[int, str]] = []
+        i = 0
+        while i < n:
+            raw = physical[i]
+            first_line_no = i + 1
+            if self._is_full_comment(raw):
+                i += 1
+                continue
+            buf = self._strip_inline_comment(raw).strip()
+            if not buf:
+                i += 1
+                continue
+            # Join trailing-'&' continuations.
+            while buf.rstrip().endswith('&'):
+                buf = buf.rstrip()[:-1].rstrip()
+                i += 1
+                # Skip interleaved full-line comments inside the continuation.
+                while i < n and self._is_full_comment(physical[i]):
+                    i += 1
+                if i >= n:
+                    break
+                nxt = self._strip_inline_comment(physical[i]).strip()
+                if nxt.startswith('&'):
+                    nxt = nxt[1:].lstrip()
+                buf = buf + nxt
+            results.append((first_line_no, buf))
+            i += 1
+        return results
+
+    def _fallback_extract(
+        self, actual_path: str, original_path: str
+    ) -> FortranParseResult | None:
+        """Recover structure with line-oriented regex when fparser2 fails.
+
+        Runs only from ``parse_file`` when the fparser2 path yields no tree.
+        Reads the already-sanitized/preprocessed text, scans logical lines for
+        MODULE/SUBROUTINE/FUNCTION/PROGRAM definitions and CALL/USE edges, and
+        returns a ``FortranParseResult(source="fallback")`` — or ``None`` when
+        nothing is recovered (counted as failed). The whole body is wrapped so
+        it never raises (R1.3, R1.5).
+        """
+        try:
+            try:
+                with open(actual_path, 'r', errors='replace') as f:
+                    text = f.read()
+            except OSError:
+                return None
+
+            rel_path = self._relative_path(original_path)
+            modules: list[dict] = []
+            subroutines: list[dict] = []
+            functions: list[dict] = []
+            programs: list[dict] = []
+            calls: list[dict] = []
+            uses: list[dict] = []
+            seen_calls: set[tuple[str, int | None]] = set()
+            current_module: str | None = None
+
+            for line_no, logical in self._logical_lines(text):
+                # Closings first so an ``END FUNCTION foo`` is never mistaken
+                # for a definition (R2.7).
+                if self._FB_END_MODULE.match(logical):
+                    current_module = None
+                    continue
+                if self._FB_END.match(logical):
+                    continue
+
+                m = self._FB_MODULE.match(logical)
+                if m:
+                    name = m.group(1)
+                    current_module = name
+                    modules.append({'name': name, 'line_start': line_no})
+                    continue
+
+                m = self._FB_PROGRAM.match(logical)
+                if m:
+                    name = m.group(1)
+                    programs.append({
+                        'name': name,
+                        'executable_name': self._infer_executable(
+                            original_path, name
+                        ),
+                    })
+                    continue
+
+                m = self._FB_SUBROUTINE.match(logical)
+                if m:
+                    subroutines.append({
+                        'name': m.group(1),
+                        'line_start': line_no,
+                        'parent_module': current_module,
+                    })
+                    continue
+
+                m = self._FB_FUNCTION.match(logical)
+                if m:
+                    functions.append({
+                        'name': m.group(1),
+                        'line_start': line_no,
+                        'parent_module': current_module,
+                        'return_type': None,
+                    })
+                    continue
+
+                m = self._FB_CALL.match(logical)
+                if m:
+                    callee = m.group(1)
+                    key = (callee, line_no)
+                    if key not in seen_calls:
+                        seen_calls.add(key)
+                        calls.append({
+                            'callee': callee,
+                            'line': line_no,
+                            'caller': None,
+                        })
+                    continue
+
+                m = self._FB_USE.match(logical)
+                if m:
+                    only = m.group(2)
+                    if only is not None:
+                        only = only.strip() or None
+                    uses.append({'module': m.group(1), 'only': only})
+                    continue
+
+            if not (modules or subroutines or functions
+                    or programs or calls or uses):
+                return None
+
+            return FortranParseResult(
+                file_path=original_path,
+                relative_path=rel_path,
+                modules=modules,
+                subroutines=subroutines,
+                functions=functions,
+                programs=programs,
+                calls=calls,
+                uses=uses,
+                source='fallback',
+            )
+        except (Exception, SystemExit):
+            return None
