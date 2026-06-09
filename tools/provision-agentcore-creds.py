@@ -1161,3 +1161,262 @@ class McpConfigWriter:
 
         self.ops.atomic_write(path, new_bytes, 0o600, target.uid, target.gid)
         return FileChange(path, disposition, profile=AWS_PROFILE_NAME)
+
+
+# --------------------------------------------------------------------------- #
+# Cross-file invariant and verification probe (Requirements 8, 14)
+# --------------------------------------------------------------------------- #
+
+
+class Idempotency:
+    """Cross-file profile-name invariant check (Requirements 14.1, 14.2)."""
+
+    @staticmethod
+    def cross_file_check(creds_profile: str, mcp_profile: str) -> Optional[str]:
+        """Return a failure reason if the credentials profile-section name and
+        the mcp.json ``AWS_PROFILE`` value disagree, else ``None``."""
+        c = (creds_profile or "").strip()
+        m = (mcp_profile or "").strip()
+        if c != m:
+            return f"cross-file profile name mismatch: credentials [{c}] vs mcp AWS_PROFILE {m!r}"
+        if c != AWS_PROFILE_NAME:
+            return f"profile name {c!r} is not the required {AWS_PROFILE_NAME!r}"
+        return None
+
+
+class VerificationProbe:
+    """Run the AWS Verification_Probe under each target user (Requirement 8)."""
+
+    def __init__(self, ops: Privileged, logger: Logger) -> None:
+        self.ops = ops
+        self.logger = logger
+
+    def verify(self, target: TargetUser, cfg: Config) -> Optional[str]:
+        """Return a failure reason string, or ``None`` if both probes pass."""
+        env = {
+            "AWS_PROFILE": AWS_PROFILE_NAME,
+            "AWS_REGION": cfg.region,
+            "HOME": target.home,
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+        }
+        checks = [
+            (["aws", "sts", "get-caller-identity"], "sts"),
+            (
+                ["aws", "bedrock-agentcore-control", "list-agent-runtimes", "--region", cfg.region],
+                "agentcore",
+            ),
+        ]
+        for argv, label in checks:
+            res = self.ops.run_as(target.name, argv, env, PROBE_TIMEOUT)
+            if res.timed_out:
+                return f"{label} timeout after {PROBE_TIMEOUT}s"
+            if res.returncode != 0:
+                return f"{label} exit {res.returncode}"
+            if cfg.verbose and res.stdout:
+                # Routed through the (scrubbing) logger per R8.5 / R12.
+                self.logger.debug(f"[{target.name}] {label}: {res.stdout.strip()}")
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Per-user provisioning driver (Requirements 4-7, 14)
+# --------------------------------------------------------------------------- #
+
+#: Disposition precedence: failed > created > updated > skipped (Requirement 7.4).
+_DISPOSITION_RANK = {"skipped": 0, "updated": 1, "created": 2, "failed": 3}
+
+
+def _merge_disposition(a: str, b: str) -> str:
+    return a if _DISPOSITION_RANK[a] >= _DISPOSITION_RANK[b] else b
+
+
+class UserProvisioner:
+    """Drive provisioning for a single Target_User (design "UserProvisioner")."""
+
+    def __init__(self, ops: Privileged, logger: Logger, cfg: Config) -> None:
+        self.ops = ops
+        self.logger = logger
+        self.cfg = cfg
+        self.config_dir = AwsConfigDir(ops, logger)
+        self.creds_writer = AwsCredsWriter(ops, logger)
+        self.mcp_writer = McpConfigWriter(ops, logger)
+
+    def provision(self, target: TargetUser, creds: IamCreds) -> RunRecord:
+        dry = self.cfg.dry_run
+
+        # Home directory validity (Requirement 4.6).
+        reason = self.config_dir.check_home(target)
+        if reason:
+            return RunRecord(target.name, "failed", reason)
+
+        # All ~/.aws/ directory operations complete before the creds write (R4.5).
+        reason = self.config_dir.ensure(target, f"{target.home}/.aws", dry)
+        if reason:
+            return RunRecord(target.name, "failed", reason)
+
+        creds_fc = self.creds_writer.write(target, creds, dry)
+        if creds_fc.disposition == "failed":
+            return RunRecord(target.name, "failed", creds_fc.reason)
+
+        # ~/.kiro/settings/ directory (Requirement 6.1).
+        reason = self.config_dir.ensure(target, f"{target.home}/.kiro/settings", dry)
+        if reason:
+            return RunRecord(target.name, "failed", reason)
+
+        mcp_fc = self.mcp_writer.write(target, self.cfg, dry)
+        if mcp_fc.disposition == "failed":
+            return RunRecord(target.name, "failed", mcp_fc.reason)
+
+        # Cross-file profile-name invariant (Requirements 14.1, 14.2).
+        xreason = Idempotency.cross_file_check(creds_fc.profile, mcp_fc.profile)
+        if xreason:
+            return RunRecord(target.name, "failed", xreason)
+
+        disposition = _merge_disposition(creds_fc.disposition, mcp_fc.disposition)
+        return RunRecord(target.name, disposition)
+
+
+# --------------------------------------------------------------------------- #
+# Run summary and exit-code mapping (Requirement 11)
+# --------------------------------------------------------------------------- #
+
+
+class RunSummary:
+    """Collect :class:`RunRecord` instances; render table or JSON (Requirement 11)."""
+
+    def __init__(self, records: list, output_format: str = "table") -> None:
+        self.records = records
+        self.output_format = output_format
+
+    @staticmethod
+    def _truncate(reason: str) -> str:
+        if len(reason) <= MAX_REASON_LEN:
+            return reason
+        return reason[: MAX_REASON_LEN - 3] + "..."
+
+    def aggregate(self) -> dict:
+        counts = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
+        for record in self.records:
+            counts[record.disposition] += 1
+        return counts
+
+    def exit_code(self) -> int:
+        if any(r.disposition == "failed" for r in self.records):
+            return EXIT_FAILED
+        return EXIT_OK
+
+    def _render_table(self) -> str:
+        name_width = max([len("USER")] + [len(r.user) for r in self.records] + [20])
+        out = ["agentcore-creds-provisioning summary", "=" * 36]
+        out.append(f"{'USER':<{name_width}}  {'DISPOSITION':<11}  REASON")
+        for record in self.records:
+            row = (
+                f"{record.user:<{name_width}}  "
+                f"{record.disposition:<11}  "
+                f"{self._truncate(record.reason)}"
+            )
+            out.append(row.rstrip())
+        counts = self.aggregate()
+        out.append("")
+        out.append(
+            "aggregate: created=%d updated=%d skipped=%d failed=%d"
+            % (counts["created"], counts["updated"], counts["skipped"], counts["failed"])
+        )
+        out.append(f"exit: {self.exit_code()}")
+        return "\n".join(out) + "\n"
+
+    def _render_json(self) -> str:
+        obj = {
+            "version": 1,
+            "users": [
+                {"name": r.user, "disposition": r.disposition, "reason": self._truncate(r.reason)}
+                for r in self.records
+            ],
+            "aggregate": self.aggregate(),
+            "exit_code": self.exit_code(),
+        }
+        return json.dumps(obj, indent=2) + "\n"
+
+    def render(self) -> str:
+        if self.output_format == "json":
+            return self._render_json()
+        return self._render_table()
+
+
+# --------------------------------------------------------------------------- #
+# Main dispatch (Requirements 9, 10)
+# --------------------------------------------------------------------------- #
+
+
+def main(
+    argv: list,
+    *,
+    ops: Optional[Privileged] = None,
+    redactor: Optional[SecretRedactor] = None,
+    stdout=None,
+    stderr=None,
+    environ=None,
+    geteuid=None,
+    getpwuid=None,
+    getpwall=None,
+    getpwnam=None,
+    source_path: Optional[str] = None,
+) -> int:
+    """Entry point. Returns a process exit code (design "Exit codes").
+
+    The keyword-only seams (``ops``, ``getpwall`` ...) allow the full flow to be
+    exercised in tests without root or ``sudo``; in production all default to
+    the real implementations.
+    """
+    stdout = stdout if stdout is not None else sys.stdout
+    stderr = stderr if stderr is not None else sys.stderr
+    environ = environ if environ is not None else os.environ
+    source_path = source_path or SOURCE_CREDENTIALS_FILE
+    redactor = redactor if redactor is not None else SecretRedactor()
+
+    parser = ConfigResolver.build_parser()
+    args = parser.parse_args(argv)  # SystemExit(2) on a usage error == EXIT_ARG
+
+    logger = Logger(redactor, stream=stderr, verbose=args.verbose)
+    records: list = []
+
+    # Only mutate global excepthook/signal state for a real CLI run (ops is
+    # None). Tests inject ops and exercise those installers directly.
+    if ops is None:
+        install_excepthook(logger)
+        install_signal_handlers(
+            logger, lambda lg: lg.raw(RunSummary(records, args.format).render())
+        )
+
+    try:
+        IdentityGate.gate(logger, geteuid=geteuid, getpwuid=getpwuid, environ=environ)
+        cfg = ConfigResolver.resolve(args, logger, environ=environ)
+        creds = CredentialsLoader.load(redactor, logger, path=source_path)
+
+        privileged = ops if ops is not None else SudoPrivileged()
+        provisioner = UserProvisioner(privileged, logger, cfg)
+        probe = VerificationProbe(privileged, logger)
+
+        if cfg.mode == "single":
+            targets = [Eligibility.check_or_die(cfg.target_user, cfg.exclusions, logger, getpwnam=getpwnam)]
+        else:
+            targets = UserDiscovery.eligible(cfg.exclusions, logger, getpwall=getpwall)
+
+        for target in targets:
+            record = provisioner.provision(target, creds)
+            if cfg.verify and record.disposition != "failed":
+                vreason = probe.verify(target, cfg)
+                if vreason:
+                    record.disposition = "failed"
+                    record.reason = vreason
+            records.append(record)
+
+        summary = RunSummary(records, cfg.output_format)
+        stdout.write(summary.render())
+        return summary.exit_code()
+    except ProvisioningError as exc:
+        return exc.code
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
