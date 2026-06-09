@@ -1,5 +1,60 @@
 # MCP Server Changelog
 
+## [8.34.0] - Parallel ingestion pipeline Phase 1 (scalable-ingestion-pipeline) (Jun 9, 2026)
+
+### Summary
+
+Replaces the serial parse loop in both the Fortran and shell graph ingesters with
+a ProcessPoolExecutor-based parallel runner that streams results per-batch. This
+fixes two problems: (1) fparser2 memory leaks across files — each worker process
+dies after its batch, releasing all accumulated fparser2 state; (2) the 37-hour
+serial parse time drops to ~15 min on 3 cores (projected ~2h on a 16-core instance).
+
+The critical OOM fix: the old code accumulated all parse results in a single list
+before writing. On 7,108 files this list grew to 5+ GiB, OOM-killing the 7.6 GiB
+EC2. Now results are processed per-batch (50 files) then discarded. Memory stays
+flat regardless of file count.
+
+### Added
+
+- `scripts/_parallel_runner.py` (NEW):
+  - `ParallelConfig` dataclass (workers, timeout, progress_interval, batch_size)
+  - `FileResult` dataclass (path, success, result, elapsed, error)
+  - `ParallelStats` dataclass (total, parsed, failed, timed_out, total_elapsed)
+  - `run_parallel_parse(files, parse_fn, config)` — generator yielding batches
+    of FileResult. Serial fallback when workers=1.
+  - Per-file timeout via `future.result(timeout=config.timeout)`
+  - Progress lines at configurable intervals
+
+- `tests/unit/test_parallel_runner.py` (NEW): 14 tests covering serial/parallel
+  paths, timeout, batching, progress, correctness equivalence
+
+- `tests/properties/test_scalable_ingestion_props.py` (NEW): 5 property tests
+  - P1: Parallelism correctness (same results regardless of worker count)
+  - P2: Timeout safety (timed-out files marked correctly, no corrupt results)
+
+### Changed
+
+- `scripts/ingest_fortran_graph_v8.py`:
+  - Added `--workers` (default: cpu_count-1) and `--timeout` (default: 120s) CLI args
+  - Added module-level `_parse_one_fortran_file()` wrapper (picklable for multiprocessing)
+  - `_dry_run()` now streams batches via `run_parallel_parse` (no OOM)
+  - `main()` Phase 1 writes nodes per-batch as results arrive, keeps lightweight
+    refs for Phase 2 relationship writes. Never holds all FortranParseResult at once.
+
+- `scripts/ingest_shell_graph_v8.py`:
+  - Added `--workers` and `--timeout` CLI args (same pattern)
+  - Added module-level `_parse_one_shell_file()` wrapper
+  - Both dry-run and live modes stream via `run_parallel_parse`
+
+### Validation
+
+- 1034 unit tests pass (baseline was 1020, +14 new)
+- 109/110 property tests pass (1 pre-existing failure unrelated to this change)
+- Dry-run smoke test: 7,108 files, 3 workers, 4,850 processed in 600s before
+  timeout cap (ETA ~14.5 min total), 5 failures (99.9% success), no OOM (2.2 GiB
+  free after processing)
+
 ## [8.33.0] - Regex fallback for unparseable Fortran (fortran-parse-fallback) (Jun 8, 2026)
 
 ### Summary

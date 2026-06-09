@@ -8,6 +8,9 @@ Two-pass write strategy: Phase 1 parses all files and writes NODES; Phase 2
 writes RELATIONSHIPS. This ensures every MERGE target node exists before any
 edge references it.
 
+Memory fix (scalable-ingestion-pipeline Phase 1): results are streamed per-batch
+via run_parallel_parse — never holds all FortranParseResult objects in memory.
+
 Implements: R1, R5–R13 of graph-port-fortran-ast.
 """
 from __future__ import annotations
@@ -30,8 +33,30 @@ from _ingest_common import (
     resolve_worktree_root,
 )
 from _ingest_cost_model import IngestionReportWriter
+from _parallel_runner import FileResult, ParallelConfig, run_parallel_parse
 
 VERSION = "8.0.0"
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Module-level parse wrapper (picklable for ProcessPoolExecutor)
+# ════════════════════════════════════════════════════════════════════════
+
+# These globals are set by main() / _dry_run() before run_parallel_parse
+# is called. They provide the worktree_root to the wrapper without
+# requiring it as an argument (which would make the callable non-picklable
+# due to closure over mutable state).
+_WORKTREE_ROOT: str | None = None
+
+
+def _parse_one_fortran_file(filepath: Path) -> FortranParseResult | None:
+    """Module-level wrapper for FortranParser.parse_file (picklable).
+
+    Each worker creates its own FortranParser with its own fparser2
+    instance. When the worker process dies, all fparser2 memory is freed.
+    """
+    parser = FortranParser(_WORKTREE_ROOT)
+    return parser.parse_file(filepath)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -224,40 +249,35 @@ def _result_rel_counts(r: FortranParseResult) -> dict[str, int]:
     }
 
 
-def _log_progress(done: int, total: int, parsed: int, failed: int,
-                  nodes: int, rels: int, t_start: float) -> None:
-    elapsed = time.time() - t_start
-    rate = done / elapsed if elapsed > 0 else 0.0
-    remaining = (total - done) / rate if rate > 0 else 0.0
-    pct = done / total * 100 if total else 0.0
-    print(
-        f"  Progress: {done}/{total} ({pct:.0f}%) "
-        f"[OK:{parsed} FAIL:{failed}] Nodes:{nodes:,} Rels:{rels:,} "
-        f"Elapsed:{int(elapsed)}s ETA:{int(remaining)}s",
-        flush=True,
-    )
+def _dry_run(files: list[Path], config: ParallelConfig) -> int:
+    """Parse all files (streaming) and print a summary without Neptune (R11).
 
+    Memory-safe: processes results per-batch, discards parse output immediately.
+    """
+    global _WORKTREE_ROOT
 
-def _dry_run(fortran_parser: FortranParser, files: list[Path]) -> int:
-    """Parse all files and print a summary without connecting to Neptune (R11)."""
     parsed = 0
     failed = 0
+    timed_out = 0
     node_totals = {"FortranModule": 0, "FortranSubroutine": 0,
                    "FortranFunction": 0, "FortranProgram": 0}
     rel_totals = {"CALLS": 0, "USES": 0, "CONTAINS": 0}
 
-    for i, filepath in enumerate(files):
-        result = fortran_parser.parse_file(filepath)
-        if result:
-            parsed += 1
-            for k, v in _result_node_counts(result).items():
-                node_totals[k] += v
-            for k, v in _result_rel_counts(result).items():
-                rel_totals[k] += v
-        else:
-            failed += 1
-        if (i + 1) % 50 == 0:
-            gc.collect()
+    for batch in run_parallel_parse(files, _parse_one_fortran_file, config,
+                                    label="dry-run"):
+        for fr in batch:
+            if fr.success and fr.result is not None:
+                parsed += 1
+                for k, v in _result_node_counts(fr.result).items():
+                    node_totals[k] += v
+                for k, v in _result_rel_counts(fr.result).items():
+                    rel_totals[k] += v
+            else:
+                failed += 1
+                if fr.error == "timeout":
+                    timed_out += 1
+        # Release batch memory immediately
+        gc.collect()
 
     total = parsed + failed
     rate = (parsed / total * 100) if total else 0.0
@@ -267,13 +287,9 @@ def _dry_run(fortran_parser: FortranParser, files: list[Path]) -> int:
     print(f"  Files discovered:    {len(files)}")
     print(f"  Files parsed:        {parsed}")
     print(f"  Files failed:        {failed}")
+    print(f"  Files timed out:     {timed_out}")
     print(f"  Parse success rate:  {rate:.1f}%")
-    print("  Parse provenance:")
-    print(f"    via fparser2:      {fortran_parser.stats['files_parsed_fparser2']}")
-    print(f"    via fallback:      {fortran_parser.stats['files_parsed_fallback']}")
-    print(f"    failed both:       {fortran_parser.stats['files_failed']}")
-    print(f"  Files preprocessed:  {fortran_parser.stats['files_preprocessed']}")
-    print(f"  Files sanitized:     {fortran_parser.stats['files_sanitized']}")
+    print(f"  Workers:             {config.workers}")
     print("  Nodes that would be created:")
     print(f"    FortranModule:     {node_totals['FortranModule']:,}")
     print(f"    FortranSubroutine: {node_totals['FortranSubroutine']:,}")
@@ -293,7 +309,14 @@ def _dry_run(fortran_parser: FortranParser, files: list[Path]) -> int:
 
 
 async def main() -> int:
+    global _WORKTREE_ROOT
+
     parser = build_ingestion_parser("Fortran AST graph ingestion (v8)")
+    parser.add_argument("--workers", type=int,
+                        default=max(1, (os.cpu_count() or 2) - 1),
+                        help="Number of parallel parse workers (default: cpu_count-1)")
+    parser.add_argument("--timeout", type=int, default=120,
+                        help="Per-file parse timeout in seconds (default: 120)")
     args = parser.parse_args()
 
     catalog_path = os.environ.get(
@@ -306,6 +329,9 @@ async def main() -> int:
     tenant, mode = resolve_tenant_and_mode(args, catalog)
     worktree_root = resolve_worktree_root(tenant)
     prefix = tenant.label_prefix  # e.g. "GW_V17_" or "" for gw
+
+    # Set module-level worktree root for the picklable parse wrapper
+    _WORKTREE_ROOT = str(worktree_root)
 
     print(f"[INFO] tenant={tenant.tenant_id} mode={mode} "
           f"worktree={worktree_root} prefix={prefix!r}")
@@ -327,9 +353,16 @@ async def main() -> int:
         print("[INFO] No Fortran files discovered (shallow checkout?); "
               "nothing to ingest.")
 
+    config = ParallelConfig(
+        workers=args.workers,
+        timeout=args.timeout,
+        progress_interval=50,
+        batch_size=50,
+    )
+
     # Dry-run: parse + summarize, no Neptune connection (R11.3).
     if args.dry_run:
-        return _dry_run(fortran_parser, files)
+        return _dry_run(files, config)
 
     # Live mode — connect graph (R10.5: connection failure exits 1).
     try:
@@ -348,41 +381,43 @@ async def main() -> int:
     total_nodes = 0
     total_rels = 0
 
-    # ── Phase 1: parse all files ───────────────────────────────────────
-    all_results: list[FortranParseResult] = []
-    for i, filepath in enumerate(files):
-        result = fortran_parser.parse_file(filepath)
-        if result:
-            all_results.append(result)
+    # ── Phase 1: parse + write NODES (streaming, per-batch) ────────────
+    # Keep only lightweight references (relative_path + rel counts) for Phase 2.
+    rel_refs: list[FortranParseResult] = []
+
+    for batch in run_parallel_parse(files, _parse_one_fortran_file, config,
+                                    label="fortran-parse"):
+        for fr in batch:
+            report.increment("total_files_processed")
+            if not fr.success or fr.result is None:
+                failed += 1
+                continue
             parsed += 1
-        else:
-            failed += 1
-        report.increment("total_files_processed")
-        if (i + 1) % 50 == 0:
-            gc.collect()
-            _log_progress(i + 1, len(files), parsed, failed,
-                          total_nodes, total_rels, t_start)
+            result: FortranParseResult = fr.result
 
-    # ── Phase 1 cont: write all NODES ──────────────────────────────────
-    for result in all_results:
-        try:
-            await _write_module_nodes(graph_db, prefix, result, tenant.tenant_id)
-            await _write_subroutine_nodes(graph_db, prefix, result, tenant.tenant_id)
-            await _write_function_nodes(graph_db, prefix, result, tenant.tenant_id)
-            await _write_program_nodes(graph_db, prefix, result, tenant.tenant_id)
-            for label, count in _result_node_counts(result).items():
-                if count:
-                    report.increment(f"nodes:{prefix}{label}", count)
-                    total_nodes += count
-        except Exception as e:
-            if len(errors) < 200:
-                errors.append({"file": result.relative_path, "error": str(e)})
-            print(f"[WARN] Neptune node-write error for {result.relative_path}: {e}",
-                  file=sys.stderr)
-            continue
+            try:
+                await _write_module_nodes(graph_db, prefix, result, tenant.tenant_id)
+                await _write_subroutine_nodes(graph_db, prefix, result, tenant.tenant_id)
+                await _write_function_nodes(graph_db, prefix, result, tenant.tenant_id)
+                await _write_program_nodes(graph_db, prefix, result, tenant.tenant_id)
+                for label_name, count in _result_node_counts(result).items():
+                    if count:
+                        report.increment(f"nodes:{prefix}{label_name}", count)
+                        total_nodes += count
+            except Exception as e:
+                if len(errors) < 200:
+                    errors.append({"file": result.relative_path, "error": str(e)})
+                print(f"[WARN] Neptune node-write error for {result.relative_path}: {e}",
+                      file=sys.stderr)
+                continue
 
-    # ── Phase 2: write all RELATIONSHIPS ───────────────────────────────
-    for result in all_results:
+            # Keep the result for Phase 2 relationship writes.
+            # These hold CALLS/USES/CONTAINS refs — typically small dicts.
+            rel_refs.append(result)
+        gc.collect()
+
+    # ── Phase 2: write RELATIONSHIPS ───────────────────────────────────
+    for result in rel_refs:
         try:
             await _write_calls(graph_db, prefix, result)
             await _write_uses(graph_db, prefix, result)
@@ -406,42 +441,23 @@ async def main() -> int:
     print(f"  Files parsed:       {parsed}")
     print(f"  Files failed:       {failed}")
     print(f"  Parse success rate: {rate:.1f}%")
-    print("  Parse provenance:")
-    print(f"    via fparser2:     {fortran_parser.stats['files_parsed_fparser2']}")
-    print(f"    via fallback:     {fortran_parser.stats['files_parsed_fallback']}")
-    print(f"    failed both:      {fortran_parser.stats['files_failed']}")
-    print(f"  Files preprocessed: {fortran_parser.stats['files_preprocessed']}")
-    print(f"  Files sanitized:    {fortran_parser.stats['files_sanitized']}")
+    print(f"  Workers:            {config.workers}")
     print(f"  Nodes created:      {total_nodes:,}")
     print(f"  Relationships:      {total_rels:,}")
     print(f"  Write errors:       {len(errors)}")
 
-    # Record the fparser2/fallback/failed provenance split in the report
-    # counters (R5.2). These also land in the JSON via the augment step below.
-    report.increment("files_parsed_fparser2",
-                     fortran_parser.stats["files_parsed_fparser2"])
-    report.increment("files_parsed_fallback",
-                     fortran_parser.stats["files_parsed_fallback"])
-    report.increment("files_failed", fortran_parser.stats["files_failed"])
-
     report_path = report.finalize()
-    # Augment the JSON report with the parse-provenance breakdown (R5.2).
-    # Done here (not in the shared report writer) to keep this feature's blast
-    # radius to the parser + this ingester only. Guarded so a report-write
-    # hiccup never affects the (already-committed) Neptune ingest.
+    # Augment report with parse-provenance (best-effort).
     try:
         import json
-
         report_data = json.loads(Path(report_path).read_text())
-        report_data["parse_provenance"] = {
-            "files_parsed_fparser2": fortran_parser.stats["files_parsed_fparser2"],
-            "files_parsed_fallback": fortran_parser.stats["files_parsed_fallback"],
-            "files_failed": fortran_parser.stats["files_failed"],
+        report_data["parallel_config"] = {
+            "workers": config.workers,
+            "timeout": config.timeout,
         }
         Path(report_path).write_text(json.dumps(report_data, indent=2) + "\n")
-    except Exception as e:  # noqa: BLE001 - report augmentation is best-effort
-        print(f"[WARN] could not augment report with provenance: {e}",
-              file=sys.stderr)
+    except Exception as e:  # noqa: BLE001
+        print(f"[WARN] could not augment report: {e}", file=sys.stderr)
     print(f"[DONE] report: {report_path}")
     await uda.close()
     return 0

@@ -25,9 +25,32 @@ from _ingest_common import (
     resolve_worktree_root,
 )
 from _ingest_cost_model import IngestionReportWriter
+from _parallel_runner import ParallelConfig, run_parallel_parse
 from _shell_parser import ShellParseResult, ShellScriptParser
 
 VERSION = "8.0.0"
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Module-level parse wrapper (picklable for ProcessPoolExecutor)
+# ════════════════════════════════════════════════════════════════════════
+
+_WORKTREE_ROOT: str | None = None
+
+
+def _parse_one_shell_file(filepath: Path) -> ShellParseResult | None:
+    """Module-level wrapper for ShellScriptParser.parse (picklable).
+
+    Each worker creates its own ShellScriptParser instance. Reads the file
+    content and computes the relative path.
+    """
+    try:
+        content = filepath.read_text(errors="replace")
+    except OSError:
+        return None
+    rel_path = str(filepath.relative_to(_WORKTREE_ROOT))
+    parser = ShellScriptParser()
+    return parser.parse(rel_path, content)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -212,7 +235,14 @@ async def _write_defines(graph_db, prefix: str, r: ShellParseResult):
 
 
 async def main() -> int:
+    global _WORKTREE_ROOT
+
     parser = build_ingestion_parser("Shell operational graph ingestion (v8)")
+    parser.add_argument("--workers", type=int,
+                        default=max(1, (os.cpu_count() or 2) - 1),
+                        help="Number of parallel parse workers (default: cpu_count-1)")
+    parser.add_argument("--timeout", type=int, default=120,
+                        help="Per-file parse timeout in seconds (default: 120)")
     args = parser.parse_args()
 
     catalog_path = os.environ.get(
@@ -226,6 +256,9 @@ async def main() -> int:
     worktree_root = resolve_worktree_root(tenant)
     prefix = tenant.label_prefix
 
+    # Set module-level worktree root for the picklable parse wrapper
+    _WORKTREE_ROOT = str(worktree_root)
+
     print(f"[INFO] tenant={tenant.tenant_id} mode={mode} "
           f"worktree={worktree_root} prefix={prefix!r}")
 
@@ -233,31 +266,41 @@ async def main() -> int:
     scripts = discover_shell_scripts(worktree_root, mode)
     print(f"[INFO] Discovered {len(scripts)} shell scripts")
 
+    config = ParallelConfig(
+        workers=args.workers,
+        timeout=args.timeout,
+        progress_interval=50,
+        batch_size=50,
+    )
+
     if args.dry_run:
-        shell_parser = ShellScriptParser()
         totals: dict[str, int] = {
             "sources": 0, "invokes": 0, "exports": 0,
             "env_deps": 0, "configs": 0, "functions": 0,
         }
         errors = 0
-        for path in scripts:
-            try:
-                content = path.read_text(errors="replace")
-            except OSError as e:
-                print(f"[WARN] {path.name}: {e}", file=sys.stderr)
-                errors += 1
-                continue
-            r = shell_parser.parse(str(path.relative_to(worktree_root)), content)
-            totals["sources"] += len(r.sources)
-            totals["invokes"] += len(r.invokes)
-            totals["exports"] += len(r.exports)
-            totals["env_deps"] += len(r.env_deps)
-            totals["configs"] += len(r.configs)
-            totals["functions"] += len(r.functions)
+        parsed = 0
+
+        for batch in run_parallel_parse(scripts, _parse_one_shell_file, config,
+                                        label="shell-parse"):
+            for fr in batch:
+                if not fr.success or fr.result is None:
+                    errors += 1
+                    continue
+                parsed += 1
+                r: ShellParseResult = fr.result
+                totals["sources"] += len(r.sources)
+                totals["invokes"] += len(r.invokes)
+                totals["exports"] += len(r.exports)
+                totals["env_deps"] += len(r.env_deps)
+                totals["configs"] += len(r.configs)
+                totals["functions"] += len(r.functions)
+
         print("=" * 60)
         print("DRY-RUN SUMMARY (no writes performed)")
         print("=" * 60)
         print(f"  Scripts found:       {len(scripts)}")
+        print(f"  Scripts parsed:      {parsed}")
         print(f"  SOURCES edges:       {totals['sources']}")
         print(f"  INVOKES edges:       {totals['invokes']}")
         print(f"  EXPORTS edges:       {totals['exports']}")
@@ -265,6 +308,7 @@ async def main() -> int:
         print(f"  READS_CONFIG edges:  {totals['configs']}")
         print(f"  DEFINES edges:       {totals['functions']}")
         print(f"  Read errors:         {errors}")
+        print(f"  Workers:             {config.workers}")
         print("=" * 60)
         return 0
 
@@ -277,42 +321,39 @@ async def main() -> int:
         return 1
 
     graph_db = uda.graph_db
-    shell_parser = ShellScriptParser()
     report = IngestionReportWriter(tenant.tenant_id, tenant.branch, mode)
     errors = 0
+    processed = 0
 
-    for path in scripts:
-        try:
-            content = path.read_text(errors="replace")
-        except OSError as e:
-            print(f"[WARN] {path.name}: {e}", file=sys.stderr)
-            errors += 1
-            continue
+    for batch in run_parallel_parse(scripts, _parse_one_shell_file, config,
+                                    label="shell-parse"):
+        for fr in batch:
+            if not fr.success or fr.result is None:
+                errors += 1
+                continue
+            processed += 1
+            r: ShellParseResult = fr.result
+            report.increment("total_files_processed")
 
-        rel_path = str(path.relative_to(worktree_root))
-        r = shell_parser.parse(rel_path, content)
-        report.increment("total_files_processed")
+            try:
+                await _write_script_node(graph_db, prefix, r, tenant.tenant_id)
+                await _write_sources(graph_db, prefix, r)
+                await _write_invokes(graph_db, prefix, r)
+                await _write_exports(graph_db, prefix, r)
+                await _write_depends_on_env(graph_db, prefix, r)
+                await _write_reads_config(graph_db, prefix, r)
+                await _write_defines(graph_db, prefix, r)
 
-        try:
-            await _write_script_node(graph_db, prefix, r, tenant.tenant_id)
-            await _write_sources(graph_db, prefix, r)
-            await _write_invokes(graph_db, prefix, r)
-            await _write_exports(graph_db, prefix, r)
-            await _write_depends_on_env(graph_db, prefix, r)
-            await _write_reads_config(graph_db, prefix, r)
-            await _write_defines(graph_db, prefix, r)
+                report.increment(f"nodes:{prefix}ShellScript")
+                report.increment("relationships_created",
+                                 len(r.sources) + len(r.invokes) + len(r.exports)
+                                 + len(r.env_deps) + len(r.configs) + len(r.functions))
+            except Exception as e:
+                print(f"[WARN] Neptune error for {r.path}: {e}", file=sys.stderr)
+                errors += 1
+                continue
 
-            report.increment(f"nodes:{prefix}ShellScript")
-            report.increment("relationships_created",
-                             len(r.sources) + len(r.invokes) + len(r.exports)
-                             + len(r.env_deps) + len(r.configs) + len(r.functions))
-        except Exception as e:
-            print(f"[WARN] Neptune error for {rel_path}: {e}", file=sys.stderr)
-            errors += 1
-            continue
-
-    print(f"[INFO] Processed {report._counters['total_files_processed']} scripts, "
-          f"{errors} errors")
+    print(f"[INFO] Processed {processed} scripts, {errors} errors")
     report_path = report.finalize()
     print(f"[DONE] report: {report_path}")
     await uda.close()
