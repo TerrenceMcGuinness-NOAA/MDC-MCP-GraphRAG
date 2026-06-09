@@ -666,3 +666,498 @@ class UserDiscovery:
             % (len(out), ", ".join(u.name for u in out) if out else "(none)")
         )
         return out
+
+
+# --------------------------------------------------------------------------- #
+# Privileged filesystem operations (design "Sudo strategy")
+# --------------------------------------------------------------------------- #
+
+#: Coreutils binaries (stable absolute paths on Amazon Linux 2023).
+INSTALL_BIN = "/usr/bin/install"
+CHMOD_BIN = "/usr/bin/chmod"
+CHOWN_BIN = "/usr/bin/chown"
+
+#: Embedded one-liners run under sudo. None contains a credential value; the
+#: secret bytes travel only inside a staged file, never on a command line.
+_INSPECT_PY = (
+    "import os,sys,stat\n"
+    "p=sys.argv[1]\n"
+    "try:\n"
+    "    ls=os.lstat(p)\n"
+    "except FileNotFoundError:\n"
+    "    print('absent');sys.exit(0)\n"
+    "if stat.S_ISLNK(ls.st_mode):\n"
+    "    k='symlink'\n"
+    "elif stat.S_ISDIR(ls.st_mode):\n"
+    "    k='dir'\n"
+    "elif stat.S_ISREG(ls.st_mode):\n"
+    "    k='file'\n"
+    "else:\n"
+    "    k='other'\n"
+    "try:\n"
+    "    s=os.stat(p)\n"
+    "    print(k,s.st_uid,s.st_gid,s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns)\n"
+    "except OSError:\n"
+    "    print(k,-1,-1,-1,-1,-1,-1)\n"
+)
+
+_READ_PY = (
+    "import os,sys\n"
+    "p=sys.argv[1]\n"
+    "try:\n"
+    "    f=open(p,'rb')\n"
+    "except FileNotFoundError:\n"
+    "    sys.exit(3)\n"
+    "sys.stdout.buffer.write(f.read());f.close()\n"
+)
+
+_RENAME_PY = (
+    "import os,sys\n"
+    "s,d=sys.argv[1],sys.argv[2]\n"
+    "os.rename(s,d)\n"
+    "fd=os.open(os.path.dirname(d) or '.',os.O_RDONLY)\n"
+    "try:\n"
+    "    os.fsync(fd)\n"
+    "finally:\n"
+    "    os.close(fd)\n"
+)
+
+
+@dataclass
+class StatInfo:
+    """lstat kind plus a stat (follow) signature for a path."""
+
+    kind: str  # absent | dir | file | symlink | other
+    uid: int
+    gid: int
+    dev: int
+    ino: int
+    size: int
+    mtime_ns: int
+
+    @property
+    def absent(self) -> bool:
+        return self.kind == "absent"
+
+    @property
+    def signature(self):
+        """Tuple used for concurrent-modification detection (Requirement 14.3)."""
+        return (self.dev, self.ino, self.size, self.mtime_ns)
+
+
+@dataclass
+class RunResult:
+    returncode: int
+    timed_out: bool
+    stdout: str
+    stderr: str
+
+
+class PrivilegedError(Exception):
+    """Raised when a privileged (sudo) operation fails for one target."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+class Privileged:
+    """Abstract privileged-filesystem operations.
+
+    The production implementation (:class:`SudoPrivileged`) escalates via
+    ``sudo`` for every operation that touches a target user's home directory;
+    the script process itself never opens another user's home from its own UID.
+    Tests inject a fake/local implementation.
+    """
+
+    def inspect(self, path: str) -> StatInfo:  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def read_bytes(self, path: str):  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def ensure_dir(self, path: str, mode: int, uid: int, gid: int) -> None:  # pragma: no cover
+        raise NotImplementedError
+
+    def reassert(self, path: str, mode: int, uid: int, gid: int) -> None:  # pragma: no cover
+        raise NotImplementedError
+
+    def atomic_write(self, path: str, data: bytes, mode: int, uid: int, gid: int) -> None:  # pragma: no cover
+        raise NotImplementedError
+
+    def run_as(self, user: str, argv: list, env: dict, timeout: int) -> RunResult:  # pragma: no cover
+        raise NotImplementedError
+
+
+class SudoPrivileged(Privileged):
+    """Production privileged operations via ``sudo -n`` subprocesses."""
+
+    def __init__(self, python_bin: Optional[str] = None) -> None:
+        self.python_bin = python_bin or sys.executable or "python3.12"
+
+    @staticmethod
+    def _mode(mode: int) -> str:
+        return f"{mode:04o}"
+
+    @staticmethod
+    def _scrub_temp(text: str, *paths: str) -> str:
+        for p in paths:
+            if p:
+                text = text.replace(p, "<temp redacted>")
+        return text
+
+    def _run(self, argv: list) -> RunResult:
+        full = ["sudo", "-n", *argv]
+        proc = subprocess.run(full, capture_output=True, text=True)
+        return RunResult(proc.returncode, False, proc.stdout, proc.stderr)
+
+    def inspect(self, path: str) -> StatInfo:
+        res = self._run([self.python_bin, "-c", _INSPECT_PY, path])
+        if res.returncode != 0:
+            raise PrivilegedError(f"could not inspect {path} (rc={res.returncode})")
+        line = res.stdout.strip()
+        if line == "absent":
+            return StatInfo("absent", -1, -1, -1, -1, -1, -1)
+        parts = line.split()
+        kind = parts[0]
+        nums = [int(x) for x in parts[1:]]
+        return StatInfo(kind, *nums)
+
+    def read_bytes(self, path: str):
+        full = ["sudo", "-n", self.python_bin, "-c", _READ_PY, path]
+        proc = subprocess.run(full, capture_output=True)
+        if proc.returncode == 3:
+            return None
+        if proc.returncode != 0:
+            raise PrivilegedError(f"could not read {path} (rc={proc.returncode})")
+        return proc.stdout
+
+    def ensure_dir(self, path: str, mode: int, uid: int, gid: int) -> None:
+        res = self._run(
+            [INSTALL_BIN, "-d", "-m", self._mode(mode), "-o", str(uid), "-g", str(gid), path]
+        )
+        if res.returncode != 0:
+            raise PrivilegedError(
+                f"could not create/own directory {path} (rc={res.returncode}): {res.stderr.strip()}"
+            )
+
+    def reassert(self, path: str, mode: int, uid: int, gid: int) -> None:
+        r1 = self._run([CHMOD_BIN, self._mode(mode), path])
+        if r1.returncode != 0:
+            raise PrivilegedError(f"could not chmod {path} (rc={r1.returncode})")
+        r2 = self._run([CHOWN_BIN, f"{uid}:{gid}", path])
+        if r2.returncode != 0:
+            raise PrivilegedError(f"could not chown {path} (rc={r2.returncode})")
+
+    def atomic_write(self, path: str, data: bytes, mode: int, uid: int, gid: int) -> None:
+        staged = None
+        dsttmp = f"{path}.tmp.{os.getpid()}"
+        try:
+            fd, staged = tempfile.mkstemp(prefix="provision-acreds-", dir="/tmp")
+            os.write(fd, data)
+            os.close(fd)
+            os.chmod(staged, 0o600)
+            r1 = self._run(
+                [INSTALL_BIN, "-m", self._mode(mode), "-o", str(uid), "-g", str(gid), staged, dsttmp]
+            )
+            if r1.returncode != 0:
+                raise PrivilegedError(
+                    self._scrub_temp(
+                        f"staging write failed for {path} (rc={r1.returncode}): {r1.stderr.strip()}",
+                        staged,
+                        dsttmp,
+                    )
+                )
+            r2 = self._run([self.python_bin, "-c", _RENAME_PY, dsttmp, path])
+            if r2.returncode != 0:
+                raise PrivilegedError(
+                    self._scrub_temp(
+                        f"atomic rename failed for {path} (rc={r2.returncode}): {r2.stderr.strip()}",
+                        staged,
+                        dsttmp,
+                    )
+                )
+        finally:
+            if staged and os.path.exists(staged):
+                try:
+                    os.unlink(staged)
+                except OSError:
+                    pass
+
+    def run_as(self, user: str, argv: list, env: dict, timeout: int) -> RunResult:
+        env_pairs = [f"{k}={v}" for k, v in env.items()]
+        full = ["sudo", "-n", "-u", user, "-H", "env", *env_pairs, *argv]
+        try:
+            proc = subprocess.run(full, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            return RunResult(-1, True, exc.stdout or "", exc.stderr or "")
+        return RunResult(proc.returncode, False, proc.stdout, proc.stderr)
+
+
+# --------------------------------------------------------------------------- #
+# AWS config / settings directory provisioning (Requirements 4, 6.1)
+# --------------------------------------------------------------------------- #
+
+
+class AwsConfigDir:
+    """Ensure a per-user directory exists with mode 0700 and correct ownership."""
+
+    def __init__(self, ops: Privileged, logger: Logger) -> None:
+        self.ops = ops
+        self.logger = logger
+
+    def check_home(self, target: TargetUser) -> Optional[str]:
+        """Validate the target's home directory (Requirement 4.6). Returns a
+        failure reason or ``None`` when the home directory is acceptable."""
+        info = self.ops.inspect(target.home)
+        if info.absent:
+            return f"home directory {target.home} does not exist"
+        if info.kind != "dir":
+            return f"home directory {target.home} is not a directory (is {info.kind})"
+        if info.uid != target.uid:
+            return (
+                f"home directory {target.home} is owned by uid {info.uid}, "
+                f"not the target uid {target.uid}"
+            )
+        return None
+
+    def ensure(self, target: TargetUser, dir_path: str, dry_run: bool) -> Optional[str]:
+        """Create/own ``dir_path`` at mode 0700 (Requirement 4.1-4.4). Returns a
+        failure reason or ``None`` on success."""
+        info = self.ops.inspect(dir_path)
+        if info.kind in ("symlink", "file", "other"):
+            return f"{dir_path} exists and is a {info.kind}, not a regular directory"
+        if dry_run:
+            return None
+        self.ops.ensure_dir(dir_path, 0o700, target.uid, target.gid)
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Credentials file writer -- section-aware INI editor (Requirements 5, 7, 14)
+# --------------------------------------------------------------------------- #
+
+
+def _tokenize_ini(text: str) -> list:
+    """Split INI text into ordered :class:`Section` objects, preserving every
+    line (comments and blanks) byte-for-byte."""
+    sections: list = []
+    current = Section(header=None, raw_lines=[])
+    sections.append(current)
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current = Section(header=stripped[1:-1], raw_lines=[line])
+            sections.append(current)
+        else:
+            current.raw_lines.append(line)
+    if sections and sections[0].header is None and not sections[0].raw_lines:
+        sections.pop(0)
+    return sections
+
+
+def _serialize_ini(sections: list) -> str:
+    return "".join(line for sec in sections for line in sec.raw_lines)
+
+
+def _agentcore_lines(access: str, secret: str) -> list:
+    return [
+        f"[{AWS_PROFILE_NAME}]\n",
+        f"aws_access_key_id = {access}\n",
+        f"aws_secret_access_key = {secret}\n",
+    ]
+
+
+def _parse_section_fields(section: Section) -> dict:
+    fields: dict = {}
+    for line in section.raw_lines[1:]:  # skip the header line
+        stripped = line.strip()
+        if not stripped or stripped[0] in "#;":
+            continue
+        if "=" in stripped:
+            key, _, value = stripped.partition("=")
+            fields[key.strip().lower()] = _dequote(value)
+    return fields
+
+
+def _render_creds(old_text: str, access: str, secret: str) -> str:
+    """Return the credentials text with exactly one ``[agentcore-rag]`` section
+    set to the two managed fields, all other content preserved (R5)."""
+    sections = _tokenize_ini(old_text)
+    new_lines = _agentcore_lines(access, secret)
+    idxs = [i for i, sec in enumerate(sections) if sec.header == AWS_PROFILE_NAME]
+    if idxs:
+        sections[idxs[0]].raw_lines = new_lines
+        for i in reversed(idxs[1:]):  # collapse any pathological duplicates
+            del sections[i]
+    else:
+        text_so_far = _serialize_ini(sections)
+        prefix = ["\n"] if (text_so_far and not text_so_far.endswith("\n")) else []
+        sections.append(Section(AWS_PROFILE_NAME, prefix + new_lines))
+    return _serialize_ini(sections)
+
+
+def _creds_satisfied(old_text: str, access: str, secret: str) -> bool:
+    """True when an ``[agentcore-rag]`` section already holds the two managed
+    field values byte-equal to ``access`` / ``secret`` (Requirement 7.1)."""
+    for sec in _tokenize_ini(old_text):
+        if sec.header == AWS_PROFILE_NAME:
+            fields = _parse_section_fields(sec)
+            return (
+                fields.get("aws_access_key_id") == access
+                and fields.get("aws_secret_access_key") == secret
+            )
+    return False
+
+
+class AwsCredsWriter:
+    """Write the ``[agentcore-rag]`` profile into ``~/.aws/credentials`` (R5, R7, R14)."""
+
+    def __init__(self, ops: Privileged, logger: Logger) -> None:
+        self.ops = ops
+        self.logger = logger
+
+    def write(self, target: TargetUser, creds: IamCreds, dry_run: bool) -> FileChange:
+        path = f"{target.home}/.aws/credentials"
+        info = self.ops.inspect(path)
+        existed = not info.absent
+        if existed and info.kind != "file":
+            return FileChange(path, "failed", f"{path} exists and is a {info.kind}, not a file")
+        sig_before = info.signature
+        old = self.ops.read_bytes(path) if existed else None
+        existed = old is not None
+        old_text = old.decode("utf-8", errors="surrogateescape") if existed else ""
+
+        if existed and _creds_satisfied(old_text, creds.access_key_id, creds.secret_access_key):
+            if not dry_run:
+                self.ops.reassert(path, 0o600, target.uid, target.gid)
+            return FileChange(path, "skipped", profile=AWS_PROFILE_NAME)
+
+        new_text = _render_creds(old_text, creds.access_key_id, creds.secret_access_key)
+        new_bytes = new_text.encode("utf-8", errors="surrogateescape")
+
+        if existed and new_bytes == old:
+            if not dry_run:
+                self.ops.reassert(path, 0o600, target.uid, target.gid)
+            return FileChange(path, "skipped", profile=AWS_PROFILE_NAME)
+
+        disposition: Disposition = "created" if not existed else "updated"
+        if dry_run:
+            return FileChange(path, disposition, profile=AWS_PROFILE_NAME)
+
+        if existed and self.ops.inspect(path).signature != sig_before:
+            return FileChange(path, "failed", "concurrent modification detected")
+
+        self.ops.atomic_write(path, new_bytes, 0o600, target.uid, target.gid)
+        return FileChange(path, disposition, profile=AWS_PROFILE_NAME)
+
+
+# --------------------------------------------------------------------------- #
+# MCP config file writer -- order-preserving JSON editor (Requirements 6, 7, 14)
+# --------------------------------------------------------------------------- #
+
+
+def _render_mcp(old_text: Optional[str], cfg: Config) -> str:
+    """Return mcp.json text with the four Managed_Keys set on the
+    ``agentcore-mcp-rag`` entry; all other content/order preserved (R6)."""
+    obj = json.loads(old_text) if old_text is not None else {}
+
+    servers = obj.get("mcpServers")
+    if not isinstance(servers, dict):
+        servers = {}
+        obj["mcpServers"] = servers
+
+    entry = servers.get(MCP_SERVER_KEY)
+    if not isinstance(entry, dict):
+        entry = {}
+        servers[MCP_SERVER_KEY] = entry
+
+    entry["command"] = MCP_COMMAND
+    entry["args"] = [cfg.proxy_path, "--runtime-id", cfg.runtime_arn]
+
+    env = entry.get("env")
+    if not isinstance(env, dict):
+        env = {}
+        entry["env"] = env
+    env["AWS_REGION"] = cfg.region
+    env["AWS_PROFILE"] = AWS_PROFILE_NAME
+
+    return json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
+
+
+def _mcp_satisfied(obj, cfg: Config) -> bool:
+    """True when the parsed mcp.json already holds all four Managed_Keys equal
+    (structurally) to what would be written (Requirement 7.2)."""
+    if not isinstance(obj, dict):
+        return False
+    servers = obj.get("mcpServers")
+    if not isinstance(servers, dict):
+        return False
+    entry = servers.get(MCP_SERVER_KEY)
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("command") != MCP_COMMAND:
+        return False
+    if entry.get("args") != [cfg.proxy_path, "--runtime-id", cfg.runtime_arn]:
+        return False
+    env = entry.get("env")
+    if not isinstance(env, dict):
+        return False
+    if env.get("AWS_REGION") != cfg.region:
+        return False
+    if env.get("AWS_PROFILE") != AWS_PROFILE_NAME:
+        return False
+    return True
+
+
+class McpConfigWriter:
+    """Write the ``agentcore-mcp-rag`` server entry into mcp.json (R6, R7, R14)."""
+
+    def __init__(self, ops: Privileged, logger: Logger) -> None:
+        self.ops = ops
+        self.logger = logger
+
+    def write(self, target: TargetUser, cfg: Config, dry_run: bool) -> FileChange:
+        path = f"{target.home}/.kiro/settings/mcp.json"
+        info = self.ops.inspect(path)
+        existed = not info.absent
+        if existed and info.kind != "file":
+            return FileChange(path, "failed", f"{path} exists and is a {info.kind}, not a file")
+        sig_before = info.signature
+        old = self.ops.read_bytes(path) if existed else None
+        existed = old is not None
+        old_text = old.decode("utf-8") if existed else None
+
+        old_obj = None
+        if old_text is not None:
+            try:
+                old_obj = json.loads(old_text)
+            except json.JSONDecodeError:
+                return FileChange(path, "failed", "existing mcp.json is not valid JSON")
+            if not isinstance(old_obj, dict):
+                return FileChange(path, "failed", "existing mcp.json top-level is not a JSON object")
+            if "mcpServers" in old_obj and not isinstance(old_obj["mcpServers"], dict):
+                return FileChange(path, "failed", "existing mcp.json mcpServers is not a JSON object")
+
+        if old_obj is not None and _mcp_satisfied(old_obj, cfg):
+            if not dry_run:
+                self.ops.reassert(path, 0o600, target.uid, target.gid)
+            return FileChange(path, "skipped", profile=AWS_PROFILE_NAME)
+
+        new_text = _render_mcp(old_text, cfg)
+        new_bytes = new_text.encode("utf-8")
+
+        if existed and old is not None and new_bytes == old:
+            if not dry_run:
+                self.ops.reassert(path, 0o600, target.uid, target.gid)
+            return FileChange(path, "skipped", profile=AWS_PROFILE_NAME)
+
+        disposition: Disposition = "created" if not existed else "updated"
+        if dry_run:
+            return FileChange(path, disposition, profile=AWS_PROFILE_NAME)
+
+        if existed and self.ops.inspect(path).signature != sig_before:
+            return FileChange(path, "failed", "concurrent modification detected")
+
+        self.ops.atomic_write(path, new_bytes, 0o600, target.uid, target.gid)
+        return FileChange(path, disposition, profile=AWS_PROFILE_NAME)
