@@ -23,7 +23,7 @@ References:
 
 ### Phase 1 — Parallelism Refactor (immediate speedup)
 
-- [ ] 1. Implement `_parallel_runner.py`
+- [x] 1. Implement `_parallel_runner.py`
   - Per design §2. New file: `mcp_server_python/scripts/_parallel_runner.py`
   - `ParallelConfig` dataclass (workers, timeout, progress_interval)
   - `FileResult` dataclass (path, success, result, elapsed, error)
@@ -34,7 +34,7 @@ References:
   - parse_fn must be picklable (module-level function, not lambda/closure)
   - **Implements: R1.1, R1.3, R1.4, R1.5, R1.6**
 
-  - [ ]* 1.1 Unit tests for `_parallel_runner.py`
+  - [x]* 1.1 Unit tests for `_parallel_runner.py`
     - Synthetic parse function (sleep + return) with configurable delay
     - --workers 1 vs --workers 4: same results (P1 correctness)
     - Timeout: file that sleeps > timeout is marked failed with error="timeout"
@@ -43,35 +43,39 @@ References:
     - File: `mcp_server_python/tests/unit/test_parallel_runner.py` (new)
     - **Validates: R1.1, R1.3, R1.4, R1.5, R1.6**
 
-- [ ] 2. Refactor `ingest_fortran_graph_v8.py` to use `_parallel_runner`
+- [x] 2. Refactor `ingest_fortran_graph_v8.py` to use `_parallel_runner`
   - Replace the serial `for filepath in files: parse_file(filepath)` loop with `run_parallel_parse(files, fortran_parser.parse_file, config)`
   - Add `--workers` and `--timeout` CLI flags (default: cpu_count-1, 120s)
   - Extract `parse_file` as a module-level picklable function (move out of class if needed)
   - Phase 1 (parsing) uses parallel runner; Phase 2 (node writes) and Phase 3 (rel writes) remain serial (Neptune writes are I/O-bound, not CPU-bound)
   - **Implements: R1.1, R1.2, R8.1, R8.2**
 
-  - [ ]* 2.1 Backward compatibility test
+  - [x]* 2.1 Backward compatibility test
     - Run existing `test_fortran_parser.py` and `test_fortran_graph_writes.py` — all pass unchanged
     - Run with `--workers 1`: identical behavior to pre-refactor
     - **Validates: R8.3**
 
-- [ ] 3. Refactor `ingest_shell_graph_v8.py` to use `_parallel_runner`
+- [x] 3. Refactor `ingest_shell_graph_v8.py` to use `_parallel_runner`
   - Same pattern: replace serial parse loop with `run_parallel_parse()`
   - Add `--workers` and `--timeout` CLI flags
   - Shell parsing is fast (no timeout issues expected) but parallelism still helps on large worktrees
   - **Implements: R1.2, R8.1, R8.2**
 
-- [ ]* 4. Write property tests P1 + P2 (parallelism correctness + timeout safety)
+- [x]* 4. Write property tests P1 + P2 (parallelism correctness + timeout safety)
   - **Property 1: Parallelism Correctness** — same parse results regardless of worker count
   - **Property 2: Timeout Safety** — timed-out files marked correctly, fast files succeed, no corrupt results
   - Hypothesis-driven: random file lists × random worker counts × random timeouts
   - File: `mcp_server_python/tests/properties/test_scalable_ingestion_props.py` (new)
   - **Validates: R1.3, R1.4, R1.5**
 
-- [ ] 5. Phase 1 Checkpoint — parallel parsing works on EC2
+- [x] 5. Phase 1 Checkpoint — parallel parsing works on EC2
   - Run `ingest_fortran_graph_v8.py --tenant gw_v17 --mode full --workers 3 --timeout 120 --dry-run` on the 4-core EC2
   - Verify: completes in <4 hours (vs 37h serial), all existing tests pass
   - Compare parse results to the serial run (same files parsed, same success rate ~85%)
+  - DONE 2026-06-10: parallel dry-run completed in ~38 min (was 37h serial / OOM
+    without streaming). Live ingest ran ~3.2h end-to-end with --workers 3, 0 write
+    errors, memory bounded on the 7.6 GiB host. Parse rate 99.9% (fallback raised
+    it from the old ~85%). Phase 1 solves the OOM with zero infra change.
   - **Validates: R1, R8**
 
 ### Phase 2 — Checkpoint + Orchestrator (resumability)

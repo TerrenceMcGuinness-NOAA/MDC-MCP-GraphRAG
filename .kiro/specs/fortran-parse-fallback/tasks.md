@@ -79,7 +79,7 @@ partial progress cannot regress the current parse path or the Neptune write logi
     Property 8 (provenance accounting sums to call count).
   - _Requirements: 1.1, 1.5, 2.1, 2.2, 2.3, 2.4, 2.7, 3.1, 3.2, 3.3, 4.1, 4.2, 4.5, 5.1, 6.1, 6.2, 6.3_
 
-- [ ] 8. Operator-run live dry-run verification (gated)
+- [x] 8. Operator-run live dry-run verification (gated)
   - Run `ingest_fortran_graph_v8.py --tenant gw_v17 --mode full --dry-run` against
     the EFS worktree and confirm: total discovered unchanged (~6,935), fparser2 ~5,915,
     fallback recovers a meaningful share of the ~1,020 prior failures, and the summary
@@ -87,6 +87,11 @@ partial progress cannot regress the current parse path or the Neptune write logi
   - Document the recovered counts; only after review, run the live (non-dry-run)
     ingest to MERGE the recovered nodes/edges. MERGE idempotency means a re-run over
     already-ingested files is safe.
+  - DONE 2026-06-10: dry-run (parallel, --workers 3) parsed 6,923/6,935 (99.8%).
+    Live ingest then ran ~3.2h: 6,926/6,935 parsed (99.9%), 45,155 nodes +
+    297,712 relationships written, 0 write errors. v17 graph grew to 80,996
+    nodes / 1,278,330 rels. Used the [8.34.0] parallel/streaming runner to stay
+    within memory on the 7.6 GiB host.
   - _Requirements: 5.4, 6.4_
 
 ## Task Dependency Graph
