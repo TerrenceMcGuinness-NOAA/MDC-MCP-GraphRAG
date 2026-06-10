@@ -993,10 +993,14 @@ async def test_trace_data_flow_reports_no_path_found(tmp_path: Path) -> None:
 
 
 async def test_trace_data_flow_clamps_max_depth_to_ten(tmp_path: Path) -> None:
-    """``max_depth`` is clamped to 10 and embedded in the cypher.
+    """``max_depth`` is clamped to DATA_FLOW_DEPTH and embedded in cypher.
 
-    We inspect the mock call log to confirm the rendered query uses
-    ``*1..10`` regardless of how far the caller asked to look."""
+    R2.2 caps the shortestPath depth at a conservative 5 (reduced from
+    the historical 10); we inspect the mock call log to confirm the
+    rendered query uses ``*1..5`` regardless of how far the caller asked
+    to look."""
+    from src.tools._traversal_bounds import DATA_FLOW_DEPTH
+
     data = MockUnifiedDataAccess()
     _seed_empty_graph(data.graph_db)
     _seed_outgoing(data.graph_db, [])
@@ -1010,7 +1014,9 @@ async def test_trace_data_flow_clamps_max_depth_to_ten(tmp_path: Path) -> None:
     queries = [
         c[1][0] for c in data.graph_db.call_log if c[0] == "query"
     ]
-    assert any("shortestPath" in q and "*1..10" in q for q in queries)
+    expected = f"*1..{DATA_FLOW_DEPTH}"
+    assert any("shortestPath" in q and expected in q for q in queries)
+    assert not any("*1..10" in q for q in queries)
     assert not any("*1..99" in q for q in queries)
 
 
@@ -1375,3 +1381,155 @@ def test_generate_recommendations_emits_low_risk_steps() -> None:
         direct_count=0,
     )
     assert "Low risk" in text
+
+
+# ── bounded-graph-traversal: timeout backstop / tenant scoping ──────────
+# (Wave 2, Task 4.1 — Validates R2.1, R5.3, R7.5)
+
+
+def _graph_query_calls(data: MockUnifiedDataAccess) -> list[Any]:
+    return [c for c in data.graph_db.call_log if c[0] == "query"]
+
+
+async def test_trace_data_flow_outgoing_timeout_returns_notice_not_error(
+    tmp_path: Path,
+) -> None:
+    """A statement-timeout on the outgoing query yields a bounded notice,
+    never an [ERROR] or unhandled exception (R5.3)."""
+    from src.data.neptune_adapter import NeptuneAdapterError
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    data.graph_db.add_raise(
+        "(source)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES]",
+        NeptuneAdapterError("query exceeded 30.0s statement timeout"),
+    )
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "hubsym"}
+    )
+    assert not text.startswith("[ERROR]")
+    assert "statement timeout" in text
+
+
+async def test_trace_data_flow_shortestpath_timeout_is_swallowed(
+    tmp_path: Path,
+) -> None:
+    """A timeout on the shortestPath query degrades to 'no path', not a raise."""
+    from src.data.neptune_adapter import NeptuneAdapterError
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_outgoing(data.graph_db, [])
+    data.graph_db.add_raise(
+        "shortestPath",
+        NeptuneAdapterError("query exceeded 30.0s statement timeout"),
+    )
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp,
+        "trace_data_flow",
+        {"from_symbol": "a", "to_symbol": "z"},
+    )
+    assert not text.startswith("[ERROR]")
+    assert "No path found" in text
+
+
+async def test_trace_data_flow_queries_carry_tenant_and_timeout(
+    tmp_path: Path,
+) -> None:
+    """Every emitted query carries tenant= (Property 5); traversal queries
+    carry the statement-timeout (R5.2)."""
+    from src.tools._traversal_bounds import TIMEOUT_S
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_outgoing(data.graph_db, [{"name": "t", "type": "Function", "relType": "CALLS"}])
+    _seed_shortest_path(data.graph_db, [])
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    await _call_tool(
+        mcp,
+        "trace_data_flow",
+        {"from_symbol": "a", "to_symbol": "z", "max_depth": 4},
+    )
+    calls = _graph_query_calls(data)
+    assert calls
+    for c in calls:
+        assert c[3]["tenant"] is not None
+    outgoing = [c for c in calls if "(source)-[r:" in c[1][0]]
+    assert outgoing and outgoing[0][3]["timeout"] == TIMEOUT_S
+    sp = [c for c in calls if "shortestPath" in c[1][0]]
+    assert sp and sp[0][3]["timeout"] == TIMEOUT_S
+
+
+async def test_get_change_impact_direct_timeout_returns_notice_not_error(
+    tmp_path: Path,
+) -> None:
+    """A statement-timeout on the direct-dependents query yields a bounded
+    notice rather than [ERROR] (R5.3)."""
+    from src.data.neptune_adapter import NeptuneAdapterError
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    data.graph_db.add_raise(
+        "(dependent)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES]",
+        NeptuneAdapterError("query exceeded 30.0s statement timeout"),
+    )
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "get_change_impact", {"symbol": "hubsym"}
+    )
+    assert not text.startswith("[ERROR]")
+    assert "statement timeout" in text
+
+
+async def test_get_change_impact_queries_carry_tenant_and_timeout(
+    tmp_path: Path,
+) -> None:
+    from src.tools._traversal_bounds import TIMEOUT_S
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_direct_dependents(
+        data.graph_db,
+        [{"name": "dep_a", "type": "Function", "relType": "CALLS"}],
+    )
+    _seed_indirect_dependents(data.graph_db, [])
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    await _call_tool(
+        mcp, "get_change_impact", {"symbol": "sym", "include_indirect": True}
+    )
+    calls = _graph_query_calls(data)
+    assert calls
+    for c in calls:
+        assert c[3]["tenant"] is not None
+    direct = [c for c in calls if "(dependent)-[r:" in c[1][0]]
+    assert direct and direct[0][3]["timeout"] == TIMEOUT_S
+
+
+async def test_get_code_context_caller_query_carries_timeout(
+    tmp_path: Path,
+) -> None:
+    from src.tools._traversal_bounds import TIMEOUT_S
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_node_lookup(
+        data.graph_db,
+        [{"name": "sym", "labels": ["Function"], "path": "a.py", "type": "Function"}],
+    )
+    _seed_callers(
+        data.graph_db,
+        [{"name": "caller_a", "type": "Function", "relType": "CALLS"}],
+    )
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    await _call_tool(mcp, "get_code_context", {"symbol": "sym"})
+    calls = _graph_query_calls(data)
+    caller = [
+        c for c in calls
+        if "(caller)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES]->(target)" in c[1][0]
+    ]
+    # The reverse-caller traversal query carries the statement-timeout
+    # backstop (R5.2) and stays tenant-scoped (Property 5).
+    assert caller and caller[0][3]["timeout"] == TIMEOUT_S
+    assert caller[0][3]["tenant"] is not None

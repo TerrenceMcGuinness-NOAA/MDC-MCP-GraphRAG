@@ -97,8 +97,28 @@ from src.tenancy.resolver import (
     get_current_tenant_or_none,
     tenant_label_predicate,
 )
+from src.tools._traversal_bounds import (
+    DATA_FLOW_DEPTH,
+    TIMEOUT_S,
+    effective_depth,
+)
 
 log = logging.getLogger(__name__)
+
+
+def _is_timeout_error(exc: BaseException) -> bool:
+    """True when ``exc`` is a traversal statement-timeout (R5.3).
+
+    Matches the :pyexc:`NeptuneAdapterError` raised by
+    :pymeth:`NeptuneAdapter.query` on ``asyncio.wait_for`` expiry (message
+    contains ``statement timeout``) and a bare
+    :pyexc:`asyncio.TimeoutError`.
+    """
+    import asyncio as _asyncio
+
+    if isinstance(exc, _asyncio.TimeoutError):
+        return True
+    return "statement timeout" in str(exc).lower()
 
 
 def _tenant():
@@ -490,6 +510,7 @@ async def _tool_get_code_context(
             "type(r) AS relType LIMIT 10",
             {"name": symbol},
             tenant=_tenant(),
+            timeout=TIMEOUT_S,
         )
     except Exception:  # pragma: no cover - defensive
         caller_rows = []
@@ -794,8 +815,22 @@ async def _tool_get_change_impact(
             "ORDER BY dependent.name",
             {"name": symbol},
             tenant=_tenant(),
+            timeout=TIMEOUT_S,
         )
     except Exception as exc:
+        if _is_timeout_error(exc):
+            log.info(
+                "[traversal-bounds] get_change_impact degraded "
+                "symbol=%s guard=timeout",
+                symbol,
+            )
+            return (
+                f"# Change Impact: `{symbol}`\n\n"
+                f"[INFO] The dependent query for `{symbol}` exceeded the "
+                f"{TIMEOUT_S:g}s statement timeout and was bounded; the impact "
+                "analysis is unavailable for this symbol. Re-run, or narrow "
+                "the query to a less connected symbol.\n"
+            )
         log.warning("get_change_impact direct-query failed: %s", exc)
         return _error_text(f"get_change_impact failed: {exc}")
 
@@ -820,10 +855,18 @@ async def _tool_get_change_impact(
                 "ORDER BY indirect.name LIMIT 20",
                 {"name": symbol, "directNames": direct_names},
                 tenant=_tenant(),
+                timeout=TIMEOUT_S,
             )
             indirect = list(indirect_rows or [])
         except Exception as exc:  # pragma: no cover - defensive
-            log.debug("indirect-query failed: %s", exc)
+            if _is_timeout_error(exc):
+                log.info(
+                    "[traversal-bounds] get_change_impact indirect degraded "
+                    "symbol=%s guard=timeout",
+                    symbol,
+                )
+            else:
+                log.debug("indirect-query failed: %s", exc)
 
     community_info = await _fetch_community_context(data, symbol)
     risk = _compute_risk_score(
@@ -1010,6 +1053,7 @@ async def _tool_trace_data_flow(
     lines.append("")
 
     # 1. Outgoing relationships (one-hop fan-out).
+    timed_out = False
     try:
         outgoing_rows = await graph.query(
             "MATCH (source)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES]"
@@ -1021,16 +1065,33 @@ async def _tool_trace_data_flow(
             "ORDER BY type(r), target.name LIMIT 25",
             {"name": from_symbol},
             tenant=_tenant(),
+            timeout=TIMEOUT_S,
         )
     except Exception as exc:
-        log.warning("trace_data_flow outgoing query failed: %s", exc)
-        return _error_text(f"trace_data_flow failed: {exc}")
+        if _is_timeout_error(exc):
+            log.info(
+                "[traversal-bounds] trace_data_flow degraded "
+                "from_symbol=%s guard=timeout",
+                from_symbol,
+            )
+            outgoing_rows = []
+            timed_out = True
+        else:
+            log.warning("trace_data_flow outgoing query failed: %s", exc)
+            return _error_text(f"trace_data_flow failed: {exc}")
     outgoing = [r for r in outgoing_rows or [] if r.get("name")]
+    if timed_out:
+        lines.append(
+            f"[INFO] Outgoing-relationship query for `{from_symbol}` exceeded "
+            f"the {TIMEOUT_S:g}s statement timeout and was bounded; results "
+            "below may be partial."
+        )
+        lines.append("")
 
     # 2. Optional shortest-path query when a destination is given.
     path_section: list[str] = []
     if to_symbol:
-        depth = _clamp(max_depth, TRACE_DEPTH_MIN, TRACE_DEPTH_MAX)
+        depth, _clamped = effective_depth(max_depth, DATA_FLOW_DEPTH)
         path_cypher = (
             "MATCH path = shortestPath("
             "(source)-[:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES*1.."
@@ -1045,9 +1106,17 @@ async def _tool_trace_data_flow(
             path_rows = await graph.query(
                 path_cypher, {"from": from_symbol, "to": to_symbol},
                 tenant=_tenant(),
+                timeout=TIMEOUT_S,
             ) or []
         except Exception as exc:  # pragma: no cover - defensive
-            log.debug("trace_data_flow shortestPath failed: %s", exc)
+            if _is_timeout_error(exc):
+                log.info(
+                    "[traversal-bounds] trace_data_flow shortestPath degraded "
+                    "from_symbol=%s guard=timeout",
+                    from_symbol,
+                )
+            else:
+                log.debug("trace_data_flow shortestPath failed: %s", exc)
             path_rows = []
 
         if path_rows:
