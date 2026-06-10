@@ -75,8 +75,36 @@ from src.tenancy.resolver import (
     get_current_tenant_or_none,
     tenant_label_predicate,
 )
+from src.tools._traversal_bounds import (
+    CALL_CHAIN_DEPTH,
+    FAN_OUT_THRESHOLD,
+    FULL_CHAIN_DEPTH,
+    RESULT_LIMIT,
+    TIMEOUT_S,
+    anchor_degree,
+    degraded_notice,
+    effective_depth,
+    is_hub,
+    truncation_marker,
+)
 
 log = logging.getLogger(__name__)
+
+
+def _is_timeout_error(exc: BaseException) -> bool:
+    """True when ``exc`` is a traversal statement-timeout (R5.3).
+
+    Recognises the :pyexc:`NeptuneAdapterError` raised by
+    :pymeth:`NeptuneAdapter.query` on ``asyncio.wait_for`` expiry (its
+    message contains ``statement timeout``) and a bare
+    :pyexc:`asyncio.TimeoutError`. Non-timeout errors return ``False`` so
+    they keep propagating to the tool's ``[ERROR]`` handler.
+    """
+    import asyncio as _asyncio
+
+    if isinstance(exc, _asyncio.TimeoutError):
+        return True
+    return "statement timeout" in str(exc).lower()
 
 
 def _tenant():
@@ -598,6 +626,31 @@ async def _tool_trace_execution_path(
                 "Try using `analyze_code_structure` first to find available "
                 "entities.\n"
             )
+
+        # Pre-flight degree gate (R1): probe the anchor's fan-out over the
+        # edge set the call-chain will traverse. Over threshold (or probe
+        # failure) -> one-hop Degraded_Result, no variable-length expansion.
+        rel_set = _call_rel_set(entity_type)
+        degree = await anchor_degree(
+            data.graph_db, function_name, rel_set, _tenant(), _scope_and("a")
+        )
+        if is_hub(degree):
+            neighbors = await _one_hop_neighbors(
+                data.graph_db, function_name, rel_set, "forward"
+            )
+            log.info(
+                "[traversal-bounds] trace_execution_path degraded "
+                "anchor=%s degree=%s guard=degree",
+                function_name,
+                degree,
+            )
+            return _degraded_body(
+                "Execution Path Trace",
+                function_name,
+                degraded_notice(function_name, degree, FAN_OUT_THRESHOLD),
+                neighbors,
+            )
+
         entity_label = {
             "function": "Function",
             "python": "Python Function",
@@ -620,9 +673,27 @@ async def _tool_trace_execution_path(
             "",
         ]
 
-        call_chain = await _call_chain(
-            data.graph_db, function_name, max_depth, entity_type
-        )
+        try:
+            call_chain = await _call_chain(
+                data.graph_db, function_name, max_depth, entity_type
+            )
+        except Exception as exc:  # noqa: BLE001
+            if _is_timeout_error(exc):
+                neighbors = await _one_hop_neighbors(
+                    data.graph_db, function_name, rel_set, "forward"
+                )
+                log.info(
+                    "[traversal-bounds] trace_execution_path degraded "
+                    "anchor=%s guard=timeout",
+                    function_name,
+                )
+                return _degraded_body(
+                    "Execution Path Trace",
+                    function_name,
+                    _timeout_notice(function_name),
+                    neighbors,
+                )
+            raise
         if call_chain:
             lines.append(f"Traced {len(call_chain)} {calls_label}:")
             lines.append("")
@@ -725,10 +796,50 @@ async def _tool_find_callers_callees(
             },
         }[entity_type]
 
-        callers = await _callers(data.graph_db, function_name, entity_type)
-        callees = await _call_chain(
-            data.graph_db, function_name, 1, entity_type
+        # Pre-flight degree gate (R1) over the call-chain edge set.
+        rel_set = _call_rel_set(entity_type)
+        degree = await anchor_degree(
+            data.graph_db, function_name, rel_set, _tenant(), _scope_and("a")
         )
+        if is_hub(degree):
+            neighbors = await _one_hop_neighbors(
+                data.graph_db, function_name, rel_set, "forward"
+            )
+            log.info(
+                "[traversal-bounds] find_callers_callees degraded "
+                "anchor=%s degree=%s guard=degree",
+                function_name,
+                degree,
+            )
+            return _degraded_body(
+                f"{entity_labels['name']} Analysis",
+                function_name,
+                degraded_notice(function_name, degree, FAN_OUT_THRESHOLD),
+                neighbors,
+            )
+
+        try:
+            callers = await _callers(data.graph_db, function_name, entity_type)
+            callees = await _call_chain(
+                data.graph_db, function_name, 1, entity_type
+            )
+        except Exception as exc:  # noqa: BLE001
+            if _is_timeout_error(exc):
+                neighbors = await _one_hop_neighbors(
+                    data.graph_db, function_name, rel_set, "forward"
+                )
+                log.info(
+                    "[traversal-bounds] find_callers_callees degraded "
+                    "anchor=%s guard=timeout",
+                    function_name,
+                )
+                return _degraded_body(
+                    f"{entity_labels['name']} Analysis",
+                    function_name,
+                    _timeout_notice(function_name),
+                    neighbors,
+                )
+            raise
 
         lines: list[str] = [
             f"# {entity_labels['name']} Analysis: {function_name}",
@@ -900,16 +1011,68 @@ async def _tool_trace_full_execution_chain(
 
     started = time.monotonic()
     try:
+        # Pre-flight degree gate (R1) over the cross-language edge set.
+        cross_rel_set = "|".join(CROSS_LANGUAGE_EDGES)
+        degree = await anchor_degree(
+            data.graph_db, start, cross_rel_set, _tenant(), _scope_and("a")
+        )
+        if is_hub(degree):
+            neighbors: list[dict[str, Any]] = []
+            if direction in ("forward", "both"):
+                neighbors += await _one_hop_neighbors(
+                    data.graph_db, start, cross_rel_set, "forward"
+                )
+            if direction in ("reverse", "both"):
+                neighbors += await _one_hop_neighbors(
+                    data.graph_db, start, cross_rel_set, "reverse"
+                )
+            log.info(
+                "[traversal-bounds] trace_full_execution_chain degraded "
+                "anchor=%s degree=%s guard=degree",
+                start,
+                degree,
+            )
+            return _degraded_body(
+                "Full Execution Chain",
+                start,
+                degraded_notice(start, degree, FAN_OUT_THRESHOLD),
+                neighbors,
+            )
+
         forward_nodes: list[dict[str, Any]] = []
         reverse_nodes: list[dict[str, Any]] = []
-        if direction in ("forward", "both"):
-            forward_nodes = await _cross_language_nodes(
-                data.graph_db, start, max_depth, "forward"
-            )
-        if direction in ("reverse", "both"):
-            reverse_nodes = await _cross_language_nodes(
-                data.graph_db, start, max_depth, "reverse"
-            )
+        try:
+            if direction in ("forward", "both"):
+                forward_nodes = await _cross_language_nodes(
+                    data.graph_db, start, max_depth, "forward"
+                )
+            if direction in ("reverse", "both"):
+                reverse_nodes = await _cross_language_nodes(
+                    data.graph_db, start, max_depth, "reverse"
+                )
+        except Exception as exc:  # noqa: BLE001
+            if _is_timeout_error(exc):
+                neighbors = []
+                if direction in ("forward", "both"):
+                    neighbors += await _one_hop_neighbors(
+                        data.graph_db, start, cross_rel_set, "forward"
+                    )
+                if direction in ("reverse", "both"):
+                    neighbors += await _one_hop_neighbors(
+                        data.graph_db, start, cross_rel_set, "reverse"
+                    )
+                log.info(
+                    "[traversal-bounds] trace_full_execution_chain degraded "
+                    "anchor=%s guard=timeout",
+                    start,
+                )
+                return _degraded_body(
+                    "Full Execution Chain",
+                    start,
+                    _timeout_notice(start),
+                    neighbors,
+                )
+            raise
 
         if languages:
             keep = set(languages)
@@ -1196,8 +1359,20 @@ async def _circular_dependencies(graph_db: Any) -> list[dict[str, Any]]:
         f"WHERE {tenant_label_predicate('a') or 'true'} "
         "RETURN [n IN nodes(p) | coalesce(n.name, n.path)] AS path LIMIT 20"
     )
-    rows = await graph_db.query(cypher, {}, tenant=_tenant())
+    rows = await graph_db.query(
+        cypher, {}, tenant=_tenant(), timeout=TIMEOUT_S
+    )
     return list(rows or [])
+
+
+def _call_rel_set(entity_type: str | None) -> str:
+    """Pipe-joined edge set a call-chain traversal follows for ``entity_type``.
+
+    Shell entities follow the script-invocation edges; everything else
+    follows ``CALLS``. Used for both the degree probe and the expansion so
+    the probed fan-out matches what the expansion would traverse.
+    """
+    return "SOURCES|INVOKES|EXECUTES" if entity_type == "shell" else "CALLS"
 
 
 async def _call_chain(
@@ -1210,15 +1385,20 @@ async def _call_chain(
 
     Entity type selects the edge set — CALLS for code, SOURCES/INVOKES
     for shell scripts. Returns ``[{callee, file, depth}]`` rows.
+
+    The caller-supplied ``max_depth`` is clamped to the
+    :data:`CALL_CHAIN_DEPTH` ceiling so the emitted pattern is always an
+    explicit ``*1..N`` bound (R2.1, R2.4), and the query carries the
+    :data:`TIMEOUT_S` statement-timeout backstop (R5.2).
     """
-    depth = _clamp(int(max_depth), 1, DEPENDENCY_DEPTH_MAX)
+    depth, _clamped = effective_depth(max_depth, CALL_CHAIN_DEPTH)
     if entity_type == "shell":
         cypher = (
             "MATCH p=(f)-[:SOURCES|INVOKES|EXECUTES*1.." + str(depth) + "]->(callee) "
             "WHERE f.name = $name"
             + _scope_and("f") + " "
             "RETURN callee.name AS callee, callee.path AS file, "
-            "length(p) AS depth LIMIT 200"
+            "length(p) AS depth LIMIT " + str(RESULT_LIMIT)
         )
     else:
         cypher = (
@@ -1226,9 +1406,11 @@ async def _call_chain(
             "WHERE f.name = $name"
             + _scope_and("f") + " "
             "RETURN callee.name AS callee, callee.filepath AS file, "
-            "length(p) AS depth LIMIT 200"
+            "length(p) AS depth LIMIT " + str(RESULT_LIMIT)
         )
-    rows = await graph_db.query(cypher, {"name": function_name}, tenant=_tenant())
+    rows = await graph_db.query(
+        cypher, {"name": function_name}, tenant=_tenant(), timeout=TIMEOUT_S
+    )
     return [r for r in (rows or []) if r.get("callee")]
 
 
@@ -1241,7 +1423,8 @@ async def _callers(
             "MATCH (caller)-[:SOURCES|INVOKES|EXECUTES]->(f) "
             "WHERE f.name = $name"
             + _scope_and("f") + " "
-            "RETURN DISTINCT caller.name AS name, caller.path AS file LIMIT 200"
+            "RETURN DISTINCT caller.name AS name, caller.path AS file LIMIT "
+            + str(RESULT_LIMIT)
         )
     else:
         cypher = (
@@ -1249,10 +1432,101 @@ async def _callers(
             "WHERE f.name = $name"
             + _scope_and("f") + " "
             "RETURN DISTINCT caller.name AS name, "
-            "caller.filepath AS file LIMIT 200"
+            "caller.filepath AS file LIMIT " + str(RESULT_LIMIT)
         )
-    rows = await graph_db.query(cypher, {"name": function_name}, tenant=_tenant())
+    rows = await graph_db.query(
+        cypher, {"name": function_name}, tenant=_tenant(), timeout=TIMEOUT_S
+    )
     return [r for r in (rows or []) if r.get("name")]
+
+
+# ── bounded-traversal degree gate + Degraded_Result rendering ───────────
+
+
+async def _one_hop_neighbors(
+    graph_db: Any,
+    name: str,
+    rel_set: str,
+    direction: str = "forward",
+) -> list[dict[str, Any]]:
+    """Return the anchor's direct (one-hop) neighbors over ``rel_set``.
+
+    A plain single-hop expand — never a variable-length pattern — used to
+    build the Degraded_Result for a Hub_Node (R4.1). Tenant-scoped and
+    timeout-bounded like the expansion it replaces (Property 5, R5.2).
+    Swallows a statement-timeout (returns ``[]``) so a degraded render
+    never raises (R4.4).
+    """
+    if direction == "reverse":
+        match = f"MATCH (x)-[r:{rel_set}]->(a)"
+    else:
+        match = f"MATCH (a)-[r:{rel_set}]->(x)"
+    cypher = (
+        match
+        + " WHERE (a.name = $name OR a.path = $name)"
+        + _scope_and("a")
+        + " RETURN DISTINCT x.name AS name, "
+        "coalesce(x.filepath, x.path) AS file "
+        "LIMIT " + str(RESULT_LIMIT)
+    )
+    try:
+        rows = await graph_db.query(
+            cypher, {"name": name}, tenant=_tenant(), timeout=TIMEOUT_S
+        )
+    except Exception as exc:  # noqa: BLE001 - degraded render must not raise
+        if _is_timeout_error(exc):
+            log.info(
+                "[traversal-bounds] one-hop neighbor probe timed out for "
+                "anchor=%s",
+                name,
+            )
+            return []
+        raise
+    return [r for r in (rows or []) if r.get("name")]
+
+
+def _timeout_notice(anchor: str) -> str:
+    """Notice rendered when a traversal hits the statement-timeout (R5.3)."""
+    return (
+        f"[INFO] Traversal from `{anchor}` exceeded the {TIMEOUT_S:g}s "
+        "statement timeout and was bounded. Showing the node's direct "
+        "(one-hop) neighbors instead of the full expansion."
+    )
+
+
+def _degraded_body(
+    title: str, anchor: str, notice: str, neighbors: list[dict[str, Any]]
+) -> str:
+    """Render a successful Degraded_Result (R4.1-R4.5).
+
+    A labeled ``notice`` (hub or timeout) plus the anchor's direct
+    neighbors, truncated to the row LIMIT with a ``[truncated: ...]``
+    marker. Not an ``[ERROR]`` response.
+    """
+    lines: list[str] = [
+        f"# {title}: {anchor}",
+        "",
+        notice,
+        "",
+        "## Direct Neighbors (one hop)",
+        "",
+    ]
+    display_cap = 50
+    shown = neighbors[:display_cap]
+    if shown:
+        for n in shown:
+            name = n.get("name") or ""
+            line = f"- `{name}`"
+            if n.get("file"):
+                line += f" (in {n['file']})"
+            lines.append(line)
+        marker = truncation_marker(len(shown), len(neighbors))
+        if marker:
+            lines.append("")
+            lines.append(f"*{marker}*")
+    else:
+        lines.append("*No direct neighbors found.*")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 async def _detect_entity_type(
@@ -1307,7 +1581,7 @@ async def _cross_language_nodes(
     length path lookup; for very deep traversals the ``LIMIT`` caps
     the result set at 200 rows.
     """
-    depth = _clamp(int(max_depth), 1, FULL_CHAIN_DEPTH_MAX)
+    depth, _clamped = effective_depth(max_depth, FULL_CHAIN_DEPTH)
     edge_union = "|".join(CROSS_LANGUAGE_EDGES)
     if direction == "reverse":
         pattern = f"MATCH p = (n)<-[:{edge_union}*1..{depth}]-(start)"
@@ -1320,9 +1594,11 @@ async def _cross_language_nodes(
         + " RETURN DISTINCT n.name AS name, n.path AS path, labels(n) AS labels, "
         "length(p) AS hop, "
         "[rel IN relationships(p) | type(rel)][-1] AS relType "
-        "LIMIT 200"
+        "LIMIT " + str(RESULT_LIMIT)
     )
-    rows = await graph_db.query(cypher, {"name": start}, tenant=_tenant())
+    rows = await graph_db.query(
+        cypher, {"name": start}, tenant=_tenant(), timeout=TIMEOUT_S
+    )
 
     out: list[dict[str, Any]] = []
     # Always include the seed node at hop 0 when we have it.
@@ -1332,6 +1608,7 @@ async def _cross_language_nodes(
         "RETURN n.name AS name, labels(n) AS labels LIMIT 1",
         {"name": start},
         tenant=_tenant(),
+        timeout=TIMEOUT_S,
     )
     if seed_rows:
         labels = list(seed_rows[0].get("labels") or [])

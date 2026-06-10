@@ -836,8 +836,15 @@ async def test_trace_full_execution_chain_languages_filter() -> None:
     assert "pygfs.task.gfs_forecast" not in text
 
 
-async def test_trace_full_execution_chain_clamps_max_depth_to_ten() -> None:
-    """Asking for 99 hops is silently clamped to 10."""
+async def test_trace_full_execution_chain_clamps_max_depth_to_full_chain_ceiling() -> None:
+    """Asking for 99 hops is silently clamped to FULL_CHAIN_DEPTH (5).
+
+    R2.2 reduces the cross-language full-chain ceiling from the historical
+    10 to a conservative 5; the emitted pattern must be ``*1..5`` and
+    never the old ``*1..10`` / ``*1..99``.
+    """
+    from src.tools._traversal_bounds import FULL_CHAIN_DEPTH
+
     data = MockUnifiedDataAccess()
     _seed_empty_graph(data.graph_db)
     data.graph_db.add_response(
@@ -849,9 +856,9 @@ async def test_trace_full_execution_chain_clamps_max_depth_to_ten() -> None:
     original_query = data.graph_db.query
 
     async def _recording_query(cypher: str, params: dict[str, Any] | None = None, **kwargs):
-        if "*1..10" in cypher or "*1..11" in cypher:
+        if "*1.." in cypher:
             captured.append(cypher)
-        return await original_query(cypher, params)
+        return await original_query(cypher, params, **kwargs)
 
     data.graph_db.query = _recording_query  # type: ignore[method-assign]
 
@@ -861,9 +868,10 @@ async def test_trace_full_execution_chain_clamps_max_depth_to_ten() -> None:
         "trace_full_execution_chain",
         {"start": "X", "max_depth": 99},
     )
-    # Confirm the rendered cypher used depth 10, not 99, and never 11.
-    assert any("*1..10" in c for c in captured)
-    assert not any("*1..11" in c for c in captured)
+    expected = f"*1..{FULL_CHAIN_DEPTH}"
+    # Confirm the rendered cypher used the capped depth, not 99 or 10.
+    assert any(expected in c for c in captured)
+    assert not any("*1..10" in c for c in captured)
     assert not any("*1..99" in c for c in captured)
 
 
@@ -1188,3 +1196,208 @@ def test_clamp_respects_bounds() -> None:
     assert code_analysis._clamp(-3, 1, 10) == 1
     assert code_analysis._clamp(99, 1, 10) == 10
     assert code_analysis._clamp(1, 1, 1) == 1
+
+
+# ── bounded-graph-traversal: degree gate / timeout / tenant scoping ─────
+# (Wave 1, Task 3.1 — Validates R1.2, R3.4, R4.1, R4.4, R5.3, R7.5)
+
+
+def _seed_degree(graph: MockGraphDB, deg: int) -> None:
+    """Seed the single-hop degree probe (`count(r) AS deg`)."""
+    graph.add_response("count(r) AS deg", [{"deg": deg}])
+
+
+def _seed_one_hop(graph: MockGraphDB, rows: list[dict[str, Any]]) -> None:
+    """Seed the one-hop Degraded_Result neighbor query."""
+    graph.add_response(
+        "RETURN DISTINCT x.name AS name, coalesce(x.filepath, x.path) AS file",
+        rows,
+    )
+
+
+def _graph_cyphers(data: MockUnifiedDataAccess) -> list[str]:
+    return [c[1][0] for c in data.graph_db.call_log if c[0] == "query"]
+
+
+async def test_trace_execution_path_hub_returns_degraded_no_expansion() -> None:
+    """A hub anchor (degree > threshold) returns a labeled, one-hop
+    Degraded_Result and issues no variable-length expansion (R1.2, R4.1)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["ShellScript"])
+    _seed_degree(data.graph_db, 512)
+    _seed_one_hop(
+        data.graph_db,
+        [{"name": "exglobal_forecast.sh", "file": "scripts/exglobal_forecast.sh"}],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "trace_execution_path", {"function_name": "JGLOBAL_FORECAST"}
+    )
+    # Successful Degraded_Result, not [ERROR].
+    assert not text.startswith("[ERROR]")
+    assert "Highly connected node" in text
+    assert "512" in text          # measured degree
+    assert "100" in text          # threshold
+    assert "Direct Neighbors" in text
+    assert "exglobal_forecast.sh" in text
+    # No variable-length expansion query was ever issued.
+    assert not any("*1.." in q for q in _graph_cyphers(data))
+
+
+async def test_find_callers_callees_hub_returns_degraded_no_expansion() -> None:
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, 250)
+    _seed_one_hop(data.graph_db, [{"name": "callee_a", "file": "a.py"}])
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "find_callers_callees", {"function_name": "hub_fn"}
+    )
+    assert not text.startswith("[ERROR]")
+    assert "Highly connected node" in text
+    assert "250" in text
+    assert "callee_a" in text
+    assert not any("*1.." in q for q in _graph_cyphers(data))
+
+
+async def test_trace_full_execution_chain_hub_returns_degraded() -> None:
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, 999)
+    _seed_one_hop(data.graph_db, [{"name": "exgfs.sh", "file": "scripts/exgfs.sh"}])
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "trace_full_execution_chain", {"start": "JGLOBAL_FORECAST"}
+    )
+    assert not text.startswith("[ERROR]")
+    assert "Highly connected node" in text
+    assert "999" in text
+    assert "exgfs.sh" in text
+    assert not any("*1.." in q for q in _graph_cyphers(data))
+
+
+async def test_probe_failure_treated_as_hub_fail_safe() -> None:
+    """If the degree probe errors, the anchor is treated as a hub (R1.5)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    # Probe raises -> anchor_degree returns None -> hub.
+    data.graph_db.add_raise("count(r) AS deg", RuntimeError("probe boom"))
+    _seed_one_hop(data.graph_db, [{"name": "n1", "file": "n.py"}])
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "trace_execution_path", {"function_name": "foo"}
+    )
+    assert not text.startswith("[ERROR]")
+    assert "Highly connected node" in text
+    assert "could not be measured" in text
+    assert not any("*1.." in q for q in _graph_cyphers(data))
+
+
+async def test_non_hub_issues_bounded_expansion_with_cap_and_limit() -> None:
+    """A non-hub anchor proceeds with the bounded ``*1..N`` expansion
+    (capped depth + RESULT_LIMIT), preserving today's behaviour (R3.4)."""
+    from src.tools._traversal_bounds import CALL_CHAIN_DEPTH, RESULT_LIMIT
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, 3)  # under threshold -> non-hub
+    _seed_call_chain(
+        data.graph_db, "CALLS*1..", [{"callee": "alpha", "file": "a.py", "depth": 1}]
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "trace_execution_path", {"function_name": "foo", "max_depth": 99}
+    )
+    assert "1. `alpha`" in text
+    cyphers = _graph_cyphers(data)
+    expected = f"CALLS*1..{CALL_CHAIN_DEPTH}"
+    assert any(expected in q for q in cyphers)
+    assert any(f"LIMIT {RESULT_LIMIT}" in q for q in cyphers)
+    # Never an unbounded pattern: every ``*1..`` carries a digit bound.
+    import re as _re
+    for q in cyphers:
+        for seg in q.split("*1..")[1:]:
+            assert seg[:1].isdigit(), f"unbounded variable-length pattern in {q!r}"
+
+
+async def test_expansion_timeout_returns_degraded_not_error() -> None:
+    """A statement-timeout on the expansion yields a Degraded_Result with a
+    timeout notice, never an unhandled exception or [ERROR] (R5.3)."""
+    from src.data.neptune_adapter import NeptuneAdapterError
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, 3)  # non-hub, so expansion is attempted
+    _seed_one_hop(data.graph_db, [{"name": "neighbor_a", "file": "n.py"}])
+    # The variable-length expansion times out.
+    data.graph_db.add_raise(
+        "CALLS*1..",
+        NeptuneAdapterError("query exceeded 30.0s statement timeout"),
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "trace_execution_path", {"function_name": "foo"}
+    )
+    assert not text.startswith("[ERROR]")
+    assert "statement timeout" in text
+    assert "neighbor_a" in text
+
+
+async def test_all_emitted_queries_carry_tenant_and_expansion_carries_timeout() -> None:
+    """Every emitted query carries tenant= (Property 5) and the
+    variable-length expansion carries the statement-timeout (R5.2)."""
+    from src.tools._traversal_bounds import TIMEOUT_S
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, 2)
+    _seed_call_chain(data.graph_db, "CALLS*1..", [{"callee": "a", "depth": 1}])
+
+    mcp = _make_server(data=data)
+    await _call_tool(
+        mcp,
+        "trace_execution_path",
+        {"function_name": "foo", "include_weights": False},
+    )
+    query_calls = [c for c in data.graph_db.call_log if c[0] == "query"]
+    assert query_calls, "expected at least one graph query"
+    # tenant kwarg present (resolved gw tenant, not None) on every query.
+    for c in query_calls:
+        assert c[3]["tenant"] is not None
+    # The degree probe and the variable-length expansion carry the timeout.
+    probe = [c for c in query_calls if "count(r) AS deg" in c[1][0]]
+    assert probe and probe[0][3]["timeout"] == TIMEOUT_S
+    expansion = [c for c in query_calls if "CALLS*1.." in c[1][0]]
+    assert expansion and expansion[0][3]["timeout"] == TIMEOUT_S
+
+
+async def test_degree_probe_is_single_hop_never_variable_length() -> None:
+    """The degree probe itself must never be a variable-length pattern
+    (R1.4) — it is a plain single-hop count."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, 5)
+    _seed_call_chain(data.graph_db, "CALLS*1..", [])
+
+    mcp = _make_server(data=data)
+    await _call_tool(mcp, "trace_execution_path", {"function_name": "foo"})
+    probe = [
+        c[1][0]
+        for c in data.graph_db.call_log
+        if c[0] == "query" and "count(r) AS deg" in c[1][0]
+    ]
+    assert probe
+    assert "*" not in probe[0]
