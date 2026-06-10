@@ -1,0 +1,3 @@
+# Service accounts that should not be provisioned with AgentCore credentials.
+# One account name per line. Comments start with #.
+ssm-user
