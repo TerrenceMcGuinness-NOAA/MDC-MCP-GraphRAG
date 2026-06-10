@@ -18,7 +18,7 @@ path used for Gaps C/D/E.
 
 ## Tasks
 
-- [ ] 1. Implement `_traversal_bounds.py` (constants + helpers)
+- [x] 1. Implement `_traversal_bounds.py` (constants + helpers)
   - New module co-located with the tools (importable as
     `src.tools._traversal_bounds`). Per design §"New module".
   - Env-overridable constants: `FAN_OUT_THRESHOLD` (100), `FULL_CHAIN_DEPTH` (5),
@@ -33,7 +33,7 @@ path used for Gaps C/D/E.
     failure/timeout (fail-safe to hub).
   - _Requirements: 1.1, 1.4, 1.5, 2.1, 2.2, 4.2, 4.3, 6.1, 6.2, 6.3_
 
-  - [ ]* 1.1 Unit tests for `_traversal_bounds.py`
+  - [x]* 1.1 Unit tests for `_traversal_bounds.py`
     - `effective_depth` over negative/zero/huge/in-range inputs.
     - `anchor_degree` returns count for a small mock node; returns `None` when the
       mocked query raises or times out.
@@ -42,7 +42,7 @@ path used for Gaps C/D/E.
     - File: `mcp_server_python/tests/unit/test_traversal_bounds.py` (new)
     - _Validates: 1.5, 2.1, 4.2, 6.2_
 
-- [ ] 2. Add optional `timeout` parameter to `NeptuneAdapter.query`
+- [x] 2. Add optional `timeout` parameter to `NeptuneAdapter.query`
   - Per design §"NeptuneAdapter.query". Additive keyword `timeout: float | None =
     None`. When set, wrap the `asyncio.to_thread(self._run_session, ...)` call in
     `asyncio.wait_for`; on `asyncio.TimeoutError` raise `NeptuneAdapterError` with
@@ -50,14 +50,14 @@ path used for Gaps C/D/E.
   - `timeout=None` path is byte-for-byte the current behavior (no regression).
   - _Requirements: 5.1, 5.4, 5.5_
 
-  - [ ]* 2.1 Unit tests for the adapter timeout
+  - [x]* 2.1 Unit tests for the adapter timeout
     - Mocked slow `_run_session` + `timeout=0.01` → raises `NeptuneAdapterError`
       with timeout message; metrics incremented.
     - `timeout=None` → unchanged behavior, existing adapter tests still pass.
     - File: `mcp_server_python/tests/unit/test_data_layer.py` (extend)
     - _Validates: 5.1, 5.4, 5.5_
 
-- [ ] 3. Wire bounds into `code_analysis.py` open-expansion helpers
+- [x] 3. Wire bounds into `code_analysis.py` open-expansion helpers
   - `_call_chain`: degree-gate on `CALLS` (or `SOURCES|INVOKES|EXECUTES` for
     shell) → hub returns a sentinel the caller renders as Degraded_Result; non-hub
     runs `*1..CALL_CHAIN_DEPTH` with `RESULT_LIMIT` and `timeout=TIMEOUT_S`.
@@ -72,7 +72,7 @@ path used for Gaps C/D/E.
   - Preserve `_scope_and(...)` on every emitted query (probe, degraded, expansion).
   - _Requirements: 1.1, 1.2, 1.3, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.4, 4.5, 5.2, 5.3, 7.5, 8.1_
 
-  - [ ]* 3.1 Tool tests for code_analysis traversals
+  - [x]* 3.1 Tool tests for code_analysis traversals
     - Hub path (mock degree probe > threshold): assert Degraded_Result, labeled,
       non-`[ERROR]`, and `call_log` contains no `*1..` expansion query.
     - Non-hub path: assert bounded `*1..N` query with capped depth + `LIMIT`, and
@@ -82,7 +82,7 @@ path used for Gaps C/D/E.
     - File: `mcp_server_python/tests/unit/test_code_analysis_tools.py` (extend)
     - _Validates: 1.2, 3.4, 4.1, 4.4, 5.3, 7.5_
 
-- [ ] 4. Wire bounds into `graph_rag.py` traversals
+- [x] 4. Wire bounds into `graph_rag.py` traversals
   - `trace_data_flow`: clamp shortestPath depth to `DATA_FLOW_DEPTH`; add
     `timeout=TIMEOUT_S` to the outgoing query and the shortestPath query; on
     timeout return a Degraded_Result/notice. (No degree gate — shortestPath does
@@ -95,14 +95,14 @@ path used for Gaps C/D/E.
   - Preserve `_scope_and(...)` on every emitted query.
   - _Requirements: 2.1, 2.2, 3.2, 3.3, 5.2, 5.3, 7.5, 8.1_
 
-  - [ ]* 4.1 Tool tests for graph_rag traversals
+  - [x]* 4.1 Tool tests for graph_rag traversals
     - `trace_data_flow` depth clamp applied; timeout path returns notice not raise.
     - `get_change_impact` timeout path handled gracefully.
     - Tenant scoping preserved on all emitted queries.
     - File: `mcp_server_python/tests/unit/test_graph_rag_tools.py` (extend)
     - _Validates: 2.1, 5.3, 7.5_
 
-- [ ]* 5. Property-based tests (P1–P5)
+- [x]* 5. Property-based tests (P1–P5)
   - P1 Bounded depth always: random `max_depth` (negative/zero/huge) → emitted
     pattern always `*1..N`, `1 <= N <= ceiling`.
   - P2 Hub short-circuit: degree > threshold or `None` → Degraded_Result, no
@@ -116,7 +116,7 @@ path used for Gaps C/D/E.
   - File: `mcp_server_python/tests/properties/test_traversal_bounds_props.py` (new)
   - _Validates: 1.2, 2.1, 2.2, 2.4, 3.4, 4.1, 4.4, 5.3, 7.3, 7.4, 7.5_
 
-- [ ] 6. Update CHANGELOG and run full suite
+- [x] 6. Update CHANGELOG and run full suite
   - CHANGELOG entry under a new version header (next after the current latest).
   - `python3.12 -m pytest tests/unit/ tests/properties/ -q` green; report the
     count vs baseline.

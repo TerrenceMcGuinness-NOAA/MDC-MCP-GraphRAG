@@ -1,5 +1,85 @@
 # MCP Server Changelog
 
+## [8.36.0] - Bounded graph traversal guards (bounded-graph-traversal) (Jun 10, 2026)
+
+### Summary
+
+Adds bounded-traversal guards so a graph query from a hyper-connected node
+(e.g. `JGLOBAL_FORECAST`, 500+ edges) degrades to a labeled partial result
+instead of timing out or OOM-ing Neptune. The existing `LIMIT 200` clauses did
+not prevent the explosion because Neptune materializes all matching paths
+*before* applying `LIMIT`; the pre-flight degree probe is the actual fix — it
+stops the variable-length expansion from ever launching on a hub node.
+
+Three guards stack, cheapest first: (1) a single-hop degree probe — over the
+fan-out threshold (or probe failure) returns a one-hop `Degraded_Result`;
+(2) an effective depth cap so every variable-length pattern is an explicit
+`*1..N` bound (the cross-language full-chain ceiling drops from 10 to 5, the
+single-edge call-chain to 4); (3) a client-side statement-timeout backstop on
+`NeptuneAdapter.query`. Tool-layer change only — no ingestion, schema, or
+tenant-logic change, and no re-ingestion.
+
+This implements waves 0-4 of the `bounded-graph-traversal` spec (Tasks 1-6).
+The gated build + ECR push + `update-agent-runtime` + live validation (wave 5,
+Task 7) is operator-driven and not part of this change.
+
+### Added
+
+- `mcp_server_python/src/tools/_traversal_bounds.py` (NEW): single home for the
+  env-overridable tunables (`FAN_OUT_THRESHOLD`=100, `FULL_CHAIN_DEPTH`=5,
+  `CALL_CHAIN_DEPTH`=4, `DATA_FLOW_DEPTH`=5, `RESULT_LIMIT`=200,
+  `TIMEOUT_S`=30.0; overridable via `MCP_TRAVERSAL_*`) and the shared helpers
+  `effective_depth`, `anchor_degree` (single-hop count probe, tenant-scoped,
+  timeout-wrapped, fail-safe to hub on error/timeout), `degraded_notice`,
+  `truncation_marker`, and `is_hub`.
+- `mcp_server_python/tests/unit/test_traversal_bounds.py` (NEW): unit tests for
+  the helpers and env overrides.
+- `mcp_server_python/tests/properties/test_traversal_bounds_props.py` (NEW): the
+  five correctness properties (P1 bounded depth, P2 hub short-circuit, P3
+  non-hub equivalence, P4 timeout never raises, P5 tenant scoping) under
+  Hypothesis.
+
+### Changed
+
+- `mcp_server_python/src/data/neptune_adapter.py`: `NeptuneAdapter.query` gains
+  an additive keyword-only `timeout: float | None = None`. When set, the
+  `asyncio.to_thread(_run_session, ...)` call is wrapped in `asyncio.wait_for`
+  and raises `NeptuneAdapterError` (with a `statement timeout` message,
+  incrementing `queries_failed`) on expiry. `timeout=None` is byte-for-byte the
+  prior behaviour — every existing call site is unchanged (R5.4).
+- `mcp_server_python/src/tools/code_analysis.py`: `trace_execution_path`,
+  `find_callers_callees`, and `trace_full_execution_chain` run a pre-flight
+  degree probe and return a one-hop `Degraded_Result` (a successful, labeled
+  response — not `[ERROR]`) for hub anchors; the open-expansion helpers
+  (`_call_chain`, `_callers`, `_cross_language_nodes`, `_circular_dependencies`)
+  carry the statement-timeout and capped `*1..N` depth, and expansion timeouts
+  render a `Degraded_Result` with a timeout notice.
+- `mcp_server_python/src/tools/graph_rag.py`: `trace_data_flow` caps the
+  shortestPath depth at `DATA_FLOW_DEPTH` and adds the timeout to the outgoing
+  and shortestPath queries (timeout -> bounded notice / no path);
+  `get_change_impact` adds the timeout to the direct + indirect queries (direct
+  timeout -> labeled notice, not `[ERROR]`; ORDER BY preserved for non-hub
+  ordering); `get_code_context` adds the timeout to its reverse-caller query.
+- `mcp_server_python/tests/conftest.py`: `MockGraphDB.query` accepts the new
+  `timeout` kwarg, records `tenant`/`timeout` in the call-log entry, and gains
+  an `add_raise(fragment, exc)` helper for per-query failure injection.
+- `mcp_server_python/tests/unit/test_data_layer.py`,
+  `test_code_analysis_tools.py`, `test_graph_rag_tools.py`: extended with the
+  adapter-timeout, degree-gate, and timeout-path tests; the two depth-clamp
+  tests updated to assert the reduced `*1..5` ceiling (R2.2).
+
+### Notes
+
+- Tool-layer (query) change only; no graph schema, ingestion, or tenant-logic
+  change, and no re-ingestion. Every new query (degree probe, one-hop degraded)
+  carries `tenant=` and the `_scope_and` predicate (Property 5).
+- The statement-timeout is enforced client-side (`asyncio.wait_for`); passing
+  Neptune's `queryTimeoutMillis` to abort server-side is a deferred follow-up
+  (design Open Question 1).
+- Deploy not included: wave 5 (Task 7 — build/ECR push/`update-agent-runtime`/
+  live `gw` validation) is the operator-gated step.
+- Test count: 1263 -> 1315 (+52).
+
 ## [8.35.0] - agentcore-mcp-rag per-user credential provisioning (agentcore-creds-provisioning) (Jun 9, 2026)
 
 ### Summary
