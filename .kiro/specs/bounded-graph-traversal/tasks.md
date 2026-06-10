@@ -122,7 +122,7 @@ path used for Gaps C/D/E.
     count vs baseline.
   - _Requirements: 7.1, 7.2, 7.3_
 
-- [ ] 7. Phase A — gated build + deploy + live validation
+- [x] 7. Phase A — gated build + deploy + live validation
   - STOP-AND-CONFIRM before ECR push and `update-agent-runtime` (AWS write-safety).
   - Build the image, push a new tag, cut the runtime to the new version (carry the
     full env-var + VPC + EFS payload as in prior deploys).
@@ -134,6 +134,15 @@ path used for Gaps C/D/E.
       → full results unchanged (non-hub equivalence).
   - Record the runtime version + image tag; update
     `.kiro/steering/12-multi-tenant-gap-tracker.md` Gap G → RESOLVED.
+  - DONE 2026-06-10: image `python-tenants-v8` (digest `sha256:5fb63b52b9ad...`),
+    runtime cutover v31 → v32, status READY. Live validation:
+    `find_callers_callees("setuprad", gw_v17)` exercised the degree gate
+    (degree 174 > threshold 100, short-circuited to one-hop Degraded_Result with
+    `[INFO]` notice + `[truncated: 50 of 55]` marker);
+    `trace_full_execution_chain("JGLOBAL_FORECAST", gw)` exercised the timeout
+    backstop (variable-length expansion timed out at 30s, fell through to one-hop
+    Degraded_Result with timeout notice); non-hub queries unchanged.
+    Rollback target: `python-tenants-v7` (v31).
   - _Requirements: 4.1, 4.4, 7.3 (live)_
 
 ## Task Dependency Graph

@@ -3,7 +3,7 @@
 Living document tracking the remaining gaps between the `gw` (develop) baseline
 and non-default tenants (primarily `gw_v17`). Updated as gaps are resolved.
 
-Last updated: 2026-06-10
+Last updated: 2026-06-10 (Gap G resolved)
 
 ## Summary Table
 
@@ -15,7 +15,7 @@ Last updated: 2026-06-10
 | D | Rewriter mangled relationship types for non-gw | HIGH | all non-gw | RESOLVED | [8.31.0] commit `a8f76ec` | `_rewrite_cypher` prefixed `:CALLS` → `:GW_V17_CALLS`. Now bracket-aware. Was the real root cause behind much of what looked like "Gap B empty results". Deployed v30, 2026-06-08. Verified: v17 shows 934,873 rels; find_callers_callees works. |
 | E | Label-less graph queries leak across tenants | LOW | all non-gw | RESOLVED | [8.32.0] commit `9d64b53` | `tenant_label_predicate()` scopes label-less / name-anchored queries via `labels(n)` (tenant_id property is unreliable — null on placeholder nodes). Applied to ~16 queries in graph_rag.py + code_analysis.py. Deployed v31, 2026-06-08. Verified: setuprad resolves to GW_V17_File for v17, FortranSubroutine for gw. |
 | F | Fortran parse failures (15% / 1,020 files) | MEDIUM | gw_v17 | RESOLVED | `fortran-parse-fallback` [8.33.0] `7c77ffd` + parallel/streaming [8.34.0] `1520577` | Regex fallback + parallel streaming ingest. Live ingest run 2026-06-10: 6,926/6,935 parsed (99.9%), 45,155 nodes + 297,712 rels written, 0 errors, ~3.2h. v17 graph now 80,996 nodes / 1,278,330 rels (CALLS 1.02M, USES 229K). No deploy — offline script. |
-| G | Deep traversal OOMs on Neptune | MEDIUM | gw (JGLOBAL_FORECAST) | OPEN | — | Highly-connected nodes (JGLOBAL_FORECAST, 500+ edges) cause timeout/OOM on multi-hop traversal. Needs depth-limit + fan-out cap in traversal tools. |
+| G | Deep traversal OOMs on Neptune | MEDIUM | gw, gw_v17 | RESOLVED | `bounded-graph-traversal` [8.36.0] commits `fc6ad31..f09c66b` | Pre-flight degree probe + depth cap + 30s statement-timeout backstop on `NeptuneAdapter.query`. Deployed v32 (`python-tenants-v8`), 2026-06-10. Verified live: `find_callers_callees("setuprad", gw_v17)` short-circuits cleanly (degree 174 > threshold 100); `trace_full_execution_chain("JGLOBAL_FORECAST", gw)` falls through to timeout backstop with one-hop Degraded_Result; non-hub `setuprad` `get_code_context` unchanged. |
 | H | No tenant-specific docs collection | BY DESIGN | non-gw | N/A | — | All tenants share the documentation vector indices. Code embeddings are tenant-prefixed. Docs are branch-agnostic (RTD, EE2 standards, etc.). |
 
 ## Detail: Open Gaps
