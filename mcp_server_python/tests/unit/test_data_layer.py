@@ -204,6 +204,84 @@ async def test_neptune_adapter_query_passes_params(fake_driver) -> None:
     ]
 
 
+# ── statement-timeout backstop (R5.1, R5.4, R5.5) ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_neptune_adapter_query_timeout_none_is_unchanged(fake_driver) -> None:
+    """The default ``timeout=None`` path is byte-for-byte the historical
+    behaviour — no ``asyncio.wait_for`` wrapping, rows returned directly."""
+    fake_driver.run_results.append([{"name": "alpha"}])
+    adapter = NeptuneAdapter(endpoint="https://np.example/opencypher")
+    rows = await adapter.query("MATCH (n) RETURN n.name AS name")
+    assert rows == [{"name": "alpha"}]
+    # Explicit None is equivalent to omitting the kwarg.
+    fake_driver.run_results.append([{"name": "beta"}])
+    rows2 = await adapter.query("MATCH (n) RETURN n.name AS name", timeout=None)
+    assert rows2 == [{"name": "beta"}]
+
+
+@pytest.mark.asyncio
+async def test_neptune_adapter_query_returns_within_timeout(fake_driver) -> None:
+    """A fast query under a generous timeout returns normally."""
+    fake_driver.run_results.append([{"ok": 1}])
+    adapter = NeptuneAdapter(endpoint="https://np.example/opencypher")
+    rows = await adapter.query("RETURN 1 AS ok", timeout=30.0)
+    assert rows == [{"ok": 1}]
+
+
+@pytest.mark.asyncio
+async def test_neptune_adapter_query_raises_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ``_run_session`` slower than ``timeout`` raises
+    NeptuneAdapterError with a timeout message and increments
+    ``queries_failed`` (R5.5)."""
+    import time as _time
+
+    adapter = NeptuneAdapter(endpoint="https://np.example/opencypher")
+    adapter._connected = True  # bypass connect()
+
+    def _slow(cypher, params):  # runs in a worker thread
+        _time.sleep(0.5)
+        return []
+
+    monkeypatch.setattr(adapter, "_run_session", _slow)
+    failed_before = adapter._metrics["queries_failed"]
+
+    with pytest.raises(NeptuneAdapterError) as exc_info:
+        await adapter.query("MATCH (n) RETURN n", timeout=0.01)
+
+    assert "statement timeout" in str(exc_info.value)
+    assert exc_info.value.status is None
+    assert adapter._metrics["queries_failed"] == failed_before + 1
+
+
+@pytest.mark.asyncio
+async def test_neptune_adapter_query_timeout_passes_params_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The timeout path still forwards cypher + params to ``_run_session``."""
+    adapter = NeptuneAdapter(endpoint="https://np.example/opencypher")
+    adapter._connected = True
+    seen: list[tuple[str, dict[str, Any]]] = []
+
+    def _fast(cypher, params):
+        seen.append((cypher, params))
+        return [{"deg": 7}]
+
+    monkeypatch.setattr(adapter, "_run_session", _fast)
+    rows = await adapter.query(
+        "MATCH (a)-[r:CALLS]-(x) RETURN count(r) AS deg",
+        params={"name": "foo"},
+        timeout=30.0,
+    )
+    assert rows == [{"deg": 7}]
+    assert seen == [
+        ("MATCH (a)-[r:CALLS]-(x) RETURN count(r) AS deg", {"name": "foo"})
+    ]
+
+
 @pytest.mark.asyncio
 async def test_neptune_adapter_translates_query_error(
     fake_driver, monkeypatch: pytest.MonkeyPatch

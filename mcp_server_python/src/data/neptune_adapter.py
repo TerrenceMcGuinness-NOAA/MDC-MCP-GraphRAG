@@ -259,12 +259,31 @@ class NeptuneAdapter:
         params: dict[str, Any] | None = None,
         *,
         tenant: Any = None,
+        timeout: float | None = None,
     ) -> list[dict[str, Any]]:
         """Execute an openCypher query and return rows as plain dicts.
 
         Each row is a copy of the Neptune JSON record so callers can
         mutate the returned list freely without affecting future
         results.
+
+        Parameters
+        ----------
+        timeout
+            Optional client-side Statement_Timeout (seconds) for this
+            query (R5.1). When set, the underlying synchronous call is
+            wrapped in :pyfunc:`asyncio.wait_for`; if it does not return
+            within ``timeout`` seconds the call raises
+            :pyexc:`NeptuneAdapterError` (R5.5). The default ``None``
+            preserves the historical behaviour byte-for-byte — every
+            existing call site stays valid and unchanged (R5.4).
+
+            Client-side enforcement is the portable backstop (R5.5): the
+            tool unblocks at the timeout and renders a Degraded_Result,
+            while the orphaned worker thread is bounded by Neptune's own
+            cluster ``neptune_query_timeout``. Passing the HTTP
+            ``queryTimeoutMillis`` to abort server-side is a deferred
+            follow-up (design Open Question 1).
         """
         if not cypher:
             raise ValueError("cypher must be non-empty")
@@ -275,8 +294,18 @@ class NeptuneAdapter:
             cypher = self._rewrite_cypher(cypher, tenant)
 
         params = params or {}
-        rows = await asyncio.to_thread(self._run_session, cypher, params)
-        return rows
+        coro = asyncio.to_thread(self._run_session, cypher, params)
+        if timeout is None:
+            return await coro
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            self._metrics["queries_failed"] += 1
+            raise NeptuneAdapterError(
+                f"query exceeded {timeout}s statement timeout",
+                status=None,
+                cause=exc,
+            ) from exc
 
     async def health_check(self) -> dict[str, Any]:
         """Probe the Neptune endpoint with ``RETURN 1 AS ok``.

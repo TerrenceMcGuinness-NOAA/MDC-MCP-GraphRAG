@@ -241,8 +241,9 @@ class MockGraphDB:
     )
     health: dict[str, Any] | None = None
     raise_on_query: BaseException | None = None
+    raise_for_fragment: dict[str, BaseException] = field(default_factory=dict)
     connected: bool = False
-    call_log: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = field(
+    call_log: list[tuple[Any, ...]] = field(
         default_factory=list
     )
 
@@ -253,6 +254,14 @@ class MockGraphDB:
         matches ``query_fragment``. Later registrations override earlier
         ones for the same fragment."""
         self.responses[query_fragment] = list(rows)
+
+    def add_raise(self, query_fragment: str, exc: BaseException) -> None:
+        """Register ``exc`` to be raised when ``query_fragment`` is a
+        substring of the cypher. Longest matching fragment wins. Used to
+        fail a specific traversal query (e.g. the variable-length
+        expansion) while other queries (e.g. the degree probe) still
+        succeed."""
+        self.raise_for_fragment[query_fragment] = exc
 
     async def connect(self) -> None:
         self.connected = True
@@ -267,8 +276,28 @@ class MockGraphDB:
         cypher: str,
         params: dict[str, Any] | None = None,
         tenant: Any = None,
+        *,
+        timeout: float | None = None,
     ) -> list[dict[str, Any]]:
-        self.call_log.append(("query", (cypher,), dict(params or {})))
+        # call_log entry shape: (method, args, params, kwargs). The
+        # ``kwargs`` (4th) element records ``tenant`` and ``timeout`` so
+        # tenant-scoping (Property 5) and statement-timeout assertions can
+        # inspect them. Existing tests only read entry[0] / entry[1][0],
+        # so the extra element is backward-compatible.
+        self.call_log.append(
+            ("query", (cypher,), dict(params or {}),
+             {"tenant": tenant, "timeout": timeout})
+        )
+        # Per-fragment raise override: raise the exception registered for
+        # the longest matching fragment (used to fail only the expansion
+        # query while the degree probe still succeeds — timeout-path
+        # tests). Falls back to the global ``raise_on_query``.
+        rmatch = ""
+        for frag in self.raise_for_fragment:
+            if frag and frag in cypher and len(frag) > len(rmatch):
+                rmatch = frag
+        if rmatch:
+            raise self.raise_for_fragment[rmatch]
         if self.raise_on_query is not None:
             raise self.raise_on_query
         # First check for a registered fragment match (longest wins so a
