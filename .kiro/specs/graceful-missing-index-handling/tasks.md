@@ -15,7 +15,7 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
 
 ## Tasks
 
-- [ ] 1. Add Detect_Helper and Render_Helper to `src/tools/_common.py`
+- [x] 1. Add Detect_Helper and Render_Helper to `src/tools/_common.py`
   - Create or extend `mcp_server_python/src/tools/_common.py` with two
     pure-Python helpers:
     - `_is_missing_index_exc(exc: BaseException) -> bool`
@@ -34,7 +34,7 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
     `None`.
   - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 2.4, 2.5_
 
-  - [ ]* 1.1 Helper unit tests
+  - [x]* 1.1 Helper unit tests
     - New file `mcp_server_python/tests/unit/test_tool_common_helpers.py`
       (or extend existing test file if `_common.py` already has one).
     - `_is_missing_index_exc`:
@@ -55,7 +55,7 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
       - `output.encode('ascii')` does not raise.
     - _Validates: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 2. Wire `search_architecture` to use the helpers
+- [x] 2. Wire `search_architecture` to use the helpers
   - In `mcp_server_python/src/tools/graph_rag.py`:
     `_tool_search_architecture` — extend the existing `except Exception
     as exc:` block with a `_is_missing_index_exc` branch that returns
@@ -65,7 +65,7 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
     formatter.
   - _Requirements: 3.1, 3.6, 4.1, 4.2_
 
-  - [ ]* 2.1 Tests for `search_architecture`
+  - [x]* 2.1 Tests for `search_architecture`
     - In `mcp_server_python/tests/unit/test_graph_rag_tools.py` (or
       whichever file exercises the tool today):
       - **Healthy-path**: mock `vector_db.query` to return a synthetic
@@ -84,32 +84,32 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
       before commit.
     - _Validates: 3.1, 4.1, 4.2, 5.1, 5.3_
 
-- [ ] 3. Wire `find_similar_code` to use the helpers
+- [x] 3. Wire `find_similar_code` to use the helpers
   - In `mcp_server_python/src/tools/graph_rag.py`:
     `_tool_find_similar_code` — same pattern as Task 2 with
     `tool="find_similar_code"` and `collection=CODE_COLLECTION`.
   - _Requirements: 3.2, 3.6, 4.1, 4.2_
 
-  - [ ]* 3.1 Tests for `find_similar_code`
+  - [x]* 3.1 Tests for `find_similar_code`
     - Same three test shapes as Task 2.1 (healthy / missing-index /
       non-404) plus the Bug-Condition Exploration test, scoped to
       `find_similar_code` and the code collection.
     - _Validates: 3.2, 4.1, 4.2, 5.1, 5.3_
 
-- [ ] 4. Wire `get_operational_guidance` to use the helpers
+- [x] 4. Wire `get_operational_guidance` to use the helpers
   - In `mcp_server_python/src/tools/operational.py`:
     `_tool_get_operational_guidance` — same pattern with
     `tool="get_operational_guidance"` and
     `collection=WORKFLOW_DOCS_COLLECTION`.
   - _Requirements: 3.3, 3.6, 4.1, 4.2_
 
-  - [ ]* 4.1 Tests for `get_operational_guidance`
+  - [x]* 4.1 Tests for `get_operational_guidance`
     - Same three test shapes plus the Bug-Condition Exploration test,
       scoped to `get_operational_guidance` and the workflow-docs
       collection.
     - _Validates: 3.3, 4.1, 4.2, 5.1, 5.3_
 
-- [ ] 5. Wire `search_documentation` (explicit-collection branch) to use the helpers
+- [x] 5. Wire `search_documentation` (explicit-collection branch) to use the helpers
   - In `mcp_server_python/src/tools/semantic_search.py`:
     `_tool_search_documentation` — extend the existing `except Exception
     as exc:` block with the `_is_missing_index_exc` branch ONLY for the
@@ -117,7 +117,7 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
     intentionally unchanged (Property 4 / R3.5).
   - _Requirements: 3.4, 3.5, 3.6, 4.1, 4.2_
 
-  - [ ]* 5.1 Tests for `search_documentation`
+  - [x]* 5.1 Tests for `search_documentation`
     - Same three test shapes for the explicit-`collection=` branch.
     - **Multi-collection Property 4**: a test that mocks
       `multi_collection_query` to return `[]` (per-collection swallow
@@ -129,7 +129,7 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
       explicit-`collection=` branch.
     - _Validates: 3.4, 3.5, 4.1, 4.2, 5.1, 5.3, 5.4_
 
-- [ ] 6. CHANGELOG and full-suite gate
+- [x] 6. CHANGELOG and full-suite gate
   - CHANGELOG entry under the next available patch version after
     `[8.36.2]` (i.e. `[8.36.3]` if `opensearch-tenant-resolution-fix`
     has shipped first; if the two ship together, fold under one entry).

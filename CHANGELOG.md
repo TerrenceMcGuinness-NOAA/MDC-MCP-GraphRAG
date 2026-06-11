@@ -1,5 +1,73 @@
 # MCP Server Changelog
 
+## [8.36.3] - Graceful missing-index handling (graceful-missing-index-handling) (Jun 11, 2026)
+
+### Summary
+
+Aligns four tenant-scoped vector tools on a single `[INFO]`-prefixed Skip_Block
+when their backing OpenSearch index is genuinely absent for the active tenant,
+instead of leaking raw `NotFoundError(404, 'index_not_found_exception', ...)`
+text. Companion to `opensearch-tenant-resolution-fix` ([8.36.2]): that spec
+ensures the resolved index name is correct; this one handles the remaining
+"index does not exist for this tenant yet" case (e.g. v17 has no
+`gw_v17_mdc-community-summaries-titan1024` or `gw_v17_mdc-ee2-standards-*`).
+
+Tool-layer only — two pure helpers in a new `src/tools/_common.py` plus four
+~7-line `except`-block edits. No data-layer change (`opensearch_adapter.py`,
+`multi_collection_query`, resolver untouched), no new dependency, no new tool
+parameter. `search_documentation` multi-collection mode is intentionally
+unchanged — `multi_collection_query` still swallows per-collection 404s and
+returns `[]`, rendering the legacy `No results found for: "..."` line
+(Property 4 / R3.5). gw default-tenant paths are byte-equivalent. This
+implements waves 0-2 of the spec (Tasks 1-6); the gated build + deploy + live
+validation (wave 3, Task 7) is operator-driven and not part of this change.
+
+### Added
+
+- `mcp_server_python/src/tools/_common.py` (NEW): shared tool-layer helpers.
+  - `_is_missing_index_exc(exc)` — True iff the exception is an opensearchpy
+    `NotFoundError` with `info['error']['type'] == 'index_not_found_exception'`,
+    OR (string fallback) `'index_not_found_exception' in str(exc)`. The
+    opensearchpy import is wrapped in `try/except ImportError` so the helper has
+    no hard SDK dependency at import time (R1.3).
+  - `_missing_index_skip(*, tool, query, collection, tenant_id)` — renders the
+    standardised `[INFO]` Skip_Block: collection name, active tenant, and a
+    `get_knowledge_base_status` advisory. ASCII-only, no payloads or stack
+    traces (R2.5).
+  - `_tenant_id_or_none()` — returns the active tenant's id or `None`.
+
+### Changed
+
+- `mcp_server_python/src/tools/graph_rag.py`: `search_architecture` and
+  `find_similar_code` exception handlers now return the Skip_Block (citing
+  `community-summaries` / `code-with-context-v8-0-0` respectively) when
+  `_is_missing_index_exc` matches, before falling through to `[ERROR]`.
+- `mcp_server_python/src/tools/operational.py`: `get_operational_guidance`
+  same wiring, citing `global-workflow-docs-v8-0-0`.
+- `mcp_server_python/src/tools/semantic_search.py`: `search_documentation`
+  explicit-`collection=` branch only — the missing-index branch is gated on a
+  truthy `collection`, so the multi-collection path is provably untouched.
+- Non-`index_not_found_exception` exceptions keep their existing `[ERROR] ...
+  failed: <exc>` rendering in all four tools (R4.2).
+
+### Tests
+
+- `mcp_server_python/tests/unit/test_tool_common_helpers.py` (NEW): the
+  `_is_missing_index_exc` detection matrix (structured True, structured
+  non-matching type False, structured-when-str-lacks-token True, string
+  fallback True, transport error False, BaseException False) and the
+  `_missing_index_skip` format invariants (`[INFO]` prefix, collection/tenant/
+  advisory present, ASCII-only).
+- Extended `test_graph_rag_tools.py`, `test_operational_tools.py`,
+  `test_semantic_search_tools.py`: per-tool missing-index (`[INFO]` Skip_Block),
+  non-404 (`[ERROR]` preserved), and Bug-Condition Exploration tests, plus the
+  `search_documentation` multi-collection Property 4 test (empty merged result
+  still renders `No results found for: "..."`, never a Skip_Block).
+- Suite: 1354 -> 1379 (unit + properties), all green. All four Bug-Condition
+  Exploration tests were demonstrated failing on the unfixed code (raw
+  `[ERROR] ... index_not_found_exception`) and passing on the fixed code
+  before commit.
+
 ## [8.36.2] - OpenSearch tenant resolution + status scoping (opensearch-tenant-resolution-fix) (Jun 11, 2026)
 
 ### Summary
