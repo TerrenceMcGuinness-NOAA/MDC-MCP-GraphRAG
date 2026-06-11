@@ -203,8 +203,25 @@ class OpenSearchAdapter:
 
         # Route to the index whose vector dimensionality matches the
         # active embedding profile (Requirement 8.1, 5.3 of design).
-        scoped = self.resolve_tenant_index(collection, tenant) if tenant else collection
-        index = resolve_index(scoped, self._profile.short_name)
+        #
+        # Map the Logical_Collection to its Real_Index_Name BEFORE
+        # applying the tenant prefix. The Production_Index_Map is keyed
+        # by the unprefixed legacy name; prefixing first makes the lookup
+        # miss and targets a non-existent index (the v17 404 wave).
+        real = resolve_index(collection, self._profile.short_name)
+        index = self.resolve_tenant_index(real, tenant) if tenant else real
+        if real == collection:
+            # Diagnostic: collection not in the production index map for
+            # the active profile (e.g. Nova, or a non-production name).
+            # ASCII-only, no query body or credentials (R4.1, R4.2).
+            log.info(
+                "[opensearch] collection %r not in production index map "
+                "(profile=%s, tenant=%s); passthrough -> index=%r",
+                collection,
+                self._profile.short_name,
+                getattr(tenant, "tenant_id", "none"),
+                index,
+            )
         embedding = await self._generate_embedding(query_text)
         body = self._build_hybrid_query(query_text, embedding, k, where)
 
@@ -302,13 +319,20 @@ class OpenSearchAdapter:
                 self._raw_client().cat.indices,
                 format="json",
             )
-            # Filter to mdc-* indices (our production indices) and
-            # exclude system indices (starting with .).
+            # Keep production indices: the unprefixed ``mdc-*`` base set
+            # (default gw tenant) and any tenant-prefixed ``<prefix>mdc-*``
+            # index (e.g. ``gw_v17_mdc-code-titan1024``). Per-tenant scoping
+            # is applied downstream by the status renderer; enumerating both
+            # families here keeps gw's view unchanged (the renderer filters
+            # the prefixed entries back out for gw). System indices (``.``)
+            # are excluded.
             indices_detail: dict[str, int] = {}
             total_docs = 0
             for idx in cat_indices or []:
                 name = idx.get("index", "")
-                if name.startswith(".") or not name.startswith("mdc-"):
+                if name.startswith(".") or not (
+                    name.startswith("mdc-") or "_mdc-" in name
+                ):
                     continue
                 doc_count = int(idx.get("docs.count") or 0)
                 indices_detail[name] = doc_count

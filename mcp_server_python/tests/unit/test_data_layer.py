@@ -707,3 +707,179 @@ async def test_aws_backend_builds_real_adapters_when_endpoints_set(
     assert built.get("os_connected") is True
     assert built.get("np_connected") is True
     assert facade.backend == "aws"
+
+
+# ── Bug 1: OpenSearchAdapter resolution order (opensearch-tenant-resolution-fix)
+
+
+class _FakeTenant:
+    """Minimal tenant double exposing ``index_prefix`` + ``tenant_id``."""
+
+    def __init__(self, tenant_id: str, index_prefix: str) -> None:
+        self.tenant_id = tenant_id
+        self.index_prefix = index_prefix
+
+
+async def _query_index(
+    adapter: Any, collection: str, *, tenant: Any = None
+) -> str:
+    """Run ``adapter.query`` with the search path mocked, returning the
+    OpenSearch index name the query targeted."""
+    from unittest.mock import AsyncMock
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_search(*, index: str, body: Any) -> dict[str, Any]:
+        captured["index"] = index
+        return {"hits": {"hits": []}}
+
+    adapter._connected = True
+    adapter._search_with_retry = AsyncMock(side_effect=_fake_search)
+    await adapter.query(collection, "some query", tenant=tenant)
+    return captured["index"]
+
+
+async def test_query_default_tenant_mapped_collection_unchanged(
+    monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory
+) -> None:
+    """Property 4: default (empty-prefix) tenant resolves to the bare
+    Real_Index_Name — byte-equivalent to the pre-fix path."""
+    from src.data.opensearch_adapter import OpenSearchAdapter
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    adapter = OpenSearchAdapter(endpoint="https://os.example")
+    gw = _FakeTenant("gw", "")
+    index = await _query_index(
+        adapter, "code-with-context-v8-0-0", tenant=gw
+    )
+    assert index == "mdc-code-context-titan1024"
+
+
+async def test_query_default_tenant_none_mapped_collection(
+    monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory
+) -> None:
+    """No tenant passed → same Real_Index_Name (default path)."""
+    from src.data.opensearch_adapter import OpenSearchAdapter
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    adapter = OpenSearchAdapter(endpoint="https://os.example")
+    index = await _query_index(adapter, "global-workflow-docs-v8-0-0")
+    assert index == "mdc-workflow-docs-titan1024"
+
+
+async def test_query_nondefault_tenant_mapped_collection(
+    monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory
+) -> None:
+    """R1.2: non-default tenant resolves to ``<prefix><real_name>``."""
+    from src.data.opensearch_adapter import OpenSearchAdapter
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    adapter = OpenSearchAdapter(endpoint="https://os.example")
+    v17 = _FakeTenant("gw_v17", "gw_v17_")
+    index = await _query_index(
+        adapter, "code-with-context-v8-0-0", tenant=v17
+    )
+    assert index == "gw_v17_mdc-code-context-titan1024"
+
+
+async def test_query_nondefault_tenant_unmapped_collection_passthrough(
+    monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory, caplog
+) -> None:
+    """R1.3 + R4.1: unmapped collection passes through with the tenant
+    prefix and emits the miss log exactly once."""
+    import logging
+
+    from src.data.opensearch_adapter import OpenSearchAdapter
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    adapter = OpenSearchAdapter(endpoint="https://os.example")
+    v17 = _FakeTenant("gw_v17", "gw_v17_")
+    with caplog.at_level(logging.INFO, logger="src.data.opensearch_adapter"):
+        index = await _query_index(
+            adapter, "nonexistent-collection-v9", tenant=v17
+        )
+    assert index == "gw_v17_nonexistent-collection-v9"
+    miss_logs = [
+        r for r in caplog.records
+        if "not in production index map" in r.getMessage()
+    ]
+    assert len(miss_logs) == 1
+    # ASCII-only diagnostic, no query body (R4.2).
+    assert miss_logs[0].getMessage().isascii()
+
+
+async def test_query_mapped_collection_emits_no_miss_log(
+    monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory, caplog
+) -> None:
+    """A mapped collection must NOT emit the passthrough miss log."""
+    import logging
+
+    from src.data.opensearch_adapter import OpenSearchAdapter
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    adapter = OpenSearchAdapter(endpoint="https://os.example")
+    v17 = _FakeTenant("gw_v17", "gw_v17_")
+    with caplog.at_level(logging.INFO, logger="src.data.opensearch_adapter"):
+        await _query_index(adapter, "jjobs-v8-0-0", tenant=v17)
+    assert not any(
+        "not in production index map" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+async def test_multi_collection_query_resolves_each_per_rule(
+    monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory
+) -> None:
+    """R1.4: multi_collection_query applies the same order to each name."""
+    from unittest.mock import AsyncMock
+
+    from src.data.opensearch_adapter import OpenSearchAdapter
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    adapter = OpenSearchAdapter(endpoint="https://os.example")
+    adapter._connected = True
+    seen: list[str] = []
+
+    async def _fake_search(*, index: str, body: Any) -> dict[str, Any]:
+        seen.append(index)
+        return {"hits": {"hits": []}}
+
+    adapter._search_with_retry = AsyncMock(side_effect=_fake_search)
+    v17 = _FakeTenant("gw_v17", "gw_v17_")
+    await adapter.multi_collection_query(
+        ["code-with-context-v8-0-0", "unmapped-x"],
+        "q",
+        tenant=v17,
+    )
+    assert "gw_v17_mdc-code-context-titan1024" in seen
+    assert "gw_v17_unmapped-x" in seen
+
+
+async def test_bug1_exploration_resolution_order(
+    monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory
+) -> None:
+    """Bug-condition exploration (Bug 1).
+
+    On the UNFIXED code the tenant prefix is applied first, so
+    ``resolve_index`` looks up ``gw_v17_code-with-context-v8-0-0`` (a
+    miss), returns it unchanged, and the query targets the broken
+    ``gw_v17_code-with-context-v8-0-0`` — a non-existent index (404).
+
+    On the FIXED code ``resolve_index`` runs against the bare collection
+    first, yielding ``mdc-code-context-titan1024``, then the prefix is
+    applied → ``gw_v17_mdc-code-context-titan1024`` (the real index).
+
+    Asserting the correct resolved name fails on the unfixed code and
+    passes on the fixed code. Both directions were demonstrated before
+    commit (see CHANGELOG [8.36.2]).
+    """
+    from src.data.opensearch_adapter import OpenSearchAdapter
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    adapter = OpenSearchAdapter(endpoint="https://os.example")
+    v17 = _FakeTenant("gw_v17", "gw_v17_")
+    index = await _query_index(
+        adapter, "code-with-context-v8-0-0", tenant=v17
+    )
+    assert index == "gw_v17_mdc-code-context-titan1024"
+    assert index != "gw_v17_code-with-context-v8-0-0"  # the unfixed bug
