@@ -103,7 +103,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
     clean.
   - _Requirements: 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 6. Phase A — gated build + deploy + live validation
+- [x] 6. Phase A — gated build + deploy + live validation
   - STOP-AND-CONFIRM before ECR push and `update-agent-runtime` (AWS write-safety).
   - Build the image (`python-tenants-v9`), push, cut runtime v32 → v33.
     Carry the full lossless deploy payload (env vars, VPC subnets, SG, EFS
@@ -118,6 +118,16 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
     - All other probes unchanged.
   - Record the runtime version + image tag in the gap tracker / CHANGELOG.
     Rollback target: `python-tenants-v8` (v32).
+  - DONE 2026-06-11: image `python-tenants-v9` (digest
+    `sha256:810f10138d76...`), runtime cutover v32 → v33, status READY.
+    Live validation:
+    `mcp_health_check(functional=True)` shows `workflow_info [SKIP] skip` with
+    reason `workflow_root=/mnt/workflow not mounted`; summary reads
+    `9/10 passed, 0 failed, 1 skipped` (was `9/10 passed, 1 failed, 0 skipped`).
+    `check_knowledge_integrity()` returns a real report with all four sub-checks
+    rendered (Path Consistency, Orphaned Graph Nodes, Stale Embeddings, Coverage
+    Gap) — no tz TypeError. The other 9 probes are byte-equivalent.
+    Rollback target preserved: `python-tenants-v8` (v32).
   - _Requirements: 3.4, 3.5, 5.1 (live)_
 
 ## Task Dependency Graph
