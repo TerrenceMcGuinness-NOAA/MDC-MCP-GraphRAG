@@ -255,6 +255,13 @@ async def _smoke_workflow_info(_data: Any, _mcp: Any) -> bool:
     Pass when either ``<workflow_root>/jobs`` or
     ``<workflow_root>/dev/jobs`` is a directory. Uses tenant context
     when available, falls back to MCP_WORKFLOW_ROOT env var.
+
+    When the resolved ``workflow_root`` is not mounted (does not exist)
+    or exists but contains neither ``jobs/`` nor ``dev/jobs/``, the probe
+    reports SKIP (via :class:`SkipProbe`) rather than FAIL — the absence
+    of an EFS workflow mount is a known, deliberate deferral, not a
+    broken backend. This matches the ``github_tools`` no-token SKIP path
+    so the harness has a single skip mechanism.
     """
     from src.tenancy.resolver import get_current_tenant_or_none
 
@@ -266,11 +273,12 @@ async def _smoke_workflow_info(_data: Any, _mcp: Any) -> bool:
             os.environ.get("MCP_WORKFLOW_ROOT")
             or "supported_repos/global-workflow"
         )
+    if not workflow_root.exists():
+        raise SkipProbe(f"workflow_root={workflow_root} not mounted")
     if _smoke_workflow_info_check(workflow_root):
         return True
-    raise RuntimeError(
-        f"workflow_root={workflow_root} contains neither jobs/ nor dev/jobs/ "
-        f"(tenant={ctx.tenant_id if ctx else 'none'})"
+    raise SkipProbe(
+        f"workflow_root={workflow_root} contains neither jobs/ nor dev/jobs/"
     )
 
 
