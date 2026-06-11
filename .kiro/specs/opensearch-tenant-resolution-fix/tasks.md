@@ -15,7 +15,7 @@ gated build/deploy/live validation, gated alias creation.
 
 ## Tasks
 
-- [ ] 1. Bug 1 fix — swap resolution order in `OpenSearchAdapter.query`
+- [x] 1. Bug 1 fix — swap resolution order in `OpenSearchAdapter.query`
   - In `src/data/opensearch_adapter.py::OpenSearchAdapter.query`, swap the
     two-line `scoped = ...; index = resolve_index(scoped, ...)` block so
     `resolve_index` runs first against the bare `collection` and the tenant
@@ -27,7 +27,7 @@ gated build/deploy/live validation, gated alias creation.
     returns the input unchanged (R4.1, R4.2). ASCII-only, no payloads.
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 3.2, 4.1, 4.2_
 
-  - [ ]* 1.1 Bug 1 unit + Bug-Condition Exploration tests
+  - [x]* 1.1 Bug 1 unit + Bug-Condition Exploration tests
     - In `tests/unit/test_data_layer.py`, add tests covering:
       - Default tenant + mapped collection → Real_Index_Name unchanged
         (Property 4 byte-equivalence).
@@ -43,7 +43,7 @@ gated build/deploy/live validation, gated alias creation.
       before committing.
     - _Validates: 1.1, 1.2, 1.3, 4.1, 6.1, 6.2_
 
-- [ ] 2. Bug 2 fix — tenant-scoped vector status block
+- [x] 2. Bug 2 fix — tenant-scoped vector status block
   - In `src/tools/semantic_search.py`, extend `_render_vector_status_block`
     to read the active tenant via the existing `_tenant()` helper and filter
     the indices listing returned by `vector_db.health_check(deep=True)`:
@@ -61,7 +61,7 @@ gated build/deploy/live validation, gated alias creation.
     it is unit-testable in isolation.
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.2_
 
-  - [ ]* 2.1 Bug 2 unit + Bug-Condition Exploration tests
+  - [x]* 2.1 Bug 2 unit + Bug-Condition Exploration tests
     - In `tests/unit/test_semantic_search_tools.py` (or extend the file
       currently exercising `get_knowledge_base_status`):
       - With a synthetic `MockVectorDB` returning a mix of `mdc-*` and
@@ -76,7 +76,7 @@ gated build/deploy/live validation, gated alias creation.
       and on **fixed** code returns a smaller, prefix-scoped list.
     - _Validates: 2.1, 2.2, 2.3, 2.4, 6.3_
 
-- [ ] 3. CHANGELOG and full-suite gate
+- [x] 3. CHANGELOG and full-suite gate
   - CHANGELOG entry under `[8.36.2]` (current latest is `[8.36.1]`; this is a
     small bugfix on top of the health-check-bugfixes deploy).
   - `cd mcp_server_python && python3.12 -m pytest tests/unit/ tests/properties/ -q`

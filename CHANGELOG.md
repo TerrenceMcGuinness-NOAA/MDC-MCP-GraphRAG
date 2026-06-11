@@ -1,5 +1,83 @@
 # MCP Server Changelog
 
+## [8.36.2] - OpenSearch tenant resolution + status scoping (opensearch-tenant-resolution-fix) (Jun 11, 2026)
+
+### Summary
+
+Two related tool-layer bug fixes that ship in one runtime image.
+
+**Bug 1** — `OpenSearchAdapter.query` applied the tenant `index_prefix` BEFORE
+asking the production index map to translate the logical collection name. The
+map is keyed by the unprefixed legacy name, so prefixing first
+(`gw_v17_code-with-context-v8-0-0`) missed the lookup, `resolve_index` returned
+it unchanged, and the query targeted a non-existent index — a raw
+`NotFoundError(404)` for every non-default tenant. Fix: resolve the legacy name
+first (`mdc-code-context-titan1024`), then prepend the tenant prefix
+(`gw_v17_mdc-code-context-titan1024`). `multi_collection_query` flows through
+`query`, so the swap covers it uniformly.
+
+**Bug 2** — `get_knowledge_base_status`'s vector-side block enumerated every
+OpenSearch index regardless of the active tenant, so non-default tenants saw
+the global roll-up instead of their own footprint. Fix:
+`_render_vector_status_block` now scopes the listing to the active tenant's
+`index_prefix` (non-default → indices starting with the prefix; default `gw` →
+indices that start with no other tenant's prefix), recomputes the total and
+status flag from the filtered subset, and shows a `**Tenant prefix:**` line for
+non-default tenants.
+
+Tool-layer change only — no new dependency, env var, public adapter method, or
+change to `PRODUCTION_INDICES_BY_PROFILE`. The default `gw` adapter resolution
+and status block are byte-equivalent to the pre-fix output (Property 4). This
+implements waves 0-2 of the `opensearch-tenant-resolution-fix` spec
+(Tasks 1-3). The gated build + deploy + live validation (wave 3, Task 4) and
+the gated v17 code-index OpenSearch alias (wave 4, Task 5) are operator-driven
+and not part of this change.
+
+### Fixed
+
+- `mcp_server_python/src/data/opensearch_adapter.py`: `OpenSearchAdapter.query`
+  now calls `resolve_index(collection, profile)` against the bare logical
+  collection first, then applies `resolve_tenant_index` to the resolved real
+  index name (Bug 1; R1.1-R1.4). Emits one ASCII-only info-level log line — no
+  query body or credentials — when the collection misses the production index
+  map and falls through to passthrough (R4.1, R4.2).
+
+### Changed
+
+- `mcp_server_python/src/tools/semantic_search.py`: `_render_vector_status_block`
+  is now tenant-aware (Bug 2; R2.1-R2.5). New module-level helpers
+  `_other_index_prefixes` (catalog index-prefixes other than the active
+  tenant), `_index_in_tenant_scope`, and `_filter_indices_by_tenant` (returns
+  the filtered index list, per-index detail, and a recomputed total). The
+  `**Tenant prefix:**` header line is shown only for non-default tenants so the
+  `gw` block stays byte-equivalent (Property 4).
+- `mcp_server_python/src/data/opensearch_adapter.py`: `health_check(deep=True)`
+  index enumeration now also surfaces tenant-prefixed `<prefix>mdc-*` indices
+  (previously only `mdc-*`), so the tenant-scoped status renderer has the
+  per-tenant indices to filter. Required for Bug 2's R2.2 to function in
+  production; `gw`'s view is unchanged because the renderer filters the
+  prefixed entries back out for the default tenant.
+
+### Tests
+
+- `mcp_server_python/tests/unit/test_data_layer.py`: Bug 1 coverage —
+  default-tenant + mapped collection (Property 4 equivalence), no-tenant path,
+  non-default + mapped (`<prefix><real>`), non-default + unmapped passthrough
+  with the miss-log asserted exactly once (and ASCII-only), a mapped collection
+  emitting no miss-log, `multi_collection_query` over mixed mapped/unmapped
+  names, and the Bug 1 bug-condition exploration test (broken
+  `gw_v17_code-with-context-v8-0-0` on unfixed code, correct
+  `gw_v17_mdc-code-context-titan1024` on fixed code).
+- `mcp_server_python/tests/unit/test_semantic_search_tools.py`: Bug 2 coverage —
+  `_filter_indices_by_tenant` / `_index_in_tenant_scope` rules, the rendered
+  status block for `gw` (base-only, no tenant line) and `gw_v17` (prefixed-only,
+  tenant line, filtered total), and the Bug 2 bug-condition exploration test
+  (identical gw/v17 lists on unfixed code, disjoint prefix-scoped lists on
+  fixed code).
+- Suite: 1341 -> 1354 (unit + properties), all green. Both bug-condition
+  exploration tests were demonstrated failing on the unfixed code and passing
+  on the fixed code before commit.
+
 ## [8.36.1] - Health-check tool-layer bugfixes (health-check-bugfixes) (Jun 11, 2026)
 
 ### Summary
