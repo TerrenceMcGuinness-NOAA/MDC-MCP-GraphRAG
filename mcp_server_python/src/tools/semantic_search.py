@@ -1779,7 +1779,11 @@ async def _check_stale_embeddings(
         if not timestamp_raw:
             continue
         mod_time = _parse_iso_ts(timestamp_raw)
-        if mod_time is None:
+        if mod_time is None or mod_time.tzinfo is None:
+            # Defence-in-depth: never compare a tz-naive datetime against
+            # the tz-aware ``now`` (would raise TypeError). _parse_iso_ts
+            # already guarantees tz-aware; this guard tolerates a future
+            # bypass without aborting the whole check.
             continue
         checked += 1
 
@@ -1950,14 +1954,21 @@ def _iso_now() -> str:
 
 
 def _parse_iso_ts(raw: Any) -> datetime | None:
-    if not isinstance(raw, str):
+    if not isinstance(raw, str) or not raw:
         return None
     try:
         if raw.endswith("Z"):
             raw = raw[:-1] + "+00:00"
-        return datetime.fromisoformat(raw)
+        dt = datetime.fromisoformat(raw)
     except ValueError:
         return None
+    # Every persisted timestamp in this codebase is UTC by convention, so a
+    # tz-naive parse is safely interpreted as already-UTC. Returning a
+    # tz-aware datetime keeps downstream arithmetic against
+    # ``datetime.now(timezone.utc)`` from raising a tz-mismatch TypeError.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _git_head_time(repo_base: Path) -> datetime | None:

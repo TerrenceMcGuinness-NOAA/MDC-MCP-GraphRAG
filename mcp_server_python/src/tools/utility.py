@@ -530,6 +530,7 @@ async def _render_health_check(
             )
             lines.append(f"- subdirectories: {', '.join(subdirs) if subdirs else '(none)'}")
 
+    functional_summary: dict[str, int] | None = None
     if functional:
         lines.append("")
         lines.append("## Functional Validation")
@@ -553,10 +554,13 @@ async def _render_health_check(
                     f"_Functional tests aborted: {type(exc).__name__}: {exc}_"
                 )
             else:
+                functional_summary = _functional_summary(results)
                 lines.extend(_render_functional_results(results))
 
     if deep and health_payload is not None:
-        _append_health_snapshot(state_dir, health_payload)
+        _append_health_snapshot(
+            state_dir, health_payload, functional=functional_summary
+        )
         lines.append("")
         lines.append("*Health snapshot persisted to health_history.jsonl*")
 
@@ -594,7 +598,6 @@ def _render_functional_results(results: list[Any]) -> list[str]:
     lines: list[str] = []
     lines.append("| Module | Status | Latency | Error |")
     lines.append("|--------|--------|---------|-------|")
-    passed = failed = skipped = 0
     for r in results:
         marker = status_marker.get(r.status, "[?]")
         status_cell = f"{marker} {r.status}"
@@ -608,23 +611,46 @@ def _render_functional_results(results: list[Any]) -> list[str]:
         lines.append(
             f"| {r.module} | {status_cell} | {latency} | {err} |"
         )
+
+    summary = _functional_summary(results)
+    lines.append("")
+    lines.append(
+        f"**Summary**: {summary['passed']}/{summary['total']} passed, "
+        f"{summary['failed']} failed, {summary['skipped']} skipped"
+    )
+    return lines
+
+
+def _functional_summary(results: list[Any]) -> dict[str, int]:
+    """Tally pass / fail / skip counts for a list of ``ModuleResult``.
+
+    Single source of truth for both the rendered summary line and the
+    persisted ``health_history.jsonl`` ``functional`` block (R3.5).
+    Skips are counted separately from failures so a downstream trend
+    tool can distinguish "not provisioned" from "broken".
+    """
+    passed = failed = skipped = 0
+    for r in results:
         if r.status == "pass":
             passed += 1
         elif r.status == "fail":
             failed += 1
         elif r.status == "skip":
             skipped += 1
-
-    total = len(results)
-    lines.append("")
-    lines.append(
-        f"**Summary**: {passed}/{total} passed, {failed} failed, "
-        f"{skipped} skipped"
-    )
-    return lines
+    return {
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "total": len(results),
+    }
 
 
-def _append_health_snapshot(state_dir: Path, payload: dict[str, Any]) -> None:
+def _append_health_snapshot(
+    state_dir: Path,
+    payload: dict[str, Any],
+    *,
+    functional: dict[str, int] | None = None,
+) -> None:
     """Persist a health snapshot in the Node.js-compatible JSONL format.
 
     Schema is a 1:1 port of the Node.js ``UnifiedMCPServer.healthCheck``
@@ -667,6 +693,17 @@ def _append_health_snapshot(state_dir: Path, payload: dict[str, Any]) -> None:
         },
         "drift": {"neo4j_node_delta": 0, "chromadb_doc_delta": 0},
     }
+
+    # R3.5: carry functional smoke counts (passed/failed/skipped) into the
+    # persisted snapshot so a downstream trend tool can distinguish skips
+    # from failures. Additive + optional — old readers ignore the key, so
+    # this is forward-compatible with the existing JSONL schema.
+    if functional is not None:
+        snapshot["functional"] = {
+            "passed": int(functional.get("passed", 0)),
+            "failed": int(functional.get("failed", 0)),
+            "skipped": int(functional.get("skipped", 0)),
+        }
 
     history_path = state_dir / HEALTH_HISTORY_FILENAME
     prev = _read_last_health_snapshot(history_path)

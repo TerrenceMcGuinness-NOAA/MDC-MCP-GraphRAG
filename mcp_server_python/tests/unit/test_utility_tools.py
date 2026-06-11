@@ -608,3 +608,105 @@ def test_infer_active_modules_empty_when_no_markers() -> None:
 def test_default_server_version_returns_string() -> None:
     v = utility._default_server_version()
     assert isinstance(v, str) and v
+
+
+# ── functional-validation harness rendering (health-check-bugfixes) ─────
+
+
+def _module_result(module: str, status: str, *, error: str = "", latency_ms: int = 0):
+    """Build a ``ModuleResult`` for harness-rendering tests."""
+    from src.tools.smoke_queries import ModuleResult
+
+    return ModuleResult(
+        module=module, status=status, latency_ms=latency_ms, error=error
+    )
+
+
+def test_render_functional_results_renders_skip_row_and_summary() -> None:
+    """Task 3.1: a mixed [pass, pass, skip, pass, fail] list renders one
+    SKIP row + one FAIL row and the summary reads
+    '3/5 passed, 1 failed, 1 skipped' (R3.4)."""
+    results = [
+        _module_result("semantic_search", "pass"),
+        _module_result("code_analysis", "pass"),
+        _module_result("workflow_info", "skip", error="workflow_root=/x not mounted"),
+        _module_result("graph_rag", "pass"),
+        _module_result("ee2_compliance", "fail", error="0 hits"),
+    ]
+    lines = utility._render_functional_results(results)
+    text = "\n".join(lines)
+
+    # SKIP row present with its reason and the [SKIP] marker.
+    assert "| workflow_info | [SKIP] skip |" in text
+    assert "workflow_root=/x not mounted" in text
+    # FAIL row present with the [ERROR] marker.
+    assert "| ee2_compliance | [ERROR] fail |" in text
+    # Summary distinguishes skips from failures.
+    assert "**Summary**: 3/5 passed, 1 failed, 1 skipped" in text
+
+
+def test_render_functional_results_all_pass_summary_byte_equivalent() -> None:
+    """Property 4: when nothing skips or fails, the summary is the same
+    'N/N passed, 0 failed, 0 skipped' line as before the fix."""
+    results = [
+        _module_result("semantic_search", "pass"),
+        _module_result("utility", "pass"),
+    ]
+    text = "\n".join(utility._render_functional_results(results))
+    assert "**Summary**: 2/2 passed, 0 failed, 0 skipped" in text
+
+
+def test_functional_summary_counts() -> None:
+    """The shared tally helper counts pass/fail/skip and total."""
+    results = [
+        _module_result("a", "pass"),
+        _module_result("b", "skip"),
+        _module_result("c", "fail"),
+        _module_result("d", "pass"),
+    ]
+    assert utility._functional_summary(results) == {
+        "passed": 2,
+        "failed": 1,
+        "skipped": 1,
+        "total": 4,
+    }
+
+
+def test_append_health_snapshot_carries_functional_counts(
+    tmp_state_dir: Path,
+) -> None:
+    """R3.5: the persisted snapshot carries passed/failed/skipped integer
+    counts so a downstream trend tool can distinguish skips from fails."""
+    payload = {
+        "vector": {"ok": True, "indexCount": 5, "totalDocuments": 100},
+        "graph": {"ok": True, "nodeCount": 10, "relationshipCount": 20},
+    }
+    utility._append_health_snapshot(
+        tmp_state_dir,
+        payload,
+        functional={"passed": 8, "failed": 0, "skipped": 1},
+    )
+    snap = json.loads(
+        (tmp_state_dir / "health_history.jsonl").read_text().splitlines()[-1]
+    )
+    assert snap["functional"] == {"passed": 8, "failed": 0, "skipped": 1}
+    assert all(
+        isinstance(snap["functional"][k], int)
+        for k in ("passed", "failed", "skipped")
+    )
+
+
+def test_append_health_snapshot_omits_functional_when_absent(
+    tmp_state_dir: Path,
+) -> None:
+    """Forward-compatible: without functional counts the key is omitted, so
+    old readers see the unchanged schema."""
+    payload = {
+        "vector": {"ok": True, "indexCount": 5, "totalDocuments": 100},
+        "graph": {"ok": True, "nodeCount": 10, "relationshipCount": 20},
+    }
+    utility._append_health_snapshot(tmp_state_dir, payload)
+    snap = json.loads(
+        (tmp_state_dir / "health_history.jsonl").read_text().splitlines()[-1]
+    )
+    assert "functional" not in snap
