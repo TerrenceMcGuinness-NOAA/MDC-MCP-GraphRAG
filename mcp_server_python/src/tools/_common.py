@@ -1,0 +1,85 @@
+"""Shared tool-layer helpers.
+
+Small, dependency-light utilities imported by multiple tool modules.
+Currently hosts the missing-index detection + skip-rendering helpers
+introduced by the ``graceful-missing-index-handling`` spec, plus a tiny
+tenant-id accessor.
+
+These helpers are intentionally pure and free of any data-layer import
+at module load so the unit tests do not require the AWS SDK.
+"""
+
+from __future__ import annotations
+
+from src.tenancy.resolver import get_current_tenant_or_none
+
+__all__ = [
+    "_is_missing_index_exc",
+    "_missing_index_skip",
+    "_tenant_id_or_none",
+]
+
+
+def _is_missing_index_exc(exc: BaseException) -> bool:
+    """Return True iff ``exc`` is an OpenSearch ``index_not_found_exception``.
+
+    Detects two equivalent forms:
+
+    * The structured opensearchpy ``NotFoundError`` whose
+      ``info['error']['type']`` is ``index_not_found_exception``.
+    * The string-fallback case where the exception's ``str()`` form
+      contains the literal token ``index_not_found_exception`` (covers
+      the case where the upstream wraps the original error before it
+      reaches the tool layer).
+
+    The opensearchpy import is wrapped in ``try/except ImportError`` so
+    the helper works in environments that do not pull the AWS SDK
+    (Requirement 1.3).
+    """
+    try:
+        from opensearchpy.exceptions import NotFoundError  # type: ignore
+    except ImportError:  # pragma: no cover - dev/test path without the SDK
+        NotFoundError = None  # type: ignore[assignment]
+
+    if NotFoundError is not None and isinstance(exc, NotFoundError):
+        info = getattr(exc, "info", None) or {}
+        err = info.get("error") if isinstance(info, dict) else None
+        if isinstance(err, dict) and err.get("type") == "index_not_found_exception":
+            return True
+
+    return "index_not_found_exception" in str(exc)
+
+
+def _missing_index_skip(
+    *,
+    tool: str,
+    query: str,
+    collection: str,
+    tenant_id: str | None,
+) -> str:
+    """Return the standardised ``[INFO]`` Skip_Block markdown.
+
+    A genuine missing-index condition is a configuration state, not a
+    runtime failure, so it is rendered with ``[INFO]`` (not ``[ERROR]``)
+    mirroring the existing ``[INFO] Script content is not available ...``
+    precedent. ASCII-only, no payloads or stack traces (Requirement 2.5).
+    """
+    tid = tenant_id or "gw"
+    coll_short = collection.split("/")[-1]  # cosmetic strip
+    return (
+        f"[INFO] {tool}: no results\n"
+        f"\n"
+        f"Collection '{coll_short}' is not provisioned for tenant "
+        f"'{tid}'.\n"
+        f"Tip: use `get_knowledge_base_status(tenant_id=\"{tid}\")` to list "
+        f"collections that ARE provisioned for this tenant.\n"
+    )
+
+
+def _tenant_id_or_none() -> str | None:
+    """Return the active tenant's id, or ``None`` outside a tenant scope."""
+    ctx = get_current_tenant_or_none()
+    if ctx is None:
+        return None
+    tenant = getattr(ctx, "tenant", None)
+    return getattr(tenant, "tenant_id", None) if tenant is not None else None

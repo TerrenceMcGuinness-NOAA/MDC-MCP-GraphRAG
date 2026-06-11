@@ -85,7 +85,7 @@ gated build/deploy/live validation, gated alias creation.
   - `python3.12 -m py_compile` clean on the two edited files.
   - _Requirements: 3.1, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 4. Phase A — gated build + deploy + live validation
+- [x] 4. Phase A — gated build + deploy + live validation
   - STOP-AND-CONFIRM before ECR push and `update-agent-runtime`.
   - Build `python-tenants-v10`, push, cut runtime v33 → v34. Carry the full
     lossless deploy payload (env vars, VPC subnets, SG, EFS access point,
@@ -115,7 +115,7 @@ gated build/deploy/live validation, gated alias creation.
     `python-tenants-v9` (v33).
   - _Requirements: 1.1, 1.2, 2.1, 2.2 (live)_
 
-- [ ] 5. Phase B — gated v17 code-index alias (operator-run)
+- [x] 5. Phase B — gated v17 code-index alias (operator-run)
   - STOP-AND-CONFIRM before issuing the `_aliases` POST.
   - Issue (idempotent — no-op if alias exists):
 
@@ -142,6 +142,32 @@ gated build/deploy/live validation, gated alias creation.
       404 — companion spec).
   - Rollback (if needed): same POST with `"remove"` instead of `"add"`.
   - _Requirements: 5.1, 5.2, 5.3, 5.4_
+
+### Wave 3 + 4 completion note (2026-06-11)
+
+- **Wave 3 (Task 4) DONE.** Built + pushed `python-tenants-v10` (ECR digest
+  `sha256:4cb8e4508bdf8110795dfa638c9aefe3d391ce55ec8421abc4801b5d49cecd00`),
+  cut runtime `mdc_mcp_rag_server_python-v5K2F8BGrN` v33 -> **v34 (READY)**
+  with the lossless payload (sg-096489a0876cc78c1, 2 subnets,
+  requireServiceS3Endpoint, requireMMDSV2, 6 env vars). Rollback target:
+  `python-tenants-v9` (v33).
+- **Bug 1 + Bug 2 verified live.** `get_knowledge_base_status(gw)` lists only
+  `mdc-*` (Property 4 holds); `get_knowledge_base_status(gw_v17)` now shows
+  `**Tenant prefix:** gw_v17_` + only its 3 `gw_v17_mdc-*` indices (57,109
+  docs). gw search / find_similar_code / search_architecture unchanged.
+  gw_v17 queries now target `gw_v17_mdc-*` (no more 404).
+- **Wave 4 (Task 5) alias DONE** but **R5.3 post-condition NOT met.** The
+  alias `gw_v17_mdc-code-context-titan1024 -> gw_v17_mdc-code-titan1024` was
+  created (`acknowledged: true`, verified). `find_similar_code(gw_v17)` no
+  longer 404s — it now resolves through the alias — BUT returns
+  `RequestError(400, ... Field 'embedding' is not knn_vector type)`.
+- **NEW BLOCKER (out of scope for this spec).** All `gw_v17_mdc-*` indices
+  were ingested with `embedding` mapped as `float` instead of `knn_vector`
+  (confirmed via `_mapping/field/embedding` on `gw_v17_mdc-code-titan1024`).
+  v17 vector *search* therefore 400s on every collection regardless of the
+  resolution fix or alias. Requires re-creating the v17 indices with the
+  `knn_vector` mapping and re-ingesting — a separate ingestion-side spec,
+  not addressed here.
 
 ## Task Dependency Graph
 
