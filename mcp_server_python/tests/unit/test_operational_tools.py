@@ -869,3 +869,70 @@ async def test_get_job_details_env_var_truncation() -> None:
     # VAR15..VAR19 should be truncated.
     assert "| VAR15 |" not in text
     assert "...and 5 more" in text
+
+
+# ── graceful-missing-index-handling: get_operational_guidance ──────────
+
+
+def _notfound_exc():
+    from opensearchpy.exceptions import NotFoundError
+
+    return NotFoundError(
+        404,
+        "index_not_found_exception",
+        {"error": {"type": "index_not_found_exception"}},
+    )
+
+
+def _raise(exc):
+    async def _q(*args, **kwargs):
+        raise exc
+    return _q
+
+
+async def test_get_operational_guidance_missing_index_returns_info_skip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(_notfound_exc())
+    monkeypatch.setattr(operational, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "get_operational_guidance",
+        {"operation": "failed forecast restart", "platform": "hera"},
+    )
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text
+    assert "global-workflow-docs-v8-0-0" in text
+    assert "index_not_found_exception" not in text
+
+
+async def test_get_operational_guidance_non_404_keeps_error() -> None:
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(RuntimeError("transport boom"))
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "get_operational_guidance",
+        {"operation": "restart", "platform": "hera"},
+    )
+    assert "[ERROR]" in text
+    assert "transport boom" in text
+
+
+async def test_bug_exploration_get_operational_guidance_missing_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bug-Condition Exploration (get_operational_guidance)."""
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(_notfound_exc())
+    monkeypatch.setattr(operational, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "get_operational_guidance",
+        {"operation": "restart", "platform": "hera"},
+    )
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text and "global-workflow-docs-v8-0-0" in text

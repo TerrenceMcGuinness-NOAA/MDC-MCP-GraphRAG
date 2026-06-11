@@ -1533,3 +1533,110 @@ async def test_get_code_context_caller_query_carries_timeout(
     # backstop (R5.2) and stays tenant-scoped (Property 5).
     assert caller and caller[0][3]["timeout"] == TIMEOUT_S
     assert caller[0][3]["tenant"] is not None
+
+
+# ── graceful-missing-index-handling: search_architecture + find_similar_code
+
+
+def _notfound_exc():
+    """Synthetic opensearchpy-shaped index_not_found_exception."""
+    from opensearchpy.exceptions import NotFoundError
+
+    return NotFoundError(
+        404,
+        "index_not_found_exception",
+        {"error": {"type": "index_not_found_exception"}},
+    )
+
+
+def _raise(exc):
+    async def _q(*args, **kwargs):
+        raise exc
+    return _q
+
+
+async def test_search_architecture_missing_index_returns_info_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(_notfound_exc())
+    monkeypatch.setattr(graph_rag, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(mcp, "search_architecture", {"query": "ocean"})
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text
+    assert "community-summaries" in text
+    assert "index_not_found_exception" not in text
+
+
+async def test_search_architecture_non_404_keeps_error(
+    tmp_path: Path,
+) -> None:
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(RuntimeError("transport boom"))
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(mcp, "search_architecture", {"query": "ocean"})
+    assert "[ERROR]" in text
+    assert "transport boom" in text
+
+
+async def test_bug_exploration_search_architecture_missing_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bug-Condition Exploration (search_architecture).
+
+    Unfixed code renders [ERROR] ... index_not_found_exception; fixed
+    code renders the [INFO] Skip_Block with tenant + collection. Both
+    directions demonstrated before commit (CHANGELOG [8.36.3]).
+    """
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(_notfound_exc())
+    monkeypatch.setattr(graph_rag, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(mcp, "search_architecture", {"query": "ocean"})
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text and "community-summaries" in text
+
+
+async def test_find_similar_code_missing_index_returns_info_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(_notfound_exc())
+    monkeypatch.setattr(graph_rag, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "find_similar_code", {"code_or_symbol": "forecast"}
+    )
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text
+    assert "code-with-context-v8-0-0" in text
+    assert "index_not_found_exception" not in text
+
+
+async def test_find_similar_code_non_404_keeps_error(
+    tmp_path: Path,
+) -> None:
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(RuntimeError("transport boom"))
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "find_similar_code", {"code_or_symbol": "forecast"}
+    )
+    assert "[ERROR]" in text
+    assert "transport boom" in text
+
+
+async def test_bug_exploration_find_similar_code_missing_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bug-Condition Exploration (find_similar_code)."""
+    data = MockUnifiedDataAccess()
+    data.vector_db.query = _raise(_notfound_exc())
+    monkeypatch.setattr(graph_rag, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "find_similar_code", {"code_or_symbol": "forecast"}
+    )
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text and "code-with-context-v8-0-0" in text

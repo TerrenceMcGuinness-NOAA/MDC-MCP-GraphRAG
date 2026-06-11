@@ -85,6 +85,11 @@ from src.manifest import (
     SourceType,
 )
 from src.tenancy.resolver import get_current_tenant_or_none
+from src.tools._common import (
+    _is_missing_index_exc,
+    _missing_index_skip,
+    _tenant_id_or_none,
+)
 
 log = logging.getLogger(__name__)
 
@@ -459,6 +464,18 @@ async def _tool_search_documentation(
             )
             collection_label = "multi-collection search"
     except Exception as exc:
+        # Explicit-collection branch only: a genuine missing index for the
+        # active tenant becomes a clean Skip_Block. The multi-collection
+        # branch is intentionally untouched — multi_collection_query
+        # swallows per-collection 404s and returns [], which still renders
+        # as "No results found for: ..." (Property 4 / R3.5).
+        if collection and _is_missing_index_exc(exc):
+            return _missing_index_skip(
+                tool="search_documentation",
+                query=query,
+                collection=collection,
+                tenant_id=_tenant_id_or_none(),
+            )
         log.warning("search_documentation failed: %s", exc)
         return _error_text(f"Error searching documentation: {exc}")
 

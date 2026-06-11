@@ -852,3 +852,83 @@ async def test_bug2_exploration_status_block_tenant_scoping(
     assert gw_rows != v17_rows
     assert gw_rows.isdisjoint(v17_rows)
     assert all(r.startswith("gw_v17_") for r in v17_rows)
+
+
+# ── graceful-missing-index-handling: search_documentation ──────────────
+
+
+def _notfound_exc_sd():
+    from opensearchpy.exceptions import NotFoundError
+
+    return NotFoundError(
+        404,
+        "index_not_found_exception",
+        {"error": {"type": "index_not_found_exception"}},
+    )
+
+
+async def test_search_documentation_explicit_collection_missing_index_info(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R3.4: explicit collection + missing index -> [INFO] Skip_Block."""
+    data = MockUnifiedDataAccess()
+    data.vector_db.raise_on_query = _notfound_exc_sd()
+    monkeypatch.setattr(semantic_search, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "search_documentation",
+        {"query": "EE2 file naming", "collection": "ee2-standards-v5-0-0-enhanced"},
+    )
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text
+    assert "ee2-standards-v5-0-0-enhanced" in text
+    assert "index_not_found_exception" not in text
+
+
+async def test_search_documentation_explicit_collection_non_404_error() -> None:
+    data = MockUnifiedDataAccess()
+    data.vector_db.raise_on_query = RuntimeError("transport boom")
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "search_documentation",
+        {"query": "x", "collection": "ee2-standards-v5-0-0-enhanced"},
+    )
+    assert "[ERROR]" in text
+    assert "transport boom" in text
+
+
+async def test_search_documentation_multi_collection_empty_unchanged() -> None:
+    """R3.5 / R5.4: multi-collection mode with an empty merged result still
+    renders the legacy 'No results found for: ...' line — NOT a Skip_Block.
+    This path is intentionally unchanged (Property 4)."""
+    data = MockUnifiedDataAccess()
+    data.vector_db.hits = []  # multi_collection_query returns []
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "search_documentation", {"query": "GEMPAK"}
+    )
+    assert text.endswith('No results found for: "GEMPAK"\n')
+    assert "[INFO]" not in text
+
+
+async def test_bug_exploration_search_documentation_missing_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bug-Condition Exploration (search_documentation explicit collection).
+
+    Unfixed: [ERROR] ... index_not_found_exception. Fixed: [INFO] Skip_Block
+    with tenant + collection. Both directions demonstrated before commit.
+    """
+    data = MockUnifiedDataAccess()
+    data.vector_db.raise_on_query = _notfound_exc_sd()
+    monkeypatch.setattr(semantic_search, "_tenant_id_or_none", lambda: "gw_v17")
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "search_documentation",
+        {"query": "x", "collection": "ee2-standards-v5-0-0-enhanced"},
+    )
+    assert "[INFO]" in text and "[ERROR]" not in text
+    assert "gw_v17" in text and "ee2-standards-v5-0-0-enhanced" in text

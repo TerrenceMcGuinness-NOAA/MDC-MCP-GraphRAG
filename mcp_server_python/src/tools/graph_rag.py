@@ -97,6 +97,11 @@ from src.tenancy.resolver import (
     get_current_tenant_or_none,
     tenant_label_predicate,
 )
+from src.tools._common import (
+    _is_missing_index_exc,
+    _missing_index_skip,
+    _tenant_id_or_none,
+)
 from src.tools._traversal_bounds import (
     DATA_FLOW_DEPTH,
     TIMEOUT_S,
@@ -664,6 +669,13 @@ async def _tool_search_architecture(
             tenant=_tenant(),
         )
     except Exception as exc:
+        if _is_missing_index_exc(exc):
+            return _missing_index_skip(
+                tool="search_architecture",
+                query=query,
+                collection=COMMUNITY_COLLECTION,
+                tenant_id=_tenant_id_or_none(),
+            )
         log.warning("search_architecture failed: %s", exc)
         return _error_text(f"search_architecture failed: {exc}")
 
@@ -738,6 +750,13 @@ async def _tool_find_similar_code(
             tenant=_tenant(),
         )
     except Exception as exc:
+        if _is_missing_index_exc(exc):
+            return _missing_index_skip(
+                tool="find_similar_code",
+                query=code_or_symbol,
+                collection=CODE_COLLECTION,
+                tenant_id=_tenant_id_or_none(),
+            )
         log.warning("find_similar_code failed: %s", exc)
         return _error_text(f"find_similar_code failed: {exc}")
 
