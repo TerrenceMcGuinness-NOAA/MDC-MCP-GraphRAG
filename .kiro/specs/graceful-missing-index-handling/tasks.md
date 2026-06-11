@@ -141,7 +141,7 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
     `operational.py`, `semantic_search.py`.
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4_
 
-- [ ] 7. Phase A — gated build + deploy + live validation
+- [x] 7. Phase A — gated build + deploy + live validation
   - STOP-AND-CONFIRM before ECR push and `update-agent-runtime`.
   - Build the next `python-tenants-vN` image, push, cut the runtime
     forward. If `opensearch-tenant-resolution-fix` has already shipped,
@@ -181,6 +181,31 @@ CHANGELOG + suite gate, and the gated build/deploy/live validation.
   - Record runtime version + image tag + ECR digest. Rollback target:
     the previous tag.
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1 (live)_
+
+### Wave 3 completion note (2026-06-11)
+
+- **Task 7 DONE.** Built + pushed `python-tenants-v11` (ECR digest
+  `sha256:15802a0e68fb2c45eadf40ea11eb92bc983a1f2cb76732605989e283d3390db6`),
+  cut runtime `mdc_mcp_rag_server_python-v5K2F8BGrN` v34 -> **v35 (READY)**
+  with the lossless payload (sg-096489a0876cc78c1, 2 subnets,
+  requireServiceS3Endpoint, requireMMDSV2, 6 env vars). Rollback target:
+  `python-tenants-v10` (v34).
+- **Live validation:**
+  - `search_architecture(gw_v17, "ocean modeling")` ->
+    `[INFO] search_architecture: no results` citing `community-summaries`
+    + `gw_v17` (clean Skip_Block, no raw 404).
+  - `search_documentation(gw_v17, collection="ee2-standards-v5-0-0-enhanced")`
+    -> `[INFO]` Skip_Block citing `ee2-standards-v5-0-0-enhanced` + `gw_v17`.
+  - `search_documentation(gw_v17, "GEMPAK")` (multi-collection) ->
+    `No results found for: "GEMPAK"` unchanged (R3.5, not a Skip_Block).
+  - `find_similar_code(gw_v17)` -> stays `[ERROR]` knn_vector 400 (a 400,
+    not a 404) — confirms `_is_missing_index_exc` does not false-positive.
+  - `search_architecture(gw)` + `get_operational_guidance(gw)` -> ranked
+    hits unchanged (Property 4).
+- **Pre-existing unrelated blocker (unchanged):** v17 `*mdc-*` indices have
+  `embedding` mapped as `float` not `knn_vector`, so v17 vector *search*
+  still 400s where the index exists. Separate ingestion-side fix; the
+  Skip_Block path correctly handles only genuine 404s.
 
 ## Task Dependency Graph
 
