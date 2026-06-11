@@ -3,7 +3,7 @@
 Living document tracking the remaining gaps between the `gw` (develop) baseline
 and non-default tenants (primarily `gw_v17`). Updated as gaps are resolved.
 
-Last updated: 2026-06-10 (Gap G resolved)
+Last updated: 2026-06-11 (v17 vector reindex complete; Gaps H revisited)
 
 ## Summary Table
 
@@ -16,7 +16,8 @@ Last updated: 2026-06-10 (Gap G resolved)
 | E | Label-less graph queries leak across tenants | LOW | all non-gw | RESOLVED | [8.32.0] commit `9d64b53` | `tenant_label_predicate()` scopes label-less / name-anchored queries via `labels(n)` (tenant_id property is unreliable — null on placeholder nodes). Applied to ~16 queries in graph_rag.py + code_analysis.py. Deployed v31, 2026-06-08. Verified: setuprad resolves to GW_V17_File for v17, FortranSubroutine for gw. |
 | F | Fortran parse failures (15% / 1,020 files) | MEDIUM | gw_v17 | RESOLVED | `fortran-parse-fallback` [8.33.0] `7c77ffd` + parallel/streaming [8.34.0] `1520577` | Regex fallback + parallel streaming ingest. Live ingest run 2026-06-10: 6,926/6,935 parsed (99.9%), 45,155 nodes + 297,712 rels written, 0 errors, ~3.2h. v17 graph now 80,996 nodes / 1,278,330 rels (CALLS 1.02M, USES 229K). No deploy — offline script. |
 | G | Deep traversal OOMs on Neptune | MEDIUM | gw, gw_v17 | RESOLVED | `bounded-graph-traversal` [8.36.0] commits `fc6ad31..f09c66b` | Pre-flight degree probe + depth cap + 30s statement-timeout backstop on `NeptuneAdapter.query`. Deployed v32 (`python-tenants-v8`), 2026-06-10. Verified live: `find_callers_callees("setuprad", gw_v17)` short-circuits cleanly (degree 174 > threshold 100); `trace_full_execution_chain("JGLOBAL_FORECAST", gw)` falls through to timeout backstop with one-hop Degraded_Result; non-hub `setuprad` `get_code_context` unchanged. |
-| H | No tenant-specific docs collection | BY DESIGN | non-gw | N/A | — | All tenants share the documentation vector indices. Code embeddings are tenant-prefixed. Docs are branch-agnostic (RTD, EE2 standards, etc.). |
+| H | No tenant-specific docs collection | BY DESIGN | non-gw | REVISIT | — | See detail below. Docs are branch-agnostic (RTD, EE2 standards, etc.) but v17 has unique repo-local documentation. Current state: `gw_v17_mdc-workflow-docs-titan1024` holds 10,523 docs (v17-specific on-disk content from the code tree). A `shared_indices` config is the next step — see Gap H detail. |
+| I | v17 vector indices had float mapping (not knn_vector) | HIGH | gw_v17 | RESOLVED | `v17-knn-vector-reindex` [8.36.2 deploy + ops] | See detail below. |
 
 ## Detail: Open Gaps
 
@@ -139,3 +140,86 @@ Graph tools (get_knowledge_base_status, list_job_scripts, get_job_details,
 explain_workflow_component) were returning gw baseline data regardless of tenant.
 Fixed by adding `tenant=` passing and restructuring label-less queries to use
 proper MATCH labels. Commit `9c66084`, version [8.30.0], deployed as v29.
+
+
+---
+
+### Gap H — Shared vs tenant-specific documentation indices (REVISIT)
+
+**Original design (BY DESIGN):** All tenants share the gw baseline's documentation
+vector indices (`mdc-workflow-docs-titan1024`, `mdc-ee2-standards-titan1024`, etc.)
+because URL-crawled docs (RTD, EE2 standards, Spack, UFS model docs) are
+branch-agnostic — the same content regardless of which branch you're developing on.
+
+**Revised understanding (2026-06-11):** v17 is a coupled-model system with
+substantially more submodules (JEDI, CRTM, UFS, MOM6, CICE, WW3, etc.) than the
+`develop` baseline. Its repo tree contains unique on-disk documentation that does
+NOT exist on `develop` — build guides, physics configuration references, coupling
+interface docs, submodule-specific READMEs. The v17 code ingester captured 28,325
+of these into `gw_v17_mdc-code-context-titan1024`, and the docs ingester captured
+10,523 into `gw_v17_mdc-workflow-docs-titan1024` (repo-local content, not URL-crawled).
+
+This means the tenant-prefixed docs index is NOT purely redundant — it holds v17-
+specific content that the shared gw baseline docs do not have. The URL-crawled
+external docs (RTD, Spack, etc.) ARE shared, but the repo-local docs are unique
+per branch.
+
+**Next step (config-driven shared_indices):** Add a `shared_indices` list to the
+tenant model (in `tenants.yaml` or a sibling config) that names collections whose
+**external/URL-crawled** content should fall through to the unprefixed gw baseline
+index rather than the (empty) tenant-prefixed copy. For collections that also have
+repo-local content (like `workflow-docs`), the adapter would fan out to BOTH the
+shared baseline AND the tenant-prefixed index, then merge/dedupe results.
+
+Candidate shared collections (v17 has no tenant-specific content in these):
+- `mdc-ee2-standards-titan1024` — EE2/NCO standards are org-wide, not branch-specific.
+- `mdc-community-summaries-titan1024` — community detection output is graph-derived
+  (already tenant-scoped via the graph, not via the vector index).
+
+Candidate hybrid collections (shared external + unique repo-local):
+- `mdc-workflow-docs-titan1024` — RTD docs are shared, but v17 repo-local docs are unique.
+
+This is a MEDIUM priority follow-up. The current state works (v17 has its own docs
+index with repo-local content; the shared external docs are missing from it but
+available via the gw baseline if the caller omits `tenant_id`). The fix would make
+`search_documentation(tenant_id="gw_v17")` transparently include both sources.
+
+---
+
+### Gap I — v17 vector indices had float mapping (RESOLVED 2026-06-11)
+
+**Symptom:** After `opensearch-tenant-resolution-fix` [8.36.2] corrected the index
+resolution order, queries reached the v17 indices but returned
+`RequestError(400, Field 'embedding' is not knn_vector type)`.
+
+**Root cause:** `create-opensearch-indices.js` had no `--prefix` parameter, so
+tenant-prefixed indices were never pre-created with the correct `knn_vector`
+mapping. When the v17 bulk ingestion ran, OpenSearch auto-created the indices with
+dynamic mapping that maps float arrays as `float` type. OpenSearch does not allow
+changing a field's mapping type on a live index.
+
+**Fix:** Added `--prefix` to `create-opensearch-indices.js` (commit `2a2693d`).
+Operator steps: deleted broken indices, cleared stale dedupe registry entries,
+recreated with correct knn_vector mapping (`--prefix gw_v17_ --model titan1024`),
+re-ingested all three collections.
+
+**Additional finding:** The code ingester hardcodes `gw_v17_mdc-code-titan1024`
+(no `-context-`), but queries resolve to `gw_v17_mdc-code-context-titan1024`.
+Resolved via alias reversal: data lives in the correctly-named
+`gw_v17_mdc-code-context-titan1024`, with a thin write-alias
+`gw_v17_mdc-code-titan1024 → gw_v17_mdc-code-context-titan1024` routing the
+ingester's writes. Rule 3.6 (no ingester code changes) preserved.
+
+**Final state (2026-06-11):**
+
+| Index | Docs | Mapping |
+|---|---|---|
+| `gw_v17_mdc-code-context-titan1024` | 28,325 | knn_vector ✓ |
+| `gw_v17_mdc-workflow-docs-titan1024` | 10,523 | knn_vector ✓ |
+| `gw_v17_mdc-jjobs-titan1024` | 92 | knn_vector ✓ |
+| `gw_v17_mdc-community-summaries-titan1024` | 0 (empty, correctly mapped) | knn_vector ✓ |
+| `gw_v17_mdc-ee2-standards-titan1024` | 0 (empty, correctly mapped) | knn_vector ✓ |
+
+**Verified live:** `find_similar_code("setuprad", tenant_id="gw_v17")` returns
+ranked hits. `search_documentation("GEMPAK", tenant_id="gw_v17")` returns hits.
+Default-tenant (`gw`) preservation confirmed unchanged.
