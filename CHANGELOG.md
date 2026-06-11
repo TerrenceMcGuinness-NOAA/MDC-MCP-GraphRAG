@@ -1,5 +1,74 @@
 # MCP Server Changelog
 
+## [8.36.1] - Health-check tool-layer bugfixes (health-check-bugfixes) (Jun 11, 2026)
+
+### Summary
+
+Two narrowly-scoped tool-layer bug fixes that share one runtime image. Bug 1:
+`check_knowledge_integrity` raised `can't subtract offset-naive and
+offset-aware datetimes` because `_parse_iso_ts` returned a tz-naive `datetime`
+for ISO strings without a timezone designator, which then could not be
+subtracted from the tz-aware `datetime.now(timezone.utc)` in
+`_check_stale_embeddings`. Bug 2: the `workflow_info` functional smoke probe
+raised `RuntimeError` (reported as FAIL) when `MCP_WORKFLOW_ROOT` was not
+mounted, when the absence of an EFS workflow mount is a known, deliberate
+deferral that should report SKIP — matching the existing `github_tools`
+no-token SKIP path.
+
+Tool-layer change only — no ingestion, schema, tenant-logic, dependency, or
+configuration change. The healthy-path functional summary is byte-equivalent
+to before the fix (Property 4): the format only changes when a probe actually
+skips. This implements waves 0-3 of the `health-check-bugfixes` spec
+(Tasks 1-5). The gated build + ECR push + `update-agent-runtime` + live
+validation (wave 4, Task 6) is operator-driven and not part of this change.
+
+### Fixed
+
+- `mcp_server_python/src/tools/semantic_search.py`: `_parse_iso_ts` now returns
+  a tz-aware `datetime` (or `None`) for every input — a tz-naive parse is
+  coerced to UTC via `dt.replace(tzinfo=timezone.utc)` (every persisted
+  timestamp in this codebase is UTC by convention), and empty strings join the
+  existing non-string/unparseable `None` path. `_check_stale_embeddings` gains a
+  defence-in-depth per-document guard (`if mod_time is None or
+  mod_time.tzinfo is None: continue`) so a future bypass cannot reach the
+  subtraction. (Bug 1; ~5 net production lines.)
+- `mcp_server_python/src/tools/smoke_queries.py`: `_smoke_workflow_info` now
+  raises `SkipProbe` (the existing `github_tools` SKIP mechanism) instead of
+  `RuntimeError` when the resolved `workflow_root` does not exist
+  (`"workflow_root=<path> not mounted"`) or exists but contains neither `jobs/`
+  nor `dev/jobs/`. The populated-mount PASS path is unchanged. (Bug 2;
+  ~4 net production lines.)
+
+### Changed
+
+- `mcp_server_python/src/tools/utility.py`: the functional-validation snapshot
+  persisted to `health_history.jsonl` now carries an additive, optional
+  `functional: {passed, failed, skipped}` integer block (R3.5) so a downstream
+  trend tool can distinguish skips from failures. The key is omitted when no
+  functional run occurred, so the change is forward-compatible — old readers
+  ignore it, no migration needed. Pass/fail/skip counting is centralised in a
+  new `_functional_summary` helper shared by the renderer and the writer; the
+  rendered summary line is unchanged.
+
+### Tests
+
+- `mcp_server_python/tests/unit/test_semantic_search_integrity.py` (NEW):
+  parametrised `_parse_iso_ts` coverage (tz-aware `+00:00`/`+05:30`/`Z`,
+  tz-naive, `None`, empty, garbage), `_check_stale_embeddings` mixed-timestamp
+  tolerance, and the Bug 1 bug-condition exploration test (raises the tz
+  TypeError on the unfixed code, passes on the fixed code).
+- `mcp_server_python/tests/unit/test_smoke_queries.py` (NEW):
+  `_smoke_workflow_info` PASS (jobs/, dev/jobs/) and SKIP (missing path, empty
+  dir) cases plus the Bug 2 bug-condition exploration test (raises
+  `RuntimeError` on the unfixed code, raises `SkipProbe` on the fixed code).
+- `mcp_server_python/tests/unit/test_utility_tools.py`: added harness-rendering
+  tests (mixed `[pass, pass, skip, pass, fail]` → SKIP row + FAIL row + summary
+  `3/5 passed, 1 failed, 1 skipped`; healthy-path byte-equivalence;
+  `_functional_summary` tally; snapshot carries / omits the `functional` block).
+- Suite: 1315 → 1341 (unit + properties), all green. Both bug-condition
+  exploration tests were demonstrated failing on the unfixed code and passing
+  on the fixed code before commit.
+
 ## [8.36.0] - Bounded graph traversal guards (bounded-graph-traversal) (Jun 10, 2026)
 
 ### Summary

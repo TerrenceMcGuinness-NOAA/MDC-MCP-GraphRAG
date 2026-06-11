@@ -15,7 +15,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
 
 ## Tasks
 
-- [ ] 1. Investigate the existing `github_tools` SKIP mechanism
+- [x] 1. Investigate the existing `github_tools` SKIP mechanism
   - Read `src/tools/smoke_queries.py` (and the harness in `mcp_server.py` /
     wherever the functional-validation table is rendered) to identify the
     exact mechanism `_smoke_github_tools` uses to report SKIP when
@@ -27,7 +27,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
     path), capture that and design one — see Task 4 for the refactor.
   - _Requirements: 4.1, 4.2_
 
-- [ ] 2. Bug 1 fix — `_parse_iso_ts` UTC fallback
+- [x] 2. Bug 1 fix — `_parse_iso_ts` UTC fallback
   - In `src/tools/semantic_search.py`, modify `_parse_iso_ts` to return a
     tz-aware datetime: parse the ISO string, then if the result's `tzinfo`
     is `None`, set it to `timezone.utc` via `dt.replace(tzinfo=timezone.utc)`.
@@ -37,7 +37,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
     bypass cannot reach the subtraction.
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3_
 
-  - [ ]* 2.1 Bug 1 unit + bug-condition exploration tests
+  - [x]* 2.1 Bug 1 unit + bug-condition exploration tests
     - Parametrised tests for `_parse_iso_ts` over: tz-aware (`+00:00`, `+05:30`,
       `Z`), tz-naive (`2026-06-10T22:30:00`), `None`, empty, garbage.
     - `_check_stale_embeddings` test with mocked metadata mixing tz-naive and
@@ -51,7 +51,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
       (extend or new — match the existing project convention).
     - _Validates: 1.1, 1.2, 1.3, 2.1, 2.2, 6.1, 6.2_
 
-- [ ] 3. Define / adopt the SmokeResult three-state shape
+- [x] 3. Define / adopt the SmokeResult three-state shape
   - Based on Task 1's findings, either:
     (a) reuse the existing SKIP mechanism unchanged for both probes, or
     (b) introduce a small, named result type — preferred shape: a `dataclass`
@@ -61,7 +61,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
     in the table and one new `skipped` counter in the summary line.
   - _Requirements: 3.4, 3.5, 4.1, 4.2_
 
-  - [ ]* 3.1 Harness rendering tests
+  - [x]* 3.1 Harness rendering tests
     - Test that a list of mixed `[Pass, Pass, Skip(reason="x"), Pass, Fail]`
       renders one SKIP row with the reason and one FAIL row, summary line
       `3/5 passed, 1 failed, 1 skipped`.
@@ -71,7 +71,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
       `test_health_check` or `test_smoke_queries` in `tests/unit/`).
     - _Validates: 3.4, 3.5_
 
-- [ ] 4. Bug 2 fix — `_smoke_workflow_info` returns Skip_Result
+- [x] 4. Bug 2 fix — `_smoke_workflow_info` returns Skip_Result
   - Change `_smoke_workflow_info` to return a `SmokeSkip` (per Task 3's shape)
     when (a) the resolved `workflow_root` does not exist, or (b) it exists but
     contains neither `jobs/` nor `dev/jobs/`. Replace the `RuntimeError` raise
@@ -80,7 +80,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
     (R3.3, R5.1).
   - _Requirements: 3.1, 3.2, 3.3_
 
-  - [ ]* 4.1 Bug 2 unit + bug-condition exploration tests
+  - [x]* 4.1 Bug 2 unit + bug-condition exploration tests
     - `_smoke_workflow_info` over a `pyfakefs` filesystem:
       - Empty tmp_path workflow_root → returns SKIP with the documented reason.
       - `tmp_path / "jobs"` exists → PASS.
@@ -93,7 +93,7 @@ two fixes in parallel, then their tests, then CHANGELOG, then the gated deploy.
     - File: extend `tests/unit/test_smoke_queries.py`.
     - _Validates: 3.1, 3.2, 3.3, 6.3, 6.4_
 
-- [ ] 5. CHANGELOG and full-suite gate
+- [x] 5. CHANGELOG and full-suite gate
   - CHANGELOG entry under a new version header (latest on the branch is
     [8.36.0]; use [8.36.1] since this is a small bugfix).
   - `cd mcp_server_python && python3.12 -m pytest tests/unit/ tests/properties/ -q`
