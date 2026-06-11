@@ -675,3 +675,180 @@ async def test_check_knowledge_integrity_uses_custom_sample_size(
     mcp = _make_server(data=data, repo_base=tmp_path)
     await _call_tool(mcp, "check_knowledge_integrity", {"sample_size": 7})
     assert captured["n"] == 7
+
+
+# ── Bug 2: tenant-scoped vector status block ───────────────────────────
+# (opensearch-tenant-resolution-fix)
+
+
+class _FakeStatusTenant:
+    def __init__(self, index_prefix: str) -> None:
+        self.index_prefix = index_prefix
+
+
+def _mixed_health() -> dict[str, Any]:
+    """health_check(deep=True) payload mixing base + gw_v17_ indices."""
+    detail = {
+        "mdc-code-context-titan1024": 100,
+        "mdc-workflow-docs-titan1024": 200,
+        "gw_v17_mdc-code-titan1024": 11,
+        "gw_v17_mdc-workflow-docs-titan1024": 22,
+    }
+    return {
+        "status": "healthy",
+        "indices": list(detail.keys()),
+        "indices_detail": detail,
+        "total_documents": sum(detail.values()),
+    }
+
+
+class _FakeStatusVectorDB:
+    def __init__(self, health: dict[str, Any]) -> None:
+        self._health = health
+
+    async def health_check(self, *, deep: bool = False) -> dict[str, Any]:
+        return dict(self._health)
+
+
+def _collection_rows(lines: list[str]) -> list[str]:
+    """Index names rendered in the Collections Detail block."""
+    out: list[str] = []
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith("- ") and ":" in s and "documents" in s:
+            out.append(s[2:].split(":", 1)[0].strip())
+    return out
+
+
+# ── _filter_indices_by_tenant / _index_in_tenant_scope (unit) ──────────
+
+
+def test_filter_indices_nondefault_keeps_only_prefixed() -> None:
+    names, detail, total = semantic_search._filter_indices_by_tenant(
+        _mixed_health(), prefix="gw_v17_", others=()
+    )
+    assert set(names) == {
+        "gw_v17_mdc-code-titan1024",
+        "gw_v17_mdc-workflow-docs-titan1024",
+    }
+    assert total == 33
+    assert detail["gw_v17_mdc-code-titan1024"] == 11
+
+
+def test_filter_indices_default_excludes_other_prefixes() -> None:
+    names, detail, total = semantic_search._filter_indices_by_tenant(
+        _mixed_health(), prefix="", others=("gw_v17_",)
+    )
+    assert set(names) == {
+        "mdc-code-context-titan1024",
+        "mdc-workflow-docs-titan1024",
+    }
+    assert total == 300
+
+
+def test_index_in_tenant_scope_rules() -> None:
+    assert semantic_search._index_in_tenant_scope(
+        "gw_v17_mdc-code-titan1024", "gw_v17_", ()
+    )
+    assert not semantic_search._index_in_tenant_scope(
+        "mdc-code-context-titan1024", "gw_v17_", ()
+    )
+    # default tenant excludes other-prefixed indices
+    assert semantic_search._index_in_tenant_scope(
+        "mdc-code-context-titan1024", "", ("gw_v17_",)
+    )
+    assert not semantic_search._index_in_tenant_scope(
+        "gw_v17_mdc-code-titan1024", "", ("gw_v17_",)
+    )
+
+
+# ── _render_vector_status_block scoping ────────────────────────────────
+
+
+async def test_vector_status_block_gw_lists_only_base_indices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(semantic_search, "_tenant", lambda: _FakeStatusTenant(""))
+    monkeypatch.setattr(
+        semantic_search, "_other_index_prefixes", lambda t: ("gw_v17_",)
+    )
+    lines = await semantic_search._render_vector_status_block(
+        _FakeStatusVectorDB(_mixed_health())
+    )
+    rows = _collection_rows(lines)
+    assert all(not r.startswith("gw_v17_") for r in rows)
+    assert set(rows) == {
+        "mdc-code-context-titan1024",
+        "mdc-workflow-docs-titan1024",
+    }
+    # Property 4: no tenant-prefix header line for the default tenant.
+    assert not any("Tenant prefix" in ln for ln in lines)
+    assert "- **Total Documents:** 300" in lines
+
+
+async def test_vector_status_block_v17_lists_only_prefixed_indices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        semantic_search, "_tenant", lambda: _FakeStatusTenant("gw_v17_")
+    )
+    monkeypatch.setattr(
+        semantic_search, "_other_index_prefixes", lambda t: ()
+    )
+    lines = await semantic_search._render_vector_status_block(
+        _FakeStatusVectorDB(_mixed_health())
+    )
+    rows = _collection_rows(lines)
+    assert set(rows) == {
+        "gw_v17_mdc-code-titan1024",
+        "gw_v17_mdc-workflow-docs-titan1024",
+    }
+    assert any("- **Tenant prefix:** gw_v17_" == ln for ln in lines)
+    assert "- **Total Documents:** 33" in lines
+
+
+async def test_bug2_exploration_status_block_tenant_scoping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bug-condition exploration (Bug 2).
+
+    On the UNFIXED code ``_render_vector_status_block`` ignores the active
+    tenant and renders the same full index set regardless of tenant, so
+    the gw and gw_v17 collection lists are identical. On the FIXED code
+    the lists are prefix-scoped and therefore disjoint.
+
+    This test asserts the lists differ (and are correctly scoped), which
+    fails on the unfixed code and passes on the fixed code. Both
+    directions were demonstrated before commit (see CHANGELOG [8.36.2]).
+    """
+    health = _mixed_health()
+
+    monkeypatch.setattr(semantic_search, "_tenant", lambda: _FakeStatusTenant(""))
+    monkeypatch.setattr(
+        semantic_search, "_other_index_prefixes", lambda t: ("gw_v17_",)
+    )
+    gw_rows = set(
+        _collection_rows(
+            await semantic_search._render_vector_status_block(
+                _FakeStatusVectorDB(health)
+            )
+        )
+    )
+
+    monkeypatch.setattr(
+        semantic_search, "_tenant", lambda: _FakeStatusTenant("gw_v17_")
+    )
+    monkeypatch.setattr(
+        semantic_search, "_other_index_prefixes", lambda t: ()
+    )
+    v17_rows = set(
+        _collection_rows(
+            await semantic_search._render_vector_status_block(
+                _FakeStatusVectorDB(health)
+            )
+        )
+    )
+
+    assert gw_rows != v17_rows
+    assert gw_rows.isdisjoint(v17_rows)
+    assert all(r.startswith("gw_v17_") for r in v17_rows)

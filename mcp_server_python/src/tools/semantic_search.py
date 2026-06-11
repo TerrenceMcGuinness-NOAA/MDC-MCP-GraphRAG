@@ -800,7 +800,10 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     """Render the OpenSearch (or legacy ChromaDB) block.
 
     Uses ``health_check(deep=True)`` which returns the extended stats
-    the Node.js ``getStatistics`` produces.
+    the Node.js ``getStatistics`` produces. The enumerated indices are
+    scoped to the active tenant's ``index_prefix`` so a non-default
+    tenant sees only its own ``<prefix>mdc-*`` indices and the default
+    ``gw`` tenant sees only the unprefixed base set (R2.1, R2.2, R2.4).
     """
     try:
         health = await vector_db.health_check(deep=True)
@@ -812,8 +815,12 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
             "",
         ]
 
-    indices = health.get("indices") or health.get("collections") or []
-    total_docs = int(health.get("total_documents") or 0)
+    tenant = _tenant()
+    prefix = tenant.index_prefix if tenant else ""
+    others = _other_index_prefixes(tenant)
+    indices, detail, total_docs = _filter_indices_by_tenant(
+        health, prefix=prefix, others=others
+    )
     status_ok = (
         health.get("status") == "healthy"
         and len(indices) > 0
@@ -823,24 +830,22 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     lines = [
         "## Vector Database (OpenSearch)",
         "",
-        f"- **Collections:** {len(indices)}",
     ]
-    if isinstance(indices, dict):
-        # When the adapter returns a dict of {name: count}.
-        lines.append("- **Collections Detail:**")
-        for name, count in indices.items():
-            lines.append(f"  - {name}: {count} documents")
-    elif indices and isinstance(indices[0], str) and "indices_detail" not in health:
-        # Flat list of index names — no per-index counts available.
-        lines.append("- **Collections Detail:**")
-        for name in indices:
-            lines.append(f"  - {name}")
+    # Show the active scoping only for non-default tenants — the default
+    # gw block stays byte-equivalent to the pre-fix output (Property 4).
+    if prefix:
+        lines.append(f"- **Tenant prefix:** {prefix}")
+    lines.append(f"- **Collections:** {len(indices)}")
 
-    detail = health.get("indices_detail") or {}
     if isinstance(detail, dict) and detail:
         lines.append("- **Collections Detail:**")
         for name, count in detail.items():
             lines.append(f"  - {name}: {count} documents")
+    elif indices and isinstance(indices[0], str):
+        # Flat list of index names — no per-index counts available.
+        lines.append("- **Collections Detail:**")
+        for name in indices:
+            lines.append(f"  - {name}")
 
     lines.append(f"- **Total Documents:** {total_docs}")
     lines.append(
@@ -848,6 +853,83 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     )
     lines.append("")
     return lines
+
+
+def _other_index_prefixes(tenant: Any) -> tuple[str, ...]:
+    """Return non-empty ``index_prefix`` values for every catalog tenant
+    other than the active one.
+
+    Used to exclude other tenants' prefixed indices from the default
+    (empty-prefix) tenant's view, mirroring the label-side exclusion in
+    :func:`src.tenancy.resolver.tenant_label_predicate`. Returns an empty
+    tuple when the catalog cannot be loaded (best-effort; never raises).
+    """
+    active = tenant.index_prefix if tenant else ""
+    try:
+        from src.tenancy.runtime import get_catalog
+
+        catalog = get_catalog()
+    except Exception:  # pragma: no cover - defensive
+        return ()
+    return tuple(
+        t.index_prefix
+        for t in catalog.tenants
+        if t.index_prefix and t.index_prefix != active
+    )
+
+
+def _index_in_tenant_scope(
+    name: str, prefix: str, others: tuple[str, ...]
+) -> bool:
+    """True if index ``name`` belongs to the active tenant's scope.
+
+    * Non-default tenant (``prefix`` non-empty): ``name`` starts with it.
+    * Default tenant (``prefix`` empty): ``name`` starts with NO other
+      tenant's prefix (i.e. it is a base/unprefixed index).
+    """
+    if prefix:
+        return name.startswith(prefix)
+    return not any(name.startswith(p) for p in others)
+
+
+def _filter_indices_by_tenant(
+    health: dict[str, Any], *, prefix: str, others: tuple[str, ...]
+) -> tuple[list[str], dict[str, int], int]:
+    """Filter a ``health_check(deep=True)`` payload to the active tenant.
+
+    Returns ``(index_names, index_detail, total_documents)`` where the
+    total is recomputed from the filtered subset (R2.4), never the global
+    ``total_documents`` field.
+    """
+    detail_raw = health.get("indices_detail") or {}
+    if isinstance(detail_raw, dict) and detail_raw:
+        detail = {
+            n: int(c)
+            for n, c in detail_raw.items()
+            if _index_in_tenant_scope(n, prefix, others)
+        }
+        return list(detail.keys()), detail, sum(detail.values())
+
+    raw = health.get("indices") or health.get("collections") or []
+    if isinstance(raw, dict):
+        detail = {
+            n: int(c)
+            for n, c in raw.items()
+            if _index_in_tenant_scope(n, prefix, others)
+        }
+        return list(detail.keys()), detail, sum(detail.values())
+
+    names = [
+        n
+        for n in raw
+        if isinstance(n, str) and _index_in_tenant_scope(n, prefix, others)
+    ]
+    # No per-index counts available — fall back to the reported total
+    # only when nothing was filtered out (so a scoped view never inflates).
+    total = int(health.get("total_documents") or 0)
+    if len(names) != len(raw):
+        total = 0
+    return names, {}, total
 
 
 async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[str]:
