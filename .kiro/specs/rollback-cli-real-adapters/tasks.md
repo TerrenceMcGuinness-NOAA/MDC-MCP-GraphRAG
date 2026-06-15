@@ -30,6 +30,19 @@ References:
 
 ## Tasks
 
+> **STATUS — RESOLVED (2026-05-29).** All 4 defects fixed and verified live.
+> The substantive code changes landed in two commits:
+>
+> - `c317c91` — `fix(rollback): wire delete_tenant_indices.py to real adapters` — covers Tasks 3 (wire `main()`), 4 (re-implement four operations against the real surface), and the operator dry-run gate (Task 9).
+> - `8e8f3bf` — `fix(rollback): Neptune label-discovery + per-label DETACH DELETE (Defect 4)` — covers Tasks 12 (replace `any()` with label-discovery + DETACH), 13 (test doubles updated), and the operator gated execute (Task 14).
+>
+> The unchecked task boxes below were not individually re-ticked because the
+> implementation collapsed several test-driven sub-steps into the two final-
+> shape commits. The running record of what shipped is the gap tracker
+> (`.kiro/steering/07-tenant-usability-gaps.md` and
+> `.kiro/steering/12-multi-tenant-gap-tracker.md`). Spec retained for the
+> design rationale and the Bug-Condition discussion.
+
 - [ ]* 1. Write bug condition exploration test (BEFORE any fix)
   - **Property 1: Bug Condition** — Rollback CLI Cannot Run Against Real Adapters
   - **CRITICAL**: This test MUST FAIL on the current unfixed code — the failure confirms the bug

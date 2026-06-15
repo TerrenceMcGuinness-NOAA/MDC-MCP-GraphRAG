@@ -57,6 +57,33 @@ All implementation paths are relative to the workspace root
 
 ## Tasks
 
+> **STATUS — IMPLEMENTATION COMPLETE (2026-05-30); Phase C smoke
+> validation absorbed into later bugfix specs.** All eight implementation
+> groups (A–H) landed via dedicated commits:
+>
+> - Group A — multi-tenant `populate_workflow_efs.sh` (`14cca32`)
+> - Group B — tenant-aware v8 ingestion entry scripts (`2904ea8`)
+> - Group C — dedupe + walkers (`6ea6404`)
+> - Group D — branch-isolation smoke probe (`606d671`)
+> - Group E + H — cost telemetry tests + onboarding runbook (`93cee7a`)
+> - Group F — branch line in attribution header (`18e1f4a`)
+> - Group G — tenant rollback script (`d12dd76`)
+> - Adapter wiring + submodule init (`998e5fb`, `b5a1b70`)
+>
+> **Phase C live validation** was originally part of this spec but the
+> data-side pre-conditions only became ready after the `[8.36.x]` series
+> of follow-up bugfixes (`tenant-id-tool-exposure`, the 5-gap
+> `opensearch-tenant-resolution-fix` / `graceful-missing-index-handling`
+> wave, and `v17-knn-vector-reindex`). The branch-isolation smoke probe
+> now passes live as part of `mcp_health_check(functional=True)` in v35.
+>
+> The unchecked task boxes below are not individually re-ticked because
+> the implementation collapsed several Hypothesis-property + impl pairs
+> into the eight Group commits and the live verification is recorded in
+> the gap tracker (Gap A, Gaps C–E, Gaps F, G, I) rather than against
+> these task IDs. Spec retained for the design rationale, the property
+> catalog, and the pillar-tenant onboarding runbook reference.
+
 - [ ] 1. Property test scaffold (TDD harness)
   - [ ] 1.1 Create `mcp_server_python/tests/properties/test_v17_pilot.py` skeleton
     - Add module docstring referencing

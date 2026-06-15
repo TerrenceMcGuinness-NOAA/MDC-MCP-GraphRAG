@@ -23,6 +23,22 @@ tasks are marked `[ ]*`. All paths are relative to the workspace root
 
 ## Tasks
 
+> **STATUS — RESOLVED (2026-05-29).** Both code defects fixed and the
+> operational remediation (cleanup + re-ingest) completed. Substantive
+> commits:
+>
+> - `bb6716a` — `fix(ingest): empty-file/broken-symlink guards + async dedupe` (Tasks 2–4 baseline).
+> - `d82fc1e` — `fix(ingest): collection-scoped dedupe key + unconditional graph write (gw_v17)` (the actual Defect 1 + Defect 2 fix; Tasks 3, 4, 5, 6).
+>
+> The Saturday 2026-05-30 re-ingest run completed with the corrected
+> registry; gw_v17 docs/code/jjobs counts came back as expected (per the
+> gap tracker entry). Subsequent fixes (`v17-knn-vector-reindex` Task 6
+> on 2026-06-11) re-ran the cleanup + re-ingest a second time after the
+> knn_vector mapping fix, which retroactively re-validated this spec's
+> dedupe + graph-write contracts on a fresh dataset.
+>
+> Spec retained for the design rationale and Bug-Condition pseudocode.
+
 - [ ]* 1. Write bug condition exploration test (BEFORE any fix)
   - **Property 1: Bug Condition** - Collection-Blind Dedupe Masks Code/JJobs Content
   - **CRITICAL**: This test MUST FAIL on the current unfixed code — the failure confirms the bug exists
