@@ -12,13 +12,21 @@ import * as iam from 'aws-cdk-lib/aws-iam';
  *         CreateSnapshot, CreateTags, DescribeNatGateways, DeleteNatGateway,
  *         ReleaseAddress
  *   rds:  DescribeDBClusters, CreateDBClusterSnapshot,
- *         DescribeDBClusterSnapshots, StopDBCluster, StartDBCluster,
- *         AddTagsToResource          (Neptune is an RDS-family service)
+ *         DescribeDBClusterSnapshots, StopDBCluster, StartDBCluster
+ *                                  (Neptune is an RDS-family service; tags are
+ *                                   passed inline via Tags= on snapshot create
+ *                                   and do not require AddTagsToResource)
  *   es:   DescribeDomain, UpdateDomainConfig, ESHttpGet/Put/Post
  *         (manual snapshot + status via the OpenSearch _snapshot REST API)
  *   bedrock-agentcore: GetAgentRuntime, UpdateAgentRuntime
  *   ecr:  DescribeImages              (runtime image digest for drift)
- *   iam:  PassRole                    (register the OS snapshot repo role)
+ *
+ * Note: iam:PassRole is intentionally NOT granted here. The orchestrator
+ * does not register the OpenSearch snapshot repository — it only creates
+ * snapshots in an already-registered repo via the data-plane REST API.
+ * PassRole on the OpenSearch snapshot role belongs on whatever IAM principal
+ * does the one-time register (operator step or CDK custom resource), not on
+ * the orchestrator runtime role.
  *
  * Resources are ARN-scoped wherever the API supports resource-level
  * permissions. Describe/list APIs (ec2:Describe*, rds:DescribeDBClusters, NAT
@@ -33,7 +41,6 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 export function orchestratorPolicyStatements(
   env: string,
   account: string,
-  openSearchSnapshotRoleArn: string,
 ): iam.PolicyStatement[] {
   const neptunePrefix = `mdc-mcp-graprag-neptune-${env}`;
   return [
@@ -70,14 +77,16 @@ export function orchestratorPolicyStatements(
       actions: ['rds:DescribeDBClusters', 'rds:DescribeDBClusterSnapshots'],
       resources: ['*'],
     }),
-    // Neptune cluster stop/start/snapshot/tag (cluster + snapshot scoped).
+    // Neptune cluster stop/start/snapshot (cluster + snapshot scoped). Tags
+    // are passed inline via Tags= on create_db_cluster_snapshot, which is
+    // covered by rds:CreateDBClusterSnapshot itself — no separate
+    // rds:AddTagsToResource is required.
     new iam.PolicyStatement({
       sid: 'NeptuneLifecycle',
       actions: [
         'rds:StopDBCluster',
         'rds:StartDBCluster',
         'rds:CreateDBClusterSnapshot',
-        'rds:AddTagsToResource',
       ],
       resources: [
         `arn:aws:rds:*:${account}:cluster:${neptunePrefix}*`,
@@ -110,13 +119,6 @@ export function orchestratorPolicyStatements(
       sid: 'EcrDescribe',
       actions: ['ecr:DescribeImages'],
       resources: [`arn:aws:ecr:*:${account}:repository/mdc-mcp-rag-${env}`],
-    }),
-    // PassRole so OpenSearch can assume the snapshot role when registering the
-    // manual-snapshot S3 repository.
-    new iam.PolicyStatement({
-      sid: 'PassOpenSearchSnapshotRole',
-      actions: ['iam:PassRole'],
-      resources: [openSearchSnapshotRoleArn],
     }),
   ];
 }

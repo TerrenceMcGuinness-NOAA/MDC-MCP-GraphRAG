@@ -43,7 +43,6 @@ iamStack.attachOrchestratorPolicy(
   orchestratorPolicyStatements(
     environmentName,
     iamStack.account,
-    iamStack.openSearchSnapshotRole.roleArn,
   ),
 );
 
