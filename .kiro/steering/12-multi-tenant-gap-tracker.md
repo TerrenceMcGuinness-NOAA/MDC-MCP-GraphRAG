@@ -3,7 +3,7 @@
 Living document tracking the remaining gaps between the `gw` (develop) baseline
 and non-default tenants (primarily `gw_v17`). Updated as gaps are resolved.
 
-Last updated: 2026-06-11 (v17 vector reindex complete; Gaps H revisited)
+Last updated: 2026-06-11 (Gap J added: community-summaries pipeline blockers — feeds Q3 tech report on Neo4j↔Neptune + Node↔Python gaps)
 
 ## Summary Table
 
@@ -18,6 +18,7 @@ Last updated: 2026-06-11 (v17 vector reindex complete; Gaps H revisited)
 | G | Deep traversal OOMs on Neptune | MEDIUM | gw, gw_v17 | RESOLVED | `bounded-graph-traversal` [8.36.0] commits `fc6ad31..f09c66b` | Pre-flight degree probe + depth cap + 30s statement-timeout backstop on `NeptuneAdapter.query`. Deployed v32 (`python-tenants-v8`), 2026-06-10. Verified live: `find_callers_callees("setuprad", gw_v17)` short-circuits cleanly (degree 174 > threshold 100); `trace_full_execution_chain("JGLOBAL_FORECAST", gw)` falls through to timeout backstop with one-hop Degraded_Result; non-hub `setuprad` `get_code_context` unchanged. |
 | H | No tenant-specific docs collection | BY DESIGN | non-gw | REVISIT | — | See detail below. Docs are branch-agnostic (RTD, EE2 standards, etc.) but v17 has unique repo-local documentation. Current state: `gw_v17_mdc-workflow-docs-titan1024` holds 10,523 docs (v17-specific on-disk content from the code tree). A `shared_indices` config is the next step — see Gap H detail. |
 | I | v17 vector indices had float mapping (not knn_vector) | HIGH | gw_v17 | RESOLVED | `v17-knn-vector-reindex` [8.36.2 deploy + ops] | See detail below. |
+| J | Community-summaries pipeline not portable to Neptune / not ported to Python / not tenant-aware | MEDIUM | gw_v17, all non-gw | OPEN | — | See detail below. Three intersecting gaps: (1) Neo4j GDS Leiden vs Neptune's no-GDS surface; (2) `mcp_server_node/` JS pipeline never ported to Python; (3) no `--tenant` plumbing in any of the four pipeline stages. Captures intrinsic Neo4j↔Neptune gaps for the Q3 technical report. |
 
 ## Detail: Open Gaps
 
@@ -223,3 +224,199 @@ ingester's writes. Rule 3.6 (no ingester code changes) preserved.
 **Verified live:** `find_similar_code("setuprad", tenant_id="gw_v17")` returns
 ranked hits. `search_documentation("GEMPAK", tenant_id="gw_v17")` returns hits.
 Default-tenant (`gw`) preservation confirmed unchanged.
+
+
+---
+
+### Gap J — Community-summaries pipeline (Neo4j↔Neptune, Node↔Python, multi-tenant)
+
+**Status:** OPEN. Slated for Q3 work — feeds the technical report on intrinsic
+graph-engine and runtime-port gaps.
+
+**Symptom (today):** `gw_v17_mdc-community-summaries-titan1024` exists (correctly
+mapped, 0 documents). Calls to `search_architecture(tenant_id="gw_v17")` and
+`get_code_context(tenant_id="gw_v17", include_community=True)` return clean
+`[INFO] Skip_Block` diagnostics via the `graceful-missing-index-handling` fix,
+but they cannot return real subsystem-level summaries because the index is
+empty. The gw baseline has 2,113 community summaries; v17 has zero.
+
+**Background — what community-summaries are.** A graph-derived view of the
+codebase. The pipeline:
+
+1. **Leiden community detection** runs on the graph and assigns a `communityId`
+   to every node, grouping files / functions / modules into clusters that
+   interact with each other more densely than with the rest of the graph
+   (modularity-maximising partitioning).
+2. **Community node materialisation** writes hierarchical `Community` nodes
+   into the graph with `MEMBER_OF`, `PARENT_OF`, and `INTERACTS_WITH` edges.
+3. **LLM summarisation** feeds each community's structure (member names,
+   dominant labels, interaction patterns) to a generative model and produces
+   a 4-8 sentence prose description of what that subsystem does.
+4. **Embed + import** writes the summary text + Titan embedding into the
+   `community-summaries` vector index, keyed by `community-L<level>-<id>`.
+
+For gw, this surfaces architectural communities like "GSI EnKF", "atmospheric
+forecast model", "shell script source dependency graph" (real examples from
+the gw benchmark ground truth at
+`mcp_server_node/scripts/config/benchmark_ground_truth.json`).
+
+**Three intersecting blockers (the Q3 tech report's spine):**
+
+#### Blocker 1 — Neo4j Graph Data Science vs Amazon Neptune
+
+The existing pipeline (`mcp_server_node/scripts/run_community_detection.js`,
+`mcp_server_node/src/graphrag/CommunityDetection.js`) assumes a Neo4j graph
+with the **Graph Data Science (GDS) plugin** and calls procedures like
+`gds.graph.project`, `gds.leiden.write`, and `gds.louvain.stream`. The
+deployed graph is **Amazon Neptune**, which:
+
+- Speaks openCypher (mostly compatible) and Gremlin (fully).
+- Does **not** ship the GDS plugin. Neptune has no `gds.*` procedure surface.
+- Does not expose modularity-optimising community detection as a server-side
+  primitive at all — `gds.leiden`, `gds.louvain`, `gds.wcc`, the entire
+  algorithm catalog is absent.
+
+This is an **intrinsic engine-feature gap**, not a bug. The pipeline was
+designed against Neo4j's algorithm catalog and the Q1 migration to Neptune
+moved the data without a feature-parity port. Three options for the Q3 fix:
+
+- **Option A — External Leiden, in-process import:** Export the v17 graph (or
+  any tenant's graph) via openCypher, run Leiden in Python using
+  `leidenalg` + `igraph` or `networkx` + `python-louvain`, then write
+  `communityId` properties + `Community` nodes back to Neptune via
+  parameterised openCypher updates. This is the most faithful reproduction of
+  the gw pipeline's output.
+  - Trade-off: extra hop through a Python process, but the algorithm runs on
+    a host with full memory access and is well-tested in the scientific
+    Python ecosystem.
+  - Estimated wall-clock: ~10-30 min for v17's 80K-node / 1.28M-rel graph
+    (Leiden is near-linear in edges).
+- **Option B — Native Neptune approximations:** Neptune supports
+  weakly-connected-components-style traversals via openCypher path queries,
+  but these are not modularity-optimising. The output would be coarser
+  components rather than communities. Lower quality but no external runtime.
+- **Option C — Migrate to Neptune Analytics:** AWS's separate analytics
+  graph service does include some community detection algorithms (WCC, label
+  propagation, weakly-connected components). Not Leiden specifically. Also
+  involves a second graph store (data duplication, sync cost) and wasn't in
+  scope for the Q1 migration.
+
+**Recommendation for Q3:** Option A. It preserves output parity with the gw
+pipeline (same Leiden algorithm → same modularity quality → same downstream
+benchmark queries), runs offline (no operational dependency), and the Python
+graph stack is mature.
+
+#### Blocker 2 — Node.js → Python port not done
+
+All four pipeline stages live in `mcp_server_node/`:
+
+| Stage | File | Status |
+|-------|------|--------|
+| Community detection (Leiden) | `mcp_server_node/src/graphrag/CommunityDetection.js` | Node only; depends on Neo4j GDS |
+| Pipeline runner | `mcp_server_node/scripts/run_community_detection.js` | Node only |
+| LLM summary generation | `mcp_server_node/scripts/generate_llm_summaries.js` | Node only |
+| Vector import | `mcp_server_node/scripts/import_llm_summaries.js` | Node only |
+
+The Python port (`mcp_server_python/`) has placeholders only:
+- `mcp_server_python/src/manifest/models.py` declares `SourceType.COMMUNITY_SUMMARY`.
+- `mcp_server_python/src/config/unified_manifest.json` lists
+  `"community-summaries"` as a manifest source pointing at
+  `scripts/import_llm_summaries.js` (the Node script — it has not been
+  re-pointed at a Python equivalent).
+- No `mcp_server_python/scripts/ingest_community_summaries.py` exists.
+- No `mcp_server_python/src/graphrag/community_detection.py` exists.
+
+**Why the port matters:** every other ingester has been ported to Python so
+the v8 pipeline can run with a single runtime, single dependency tree, and
+the tenancy plumbing (`--tenant`, label-prefix awareness, dedupe registry
+keyed by `(collection, sha)` per tenant) that landed in Q2. The community-
+summaries pipeline is the last stage still anchored to the Node toolchain.
+
+**Recommendation for Q3:** Port the four stages to Python with the same shape
+as the existing v8 ingesters (`ingest_documentation_v8.py`, `ingest_code_v8.py`,
+`ingest_jjobs_v8.py`):
+- `mcp_server_python/src/graphrag/community_detection.py` — wraps `leidenalg`
+  + Neptune export/import.
+- `mcp_server_python/src/graphrag/community_summarizer.py` — Bedrock
+  Claude/Nova call that produces a 4-8 sentence summary per community.
+- `mcp_server_python/scripts/ingest_community_summaries.py` — pipeline runner
+  with `--tenant`, `--model`, `--mode {full,diff}` matching the other
+  ingesters' interface.
+- Update `unified_manifest.json` to point at the new Python script.
+
+#### Blocker 3 — No tenant awareness in any pipeline stage
+
+Even if Blockers 1 and 2 were resolved, the existing scripts have no
+`--tenant` parameter. Concretely:
+
+- The detection stage writes `communityId` properties to nodes via plain
+  openCypher / Cypher — no label prefix, no tenant filter.
+- The summariser reads `Community` nodes by label only — would mix gw and
+  gw_v17 communities together if both ran.
+- The importer writes to the unprefixed `community-summaries` collection — no
+  `gw_v17_` prefix on the OpenSearch index name.
+
+The Python ports of `ingest_documentation_v8.py` and friends already solved
+this (label-prefix aware Cypher rewriter, tenant-prefixed OpenSearch indices,
+per-tenant dedupe registry keys). The community-summaries pipeline needs the
+same plumbing applied:
+- Detection writes `${prefix}_Community` labels and tenant-scoped
+  `communityId` properties.
+- Summariser scopes its read query to the active tenant's prefix via
+  `tenant_label_predicate()`.
+- Importer respects `OpenSearchAdapter.resolve_tenant_index` so summaries
+  land in `gw_v17_mdc-community-summaries-titan1024` (already correctly
+  knn_vector-mapped).
+
+#### Cost factors (per tenant, one-time)
+
+- **Leiden run:** ~10-30 min for an 80K-node / 1.28M-rel graph (v17 size).
+- **LLM summary calls:** ~1,000-1,500 communities × 1 Bedrock call each.
+  Estimated $1-5 per tenant in Bedrock spend.
+- **Embedding calls:** ~1,000-1,500 Titan embed-text-v2 calls. Cents per
+  tenant.
+- **Vector ingestion:** seconds.
+- **Total wall-clock:** roughly 1-2 hours per tenant if calls are sequential,
+  20-40 min with reasonable concurrency.
+
+#### Why this matters for the Q3 technical report
+
+This gap is the cleanest example of three intersecting cross-cutting
+concerns the platform has accumulated:
+
+1. **Engine-feature parity** between Neo4j (Q0 baseline) and Neptune (Q1
+   migration target). Where Neo4j ships an algorithm catalog as part of the
+   product, Neptune treats community detection as a client-side or
+   sister-service concern. The pipeline either runs externally (Option A) or
+   adopts a different algorithm (Option B) or a different graph product
+   (Option C). All three are documentable trade-offs.
+2. **Runtime port completeness** between `mcp_server_node/` (Q0/Q1) and
+   `mcp_server_python/` (Q2). Eight of nine ingesters ported, one
+   outstanding. The community-summaries pipeline is the canonical "long
+   tail" port artefact and demonstrates the cost of partial ports.
+3. **Multi-tenancy retrofit** of pipelines that were originally
+   single-tenant. The same `--tenant` plumbing pattern (resolver +
+   label-prefix rewriter + index-prefix translator + dedupe-registry
+   key composition) applied to ingest_code, ingest_documentation,
+   ingest_jjobs, and the shell-graph ingester needs one more application
+   here.
+
+#### Spec sequencing for Q3
+
+A single spec (`v17-community-detection`, or more generally
+`tenant-community-detection-port`) should:
+- Land Blocker 2's Python port + Blocker 3's tenant awareness as the code
+  change.
+- Land Blocker 1's external Leiden as the operator step (run for gw and
+  gw_v17 simultaneously, populate both `mdc-community-summaries-titan1024`
+  and `gw_v17_mdc-community-summaries-titan1024`).
+- Capture the Neo4j↔Neptune trade-off discussion as a design-doc artefact
+  the Q3 tech report can lift directly.
+
+#### Reference state (today, 2026-06-11)
+
+- gw `mdc-community-summaries-titan1024`: 2,113 docs (populated via Q1
+  Node pipeline against the original Neo4j deployment, then migrated)
+- v17 `gw_v17_mdc-community-summaries-titan1024`: 0 docs (correctly
+  knn_vector-mapped; ready to receive content once the pipeline runs)
+- Other non-gw tenants: same as v17 — index exists, empty, ready.
