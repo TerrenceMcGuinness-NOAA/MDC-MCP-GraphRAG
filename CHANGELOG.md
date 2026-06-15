@@ -1,5 +1,64 @@
 # MCP Server Changelog
 
+## [8.37.0] - NIH Sandbox cost control: sleep/wake platform (nih-sandbox-cost-control) (Jun 15, 2026)
+
+### Summary
+
+New feature: the `Cost_Control_System` -- an operator-driven hibernate/wake
+automation that drives the MDC MCP-RAG platform's billable per-hour AWS spend
+down by >=80% during periods of non-use, preserving NIH Sandbox funding while
+guaranteeing zero loss of ingested graph / vector / file-system / container
+data across a sleep -> wake cycle. Two cooperating subsystems under
+`SETUP_AWS/provisioning/`:
+
+- an imperative Python orchestrator (`cost_control/`) that sequences the
+  snapshot / stop / scale / delete / start / restore AWS calls behind a
+  versioned S3 State_File, an audit trail, pre-destruction snapshots, drift
+  detection, and an all-tenant wake validation probe; and
+- a declarative TypeScript CDK app (`cdk/`) of four layered stacks aligned to
+  the sleep/wake destruction boundary (Storage / IAM / Network / Compute).
+
+Delivered as Waves 0-6 of the spec. Waves 7-9 (the gated `cdk deploy` and the
+live hibernate -> wake acceptance cycle) are operator-driven and NOT part of
+this change. No live AWS calls in any test.
+
+### Added
+
+- `SETUP_AWS/provisioning/cost_control/` (NEW) -- orchestrator package:
+  - Shared primitives: `config.py` (env -> resource resolution + allow-list +
+    boto3 session), `audit.py` (R9 one-JSON-per-line records, CloudWatch +
+    per-op S3 `.jsonl`, ASCII console mirror), `state_file.py` (S3 If-Match
+    optimistic lock, schema, counter, missing/corrupt handling), `costs.py`
+    (per-resource active vs sleep USD/hr + savings math), `snapshots.py`
+    (per-tier create/wait/verify, abort-before-destructive).
+  - Tiers (`tiers/`): EC2, Neptune, OpenSearch (scale-down primary; deep-sleep
+    stubbed), AgentCore (no-op hibernate), NAT; plus the `Tier` protocol and
+    `wait_until` helper.
+  - `lambdas/neptune_resleep.py` (7-day auto-restart guard), `drift.py`
+    (preserving vs destructive classification + `--force-drift`),
+    `wake_probe.py` (per-tenant health + kb-status assertions, retry 5x30s).
+  - `state_machine.py` (legal transition table, hibernate/wake sequencing,
+    `--resume`, terminal no-ops, concurrency refusal, savings + wake budget)
+    and `cli.py` (`{hibernate|wake|status}` with `--env/--yes/--dry-run/
+    --resume/--force-drift`, confirmation gate, lock-free status, zero-mutation
+    dry-run).
+  - 158 unit + property tests (`cost_control/tests/`) via botocore Stubber /
+    stateful fakes -- the seven correctness properties (P1 round-trip, P2
+    storage immutability, P3 idempotency, P4 crash-safety/resume, P5 savings
+    floor, P6 confirmation-before-destruction, P7 concurrency refusal).
+- `SETUP_AWS/provisioning/cdk/` (NEW) -- four-stack CDK app (TypeScript,
+  matching `infrastructure/cdk` conventions): `MdcMcpRag-{Storage,IAM,Network,
+  Compute}-{env}`. Storage/Network declare no per-hour resource; Compute owns
+  EC2 + Neptune + OpenSearch + NAT and imports the others; every stateful
+  resource is `RemovalPolicy.RETAIN`; Schedule_Mode is off by default. 21 CDK
+  assertion tests. Every synthesized template validated with cfn-lint (clean)
+  and cfn-guard (residuals documented in `cdk/CFN_GUARD_EXCEPTIONS.md`). The
+  orchestrator role's least-privilege action set
+  (`cdk/lib/orchestrator-policy.ts`) is generated from the orchestrator source.
+- `SETUP_AWS/provisioning/RUNBOOK_cost_control.md` (NEW) -- operator runbook:
+  hibernate / wake / status / drift-override / Schedule_Mode procedures and the
+  per-resource cost table justifying the >=80% target (R5.2).
+
 ## [8.36.3] - Graceful missing-index handling (graceful-missing-index-handling) (Jun 11, 2026)
 
 ### Summary
