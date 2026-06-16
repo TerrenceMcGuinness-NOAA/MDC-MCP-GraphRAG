@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Export_Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "produced_at",
+    "tool_version",
+    "tenants",
+    "scope",
+    "model_profiles",
+    "totals"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "manifest_id": {"type": "string"},
+    "produced_at": {"type": "string"},
+    "produced_by": {"type": ["string", "null"]},
+    "tool_version": {"type": "string"},
+    "source_endpoints": {"type": "object"},
+    "tenants": {"type": "array", "items": {"type": "string"}},
+    "scope": {
+      "type": "object",
+      "properties": {
+        "vectors": {"type": "boolean"},
+        "graph": {"type": "boolean"},
+        "dedupe": {"type": "boolean"},
+        "selected_collections": {"type": ["array", "null"]}
+      }
+    },
+    "model_profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["dimensions"],
+        "properties": {
+          "dimensions": {"type": "integer"},
+          "provider": {"type": "string"},
+          "model_id": {"type": "string"}
+        }
+      }
+    },
+    "vector_exports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tenant_id", "collection_name", "model_profile", "parts", "sha256_per_part"],
+        "properties": {
+          "tenant_id": {"type": "string"},
+          "collection_name": {"type": "string"},
+          "model_profile": {"type": "string"},
+          "record_count": {"type": "integer"},
+          "parts": {"type": "array", "items": {"type": "string"}},
+          "sha256_per_part": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "graph_exports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tenant_id", "node_parts", "rel_parts", "sha256_per_part"],
+        "properties": {
+          "tenant_id": {"type": "string"},
+          "node_count": {"type": "integer"},
+          "relationship_count": {"type": "integer"},
+          "node_parts": {"type": "array", "items": {"type": "string"}},
+          "rel_parts": {"type": "array", "items": {"type": "string"}},
+          "sha256_per_part": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "dedupe_export": {"type": ["object", "null"]},
+    "totals": {"type": "object"},
+    "preflight_counts": {"type": "object"}
+  }
+}

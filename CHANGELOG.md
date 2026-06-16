@@ -1,5 +1,83 @@
 # MCP Server Changelog
 
+## [8.36.4] - Cross-platform data persistence: engine-neutral Portable_Export (cross-platform-data-persistence) (Jun 16, 2026)
+
+### Summary
+
+New feature: the `Cross_Platform_Data_Persistence_System` -- the **outbound
+mirror** of the inbound `migrate-to-aws.js` pipeline. It produces an
+engine-neutral `Portable_Export` of the entire Knowledge_Base (OpenSearch
+vectors + Neptune property graph, across all tenants) staged in S3, which can
+then be **COTS_Restore**d into the original open-source stack (ChromaDB +
+Neo4j) on a Docker host or **AWS_Reimport**ed back into OpenSearch + Neptune at
+a later date -- the round trip the funding-resilience case rests on. The S3
+Portable_Export is the contract: every direction writes or reads the same
+gzipped JSONL (vectors) + Neptune-loader CSV (graph) artifacts under the same
+model-aware / tenant-aware layout, validated against the same Export_Manifest,
+verified by the same Count_Parity_Check. The pipeline is read-only on every
+source and gates every destructive write behind an operator confirmation.
+
+Delivered as Waves 0-6 of the spec (the complete code pipeline + integration
+tests + runbook). Waves 7-11 (the live, operator-gated Phase A-D acceptance
+runs against `dev`) are operator-driven and NOT part of this change. No live
+AWS calls in any test -- S3 is exercised via `moto`; the OpenSearch / Neptune /
+ChromaDB / Neo4j data planes via in-memory fixtures.
+
+### Added
+
+- `SETUP_AWS/provisioning/portable_export/` (NEW) -- the pipeline package:
+  - Shared primitives: `config.py` (env -> bucket / KMS / endpoints + tenant
+    catalog parsed from `tenants.yaml` with PyYAML + Model_Profile registry +
+    boto3 session), `audit.py` (one-JSON-per-line records, CloudWatch +
+    per-op S3 `.jsonl` + local fallback, ASCII console mirror), `lock.py`
+    (S3 If-Match optimistic lock + stale-lock break), `watermarks.py`
+    (atomic `(phase, tenant, collection, model_profile, part)` progress with
+    `--resume` manifest-id guard), `manifest.py` (Export_Manifest model +
+    schema-major-mismatch refusal + per-part SHA-256), `kms_writer.py`
+    (SSE-KMS PUT + streaming SHA-256 + bucket-encryption guard),
+    `query_embedder_check.py` (Model_Profile -> Query_Compatible /
+    Query_Incompatible matrix), `serialization.py` (deterministic gzipped
+    JSONL + Neptune-loader CSV encode/decode), `bundle.py` (Export_Bundle
+    tar.gz pack/unpack for offline restore).
+  - Adapters (`adapters/`): read-only `opensearch_reader` (scroll/scan,
+    Index_Family enumeration) + `neptune_reader` (openCypher streaming);
+    write `opensearch_writer` (knn_vector mapping ensure / conflict-refuse) +
+    `neptune_loader` (bulk-loader poll), `chromadb_writer` +
+    `neo4j_writer` (bitwise embedding pass-through, tenant-prefixed labels).
+  - Phases (`phases/`): `export_vectors` / `export_graph` / `export_dedupe`;
+    `load_vectors_cots` / `load_graph_cots`; `load_vectors_aws` /
+    `load_graph_aws` / `rebuild_dedupe_aws`; `count_parity`.
+  - `direction_dispatcher.py` (direction -> adapter wiring, selective scope,
+    gated `execute_restore`) and `portable_export_cli.py`
+    (`{export|restore|reimport|verify|status}`, `--dry-run`, confirmation
+    phrase / `--yes`, lock-free status).
+  - `schemas/` -- manifest + vector-record + graph node/rel CSV schemas.
+  - 149 tests (`portable_export/tests/`): 145 unit + 4 end-to-end integration
+    (AWS_Export -> AWS_Reimport, AWS_Export -> COTS_Restore, bundle
+    round-trip, resume round-trip). The nine correctness properties are
+    covered -- P1 engine-neutral readability, P2 no-re-embedding (bitwise),
+    P3 round-trip fidelity, P4 COTS completeness, P5 source immutability,
+    P6 idempotent watermarked resume, P7 confirmation-before-write, P8 tenant
+    prefix preservation, P9 deterministic dedupe rebuild.
+- `SETUP_AWS/provisioning/RUNBOOK_portable_export.md` (NEW) -- operator
+  runbook: AWS_Export / COTS_Restore / AWS_Reimport procedures, the
+  Query_Embedder availability matrix, the dedupe export-vs-rebuild policy, the
+  bundle / offline-restore flow, and the Phase A-D operator-gated acceptance
+  procedure.
+
+### Notes
+
+- Engine-neutral by construction: gzipped JSONL for vectors and Neptune-loader
+  CSV (a superset of `neo4j-admin import`) for graph means both engines load
+  the same files unchanged -- no translation step.
+- No re-embedding ever: embeddings are carried bitwise; per-part SHA-256 in the
+  manifest is the on-the-wire enforcement and the round-trip test closes the
+  loop. gzip output uses `mtime=0` so re-runs (and resumed runs) produce
+  byte-identical parts and a byte-equal manifest.
+- Read-only invariant on AWS_Export is structural (the SourceReader protocol
+  exposes only read methods) and asserted by a Property 5 test.
+- No auto-commit (per `08-git-operation-policy.md`).
+
 ## [8.37.0] - NIH Sandbox cost control: sleep/wake platform (nih-sandbox-cost-control) (Jun 15, 2026)
 
 ### Summary

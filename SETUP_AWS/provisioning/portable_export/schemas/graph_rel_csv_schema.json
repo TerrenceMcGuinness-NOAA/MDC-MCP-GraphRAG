@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Graph_Export relationship CSV header rules (Neptune-loader / neo4j-admin superset)",
+  "description": "Gzipped CSV. Reserved columns first, then sorted property columns.",
+  "reserved_columns": ["~id", "~from", "~to", "~label"],
+  "rules": [
+    "Column 0 MUST be ~id (the stable relationship id).",
+    "Column 1 MUST be ~from (start node id).",
+    "Column 2 MUST be ~to (end node id).",
+    "Column 3 MUST be ~label (the relationship type).",
+    "Remaining columns are property names sorted lexicographically.",
+    "Complex property values are JSON-encoded; null/absent values are empty strings.",
+    "The same file loads under neo4j-admin import (which reads :START_ID/:END_ID/:TYPE)."
+  ]
+}
