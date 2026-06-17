@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "tenant_id": "gw_v17",
+  "branch": "dev/gfs.v17",
+  "mode": "full",
+  "started_at": "2026-05-29T08:26:19.361757+00:00",
+  "elapsed_seconds": 29.9,
+  "total_files_processed": 92,
+  "documents_created": {},
+  "documents_deduped": 92,
+  "embedding_calls": {
+    "bedrock_invocations": 0,
+    "estimated_tokens": 0,
+    "model": "amazon.titan-embed-text-v2:0"
+  },
+  "graph": {
+    "nodes_created_by_label": {},
+    "relationships_created": 0
+  },
+  "dedupe_efficiency_pct": 100.0,
+  "warnings": [],
+  "comparison_to_phase_54_baseline": {
+    "expected_dedupe_efficiency_pct_range": [
+      20.0,
+      50.0
+    ],
+    "expected_documents_created_total_range": [
+      1500,
+      2200
+    ],
+    "expected_estimated_tokens_range": [
+      1500000,
+      2500000
+    ],
+    "drift_flags": [
+      "dedupe_efficiency_pct",
+      "documents_created_total",
+      "estimated_tokens"
+    ]
+  }
+}

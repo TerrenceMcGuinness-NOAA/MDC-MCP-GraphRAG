@@ -158,17 +158,17 @@ class FakeNeptune:
         if "labels(a) AS la, count(r)" in c:
             return [{"la": ["File"], "c": 3}, {"la": ["GW_V17_File"], "c": 5}]
         if "properties(n) AS props" in c:
-            if "SKIP 0" in c and ":`File`" in c:
-                return [{"id": 1, "props": {"path": "a.py"}},
-                        {"id": 2, "props": {"path": "b.py"}}]
-            return []  # subsequent pages empty
+            # Keyset pagination: first page has no WHERE id(n) > ...
+            if ":`File`" in c and "WHERE id(n) >" not in c:
+                return [{"id": "1", "props": {"path": "a.py"}},
+                        {"id": "2", "props": {"path": "b.py"}}]
+            return []  # subsequent pages or other labels empty
         if "type(r) AS type" in c:
-            if "SKIP 0" in c:
+            # Keyset pagination: first page has no WHERE id(r) > ...
+            if ":`File`" in c and "WHERE id(r) >" not in c:
                 return [
-                    {"id": 10, "type": "CALLS", "start": 1, "end": 2,
-                     "la": ["File"], "props": {"n": 1}},
-                    {"id": 11, "type": "USES", "start": 99, "end": 2,
-                     "la": ["GW_V17_File"], "props": {}},
+                    {"id": "10", "type": "CALLS", "start": "1", "end": "2",
+                     "props": {"n": 1}},
                 ]
             return []
         return []

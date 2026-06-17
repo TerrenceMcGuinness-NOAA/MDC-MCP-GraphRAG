@@ -31,7 +31,7 @@ _MUTATING_RE = re.compile(
 )
 
 #: Node-page size for SKIP/LIMIT pagination.
-DEFAULT_PAGE: int = 1000
+DEFAULT_PAGE: int = 500
 
 
 def is_read_only(cypher: str) -> bool:
@@ -132,15 +132,24 @@ class NeptuneReader:
     # ── streaming ──────────────────────────────────────────────────────
 
     def stream_nodes(self, tenant: str) -> Iterator[NodeRow]:
-        """Yield every :class:`NodeRow` owned by ``tenant`` (paginated)."""
+        """Yield every :class:`NodeRow` owned by ``tenant`` (keyset paginated)."""
         for label in self.label_families_for_tenant(tenant):
-            skip = 0
+            last_id = ""
             while True:
-                rows = self._run(
-                    f"MATCH (n:`{label}`) RETURN id(n) AS id, "
-                    f"properties(n) AS props ORDER BY id(n) "
-                    f"SKIP {skip} LIMIT {self._page}"
-                )
+                if last_id:
+                    cypher = (
+                        f"MATCH (n:`{label}`) WHERE id(n) > '{last_id}' "
+                        f"RETURN id(n) AS id, "
+                        f"properties(n) AS props ORDER BY id(n) "
+                        f"LIMIT {self._page}"
+                    )
+                else:
+                    cypher = (
+                        f"MATCH (n:`{label}`) RETURN id(n) AS id, "
+                        f"properties(n) AS props ORDER BY id(n) "
+                        f"LIMIT {self._page}"
+                    )
+                rows = self._run(cypher)
                 if not rows:
                     break
                 for r in rows:
@@ -151,26 +160,40 @@ class NeptuneReader:
                     )
                 if len(rows) < self._page:
                     break
-                skip += self._page
+                last_id = str(rows[-1].get("id"))
 
     def stream_relationships(self, tenant: str) -> Iterator[RelRow]:
         """Yield every :class:`RelRow` whose start node is owned by ``tenant``.
 
         Scoped per-label to avoid full-graph scans that exceed Neptune's
-        statement timeout on large graphs.
+        statement timeout on large graphs. Uses keyset pagination
+        (WHERE id(r) > $last_id) instead of SKIP/LIMIT to avoid
+        Neptune internal failures on large offsets.
         """
         labels = list(self.label_families_for_tenant(tenant))
         if not labels:
             return
         for label in labels:
-            skip = 0
+            last_id = ""
             while True:
-                rows = self._run(
-                    f"MATCH (a:`{label}`)-[r]->(b) RETURN id(r) AS id, type(r) AS type, "
-                    f"id(a) AS start, id(b) AS end, "
-                    f"properties(r) AS props ORDER BY id(r) "
-                    f"SKIP {skip} LIMIT {self._page}"
-                )
+                if last_id:
+                    cypher = (
+                        f"MATCH (a:`{label}`)-[r]->(b) "
+                        f"WHERE id(r) > '{last_id}' "
+                        f"RETURN id(r) AS id, type(r) AS type, "
+                        f"id(a) AS start, id(b) AS end, "
+                        f"properties(r) AS props ORDER BY id(r) "
+                        f"LIMIT {self._page}"
+                    )
+                else:
+                    cypher = (
+                        f"MATCH (a:`{label}`)-[r]->(b) "
+                        f"RETURN id(r) AS id, type(r) AS type, "
+                        f"id(a) AS start, id(b) AS end, "
+                        f"properties(r) AS props ORDER BY id(r) "
+                        f"LIMIT {self._page}"
+                    )
+                rows = self._run(cypher)
                 if not rows:
                     break
                 for r in rows:
@@ -183,7 +206,7 @@ class NeptuneReader:
                     )
                 if len(rows) < self._page:
                     break
-                skip += self._page
+                last_id = str(rows[-1].get("id"))
 
     # vector-half stubs so a NeptuneReader satisfies SourceReader structurally
     def list_index_families(self, tenants: list[str]) -> list[str]:  # pragma: no cover
