@@ -3,6 +3,7 @@ node_modules
 *.log
 logs/
 test/
+!test/benchmark/
 test-results/
 tests/
 demo/

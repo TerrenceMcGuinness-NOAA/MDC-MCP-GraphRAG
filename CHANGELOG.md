@@ -1,5 +1,34 @@
 # MCP Server Changelog
 
+## [8.36.5] - Backend-agnostic graph health probe: fix false "0 nodes" degraded (health-graph-probe-backend-shape) (Jun 24, 2026)
+
+### Summary
+
+`mcp_health_check` was false-reporting **"Graph Database: degraded — 0 nodes"**
+on the Neo4j backend even though the graph held ~19.7K nodes and functional
+queries passed. Root cause: the consolidated `HealthChecker._checkGraph()` read
+a pre-summed `stats.nodes` field, which only the Neptune adapter emits. The
+Neo4j `getStatistics()` returns per-label counts
+(`{ fileCount, functionCount, classCount, moduleCount }`) with no `nodes` key,
+so the probe saw `undefined → 0 → degraded`. `get_knowledge_base_status` read
+the correct per-label shape, which is why only the health probe misfired. The
+unit test masked the bug via mock drift — it mocked the Neptune shape only.
+
+### Fixed
+
+- `mcp_server_node/src/health/HealthChecker.js` — new `_resolveNodeCount(stats)`
+  helper makes the graph probe backend-agnostic: returns `stats.nodes` when
+  numeric (Neptune), otherwise sums `fileCount + functionCount + classCount +
+  moduleCount` (Neo4j). `_checkGraph()` now calls it. Verified live in the
+  Docker MCP gateway container: health returns `HEALTHY 9/9`, Graph Database
+  `healthy — 19689 nodes`, functional `PASS 6/6`.
+- `mcp_server_node/src/__tests__/step14-health-resilience.test.js` — hardened
+  against mock drift: added a Neo4j per-label stats factory and cases asserting
+  both the Neo4j (no `nodes` field) and all-zero shapes, alongside the existing
+  Neptune-shape property tests.
+- `mcp_server_node/.dockerignore` — added `!test/benchmark/` so the image build
+  (`COPY test/benchmark/`) no longer fails on the broad `test/` exclusion.
+
 ## [8.36.4] - Cross-platform data persistence: engine-neutral Portable_Export (cross-platform-data-persistence) (Jun 16, 2026)
 
 ### Summary

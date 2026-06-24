@@ -87,7 +87,7 @@ async function _checkVector(vectorDB, minIndices) {
 async function _checkGraph(graphDB) {
   try {
     const stats = await graphDB.getStatistics();
-    const nodeCount = stats?.nodes ?? 0;
+    const nodeCount = _resolveNodeCount(stats);
     const ok = nodeCount > 0;
     return {
       ok,
@@ -98,6 +98,26 @@ async function _checkGraph(graphDB) {
   } catch (err) {
     return { ok: false, status: 'degraded', nodeCount: 0, reason: err.message };
   }
+}
+
+/**
+ * Resolve total node count across graph backends.
+ *
+ * The Neptune adapter's getStatistics() returns a pre-summed `nodes` field,
+ * while the Neo4j backend returns per-label counts
+ * ({ fileCount, functionCount, classCount, moduleCount }). Support both shapes
+ * so the probe is backend-agnostic and does not false-report 0 nodes on Neo4j.
+ *
+ * @param {object} stats
+ * @returns {number}
+ */
+function _resolveNodeCount(stats) {
+  if (!stats) return 0;
+  if (typeof stats.nodes === 'number') return stats.nodes;
+  return (stats.fileCount ?? 0)
+    + (stats.functionCount ?? 0)
+    + (stats.classCount ?? 0)
+    + (stats.moduleCount ?? 0);
 }
 
 function _sleep(ms) {

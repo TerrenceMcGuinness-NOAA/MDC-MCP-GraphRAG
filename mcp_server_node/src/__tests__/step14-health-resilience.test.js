@@ -19,6 +19,12 @@ describe('P9: Health Check Accuracy', () => {
   function makeGraphDB(nodeCount) {
     return { getStatistics: vi.fn(async () => ({ nodes: nodeCount, relationships: 0 })) };
   }
+  // Neo4j backend returns per-label counts, not a summed `nodes` field.
+  function makeNeo4jGraphDB({ fileCount = 0, functionCount = 0, classCount = 0, moduleCount = 0 } = {}) {
+    return {
+      getStatistics: vi.fn(async () => ({ fileCount, functionCount, classCount, moduleCount })),
+    };
+  }
   function makeFailingDB(method) {
     return { [method]: vi.fn(async () => { throw new Error('connection refused'); }) };
   }
@@ -40,6 +46,23 @@ describe('P9: Health Check Accuracy', () => {
     const result = await checkDatabases(makeVectorDB(5), makeGraphDB(0));
     expect(result.status).toBe('degraded');
     expect(result.graph.ok).toBe(false);
+  });
+
+  test('healthy with Neo4j per-label stats shape (no `nodes` field)', async () => {
+    const result = await checkDatabases(
+      makeVectorDB(5),
+      makeNeo4jGraphDB({ fileCount: 2758, functionCount: 2012, classCount: 54, moduleCount: 350 })
+    );
+    expect(result.status).toBe('healthy');
+    expect(result.graph.ok).toBe(true);
+    expect(result.graph.nodeCount).toBe(5174);
+  });
+
+  test('degraded with Neo4j shape when all label counts are 0', async () => {
+    const result = await checkDatabases(makeVectorDB(5), makeNeo4jGraphDB());
+    expect(result.status).toBe('degraded');
+    expect(result.graph.ok).toBe(false);
+    expect(result.graph.reason).toContain('0 nodes');
   });
 
   test('degraded when vector DB is unreachable', async () => {
