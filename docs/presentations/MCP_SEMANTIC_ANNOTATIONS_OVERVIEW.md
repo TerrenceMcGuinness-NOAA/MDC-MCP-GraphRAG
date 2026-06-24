@@ -132,7 +132,7 @@ The annotations are **invisible in rendered documentation** but parsed during in
 ```
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │   RST Source     │    │  Parsed Chunks   │    │ Vector Embedding │
-│                  │───▶│                  │───▶│                  │
+│                  │───>│                  │───>│                  │
 │ standards.rst    │    │ Text + Metadata  │    │ 384-dim vector   │
 │ + MCP directives │    │ per directive    │    │ + metadata       │
 └──────────────────┘    └──────────────────┘    └──────────────────┘
@@ -140,7 +140,7 @@ The annotations are **invisible in rendered documentation** but parsed during in
                                                          ▼
 ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
 │  Semantic Query  │    │  Vector Search   │    │   ChromaDB       │
-│                  │◀───│                  │◀───│                  │
+│                  │<───│                  │<───│                  │
 │ "error handling" │    │ cosine similarity│    │ Collection store │
 │                  │    │ + metadata filter│    │                  │
 └──────────────────┘    └──────────────────┘    └──────────────────┘

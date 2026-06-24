@@ -245,21 +245,10 @@ class BedrockProvider(EmbeddingProvider):
 
 
 class LocalProvider(EmbeddingProvider):
-    """sentence-transformers-backed provider — non-functional in this image.
+    """sentence-transformers-backed provider.
 
-    The Node.js port uses sentence-transformers as the local default;
-    the Python runtime image deliberately excludes ``torch`` /
-    ``transformers`` / ``sentence-transformers`` (Requirement 10), so
-    ``LocalProvider.__init__`` emits an ``[ERROR]`` log line and
-    raises :class:`EmbeddingError` (Requirements 9.1, 9.2).
-
-    The class still exists so:
-
-    * The :func:`create_provider` factory can dispatch to it without a
-      conditional import at the module level.
-    * A future runtime image that ships sentence-transformers can
-      drop in a working implementation by replacing the body of
-      :pymeth:`embed` and removing the import-fail check.
+    Loads the local sentence-transformers model (e.g. all-mpnet-base-v2)
+    to generate embeddings locally on the Parallel Works VM.
     """
 
     def __init__(self, profile: ModelProfile) -> None:
@@ -267,38 +256,33 @@ class LocalProvider(EmbeddingProvider):
         try:
             # ``sys.modules`` check is honored too so test masks via
             # ``sys.modules["sentence_transformers"] = None`` propagate.
-            import sentence_transformers  # type: ignore[import-not-found]  # noqa: F401
-        except ImportError as exc:
+            import sentence_transformers  # type: ignore[import-not-found]
+            self._model = sentence_transformers.SentenceTransformer(profile.model_id)
+        except Exception as exc:
             log.error(
-                "[ERROR] LocalProvider unavailable for profile %s: "
-                "sentence-transformers is not installed in the runtime image",
+                "[ERROR] LocalProvider failed to initialize for profile %s: %s",
                 profile.short_name,
+                exc,
             )
             # Mirror the [ERROR] line on stderr too so it surfaces
             # in container logs even when logging is unconfigured.
             print(
-                f"[ERROR] LocalProvider unavailable for profile "
-                f"{profile.short_name}: sentence-transformers is not "
-                f"installed in the runtime image",
+                f"[ERROR] LocalProvider failed to initialize for profile "
+                f"{profile.short_name}: {exc}",
                 file=sys.stderr,
             )
             raise EmbeddingError(
-                "sentence-transformers is not installed in the runtime "
-                "image; mpnet768 is parity-debug-only on this runtime"
+                f"sentence-transformers failed to load model {profile.model_id}: {exc}"
             ) from exc
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        """Stub for parity with the Node.js port — unreachable here.
-
-        The constructor errors first when sentence-transformers is
-        absent, so this body only runs in a hypothetical future image
-        that ships the dependency. Keep it as a safe-by-default
-        ``EmbeddingError`` rather than wiring the real model — the
-        future image is responsible for replacing this stub.
-        """
-        raise EmbeddingError(
-            "LocalProvider.embed is unimplemented in this runtime image"
-        )
+        """Embed a list of text strings locally using sentence-transformers."""
+        try:
+            embeddings = self._model.encode(texts, convert_to_numpy=True)
+            return embeddings.tolist()
+        except Exception as exc:
+            log.error("[ERROR] LocalProvider.embed failed: %s", exc)
+            raise EmbeddingError(f"Local embedding generation failed: {exc}") from exc
 
     @property
     def dimensions(self) -> int:

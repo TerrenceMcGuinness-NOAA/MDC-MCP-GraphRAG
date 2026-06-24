@@ -68,13 +68,7 @@ async def create_data_access(
         facade; individual adapter slots may be ``None`` when their
         connect call failed (degraded mode).
     """
-    if config.db_backend == "legacy":
-        raise UnsupportedBackendError(
-            "DB_BACKEND=legacy is not supported by the AgentCore "
-            "deployment. Set DB_BACKEND=aws (or unset; aws is the "
-            "default)."
-        )
-    if config.db_backend != "aws":
+    if config.db_backend not in ("aws", "legacy"):
         raise UnsupportedBackendError(
             f"DB_BACKEND={config.db_backend!r} is not a known value. "
             f'Valid values: "aws", "legacy".'
@@ -105,12 +99,24 @@ async def create_data_access(
 
 
 def _build_vector_db(config: ServerConfig) -> VectorDBProtocol | None:
-    """Construct an OpenSearchAdapter or return None on misconfig.
+    """Construct an OpenSearchAdapter, ChromaDBAdapter, or return None on misconfig.
 
     Late-imports the adapter so test environments without
     ``opensearch-py`` installed can still exercise
     :func:`create_data_access` with injected mocks.
     """
+    if config.db_backend == "legacy":
+        try:
+            from src.data.chromadb_adapter import ChromaDBAdapter
+        except ImportError as exc:
+            log.warning(
+                "[WARN] ChromaDBAdapter unavailable (%s); "
+                "vector_db will be disabled",
+                exc,
+            )
+            return None
+        return ChromaDBAdapter(host=config.chromadb_host, port=config.chromadb_port)
+
     if not config.opensearch_endpoint:
         log.warning(
             "[WARN] OPENSEARCH_ENDPOINT is empty; "
@@ -134,7 +140,23 @@ def _build_vector_db(config: ServerConfig) -> VectorDBProtocol | None:
 
 
 def _build_graph_db(config: ServerConfig) -> GraphDBProtocol | None:
-    """Construct a NeptuneAdapter or return None on misconfig."""
+    """Construct a NeptuneAdapter, Neo4jAdapter, or return None on misconfig."""
+    if config.db_backend == "legacy":
+        try:
+            from src.data.neo4j_adapter import Neo4jAdapter
+        except ImportError as exc:
+            log.warning(
+                "[WARN] Neo4jAdapter unavailable (%s); "
+                "graph_db will be disabled",
+                exc,
+            )
+            return None
+        return Neo4jAdapter(
+            uri=config.neo4j_uri,
+            password=config.neo4j_password,
+            user=config.neo4j_user,
+        )
+
     if not config.neptune_endpoint:
         log.warning(
             "[WARN] NEPTUNE_ENDPOINT is empty; "
