@@ -1,5 +1,37 @@
 # MCP Server Changelog
 
+## [8.36.6] - Backend-agnostic smoke probes; legacy parity verified (python-mcp-pw-integration) (Jun 24, 2026)
+
+### Summary
+
+Completed Phase 4 parity verification for the Python MCP server's `legacy`
+backend (local ChromaDB + Neo4j on Parallel Works). The functional smoke suite
+now reports **8 pass / 1 skip (github — no token) / 1 fail** in legacy mode;
+the lone failure is `branch_isolation`, a separate `omd-tenants-2-v17-pilot`
+probe requiring `gw_v17` multi-tenant data not ingested in the single-tenant
+local baseline (out of scope).
+
+### Fixed
+
+- `mcp_server_python/src/tools/smoke_queries.py` — the ChromaDB smoke probes
+  (`semantic_search`, `ee2_compliance`, `operational`, and `branch_isolation`
+  assertions 3–4) hardcoded AWS **physical** index names
+  (`mdc-workflow-docs-titan1024`, `mdc-ee2-standards-titan1024`), which don't
+  exist on the legacy backend (collections are `*-mpnet768`). Switched them to
+  **logical** collection names (`global-workflow-docs-v8-0-0`,
+  `ee2-standards-v5-0-0-enhanced`) so `aws_config.resolve_index` maps them per
+  active embedding profile: `titan1024` on AWS, `mpnet768` on legacy. AWS
+  resolution is unchanged. Matches how the real tool modules already pass
+  logical collection names. Smoke unit tests (9) still pass.
+
+### Changed
+
+- `.kiro/specs/python-mcp-pw-integration/tasks.md` — Phase 4 status reconciled:
+  Tasks 4.1 (connection integrity) and 4.3 (smoke testing) marked complete;
+  4.2 (count diff vs export manifest) noted as still pending. Verification run
+  command documented (`DB_BACKEND=legacy MCP_EMBEDDING_PROFILE=mpnet768
+  MCP_TENANT_CATALOG_PATH=mcp_server_python/src/config/tenants.yaml`).
+
 ## [8.36.5] - Backend-agnostic graph health probe: fix false "0 nodes" degraded (health-graph-probe-backend-shape) (Jun 24, 2026)
 
 ### Summary

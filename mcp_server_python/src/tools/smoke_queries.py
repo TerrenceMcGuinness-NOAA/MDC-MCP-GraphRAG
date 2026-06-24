@@ -142,21 +142,25 @@ class ModuleResult:
 
 
 async def _smoke_semantic_search(data: Any, _mcp: Any) -> bool:
-    """OpenSearch hit on ``mdc-workflow-docs-titan1024``.
+    """Vector hit on the ``global-workflow-docs-v8-0-0`` logical collection.
 
-    Exercises the full BM25 + k-NN + Bedrock-embedding path.
+    Passes the logical collection name so the adapter's
+    :pyfunc:`src.config.aws_config.resolve_index` maps it to the active
+    embedding profile's physical index (``mdc-workflow-docs-titan1024``
+    on AWS, ``mdc-workflow-docs-mpnet768`` on the legacy backend).
+    Exercises the full BM25 + k-NN + embedding path.
     """
     if data is None or data.vector_db is None:
         raise RuntimeError("vector_db is not configured")
     hits = await data.vector_db.query(
-        "mdc-workflow-docs-titan1024",
+        "global-workflow-docs-v8-0-0",
         "global workflow forecast",
         k=1,
     )
     if not hits:
         raise RuntimeError(
             "0 hits for 'global workflow forecast' in "
-            "mdc-workflow-docs-titan1024"
+            "global-workflow-docs-v8-0-0"
         )
     return True
 
@@ -196,34 +200,43 @@ async def _smoke_graph_rag(data: Any, _mcp: Any) -> bool:
 
 
 async def _smoke_ee2_compliance(data: Any, _mcp: Any) -> bool:
-    """OpenSearch hit on ``mdc-ee2-standards-titan1024``."""
+    """Vector hit on the ``ee2-standards-v5-0-0-enhanced`` logical collection.
+
+    Resolves to ``mdc-ee2-standards-titan1024`` on AWS and
+    ``mdc-ee2-standards-mpnet768`` on the legacy backend via
+    :pyfunc:`src.config.aws_config.resolve_index`.
+    """
     if data is None or data.vector_db is None:
         raise RuntimeError("vector_db is not configured")
     hits = await data.vector_db.query(
-        "mdc-ee2-standards-titan1024",
+        "ee2-standards-v5-0-0-enhanced",
         "error handling",
         k=1,
     )
     if not hits:
         raise RuntimeError(
-            "0 hits for 'error handling' in mdc-ee2-standards-titan1024"
+            "0 hits for 'error handling' in ee2-standards-v5-0-0-enhanced"
         )
     return True
 
 
 async def _smoke_operational(data: Any, _mcp: Any) -> bool:
-    """OpenSearch hit on platform-specific operational guidance."""
+    """Vector hit on platform-specific operational guidance.
+
+    Uses the ``global-workflow-docs-v8-0-0`` logical collection so the
+    probe is backend-agnostic (resolves per active embedding profile).
+    """
     if data is None or data.vector_db is None:
         raise RuntimeError("vector_db is not configured")
     hits = await data.vector_db.query(
-        "mdc-workflow-docs-titan1024",
+        "global-workflow-docs-v8-0-0",
         "running forecast on hera",
         k=1,
     )
     if not hits:
         raise RuntimeError(
             "0 hits for 'running forecast on hera' in "
-            "mdc-workflow-docs-titan1024"
+            "global-workflow-docs-v8-0-0"
         )
     return True
 
@@ -403,7 +416,7 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
 
     # Assertion 3: develop-only content visible to gw
     mpas_gw = await data.vector_db.query(
-        "mdc-workflow-docs-titan1024",
+        "global-workflow-docs-v8-0-0",
         "MPAS Voronoi",
         k=3,
         tenant=gw,
@@ -420,7 +433,7 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
     # that's fine — no leakage is possible from a nonexistent index.
     try:
         mpas_v17 = await data.vector_db.query(
-            "mdc-workflow-docs-titan1024",
+            "global-workflow-docs-v8-0-0",
             "MPAS Voronoi",
             k=3,
             tenant=v17,
@@ -466,7 +479,7 @@ class SmokeQueryRegistry:
             module="semantic_search",
             description=(
                 "search 'global workflow forecast' in "
-                "mdc-workflow-docs-titan1024"
+                "global-workflow-docs-v8-0-0"
             ),
             query_fn=_smoke_semantic_search,
         ),
@@ -489,7 +502,7 @@ class SmokeQueryRegistry:
         "ee2_compliance": SmokeQueryDef(
             module="ee2_compliance",
             description=(
-                "search 'error handling' in mdc-ee2-standards-titan1024"
+                "search 'error handling' in ee2-standards-v5-0-0-enhanced"
             ),
             query_fn=_smoke_ee2_compliance,
         ),
@@ -497,7 +510,7 @@ class SmokeQueryRegistry:
             module="operational",
             description=(
                 "search 'running forecast on hera' in "
-                "mdc-workflow-docs-titan1024"
+                "global-workflow-docs-v8-0-0"
             ),
             query_fn=_smoke_operational,
         ),
