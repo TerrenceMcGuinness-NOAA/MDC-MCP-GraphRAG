@@ -12,10 +12,12 @@ Routing rules (Requirement 1.6, 1.8):
   call. If either ``connect()`` raises, the selector logs the failure
   and returns the facade with that adapter slot set to ``None``,
   matching the graceful-degrade contract (R1.7).
-* ``db_backend == "legacy"`` → not implemented here. The legacy
-  Neo4j + ChromaDB path is the operator's responsibility on the
-  on-prem deployment; on AgentCore we always use the AWS backends.
-  Setting ``db_backend == "legacy"`` raises
+* ``db_backend == "legacy"`` → :pyclass:`ChromaDBAdapter` +
+  :pyclass:`Neo4jAdapter`, the on-prem Parallel Works path. Both are
+  built lazily (late-imported) and connected eagerly with the same
+  graceful-degrade contract as the AWS backends; a failed ``connect()``
+  nulls that adapter slot rather than aborting startup. On AgentCore we
+  always use the AWS backends. Any other ``db_backend`` value raises
   :pyexc:`UnsupportedBackendError` so the misconfiguration surfaces
   immediately rather than silently degrading.
 

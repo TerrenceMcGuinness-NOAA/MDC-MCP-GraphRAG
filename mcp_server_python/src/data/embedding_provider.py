@@ -7,12 +7,13 @@ two scope reductions:
 1. Image embedding (``embed_image``) is dropped — the Python MCP
    runtime is text-only, the Node.js side ships its own image path
    for ingestion.
-2. ``LocalProvider.embed`` is left as a stub that raises — the
-   constructor errors first because ``sentence-transformers`` is not
-   installed in the runtime image (Requirement 9). The class exists
-   for parity with the Node.js port and so a future runtime image
-   that does ship the dependency can re-enable the path with no
-   structural change.
+2. ``LocalProvider`` is implemented for the Parallel Works VM
+   (Requirement 3): the constructor loads ``sentence-transformers``
+   (``all-mpnet-base-v2``, 768-dim) and ``embed`` encodes locally. If
+   ``sentence-transformers`` is not installed, the constructor raises
+   :class:`EmbeddingError` so the misconfiguration surfaces clearly.
+   On the AgentCore runtime image (which does not ship the dependency)
+   the Bedrock provider remains the default.
 
 Public surface
 --------------
