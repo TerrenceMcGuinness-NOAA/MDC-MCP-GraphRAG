@@ -65,6 +65,31 @@ ask before committing.
   written to disk, changes are staged, but nothing has been committed
   or pushed.
 
+## Commit Message Standards
+
+When authorized to run `git commit`, the agent MUST formulate the commit message according to the following strict criteria derived from our project's Spec-Driven Development (SDD) philosophy:
+
+1. **Conventional Commits**: Use conventional prefixes (e.g., `feat:`, `fix:`, `chore:`, `docs:`).
+2. **Strict SDD Adherence**: Explicitly name the SDD Phase or Kiro Spec in the subject line or body (e.g., "Implement SDD Phase 60" or "python-mcp-pw-integration spec"). Mention specific task numbers if checking off steps.
+3. **Focus on the "Why" and "Impact"**: Do not simply list file diffs. Explain *why* the architectural change was made, what capability it unlocked, and explicitly state the blast radius (e.g., "AWS behaviour is unchanged", "Tenant isolation enforced").
+4. **Reproducibility**: Whenever possible, embed the exact bash command(s) (with environment variables) required to verify the commit at the bottom of the commit body.
+5. **Operational Awareness**: If the commit corrects an oversight left by a previous session (e.g., correcting an outdated spec state or fixing a typo in documentation), acknowledge the state correction in the body.
+
+*Example:*
+```text
+fix(mcp-py): make smoke probes backend-agnostic; complete legacy parity verification
+
+Switch the ChromaDB smoke probes from hardcoded AWS physical index names
+to logical collection names so resolve_index maps them per active embedding profile. 
+AWS behaviour is unchanged.
+
+Phase 4 legacy parity verification (.kiro/specs/python-mcp-pw-integration):
+smoke suite now reports 8 pass / 1 skip / 1 fail. Mark Tasks 4.1 and 4.3 complete.
+
+Run: DB_BACKEND=legacy MCP_EMBEDDING_PROFILE=mpnet768 \
+  python mcp_server_python/scripts/smoke_test_tools.py
+```
+
 ## Rationale
 
 Keeps the human as the gate on the two operations that produce a
