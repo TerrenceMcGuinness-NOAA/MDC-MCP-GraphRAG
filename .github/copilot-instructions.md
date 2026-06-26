@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MCP/RAG development platform for NOAA Global Workflow AI assistance. Provides 51 tools for code analysis, EE2 compliance validation, semantic search, and session state tracking across operational weather forecasting infrastructure.
+MCP/RAG development platform for NOAA Global Workflow AI assistance. Provides 52 tools for code analysis, EE2 compliance validation, semantic search, and session state tracking across operational weather forecasting infrastructure.
 
 **Architecture**: Node.js MCP Server → OpenSearch (vectors) + Neptune (graph) → AI Clients (Kiro, CLI, Claude)
 **AWS Backend**: DB_BACKEND=aws routes to OpenSearch + Neptune via adapter pattern
@@ -89,7 +89,7 @@ MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025" docker mcp gateway run \
 
 | Scenario | Flag | Tools | Databases Required |
 |----------|------|-------|--------------------|
-| `full` | `npm start` | 48 (all) | ChromaDB + Neo4j |
+| `full` | `npm start` | 52 (all) | ChromaDB + Neo4j |
 | `core` | `npm run start:core` | ~20 | Neo4j only |
 | `rag` | `npm run start:rag` | ~38 | ChromaDB + Neo4j |
 | `github` | `npm run start:github` | ~24 | Neo4j + GitHub API |
@@ -108,7 +108,7 @@ UnifiedDataAccess (src/data/)
 BaseServer (src/core/) → MCP SDK → stdio transport → AI client
 ```
 
-### Tool Modules (9 modules, 48 tools)
+### Tool Modules (9 modules, 52 tools)
 
 Full tool reference with parameters, descriptions, and usage workflows is in `.github/instructions/eib-mcp-tools.instructions.md` (auto-loaded when MCP server is connected).
 

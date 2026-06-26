@@ -3,7 +3,7 @@ applyWhen: hasActiveMCPServer("eib-mcp-rag-full") || hasActiveMCPServer("eib-mcp
 ---
 
 <!-- Regenerate tool tables with: cd mcp_server_node && node scripts/generate-tool-docs.js -->
-# EIB MCP Tool Usage Instructions (51 tools / 9 modules, v7.28.0)
+# EIB MCP Tool Usage Instructions (52 tools / 9 modules, v7.28.0)
 
 ## MCP-First Policy
 
@@ -23,7 +23,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 
 **Best practice**: MCP tools for discovery, then `read_file` for specific line-level details.
 
-## Tool Modules (51 tools / 9 modules)
+## Tool Modules (52 tools / 9 modules)
 
 ### 1. Workflow Info (3 tools — Filesystem)
 
@@ -44,7 +44,7 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 | `trace_full_execution_chain` | `start` | `direction`, `max_depth`, `languages` | Trace complete execution chain across Shell, Python, and Fortran language boundaries |
 | `find_env_dependencies` | `variable_name` | `show_exports`, `limit`, `token_budget` | Find all scripts that depend on or export a specific environment variable |
 
-### 3. Semantic Search (7 tools — ChromaDB + Neo4j)
+### 3. Semantic Search (8 tools — ChromaDB + Neo4j)
 
 | Tool | Required | Optional | Description |
 |------|----------|----------|-------------|
@@ -53,7 +53,8 @@ When an EIB MCP server is connected (`eib-mcp-rag-full` or `eib-mcp-gateway`), *
 | `explain_with_context` | `topic` | `context_type`, `detail_level` | Provide comprehensive explanations using hybrid search |
 | `get_knowledge_base_status` | — | `include_graph`, `include_vector` | Get comprehensive knowledge base statistics |
 | `list_ingested_urls` | — | `format`, `source_filter` | List all URLs that have been ingested into the RAG knowledge base |
-| `get_ingested_urls_array` | — | `include_failed` | Get a structured array of all ingested URLs for programmatic access |
+| `get_ingested_urls_array` | — | `format`, `source_filter` | Get raw array of ingested URLs for programmatic access |
+| `list_all_sources` | — | `manifest_path`, `tenant_id` | Comprehensive manifest-driven source discovery and tracking |
 | `check_knowledge_integrity` | — | `sample_size` | Check knowledge base integrity: path consistency (random-offset sampling), orphaned nodes, stale embeddings (git-aware comparison), coverage gaps |
 
 ### 4. EE2 Compliance (5 tools — ChromaDB)
