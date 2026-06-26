@@ -25,7 +25,7 @@ Instead of building a massive offline batch-processing pipeline for a 2GB corpus
 - A reusable **distillation library** (`src/error_analysis/`) that strips out Bash noise and captures the actual error signal.
 - A **stable normalized record schema** (the SPOT) for error representation.
 - A foundational failure **taxonomy** grounded in known NOAA workflow failures.
-- **NEW:** A dedicated MCP Tool (`analyze_ci_error_log`) that accepts a file path or raw string, runs the distillation, and outputs a compact, structured markdown/JSON signal suitable for the Ralph Loop or Wiki/PR posting.
+- A dedicated MCP Tool (`extract_ci_error_signal`) designed *specifically for LLM consumption*. The tool performs mechanical distillation (dropping noise) to fit the context window, outputting a high-entropy, dense JSON/markdown payload that preserves the raw traceback and stack context so the LLM can perform the actual reasoning and root-cause analysis.
 - **Tests** using small, checked-in fixture logs representing major failure classes.
 
 ### Non-Goals (explicit)
@@ -68,12 +68,21 @@ Ordered, first-match-wins classification in `src/error_analysis/classifier.py`:
 
 ### The MCP Tool Interface
 
-**Tool**: `analyze_ci_error_log`
+**Tool**: `extract_ci_error_signal` *(Note: The tool extracts; the LLM analyzes)*
 **Parameters**:
 - `log_path` (string, required): Absolute path to the raw log file.
-- `format` (string, optional, default "markdown"): Output format ("json" or "markdown").
+- `format` (string, optional, default "json"): Output format. JSON is preferred for programmatic LLM evaluation (e.g., Ralph Loop).
 
-**Behaviour**: Reads the massive log from disk, passes it through the distillation library, and returns the strictly capped 8KB signal with its identified taxonomy classification.
+**Response Surface (LLM-Optimized)**: 
+Instead of a human-readable summary, the tool returns a dense, structured payload designed to feed an LLM's reasoning engine. Crucially, this output is intended to be combined with GraphRAG discovery. The LLM consumes this signal and then autonomously iterates—using other MCP tools (like `analyze_code_structure` or `search_documentation`) to trace the error backward not just into the codebase, but across documentation, runbooks, and issue histories to gain the additional insight required to accurately focus its attention for root-cause analysis.
+- `taxonomy_class`: The first-match classification (e.g., 'oom', 'segfault').
+- `exit_code`: The captured exit status.
+- `diagnostic_signal`: The raw, unaltered traceback, FATAL ERROR banner, or trailing lines (strictly capped at 8KB). 
+- `omitted_bytes`: How much noise was stripped (provides confidence to the LLM on truncation).
+- `extracted_symbols`: (Optional/Heuristic) A list of potential function names, scripts, or module paths detected within the traceback, explicitly designed to serve as immediate search keys for GraphRAG tools.
+- `recommended_next_steps`: (Optional/Heuristic) A suggested vector for the LLM's next search (e.g., "Scan the original error log's surrounding bytes," "Query EE2 standards for error-handling compliance," or "Use Code Awareness tools to map the failing module's callers").
+
+**Behaviour**: Mechanically strips low-entropy noise (base64, env dumps) to defeat context limits, preserving the high-entropy diagnostic signal for backend LLM reasoning.
 
 ---
 
@@ -84,7 +93,7 @@ Ordered, first-match-wins classification in `src/error_analysis/classifier.py`:
 | D1 | `src/error_analysis/schema.py` | `ErrorRecord` dataclass | 1 h |
 | D2 | `src/error_analysis/extractor.py` | Noise filters, signal-region capture, 8KB windowing cap | 3 h |
 | D3 | `src/error_analysis/classifier.py` | Ordered taxonomy table (SPOT) + `classify()` | 1 h |
-| D4 | `src/tools/error_analysis.py` | **New MCP Tool module**: `analyze_ci_error_log` | 2 h |
+| D4 | `src/tools/error_analysis.py` | MCP Tool module: `extract_ci_error_signal` (LLM-optimized response surface) | 2 h |
 | D5 | `tests/unit/fixtures/error_logs/` + `test_error_analysis.py` | Fixture logs (hpss_fetch, build, forecast, traceback) + unit tests | 3 h |
 | D6 | `CHANGELOG.md` | Dated entry | 15 m |
 
