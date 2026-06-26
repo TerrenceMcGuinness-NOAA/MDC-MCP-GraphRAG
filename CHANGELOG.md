@@ -1,5 +1,18 @@
 # MCP Server Changelog
 
+## [8.40.0] - Phase 62 — CI Error-Log Distillation & MCP Tool (Jun 26, 2026)
+
+### Summary
+Implemented a new robust extraction library and MCP tool (`extract_ci_error_signal`) specifically designed to distill massive CI log files down to LLM-consumable footprints. The distillator applies noise filtering (e.g. stripping bash environment dumps and module chatter) and captures failure signals, bounding the output strictly at 8KB while preserving tail end tracebacks and exit codes. This allows on-demand inspection without overflowing model context windows.
+
+### Added
+- `.kiro/steering/13-ci-error-reporting-policy.md`: New steering directive for automated CI error log analysis enforcing proper GraphRAG and MCP tooling usage.
+- `mcp_server_python/src/error_analysis/schema.py`: `ErrorRecord` data schema for standardized payloads.
+- `mcp_server_python/src/error_analysis/classifier.py`: Ordered failure taxonomy classifier.
+- `mcp_server_python/src/error_analysis/extractor.py`: Core signal extraction, filtering and 8KB bounding logic.
+- `mcp_server_python/src/tools/error_analysis.py`: New `extract_ci_error_signal` FastMCP tool.
+- `mcp_server_python/tests/unit/test_error_analysis.py`: Unit tests matching requirements.
+
 ## [8.39.0] - Phase 61 — Configurable Workflow Mount Base (Parallel Works Filesystem Tools) (Jun 25, 2026)
 
 ### Summary
