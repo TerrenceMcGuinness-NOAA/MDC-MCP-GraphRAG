@@ -273,13 +273,13 @@ class LocalProvider(EmbeddingProvider):
                 file=sys.stderr,
             )
             raise EmbeddingError(
-                f"sentence-transformers failed to load model {profile.model_id}: {exc}"
+                f"sentence-transformers is not installed; mpnet768 is parity-debug-only: {exc}"
             ) from exc
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a list of text strings locally using sentence-transformers."""
         try:
-            embeddings = self._model.encode(texts, convert_to_numpy=True)
+            embeddings = self._model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
             return embeddings.tolist()
         except Exception as exc:
             log.error("[ERROR] LocalProvider.embed failed: %s", exc)

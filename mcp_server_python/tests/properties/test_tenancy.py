@@ -188,22 +188,31 @@ class TestP6WorkflowRootContainment:
 
     @given(tenant=valid_tenant_strategy())
     def test_workflow_root_is_contained(self, tenant):
+        import os
+
         from src.config.tenants import Tenant
 
-        t = Tenant(
-            tenant_id=tenant["tenant_id"],
-            repo_ref=tenant["repo_ref"],
-            branch=tenant["branch"],
-            index_prefix=tenant["index_prefix"],
-            label_prefix=tenant["label_prefix"],
-            workflow_subdir=tenant["workflow_subdir"],
-            lifecycle=tenant["lifecycle"],
-            description=tenant["description"],
-            extends=tuple(tenant["extends"]),
-        )
-        assert t.workflow_root == Path("/mnt/workflow") / t.workflow_subdir
-        # No path traversal
-        assert ".." not in str(t.workflow_root)
+        # Pin the default mount base so the property is deterministic even if
+        # the test runner inherits MCP_WORKFLOW_MOUNT (Phase 61).
+        prev = os.environ.pop("MCP_WORKFLOW_MOUNT", None)
+        try:
+            t = Tenant(
+                tenant_id=tenant["tenant_id"],
+                repo_ref=tenant["repo_ref"],
+                branch=tenant["branch"],
+                index_prefix=tenant["index_prefix"],
+                label_prefix=tenant["label_prefix"],
+                workflow_subdir=tenant["workflow_subdir"],
+                lifecycle=tenant["lifecycle"],
+                description=tenant["description"],
+                extends=tuple(tenant["extends"]),
+            )
+            assert t.workflow_root == Path("/mnt/workflow") / t.workflow_subdir
+            # No path traversal
+            assert ".." not in str(t.workflow_root)
+        finally:
+            if prev is not None:
+                os.environ["MCP_WORKFLOW_MOUNT"] = prev
 
 
 class TestCatalogRejection:

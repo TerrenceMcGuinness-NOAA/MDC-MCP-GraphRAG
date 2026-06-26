@@ -16,6 +16,9 @@ logs/
 # Operator-run remediation checkpoints (runtime state, not source)
 .remediation_state/
 
+# Parallel Works workflow-mount symlink farm (machine-local; Phase 61)
+.pw_workflow_mount/
+
 # Dependencies - NEVER commit
 node_modules/
 __pycache__/

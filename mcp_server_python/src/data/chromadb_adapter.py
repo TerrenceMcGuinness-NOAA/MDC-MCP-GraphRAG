@@ -271,8 +271,10 @@ class ChromaDBAdapter(VectorDBProtocol):
         formatted: list[dict[str, Any]] = []
         for i in range(len(ids)):
             distance = distances[i] if i < len(distances) else 0.0
-            # For cosine distance, similarity is 1.0 - distance
-            score = 1.0 - float(distance)
+            # Our local ChromaDB collections default to L2 squared space.
+            # For normalized embeddings, the relationship between L2 squared and cosine
+            # similarity is: L2_squared = 2 - 2 * cos_sim => cos_sim = 1 - L2_squared / 2.
+            score = 1.0 - float(distance) / 2.0
             if score < 0.0:
                 score = 0.0
             elif score > 1.0:

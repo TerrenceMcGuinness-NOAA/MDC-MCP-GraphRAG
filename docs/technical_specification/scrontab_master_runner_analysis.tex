@@ -1,0 +1,304 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=blue!60!black,
+  citecolor=black,
+  pdftitle={Bounded Analysis: scrontab Master-Runner Consolidation in generate\_workflows.sh},
+  pdfauthor={EIB MCP-RAG analysis}
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  framesep=4pt,
+  backgroundcolor=\color{gray!8},
+  showstringspaces=false
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Bounded Analysis of the \code{scrontab} Master-Runner\\
+       Consolidation in \code{generate\_workflows.sh}}
+\author{NOAA EIB --- Global Workflow PR Test Harness Review}
+\date{April~30, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note evaluates the change introduced on branch
+\code{copilot/modify-scrontab-scripts} of the
+\code{global-workflow.DavidH} fork, which collapses $N$ per-experiment
+\code{scrontab} entries into a single sequential master-runner job.
+We frame the change in terms of the only function the cron/scron entry
+performs --- driving the Rocoto workflow tick --- and place bounded
+estimates on its memory, CPU, and throughput consequences. The
+conclusion is that the absolute resource saving is well under one
+percent of either the scron service node or the downstream PR-sweep
+compute footprint, but is materially useful in the narrow case of a
+small \code{cgroup} on the scron job (the actual Gaea failure mode).
+\end{abstract}
+
+\section{Scope and System Context}
+\label{sec:scope}
+
+The CM for \code{global-workflow} maintains an out-of-band PR test
+harness driven by \code{dev/workflow/generate\_workflows.sh}. The
+script generates an experiment per PR YAML case under
+\code{dev/ci/cases/pr/}, and registers a scheduled tick that advances
+each experiment's Rocoto workflow.
+
+The scheduled tick has exactly one purpose: invoke
+\code{rocotorun} (or the experiment's \code{*.scron.sh} wrapper) so
+that Rocoto reads its XML, queries/updates the per-experiment SQLite
+workflow database, and submits whatever cycle tasks have become
+eligible to Slurm. The tick performs no science, holds no compute
+resources, and is independent of every actual model job that Rocoto
+subsequently submits to the batch system.
+
+The branch under review changes \emph{only} how the tick is scheduled
+on hosts that use Slurm-managed \code{scrontab} (Gaea). All
+downstream behaviour --- per-experiment XML, SQLite database,
+\code{EXPDIR}/\code{COMROOT}/\code{DATAROOT}, task graph, and resource
+footprint --- is unchanged.
+
+\section{Pre- and Post-Change Behaviour}
+\label{sec:behaviour}
+
+\paragraph{Before.}
+For each experiment, the per-experiment crontab block
+(\code{\${pslot}.crontab}, containing its \code{\#SCRON --*} directives
+and a \code{*/5 * * * *} line invoking \code{\${pslot}.scron.sh}) was
+appended to \code{tests.cron}. Installation via \code{scrontab}
+created $N$ independent scron jobs --- one per experiment --- each
+firing every five minutes and each launching its own \code{rocotorun}
+on the scron service node concurrently.
+
+\paragraph{After.}
+The script collects each experiment's \code{*.scron.sh} path into
+\code{\_scron\_sh\_files}, then writes a single
+\code{rocoto\_master\_run.sh} under \code{\${RUNTESTS}/EXPDIR/} which
+calls each scron script sequentially. A single
+\code{master\_scron} block is emitted to \code{tests.cron} reusing the
+\code{\#SCRON --partition=}/\code{--account=} directives drawn from the
+first experiment's crontab and adding
+\code{\#SCRON --dependency=singleton}, ensuring the next 5-minute tick
+cannot start until the previous one drains.
+
+The transformation is purely a concurrency-flattening of the tick
+work: total CPU-seconds and total I/O are unchanged; only the
+concurrency profile differs.
+
+\section{Bounded Cost Model}
+\label{sec:bounds}
+
+Let $N$ be the number of PR cases, $T = 300$\,s the tick period, $R$
+the resident set size of one \code{rocotorun} pass, and $t$ its
+wallclock duration. Plausible ranges drawn from typical Rocoto
+deployments and the GW PR XML sizes are summarised in
+Table~\ref{tab:bounds}.
+
+\begin{table}[h]
+\centering
+\caption{Bounding parameters per \code{rocotorun} invocation.}
+\label{tab:bounds}
+\begin{tabular}{lll}
+\toprule
+Quantity & Plausible range & Source of bound \\
+\midrule
+RSS of one \code{rocotorun} ($R$) & $50$--$300$\,MB &
+  Ruby + XML DOM + libsqlite + \code{squeue} fork \\
+Wallclock of one pass ($t$)       & $2$--$30$\,s &
+  Dominated by \code{squeue}/\code{sacct} round-trip + XML parse \\
+CPU-time per pass                  & $\approx t$ &
+  Single-threaded Ruby \\
+PR cases ($N$)                    & $\approx 10$ &
+  Current sweep size; up to $\sim 30$ plausible \\
+Tick period ($T$)                 & $300$\,s &
+  Hardcoded \code{*/5 * * * *} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Peak Concurrent Footprint on the scron Node}
+
+\paragraph{Before --- $N$ parallel ticks.}
+\begin{align}
+M_\text{peak} &= N \cdot R \;\in\; [10 \cdot 50,\; 10 \cdot 300]\,\text{MB}
+              \;=\; \mathbf{0.5\text{--}3\,\text{GB}} \\
+C_\text{peak} &= N \text{ cores busy for } t\,\text{s}
+              \;\in\; [20,\; 300]\,\text{CPU-s per } 300\text{-s window}
+\end{align}
+
+\paragraph{After --- one serial tick.}
+\begin{align}
+M_\text{peak} &= R \;\in\; \mathbf{0.05\text{--}0.3\,\text{GB}} \\
+C_\text{peak} &= 1 \text{ core busy for } N\cdot t\,\text{s}
+\end{align}
+
+Total CPU-seconds and total scheduler RPC count are identical.
+
+\subsection{Duty Cycle of the Master Tick}
+
+\begin{equation}
+D \;=\; \frac{N \cdot t}{T} \;\in\;
+  \left[\tfrac{10\cdot 2}{300},\; \tfrac{10\cdot 30}{300}\right]
+  \;=\; [0.7\%,\; 100\%]
+\label{eq:duty}
+\end{equation}
+
+The lower end is comfortably idle. The upper end --- long passes
+combined with many cases --- is precisely where the
+\code{singleton} dependency starts \emph{stretching} the per-experiment
+polling cadence and the implicit throughput cost becomes real.
+Realistic GW PR sweeps sit near $D \approx 5\text{--}15\%$, so the
+nominal 5-minute cadence is preserved.
+
+\section{What the Saving Is Worth}
+\label{sec:value}
+
+Comparing the saving against the things that actually share the
+service node and against the PR sweep's downstream footprint:
+
+\begin{table}[h]
+\centering
+\caption{Magnitude comparison (typical service-node and PR-sweep scales).}
+\label{tab:magnitude}
+\begin{tabular}{ll}
+\toprule
+Reference & Order of magnitude \\
+\midrule
+Memory saved (this PR), peak                 & $\sim 0.5\text{--}3$\,GB \\
+Memory saved (this PR), average              & $\sim 50\text{--}300$\,MB \\
+Typical scron-node total RAM (Gaea es-login) & $256\text{--}500$\,GB \\
+\textbf{Saved fraction of node memory}       & $\boldsymbol{<\,1\%}$ \\
+\midrule
+One C384 forecast job memory footprint       & hundreds of GB
+                                                across many compute nodes \\
+One PR sweep's compute-node-hours            & $10^{3}\text{--}10^{4}$
+                                                core-hours \\
+Master-tick CPU work saved                   & \textbf{0}
+                                                (same total, just serialised) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+So as a fraction of either (a) the scron service node or (b) the
+resources the PR sweep itself consumes downstream on compute nodes,
+the change sits in the noise floor --- well under~1\%.
+
+\subsection{Where the Bound Is Not Negligible}
+
+The one regime where the change is meaningful is when the
+\code{cgroup} applied to the scron job is intentionally small:
+
+\begin{itemize}[leftmargin=*]
+  \item If the cron partition allocates each scron job e.g.\
+        \textbf{1~core / 2~GB} (a common defensible default), then
+        $M_\text{peak} = 0.5\text{--}3$\,GB \emph{straddles or exceeds the
+        limit}, causing OOM-kill of the tick. This is almost
+        certainly the failure mode the Gaea CM observed; the PR fixes
+        it cleanly.
+  \item If the cgroup is generous ($\geq 8$\,GB, $\geq 4$\,cores),
+        the change is essentially cosmetic.
+\end{itemize}
+
+\subsection{Aggregate Site-Wide Impact}
+
+If every active GW developer simultaneously ran a 10-case PR sweep
+(say $\sim 5$ concurrent users), the aggregate difference in Slurm
+controller load is on the order of:
+
+\begin{equation}
+\Delta \;\approx\;
+  \underbrace{5}_{\text{users}} \cdot
+  \underbrace{10}_{\text{exp/user}} \cdot
+  \frac{1\,\text{burst}}{300\,\text{s}}
+  \;\approx\; \mathbf{0.17\,\text{rpc/s}}
+\end{equation}
+
+against a controller that comfortably handles
+$10^{3}\text{--}10^{4}$\,rpc/s. Invisible.
+
+\section{Throughput Trade-off}
+\label{sec:throughput}
+
+The actual model jobs' wallclock is unchanged --- Rocoto still submits
+them to Slurm exactly as before. What changes is the cadence at which
+each experiment's task graph is re-evaluated:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Before:} every experiment's \code{rocotorun} fires
+        every 5\,min in parallel; per-experiment polling cadence is
+        constant in $N$.
+  \item \textbf{After:} the master walks experiments serially within a
+        single 5-min tick. If the cumulative pass time
+        ($N\cdot t$) stays well below $T$, cadence is preserved. If
+        it does not, \code{singleton} blocks the next tick and
+        per-experiment cadence stretches roughly to
+        $N\cdot t / T \cdot 5$\,min.
+\end{itemize}
+
+This is bounded but real: it scales linearly in $N$ and in
+\code{rocotorun}'s pass time. For current PR loads the effect is
+sub-second to sub-minute and immaterial; at higher case counts or
+with large XMLs it would degrade end-to-end PR-sweep wallclock by
+adding idle time between a task completing and the next dependent
+task being submitted. The current implementation provides no
+mitigation (e.g.\ capping the master at~$<5$\,min, or sharding into
+2--3 master jobs).
+
+\section{Recommendations}
+\label{sec:recommendations}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Reframe the rationale.} The accurate one-line
+        description is: \emph{``prevent OOM-kill of the
+        scron-managed Rocoto tick on Gaea by serialising per-experiment
+        passes,''} not an aggregate efficiency improvement.
+  \item \textbf{Validate the \code{cgroup} assumption} on Gaea (and any
+        other scron-using site) so the trade-off is documented and
+        site-portable.
+  \item \textbf{Per-site partition/account.} The master block reuses
+        the partition/account of the \emph{first} experiment's
+        crontab; this is fine when all PR cases target the same
+        service partition (typical) but would silently misroute the
+        driver tick if a future case ever specified a different one.
+        Consider asserting equality across collected
+        \code{*.crontab} files before emitting the master block.
+  \item \textbf{Bound the master pass.} Add a guard inside
+        \code{rocoto\_master\_run.sh} so that if the cumulative
+        wallclock approaches~$T$, remaining experiments are deferred
+        to the next tick rather than relying solely on
+        \code{--dependency=singleton} to absorb the overrun.
+\end{enumerate}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+The branch correctly addresses a real, site-specific operational
+failure on Gaea --- OOM-kill of the cron-driven Rocoto tick under a
+constrained \code{cgroup} --- using a clean, contained change to a
+single CM utility. Its framing as a memory or efficiency improvement
+overstates the system-level impact: as a fraction of either the scron
+node or the PR sweep's compute footprint, the saving is below~1\%,
+and it introduces a bounded, $O(N)$ throughput cost in worst-case
+polling cadence. The trade is favourable for the present PR sweep
+size; it would warrant revisiting if PR case counts or
+\code{rocotorun} pass time grow materially.
+
+\end{document}

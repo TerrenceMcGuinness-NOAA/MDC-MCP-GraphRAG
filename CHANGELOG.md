@@ -1,5 +1,131 @@
 # MCP Server Changelog
 
+## [8.39.0] - Phase 61 — Configurable Workflow Mount Base (Parallel Works Filesystem Tools) (Jun 25, 2026)
+
+### Summary
+
+Made the per-tenant workflow filesystem root configurable so the native
+Parallel Works (Rocky 9) deployment can use the local `supported_repos/`
+checkouts instead of the AgentCore-only `/mnt/workflow` EFS mount. Previously
+every tenant's `workflow_root` hardcoded `/mnt/workflow`, so on Parallel Works
+the `mcp_health_check` "Workflow Filesystem" section reported `NOT mounted` and
+the filesystem-backed WorkflowInfoTools (`get_workflow_structure`,
+`list_job_scripts`, `get_job_details`, `find_env_dependencies`) degraded. This
+is unrelated to the Docker MCP Gateway, which is not in the native launch path.
+The AgentCore default (`/mnt/workflow`) is preserved byte-for-byte.
+
+### Added
+
+- `mcp_server_python/scripts/setup_pw_workflow_mount.sh` — Idempotent, root-free
+  bootstrap that builds a machine-local symlink farm (`.pw_workflow_mount/`)
+  mapping catalog `workflow_subdir` names (`develop`, `dev-sfs`, `dev-jedi-gfs`,
+  `dev-v17`, `gefs-v12`) to the differently-named `supported_repos/` checkouts.
+  Missing checkouts warn (non-fatal); the subdir→checkout mapping is a single
+  SPOT table inside the script.
+- `mcp_server_python/tests/unit/test_tenants.py` — Unit tests covering the
+  default `/mnt/workflow` base, `MCP_WORKFLOW_MOUNT` override, subdir join, and
+  env-unset restoration.
+
+### Changed
+
+- `mcp_server_python/src/config/tenants.py` — `Tenant.workflow_root` now resolves
+  `${MCP_WORKFLOW_MOUNT}/<workflow_subdir>` with `MCP_WORKFLOW_MOUNT` defaulting
+  to `/mnt/workflow` (new module constant `_DEFAULT_WORKFLOW_MOUNT`). Behaviour is
+  unchanged when the env var is unset.
+- `mcp_server_python/scripts/run_mcp_stdio.sh` — Exports the Parallel Works SPOT
+  default `MCP_WORKFLOW_MOUNT=${REPO_ROOT}/.pw_workflow_mount` (overridable).
+- `mcp_server_python/src/tools/utility.py` — `get_server_info`'s "Workflow
+  Filesystem" section reports the configured `MCP_WORKFLOW_MOUNT` base (and its
+  mounted/NOT-mounted state) instead of the hardcoded `/mnt/workflow`.
+- `mcp_server_python/tests/properties/test_tenancy.py` — P6 workflow-root
+  containment property now pins the default base (pops `MCP_WORKFLOW_MOUNT`) so it
+  stays deterministic regardless of the runner environment.
+- `.gitignore` — Ignore the machine-local `.pw_workflow_mount/` symlink farm.
+
+## [8.38.0] - Phase 60 — Code-Awareness Tool Parity, Tenant-Isolation, and Reranking (Jun 24, 2026)
+
+### Summary
+
+Successfully implemented, verified, and delivered **SDD Phase 60** end-to-end. Built a robust 3-axis functional validation framework (Ground-Truth, Parity, and Tenant-Isolation) for the 12 ported Python code-awareness tools. Fixed critical database query errors, fully enforced bidirectional tenant-isolation boundaries in graph-guided traversals, and ported Phase 51 community search and distance-to-similarity normalization. All health checks and 1,234 unit tests are fully green.
+
+### Added
+
+- `mcp_server_python/scripts/branch_ground_truth.py` — Source-derived ground-truth expectation extractors (callers, callees, imports, structure, env-vars) reading directly from git submodule branch checkouts.
+- `mcp_server_python/scripts/validate_code_awareness.py` — Fully featured 3-axis validation driver reporting pass/skip/fail and compiling gaps and summaries.
+
+### Fixed
+
+- `mcp_server_python/src/graphrag/ggsr_traversal.py` — Tenant-scoped all multi-hop queries by appending tenant label predicate filters to node match statements, completely eliminating cross-tenant leakage.
+- `mcp_server_python/src/tools/graph_rag.py` — Ported Phase 51 hierarchical community search rules (level $\ge 1$ and similarity $\ge 0.2$ floor filters, plus similarity-level weighted reranking) into `search_architecture` with test compatibility.
+- `mcp_server_python/src/data/chromadb_adapter.py` — Corrected the L2-squared distance conversion formula to map accurately to cosine similarity, enabling similar-code and architectural queries to function properly.
+- `mcp_server_python/src/data/embedding_provider.py` — Configured `LocalProvider` to use `normalize_embeddings=True`, aligning generated query embeddings with database entries.
+- `mcp_server_python/src/tools/smoke_queries.py` — Handled database node name type-coercion gracefully using `apoc.text.join` and list-comprehensions, resolving query crashes when matching integer-named environment variable nodes.
+
+### Changed
+
+- `mcp_server_python/src/tools/smoke_queries.py` — Implemented and wired a condensed `"code_awareness"` health check probe verifying both Ground-Truth assertions and Tenant-Isolation directly under `mcp_health_check`.
+
+## [8.37.0] - Native stdio launch for the Python MCP server + SDD state-dir fix (Jun 24, 2026)
+
+### Summary
+
+Repointed local development at the **Python** MCP server (`mcp_server_python`)
+over **stdio** (no Docker gateway), restoring tool-side filesystem write access
+(SDD session state, checkpoints) that the gateway's read-only `sdd_framework`
+mount blocks. Surfaced and fixed a split-brain bug where the Python SDD/session
+tools wrote to a cwd-relative `mcp_server_python/sdd_framework/` instead of the
+canonical repo-root tree.
+
+### Added
+
+- `mcp_server_python/src/mcp_server.py` — `--transport {stdio,streamable-http}`
+  CLI flag (+ `MCP_TRANSPORT` env). Default stays `streamable-http` so AgentCore
+  /production is unchanged; `stdio` is for native local dev. Banner suppressed on
+  stdio (`show_banner=False`) so FastMCP's ASCII art doesn't surface as client
+  warnings.
+- `mcp_server_python/scripts/run_mcp_stdio.sh` — Spack-aware launcher: sources
+  Spack, `module load python/3.11.14 py-pip py-neo4j py-httpx py-pydantic`, sets
+  the legacy backend env (`DB_BACKEND=legacy`, `MCP_EMBEDDING_PROFILE=mpnet768`,
+  `NEO4J_*`, `CHROMADB_*`) and absolute filesystem roots (`SDD_STATE_DIR`,
+  `SDD_WORKFLOWS_DIR`, `MCP_TENANT_CATALOG_PATH`, `MCP_WORKFLOW_ROOT`), then
+  execs `python -m src.mcp_server --transport stdio`. Sources an optional
+  gitignored secrets file (`~/.config/eib-mcp/secrets.env`, override via
+  `MCP_SECRETS_FILE`) so `GITHUB_TOKEN` stays out of `mcp.json` and shell
+  history; the Python server resolves it via its `GITHUB_TOKEN` env →
+  Secrets Manager precedence.
+
+### Fixed
+
+- `mcp_server_python/src/tools/sdd_workflow.py` + `src/tools/graph_rag.py` —
+  `register()` now honors `SDD_STATE_DIR` (and `sdd_workflow` also `SDD_WORKFLOWS_DIR`)
+  when constructing the default `SessionManager` / resolving the workflows dir,
+  matching `utility.py`'s existing `SDD_STATE_DIR` handling. Previously both
+  defaulted to cwd-relative `sdd_framework/...`, so running from the server dir
+  created a divergent `mcp_server_python/sdd_framework/` and the two modules'
+  session tools could disagree on state location. Verified: `get_sdd_workflow`
+  reads the repo-root phase60 spec, `start`/`complete_sdd_session` write to the
+  repo-root `history.jsonl`, and no split-brain dir is recreated on full module
+  registration.
+
+### Changed
+
+- `.vscode/mcp.json` — `eib-mcp-rag-full` now launches the Python server via
+  `run_mcp_stdio.sh` (was the Node.js `UnifiedMCPServer.js`). Server key kept so
+  `eib-mcp-tools.instructions.md` (`applyWhen hasActiveMCPServer("eib-mcp-rag-full")`)
+  still auto-applies. Gateway + Python-HTTP modes documented as commented
+  alternatives.
+
+### Notes
+
+- One-time dep: `pip install --user fastmcp==3.2.4` (chromadb / sentence-transformers
+  / neo4j / httpx / pydantic already available via Spack + user site).
+- `pyproject.toml` declares `requires-python >=3.12`; the code compiles and runs
+  clean on Spack's 3.11 and is launched via `python -m` to bypass the pip gate.
+- Verified live: stdio `initialize` + `tools/list` → 52 tools / 9 modules,
+  legacy backend (ChromaDB v2 + Neo4j) connected; targeted unit suite 121 passed
+  (4 pre-existing failures are `opensearchpy`-import AWS tests, not installed in
+  the legacy dev env).
+
 ## [8.36.6] - Backend-agnostic smoke probes; legacy parity verified (python-mcp-pw-integration) (Jun 24, 2026)
 
 ### Summary

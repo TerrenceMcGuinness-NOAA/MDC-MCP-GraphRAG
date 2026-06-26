@@ -327,6 +327,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (default: INFO).",
     )
+    parser.add_argument(
+        "--transport",
+        default=None,
+        choices=["stdio", "streamable-http"],
+        help=(
+            "Transport to serve on. Overrides the MCP_TRANSPORT env var. "
+            "Defaults to 'streamable-http' (AgentCore/gateway). Use 'stdio' "
+            "for native local development where the MCP client (e.g. VS Code) "
+            "spawns this process directly and needs filesystem write access."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -361,6 +372,24 @@ def main(argv: list[str] | None = None) -> int:
 
     mcp = build_server()
     asyncio.run(initialize(mcp, config))
+
+    # Transport selection (CLI flag → MCP_TRANSPORT env → streamable-http).
+    # stdio is for native local dev: the client spawns this process and the
+    # tools get direct filesystem write access (SDD session state, etc.) that
+    # the read-only Docker gateway mount cannot provide.
+    transport = (
+        args.transport
+        or os.environ.get("MCP_TRANSPORT")
+        or "streamable-http"
+    ).strip().lower()
+
+    if transport == "stdio":
+        # Logging is configured to stderr (logging.basicConfig default), so it
+        # does not corrupt the stdio JSON-RPC stream on stdout. show_banner is
+        # disabled so the ASCII banner doesn't surface as client-side warnings.
+        log.info("[OK] starting FastMCP over stdio (native local dev)")
+        mcp.run(transport="stdio", show_banner=False)
+        return 0
 
     log.info(
         "[OK] starting FastMCP Streamable HTTP listener on %s:%d",

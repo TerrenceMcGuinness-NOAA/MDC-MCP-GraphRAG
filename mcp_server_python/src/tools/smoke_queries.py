@@ -364,6 +364,34 @@ async def _smoke_utility(_data: Any, mcp: Any) -> bool:
     return True
 
 
+async def _smoke_code_awareness(data: Any, _mcp: Any) -> bool:
+    """Phase 60: Condensed 3-axis code_awareness validation probe.
+
+    Verifies that graph-based code-awareness tools behave correctly along
+    the ground-truth and isolation axes under the tenant scoping.
+    """
+    if data is None or data.graph_db is None:
+        raise RuntimeError("graph_db is not configured")
+
+    # Axis 1: Ground-Truth on gw (develop) — check ush/err_exit.sh defines err_exit
+    res = await data.graph_db.query(
+        "MATCH (f {name:'err_exit.sh'})-[:DEFINES|CONTAINS]->(s) "
+        "RETURN s.name AS name LIMIT 1"
+    )
+    if not res or res[0].get("name") != "err_exit":
+        raise RuntimeError("Ground-Truth axis failed: err_exit definition missing from graph")
+
+    # Axis 2: Isolation — assert v17 symbol is not visible to gw
+    res_leak = await data.graph_db.query(
+        "MATCH (f:ShellScript {name:'JGDAS_ATMOS_ANALYSIS_WDQMS'}) "
+        "RETURN f.name AS name"
+    )
+    if res_leak:
+        raise RuntimeError("Isolation axis failed: v17 node visible under default gw tenant")
+
+    return True
+
+
 async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
     """R4.1 — assert v17 J-Job is visible only to gw_v17, develop content
     only to gw, and bidirectional isolation holds for cross-tenant search.
@@ -535,6 +563,13 @@ class SmokeQueryRegistry:
             module="utility",
             description="FastMCP registers >= 50 tools",
             query_fn=_smoke_utility,
+        ),
+        "code_awareness": SmokeQueryDef(
+            module="code_awareness",
+            description=(
+                "Phase 60: Condensed ground-truth and tenant-isolation validations"
+            ),
+            query_fn=_smoke_code_awareness,
         ),
         "branch_isolation": SmokeQueryDef(
             module="branch_isolation",

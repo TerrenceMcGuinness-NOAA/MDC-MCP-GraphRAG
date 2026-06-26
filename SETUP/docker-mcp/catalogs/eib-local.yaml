@@ -39,9 +39,13 @@ registry:
         value: "true"
       - name: ENABLE_GITHUB
         value: "true"
+      - name: GITHUB_TOKEN
+        value: "${GITHUB_TOKEN}"
     volumes:
       - "/mcp_rag_eib/eib-mcp-rag-server/supported_repos:/app/supported_repos:ro"
-      - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:ro"
+      # sdd_framework must be read-write: the SDD session tools persist
+      # active_session.json + history.jsonl under execution_state/ at runtime.
+      - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:rw"
     metadata:
       category: devops
       tags:

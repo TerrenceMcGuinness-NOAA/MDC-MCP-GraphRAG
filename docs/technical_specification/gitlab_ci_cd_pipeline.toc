@@ -1,0 +1,42 @@
+\contentsline {section}{\numberline {1}Overview}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Key Design Principles}{3}{subsection.1.1}%
+\contentsline {section}{\numberline {2}Repository Mirroring: GitHub to GitLab}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Pull Mirroring (Licensed GitLab Instance)}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Push Mirroring (Community GitLab at VLab)}{5}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Mirror Chain Summary}{6}{subsection.2.3}%
+\contentsline {section}{\numberline {3}Pipeline Architecture}{6}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Pipeline Stages}{6}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Pipeline Modalities}{7}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3.2.1}PR Cases (\texttt {PIPELINE\_TYPE=pr\_cases})}{7}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3.2.2}CTests (\texttt {PIPELINE\_TYPE=ctests})}{8}{subsubsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.3}Per-Host Test Matrices}{8}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Pipeline Variables}{9}{subsection.3.4}%
+\contentsline {section}{\numberline {4}GitHub Actions Integration}{10}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Triggering a Pipeline}{10}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Required GitHub Secrets and Variables}{11}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}PR Label Lifecycle}{11}{subsection.4.3}%
+\contentsline {section}{\numberline {5}Nightly Pipeline Operations}{12}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Directory Management}{12}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Badge Updates}{12}{subsection.5.2}%
+\contentsline {section}{\numberline {6}GitLab Runner Setup}{12}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Platform Configuration Files}{13}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}The \texttt {launch\_gitlab\_runner.sh} Script}{13}{subsection.6.2}%
+\contentsline {subsubsection}{\numberline {6.2.1}Setup Prerequisites}{14}{subsubsection.6.2.1}%
+\contentsline {subsubsection}{\numberline {6.2.2}Registering a Runner}{14}{subsubsection.6.2.2}%
+\contentsline {subsubsection}{\numberline {6.2.3}Starting a Runner}{14}{subsubsection.6.2.3}%
+\contentsline {subsubsection}{\numberline {6.2.4}Unregistering a Runner}{15}{subsubsection.6.2.4}%
+\contentsline {subsection}{\numberline {6.3}Runner Directory Layout}{15}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Runner Maintenance}{15}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Pipeline Execution Details}{16}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Build Stage}{16}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Test Execution (PR Cases)}{16}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Test Execution (CTests)}{17}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Finalize Stage}{17}{subsection.7.4}%
+\contentsline {section}{\numberline {8}Adding a New Host Platform}{17}{section.8}%
+\contentsline {section}{\numberline {9}File Reference}{18}{section.9}%
+\contentsline {section}{\numberline {10}Troubleshooting}{19}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Runner Not Picking Up Jobs}{19}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Build Failures}{19}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}Test Case Timeouts}{19}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}CTest Baseline Mismatches}{20}{subsection.10.4}%
+\contentsline {subsection}{\numberline {10.5}GitLab Mirror Sync Issues}{20}{subsection.10.5}%

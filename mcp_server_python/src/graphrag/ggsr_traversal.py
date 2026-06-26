@@ -340,10 +340,21 @@ class GGSRTraversal:
         limit = max(1, int(limit))
         base_name = entity
 
+        from src.tenancy.resolver import get_current_tenant_or_none, tenant_label_predicate
+        ctx = get_current_tenant_or_none()
+        tenant_obj = ctx.tenant if ctx else None
+
+        pred_n = tenant_label_predicate("n")
+        scope_n = f" AND {pred_n}" if pred_n else ""
+
+        pred_hop1 = tenant_label_predicate("hop1")
+        scope_hop1 = f" AND {pred_hop1}" if pred_hop1 else ""
+
         if hops == 1:
             cypher = (
                 "MATCH (n)-[r]-(hop1) "
-                "WHERE toLower(n.name) CONTAINS toLower($baseName) "
+                "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($baseName) "
+                f"{scope_n}{scope_hop1} "
                 "RETURN n.name AS source, "
                 "type(r) AS relationship, "
                 "hop1.name AS name, "
@@ -352,15 +363,18 @@ class GGSRTraversal:
                 "1 AS hop_distance "
                 f"LIMIT {limit}"
             )
-            rows = await self._graph.query(cypher, {"baseName": base_name})
+            rows = await self._graph.query(cypher, {"baseName": base_name}, tenant=tenant_obj)
             return list(rows or [])
 
         # hops == 2 — emit flattened records for both legs
+        pred_hop2 = tenant_label_predicate("hop2")
+        scope_hop2 = f" AND {pred_hop2}" if pred_hop2 else ""
         cypher = (
             "MATCH (n)-[r1]-(hop1) "
-            "WHERE toLower(n.name) CONTAINS toLower($baseName) "
+            "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($baseName) "
+            f"{scope_n}{scope_hop1} "
             "OPTIONAL MATCH (hop1)-[r2]-(hop2) "
-            "WHERE hop2 <> n "
+            f"WHERE hop2 <> n{scope_hop2} "
             "RETURN n.name AS source, "
             "type(r1) AS rel1, hop1.name AS hop1Name, "
             "labels(hop1) AS hop1Labels, hop1.filepath AS hop1Path, "
@@ -368,7 +382,7 @@ class GGSRTraversal:
             "labels(hop2) AS hop2Labels, hop2.filepath AS hop2Path "
             f"LIMIT {limit}"
         )
-        rows = await self._graph.query(cypher, {"baseName": base_name})
+        rows = await self._graph.query(cypher, {"baseName": base_name}, tenant=tenant_obj)
 
         flattened: list[dict[str, Any]] = []
         seen: set[str] = set()

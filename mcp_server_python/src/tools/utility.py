@@ -516,13 +516,17 @@ async def _render_health_check(
 
     # ── Workflow Filesystem section (R8.6) ─────────────────────────────
     if detailed:
-        mount_path = Path("/mnt/workflow")
+        # Honour MCP_WORKFLOW_MOUNT (Phase 61) so native deployments
+        # (Parallel Works) report their real mount base instead of the
+        # AgentCore-only /mnt/workflow default.
+        mount_str = os.environ.get("MCP_WORKFLOW_MOUNT", "/mnt/workflow")
+        mount_path = Path(mount_str)
         mounted = mount_path.is_dir()
         lines.append("")
         lines.append("## Workflow Filesystem")
         lines.append("")
         lines.append(
-            f"- mount: /mnt/workflow ({'mounted' if mounted else 'NOT mounted'})"
+            f"- mount: {mount_str} ({'mounted' if mounted else 'NOT mounted'})"
         )
         if mounted:
             subdirs = sorted(

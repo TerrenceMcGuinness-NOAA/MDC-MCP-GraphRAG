@@ -5,6 +5,7 @@ Implements Requirements 1.1-1.11, 7.1, 7.5, 9.1-9.3, 10.1-10.4.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -30,6 +31,11 @@ log = logging.getLogger(__name__)
 
 LIFECYCLE_VALUES = ("experimental", "staging", "production", "merged", "stale")
 SUPPORTED_SCHEMA_VERSIONS = (1,)
+
+# Base directory under which each tenant's ``workflow_subdir`` lives. Defaults
+# to the AWS Bedrock AgentCore EFS access-point mount; native deployments
+# (e.g. Parallel Works) override via ``MCP_WORKFLOW_MOUNT`` (Phase 61).
+_DEFAULT_WORKFLOW_MOUNT = "/mnt/workflow"
 
 _PREFIX_RE = re.compile(r"^([a-z][a-z0-9_]*_)?$")
 _LABEL_PREFIX_RE = re.compile(r"^([A-Z][A-Z0-9_]*_)?$")
@@ -63,8 +69,16 @@ class Tenant:
 
     @property
     def workflow_root(self) -> Path:
-        """Per-tenant absolute path on the AgentCore EFS mount (R2.7)."""
-        return Path("/mnt/workflow") / self.workflow_subdir
+        """Per-tenant absolute path under the configured workflow mount base.
+
+        The base directory is ``MCP_WORKFLOW_MOUNT`` (default
+        ``/mnt/workflow`` — the AWS Bedrock AgentCore EFS access-point
+        mount, preserving R2.7 behaviour). Native deployments such as
+        Parallel Works override it to a local directory whose children
+        match the catalog ``workflow_subdir`` values (Phase 61).
+        """
+        base = os.environ.get("MCP_WORKFLOW_MOUNT", _DEFAULT_WORKFLOW_MOUNT)
+        return Path(base) / self.workflow_subdir
 
 
 @dataclass(frozen=True)

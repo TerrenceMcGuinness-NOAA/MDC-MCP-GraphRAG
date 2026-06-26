@@ -302,11 +302,10 @@ def register(
         name="get_knowledge_base_status",
         description=(
             "Get comprehensive knowledge base statistics. Reports "
-            "OpenSearch index / document counts, Neptune node / "
-            "relationship counts, and overall health. Replaces the "
-            "Node.js tool that currently fails with "
-            "'Max connection limit reached' due to unpooled ChromaDB "
-            "access."
+            "vector index / document counts, graph node / "
+            "relationship counts, and overall health. Backend labels "
+            "reflect the active DB_BACKEND (ChromaDB + Neo4j for "
+            "legacy, OpenSearch + Neptune for aws)."
         ),
     )
     async def get_knowledge_base_status(
@@ -741,7 +740,7 @@ async def _tool_explain_with_context(
     if graph_db is not None:
         graph_cypher = (
             "MATCH (n) "
-            "WHERE toLower(n.name) CONTAINS toLower($topic) "
+            "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($topic) "
             "RETURN n.name AS name, labels(n) AS labels, "
             "n.path AS path LIMIT $limit"
         )
@@ -813,8 +812,27 @@ async def _tool_get_knowledge_base_status(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _vector_backend_label() -> str:
+    """Display name for the active vector backend.
+
+    ``DB_BACKEND=aws`` routes to OpenSearch; any other value (default
+    ``legacy``) uses ChromaDB. Keeps the rendered status headers honest
+    on non-AWS deployments (e.g. Parallel Works / Rocky 9).
+    """
+    return "OpenSearch" if os.environ.get("DB_BACKEND", "legacy") == "aws" else "ChromaDB"
+
+
+def _graph_backend_label() -> str:
+    """Display name for the active graph backend.
+
+    ``DB_BACKEND=aws`` routes to Neptune; any other value (default
+    ``legacy``) uses Neo4j.
+    """
+    return "Neptune" if os.environ.get("DB_BACKEND", "legacy") == "aws" else "Neo4j"
+
+
 async def _render_vector_status_block(vector_db: Any) -> list[str]:
-    """Render the OpenSearch (or legacy ChromaDB) block.
+    """Render the vector-DB block (ChromaDB legacy / OpenSearch aws).
 
     Uses ``health_check(deep=True)`` which returns the extended stats
     the Node.js ``getStatistics`` produces. The enumerated indices are
@@ -826,7 +844,7 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
         health = await vector_db.health_check(deep=True)
     except Exception as exc:
         return [
-            "## Vector Database (OpenSearch)",
+            f"## Vector Database ({_vector_backend_label()})",
             "",
             f"[ERROR] health check failed: {exc}",
             "",
@@ -845,7 +863,7 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     )
 
     lines = [
-        "## Vector Database (OpenSearch)",
+        f"## Vector Database ({_vector_backend_label()})",
         "",
     ]
     # Show the active scoping only for non-default tenants — the default
@@ -950,7 +968,7 @@ def _filter_indices_by_tenant(
 
 
 async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[str]:
-    """Render the Neptune (or legacy Neo4j) block.
+    """Render the graph-DB block (Neo4j legacy / Neptune aws).
 
     Uses ``health_check`` first, then falls back to direct cypher
     queries for per-label / per-relationship counts when the health
@@ -960,7 +978,7 @@ async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[
         health = await graph_db.health_check()
     except Exception as exc:
         return [
-            "## Graph Database (Neptune)",
+            f"## Graph Database ({_graph_backend_label()})",
             "",
             f"[ERROR] health check failed: {exc}",
             "",
@@ -994,7 +1012,7 @@ async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[
     )
 
     lines = [
-        "## Graph Database (Neptune)",
+        f"## Graph Database ({_graph_backend_label()})",
         "",
         f"- **Files:** {label_counts.get('File', 0)}",
         f"- **Functions:** {label_counts.get('Function', 0) + label_counts.get('FortranFunction', 0) + label_counts.get('PythonFunction', 0)}",
@@ -1252,7 +1270,7 @@ async def _tool_list_ingested_urls(
     ]
 
     if per_index:
-        lines.append("## Actual Ingestion Status (from OpenSearch)")
+        lines.append(f"## Actual Ingestion Status (from {_vector_backend_label()})")
         lines.append("")
         lines.append(f"**Total Documents**: {total_documents:,}")
         lines.append("")

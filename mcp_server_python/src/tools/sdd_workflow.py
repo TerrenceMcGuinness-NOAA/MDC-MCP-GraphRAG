@@ -72,6 +72,7 @@ Degraded-mode contract (Requirement 1.7)
 from __future__ import annotations
 
 import logging
+import os
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -1109,8 +1110,16 @@ def register(
         with an ``[INFO]`` block.
     """
     del data  # explicitly unused — kept for register-signature parity
-    session = session_manager or SessionManager()
-    workflows_path = Path(workflows_dir or DEFAULT_WORKFLOWS_DIR).resolve()
+    # Honor env-configured absolute paths (parity with utility.py's
+    # SDD_STATE_DIR handling) so the canonical repo-root sdd_framework tree
+    # is used regardless of the process cwd. Falls back to the cwd-relative
+    # Node.js convention when unset.
+    session = session_manager or SessionManager(os.environ.get("SDD_STATE_DIR"))
+    workflows_path = Path(
+        workflows_dir
+        or os.environ.get("SDD_WORKFLOWS_DIR")
+        or DEFAULT_WORKFLOWS_DIR
+    ).resolve()
 
     @mcp.tool(
         name="list_sdd_workflows",
