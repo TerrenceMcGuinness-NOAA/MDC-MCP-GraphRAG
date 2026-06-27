@@ -38,6 +38,7 @@ KNOWN_MODULES: tuple[str, ...] = (
     "workflow_info",
     "github_tools",
     "utility",
+    "error_analysis",
 )
 
 VALID_BACKENDS: tuple[str, ...] = ("aws", "legacy")

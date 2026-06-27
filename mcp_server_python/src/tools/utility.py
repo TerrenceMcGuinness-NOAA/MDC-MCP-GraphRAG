@@ -53,7 +53,7 @@ DEFAULT_STATE_DIR: str = "sdd_framework/execution_state"
 HEALTH_HISTORY_FILENAME: str = "health_history.jsonl"
 QUALITY_METRICS_FILENAME: str = "quality_metrics.jsonl"
 
-#: Canonical list of all 9 Python tool-port module names. Kept in sync
+#: Canonical list of all 10 Python tool-port module names. Kept in sync
 #: with ``src.config.environment.KNOWN_MODULES``. Used by
 #: ``get_server_info`` to list active modules when the caller asks for
 #: capability details.
@@ -67,6 +67,7 @@ ALL_TOOL_MODULES: tuple[str, ...] = (
     "workflow_info",
     "github_tools",
     "utility",
+    "error_analysis",
 )
 
 #: Minimum vector indices expected for the cluster to be "healthy"
