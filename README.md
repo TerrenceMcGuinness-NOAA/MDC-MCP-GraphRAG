@@ -238,5 +238,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for GitFlow branch strategy and developme
 
 ---
 **NOAA Environmental Modeling Center / Enterprise Infrastructure Branch**  
-**Lead**: Terrence McGuinness  
+**Lead**: Terrence McGuinness ([@TerrenceMcGuinness-NOAA](https://github.com/TerrenceMcGuinness-NOAA))  
 **Last Updated**: December 11, 2025
+
+## Contributors
+
+| GitHub | Affiliation | Role |
+|--------|-------------|------|
+| [@TerrenceMcGuinness-NOAA](https://github.com/TerrenceMcGuinness-NOAA) | NOAA/EMC | Project Lead |
+| [@AustinPark00](https://github.com/AustinPark00) | AWS | Contributor |
