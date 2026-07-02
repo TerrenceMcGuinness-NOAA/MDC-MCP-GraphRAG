@@ -1,46 +1,10 @@
 {
-    "chat.mcp.serverSampling": {
-        ".vscode/mcp.json: eib-mcp-rag-full": {
-            "allowedModels": [
-                "copilot/claude-3.5-sonnet",
-                "copilot/claude-sonnet-4.5",
-                "copilot/gemini-pro-2.5",
-                "copilot/gpt-5.1-codex"
-            ]
-        },
-        ".vscode/mcp.json: eib-mcp-rag-runtime": {
-            "allowedModels": [
-                "copilot/claude-3.5-sonnet",
-                "copilot/claude-sonnet-4.5",
-                "copilot/gemini-pro-2.5",
-                "copilot/gpt-5.1-codex"
-            ]
-        },
-        ".vscode/mcp.json: eib-sdd-validator": {
-            "allowedModels": [
-                "copilot/claude-3.5-sonnet",
-                "copilot/claude-sonnet-4.5",
-                "copilot/gemini-pro-2.5",
-                "copilot/gpt-5.1-codex"
-            ]
-        },
-        ".vscode/mcp.json: global-workflow-core": {
-            "allowedModels": [
-                "copilot/claude-3.5-sonnet",
-                "copilot/claude-sonnet-4.5",
-                "copilot/gemini-pro-2.5",
-                "copilot/gpt-5.1-codex"
-            ]
-        },
-        "eib-mcp-rag-server/.vscode/mcp.json: eib-mcp-rag-full": {
-            "allowedModels": []
-        }
-    },
-    "chat.tools.terminal.autoApprove": {
-        "/^# Fix the duplicate line issue\nsudo sed -i '/--network global-workflow-mcp-rag/\\{n;/--network global-workflow-mcp-rag/d;\\}' /etc/systemd/system/mcp-rag\\.service\n\n# Also need to update DB hosts - on the user network, containers can use service names\n# ChromaDB and Neo4j are on the same network\nsudo sed -i 's/CHROMADB_HOST=172\\.17\\.0\\.1/CHROMADB_HOST=chromadb/' /etc/systemd/system/mcp-rag\\.service\nsudo sed -i 's/bolt:\\\\/\\\\/172\\.17\\.0\\.1:7687/bolt:\\\\/\\\\/global-workflow-neo4j:7687/' /etc/systemd/system/mcp-rag\\.service\n\ncat /etc/systemd/system/mcp-rag\\.service \\| head -45$/": {
-            "approve": true,
-            "matchCommandLine": true
-        }
-    },
-    "cmake.sourceDirectory": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
+  "mcp.servers": [
+    {
+      "name": "eib-mcp-rag-full",
+      "command": "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_python/scripts/run_mcp_stdio.sh",
+      "args": [],
+      "env": {}
+    }
+  ]
 }

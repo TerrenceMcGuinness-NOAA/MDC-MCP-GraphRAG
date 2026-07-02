@@ -12,12 +12,13 @@ Routing rules (Requirement 1.6, 1.8):
   call. If either ``connect()`` raises, the selector logs the failure
   and returns the facade with that adapter slot set to ``None``,
   matching the graceful-degrade contract (R1.7).
-* ``db_backend == "legacy"`` → :pyclass:`ChromaDBAdapter` +
-  :pyclass:`Neo4jAdapter`, the on-prem Parallel Works path. Both are
-  built lazily (late-imported) and connected eagerly with the same
-  graceful-degrade contract as the AWS backends; a failed ``connect()``
-  nulls that adapter slot rather than aborting startup. On AgentCore we
-  always use the AWS backends. Any other ``db_backend`` value raises
+* ``db_backend == "cots"`` → :pyclass:`ChromaDBAdapter` +
+  :pyclass:`Neo4jAdapter`, the on-prem Parallel Works path
+  (Commercial Off-The-Shelf stack). Both are built lazily
+  (late-imported) and connected eagerly with the same graceful-degrade
+  contract as the AWS backends; a failed ``connect()`` nulls that
+  adapter slot rather than aborting startup. On AgentCore we always
+  use the AWS backends. Any other ``db_backend`` value raises
   :pyexc:`UnsupportedBackendError` so the misconfiguration surfaces
   immediately rather than silently degrading.
 
@@ -70,10 +71,10 @@ async def create_data_access(
         facade; individual adapter slots may be ``None`` when their
         connect call failed (degraded mode).
     """
-    if config.db_backend not in ("aws", "legacy"):
+    if config.db_backend not in ("aws", "cots"):
         raise UnsupportedBackendError(
             f"DB_BACKEND={config.db_backend!r} is not a known value. "
-            f'Valid values: "aws", "legacy".'
+            f'Valid values: "aws", "cots".'
         )
 
     # If both adapters are pre-built, skip the AWS-wiring branch.
@@ -107,7 +108,7 @@ def _build_vector_db(config: ServerConfig) -> VectorDBProtocol | None:
     ``opensearch-py`` installed can still exercise
     :func:`create_data_access` with injected mocks.
     """
-    if config.db_backend == "legacy":
+    if config.db_backend == "cots":
         try:
             from src.data.chromadb_adapter import ChromaDBAdapter
         except ImportError as exc:
@@ -143,7 +144,7 @@ def _build_vector_db(config: ServerConfig) -> VectorDBProtocol | None:
 
 def _build_graph_db(config: ServerConfig) -> GraphDBProtocol | None:
     """Construct a NeptuneAdapter, Neo4jAdapter, or return None on misconfig."""
-    if config.db_backend == "legacy":
+    if config.db_backend == "cots":
         try:
             from src.data.neo4j_adapter import Neo4jAdapter
         except ImportError as exc:

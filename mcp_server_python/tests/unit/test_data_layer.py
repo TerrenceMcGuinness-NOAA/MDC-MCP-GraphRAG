@@ -585,9 +585,9 @@ async def test_facade_uses_get_statistics_when_health_lacks_counts() -> None:
 
 
 @pytest.mark.asyncio
-async def test_legacy_backend_succeeds() -> None:
+async def test_cots_backend_succeeds() -> None:
     cfg = ServerConfig(
-        db_backend="legacy",
+        db_backend="cots",
         chromadb_host="localhost",
         chromadb_port=8080,
         neo4j_uri="bolt://localhost:7687",
@@ -595,10 +595,10 @@ async def test_legacy_backend_succeeds() -> None:
     )
     # create_data_access will attempt to construct real adapters
     # and eagerly call connect() on them.
-    # We assert that the call completes cleanly and sets the backend to "legacy".
+    # We assert that the call completes cleanly and sets the backend to "cots".
     facade = await create_data_access(cfg)
     assert facade is not None
-    assert facade.backend == "legacy"
+    assert facade.backend == "cots"
 
 
 @pytest.mark.asyncio

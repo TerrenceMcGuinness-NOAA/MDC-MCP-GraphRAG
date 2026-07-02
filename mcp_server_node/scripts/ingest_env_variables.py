@@ -72,7 +72,7 @@ try:
     _AWS_BACKEND_AVAILABLE = True
 except ImportError:
     _AWS_BACKEND_AVAILABLE = False
-    _BACKEND = "legacy"
+    _BACKEND = "cots"
 
 WORKFLOW_ROOT = os.environ.get(
     "MCP_WORKFLOW_ROOT",

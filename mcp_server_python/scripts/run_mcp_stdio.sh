@@ -42,8 +42,8 @@ fi
 # Suppressed in code via show_banner=False; this env is a backup for CLI runs.
 export FASTMCP_SHOW_SERVER_BANNER="${FASTMCP_SHOW_SERVER_BANNER:-false}"
 
-# ── Backend + connection config (legacy: Neo4j + ChromaDB) ─────────────────
-export DB_BACKEND="${DB_BACKEND:-legacy}"
+# ── Backend + connection config (cots: Neo4j + ChromaDB) ──────────────────
+export DB_BACKEND="${DB_BACKEND:-cots}"
 export MCP_EMBEDDING_PROFILE="${MCP_EMBEDDING_PROFILE:-mpnet768}"
 export NEO4J_URI="${NEO4J_URI:-bolt://localhost:7687}"
 export NEO4J_USER="${NEO4J_USER:-neo4j}"

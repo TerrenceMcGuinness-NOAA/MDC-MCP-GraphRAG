@@ -83,7 +83,7 @@ try:
     _AWS_BACKEND_AVAILABLE = True
 except ImportError:
     _AWS_BACKEND_AVAILABLE = False
-    _BACKEND = "legacy"
+    _BACKEND = "cots"
 
 if not _REGISTRY_AVAILABLE:
     EMBEDDING_MODEL = "all-mpnet-base-v2"

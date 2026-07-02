@@ -38,9 +38,14 @@ KNOWN_MODULES: tuple[str, ...] = (
     "workflow_info",
     "github_tools",
     "utility",
+    "error_analysis",
 )
 
-VALID_BACKENDS: tuple[str, ...] = ("aws", "legacy")
+VALID_BACKENDS: tuple[str, ...] = ("aws", "cots")
+
+# Phase 63a deprecation alias: ``DB_BACKEND=legacy`` still routes to the
+# COTS backend but emits a one-time WARN. Scheduled for removal in Phase 64.
+LEGACY_BACKEND_ALIAS: str = "legacy"
 
 
 @dataclass(frozen=True)
@@ -50,12 +55,14 @@ class ServerConfig:
     Attributes
     ----------
     db_backend
-        Either ``"aws"`` (Neptune + OpenSearch) or ``"legacy"``
-        (Neo4j + ChromaDB). Routes to the appropriate adapter in
-        ``src.data.backend_selector``.
+        Either ``"aws"`` (Neptune + OpenSearch) or ``"cots"``
+        (Neo4j + ChromaDB — Commercial Off-The-Shelf on-prem stack).
+        Routes to the appropriate adapter in
+        ``src.data.backend_selector``. The historical value ``"legacy"``
+        is auto-mapped to ``"cots"`` with a one-time WARN (Phase 63a).
     neptune_endpoint
         Neptune HTTPS / wss endpoint. Required when ``db_backend == "aws"``.
-        Empty string is permitted in ``legacy`` mode.
+        Empty string is permitted in ``cots`` mode.
     opensearch_endpoint
         OpenSearch HTTPS endpoint. Required when ``db_backend == "aws"``.
     aws_region
@@ -74,8 +81,8 @@ class ServerConfig:
     enabled_modules
         Whitelist of tool modules to register. Empty tuple means "all".
     neo4j_uri / neo4j_user / neo4j_password / chromadb_host / chromadb_port
-        Legacy-backend connection parameters, only relevant when
-        ``db_backend == "legacy"``.
+        COTS-backend connection parameters, only relevant when
+        ``db_backend == "cots"``.
     """
 
     db_backend: str = "aws"
@@ -88,7 +95,7 @@ class ServerConfig:
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
     enabled_modules: tuple[str, ...] = field(default_factory=tuple)
-    # Legacy-only (ignored in aws mode):
+    # COTS-only (ignored in aws mode):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
@@ -101,9 +108,18 @@ class ServerConfig:
         """Return True when the AWS backend is selected."""
         return self.db_backend == "aws"
 
+    def is_cots(self) -> bool:
+        """Return True when the COTS backend (ChromaDB + Neo4j) is selected."""
+        return self.db_backend == "cots"
+
     def is_legacy(self) -> bool:
-        """Return True when the legacy (Docker-based) backend is selected."""
-        return self.db_backend == "legacy"
+        """Deprecated alias for :meth:`is_cots` (Phase 63a rename).
+
+        Kept for backwards compatibility through Phase 64. Returns True
+        when the COTS backend is selected — semantically unchanged for
+        callers that used this to detect the non-AWS path.
+        """
+        return self.is_cots()
 
     def module_enabled(self, module_name: str) -> bool:
         """Return True if *module_name* should be registered.
@@ -167,6 +183,39 @@ def _reset_embedding_warn() -> None:
     """
     global _MPNET_WARN_EMITTED
     _MPNET_WARN_EMITTED = False
+
+
+# Phase 63a: one-shot guard for the ``DB_BACKEND=legacy`` deprecation WARN.
+_LEGACY_BACKEND_WARN_EMITTED: bool = False
+
+
+def _reset_legacy_backend_warn() -> None:
+    """Reset the one-shot ``DB_BACKEND=legacy`` deprecation warn guard.
+
+    Test-only helper; production code never calls this.
+    """
+    global _LEGACY_BACKEND_WARN_EMITTED
+    _LEGACY_BACKEND_WARN_EMITTED = False
+
+
+def _resolve_backend_alias(raw: str) -> str:
+    """Normalize ``DB_BACKEND`` and shim the deprecated ``legacy`` value.
+
+    Phase 63a rename: ``DB_BACKEND=legacy`` still routes to the COTS
+    backend (Neo4j + ChromaDB) but emits a one-time WARN so operators
+    have time to update their config. The alias is scheduled for
+    removal in Phase 64.
+    """
+    global _LEGACY_BACKEND_WARN_EMITTED
+    if raw == LEGACY_BACKEND_ALIAS:
+        if not _LEGACY_BACKEND_WARN_EMITTED:
+            log.warning(
+                "[WARN] DB_BACKEND=legacy is deprecated; "
+                "use DB_BACKEND=cots (auto-mapped)"
+            )
+            _LEGACY_BACKEND_WARN_EMITTED = True
+        return "cots"
+    return raw
 
 
 def _parse_embedding_profile(raw: str | None) -> str:
@@ -234,10 +283,11 @@ def load_config(
     """
     source = env if env is not None else os.environ
 
-    backend = (source.get("DB_BACKEND") or "aws").strip().lower()
+    raw_backend = (source.get("DB_BACKEND") or "aws").strip().lower()
+    backend = _resolve_backend_alias(raw_backend)
     if backend not in VALID_BACKENDS:
         raise ConfigError(
-            f"DB_BACKEND must be one of {VALID_BACKENDS}, got {backend!r}"
+            f"DB_BACKEND must be one of {VALID_BACKENDS}, got {raw_backend!r}"
         )
 
     # Parse + validate the embedding profile *before* the warn line so a

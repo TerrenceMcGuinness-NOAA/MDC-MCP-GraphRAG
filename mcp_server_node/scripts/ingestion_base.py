@@ -392,7 +392,7 @@ class ChromaDBClient:
             _bidx = _sys.argv.index("--backend")
             if _bidx + 1 < len(_sys.argv):
                 os.environ["DB_BACKEND"] = _sys.argv[_bidx + 1]
-        _backend = os.environ.get("DB_BACKEND", "legacy")
+        _backend = os.environ.get("DB_BACKEND", "cots")
         if _backend == "aws":
             try:
                 from aws_backend import get_vector_client
@@ -431,7 +431,7 @@ class ChromaDBClient:
             self.connect()
 
         # AWS backend: skip local embedding function (Bedrock handles embeddings)
-        _is_aws = os.environ.get("DB_BACKEND", "legacy") == "aws"
+        _is_aws = os.environ.get("DB_BACKEND", "cots") == "aws"
         _ef = None if _is_aws else self.get_embedding_function()
 
         try:
@@ -853,7 +853,7 @@ class BaseIngester:
 
     Centralizes:
       - CLI arg parsing (--model, --backend, --collections, --dry-run)
-      - Backend routing (legacy ChromaDB/Neo4j or AWS OpenSearch/Neptune)
+      - Backend routing (cots ChromaDB/Neo4j or AWS OpenSearch/Neptune)
       - Deterministic document ID generation (SHA-256 content hash)
       - Upsert semantics for vector writes
       - MERGE semantics for graph writes
@@ -917,11 +917,20 @@ class BaseIngester:
         parser.add_argument("--model", default="mpnet768")
         parser.add_argument(
             "--backend",
-            default=os.environ.get("DB_BACKEND", "legacy"),
+            default=os.environ.get("DB_BACKEND", "cots"),
         )
         parser.add_argument("--collections", default=None)
         parser.add_argument("--dry-run", action="store_true")
         args, _ = parser.parse_known_args()
+        # Phase 63a deprecation shim: accept the historical value with a
+        # single stderr warning. Removed in Phase 64.
+        if args.backend == "legacy":
+            print(
+                "[WARN] --backend=legacy is deprecated; "
+                "use --backend=cots (auto-mapped)",
+                file=sys.stderr,
+            )
+            args.backend = "cots"
         # Propagate backend to env so aws_backend.py picks it up
         os.environ["DB_BACKEND"] = args.backend
         return args
@@ -935,15 +944,19 @@ class BaseIngester:
         Requirements: 6.1, 6.2, 6.4, 6.5 (P8)
         """
         backend = (self.args.backend if self.args else
-                   os.environ.get("DB_BACKEND", "legacy"))
+                   os.environ.get("DB_BACKEND", "cots"))
+        if backend == "legacy":
+            # Phase 63a shim (redundant with _parse_common_args but
+            # protects direct callers that skip arg parsing).
+            backend = "cots"
         if backend == "aws":
             from aws_backend import get_vector_client, get_graph_driver
             return get_vector_client(), get_graph_driver()
-        elif backend == "legacy":
+        elif backend == "cots":
             return self._legacy_vector_client(), self._legacy_graph_driver()
         else:
             raise ValueError(
-                f"Unknown backend '{backend}'. Expected 'legacy' or 'aws'."
+                f"Unknown backend '{backend}'. Expected 'cots' or 'aws'."
             )
 
     def _legacy_vector_client(self):

@@ -53,7 +53,7 @@ class UnifiedDataAccess:
         markdown when this is ``None``.
     backend
         Name of the backend that produced these adapters
-        (``"aws"`` or ``"legacy"``). Surfaced in
+        (``"aws"`` or ``"cots"``). Surfaced in
         :pymeth:`health_check` output for diagnostics.
     """
 

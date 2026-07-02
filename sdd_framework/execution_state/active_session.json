@@ -1,0 +1,38 @@
+{
+  "sessionId": "session_2026-07-02_gyye61",
+  "phase": "phase63_python_container_parity_and_backend_rename",
+  "startedAt": "2026-07-02T16:18:19.614Z",
+  "lastActivityAt": "2026-07-02T16:57:10.714Z",
+  "status": "in_progress",
+  "currentStep": 2,
+  "totalSteps": 7,
+  "completedSteps": [
+    {
+      "step": 0,
+      "name": "Phase 63 spec authored — Python container parity + DB_BACKEND legacy→cots rename",
+      "tag": "design",
+      "completedAt": "2026-07-02T16:18:25.249Z",
+      "notes": "Spec at sdd_framework/workflows/phase63_python_container_parity_and_backend_rename.md. Covers 12 acceptance criteria, 7-step plan, 4 mermaid/state design sections, deprecation timeline (Phase 64 removes shim). Backed by research: gateway currently runs eib-mcp-rag:latest (Node v3.6.2, no tenancy) while eib-mcp-rag-full runs mcp_server_python v1.0.0 with 5 tenants. Rename scope: 8 code files + 2 tests + 1 vscode config + CHANGELOG. .kiro/specs historical docs intentionally left as-is."
+    },
+    {
+      "step": 1,
+      "name": "Split spec into 63a (rename) and 63b (container). Rename scope expanded after discovering Python-side SPOT.",
+      "tag": "design",
+      "completedAt": "2026-07-02T16:39:31.660Z",
+      "notes": "Phase 63 split into two focused specs. phase63a covers ONLY the DB_BACKEND=legacy→cots rename with shim + tests. phase63b covers the Docker MCP Gateway container swap (deferred). Also discovered: mcp_server_python already has an ARM64 Dockerfile for AgentCore; phase63b will author the x86_64 sibling. Rename scope grew to include environment.py (VALID_BACKENDS SPOT), backend_selector.py, aws_backend.py, protocols.py, unified_data_access.py, and 3 tools files — plus the previously known Node scripts. Class names like ChromaDBLegacyAdapter and prose comments explicitly left in scope §2.2 as Phase 64 cleanup."
+    },
+    {
+      "step": 2,
+      "name": "Phase 63a implementation complete: resolver + shim + tests + CHANGELOG + copilot-instructions",
+      "tag": "validate",
+      "completedAt": "2026-07-02T16:57:10.714Z",
+      "notes": "All acceptance criteria met. Python unit tests: 36 pass (including 6 new dedicated shim tests covering AC 1, 3, 4, 5). Data-layer tests: 42 pass (including renamed test_cots_backend_succeeds). Node vitest step21: 11 pass including new deprecation-shim regression case. AC 8 grep clean (no stale legacy string values outside the resolver). Pre-existing 23 test failures in test_delete_tenant_indices / test_tool_common_helpers all due to missing 'opensearchpy' package in this env — unrelated to rename. Files touched: 14 code + 3 test + 1 vscode config + CHANGELOG + copilot-instructions. Class names like ChromaDBLegacyAdapter and manifest-legacy prose intentionally deferred to Phase 64 per §2.2 scope carve-out."
+    }
+  ],
+  "skippedSteps": [],
+  "blockers": [],
+  "notes": "Two-part phase: (1) bring Docker MCP Gateway to parity with eib-mcp-rag-full by containerizing mcp_server_python/ instead of the stale mcp_server_node/ (v3.6.2 → v1.0.0, +2 tools, +2 modules, +multi-tenant). (2) Rename DB_BACKEND=legacy → DB_BACKEND=cots with a one-release deprecation shim; DB_BACKEND=aws unchanged. Spec authored, no code changes yet.",
+  "modifications": [],
+  "examined": [],
+  "checkpoints": []
+}

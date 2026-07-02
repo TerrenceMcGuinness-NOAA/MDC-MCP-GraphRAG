@@ -128,6 +128,14 @@
         "get_quality_metrics",
         "list_all_sources"
       ]
+    },
+    "eib-mcp-rag-full": {
+      "type": "command",
+      "command": "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_python/scripts/run_mcp_stdio.sh",
+      "args": [],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
