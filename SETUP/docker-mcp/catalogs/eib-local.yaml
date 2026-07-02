@@ -17,8 +17,12 @@ registry:
     title: EIB MCP RAG Server
     description: AI-powered code analysis and EE2 compliance checking for NOAA Global Workflow
     type: server
-    image: eib-mcp-rag:latest
+    image: eib-mcp-rag-python:latest
     env:
+      - name: DB_BACKEND
+        value: "cots"
+      - name: MCP_TENANT_CATALOG_PATH
+        value: "/app/mcp_server_python/src/config/tenants.yaml"
       - name: CHROMADB_HOST
         value: "172.17.0.1"
       - name: CHROMADB_PORT
@@ -42,10 +46,12 @@ registry:
       - name: GITHUB_TOKEN
         value: "${GITHUB_TOKEN}"
     volumes:
+      - "/mcp_rag_eib/eib-mcp-rag-server/.pw_workflow_mount:/app/.pw_workflow_mount:ro"
+      - "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_python/src/config/tenants.yaml:/app/mcp_server_python/src/config/tenants.yaml:ro"
       - "/mcp_rag_eib/eib-mcp-rag-server/supported_repos:/app/supported_repos:ro"
       # sdd_framework must be read-write: the SDD session tools persist
       # active_session.json + history.jsonl under execution_state/ at runtime.
-      - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/sdd_framework:rw"
+      - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/mcp_server_python/sdd_framework:rw"
     metadata:
       category: devops
       tags:
