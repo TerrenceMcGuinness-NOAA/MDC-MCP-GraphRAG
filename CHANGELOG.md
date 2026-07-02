@@ -1,5 +1,29 @@
 # MCP Server Changelog
 
+## [Unreleased] - Kiro CLI glibc Fix (musl) + Dev-Host ARM Migration Plan (Jul 2, 2026)
+
+### Summary
+Fixed a broken `kiro-cli` on the Amazon Linux 2023 dev host (glibc 2.34). The built-in
+`kiro-cli update` had pulled the glibc "latest" build, which requires glibc 2.38/2.39 and fails
+on AL2023 with `GLIBC_2.38/2.39 not found`. AL2023 is pinned to glibc 2.34 for its entire release
+lifecycle, so the fix is the **musl** build — statically linked, no glibc dependency — which is the
+same current release (2.11.0) published under the CDN `/latest/` path with full feature parity. CLI
+3.0 was early-adopted via the `kiro-cli --v3` runtime opt-in, which runs alongside the 2.x install.
+
+### Added
+- `SETUP/update-kiro-cli-musl.sh`: arch-detecting installer (aarch64 / x86_64) that pulls the latest
+  musl `/latest/` Kiro CLI build. Use this to stay current in place of `kiro-cli update`.
+
+### Specs
+- `sdd_framework/workflows/phase65_dev_host_arm_iac_migration.md`: plan to replace the
+  console-created `c6g.xlarge` dev host with an IaC-managed `r7g.2xlarge` via an additive
+  `DevHostStack` (ARM AL2023 AMI, EFS-mounted, wired to the existing Neptune/OpenSearch/Bedrock).
+  Deferred to week of Jul 6. §8 captures the glibc/CLI resolution.
+
+### Operational
+- Do NOT run `kiro-cli update` on AL2023 — it re-pulls the glibc-2.39 build and breaks the CLI.
+  Re-run `SETUP/update-kiro-cli-musl.sh` to upgrade to the latest musl release.
+
 ## [Unreleased] - Phase 63a — Backend Label Rename (`legacy` → `cots`) (Jul 2, 2026)
 
 ### Summary
