@@ -50,7 +50,9 @@ Include the exact snippet from the `diagnostic_signal` that represents the crash
 Explain *why* the failure occurred based on the extracted signal and GitHub Issue/PR context. If it was a system flake (like an HPSS timeout or Lustre ESTALE) vs a hard code error (like a missing module or syntax error), explicitly distinguish that here.
 
 ## Code-Level Tracing (GraphRAG Insights)
-When analyzing code or build failures, do not stop at the bash traceback. Use GraphRAG tools (`find_callers_callees`, `find_env_dependencies`, etc.) to map the crash directly to the underlying Fortran subroutines, Python functions, or bash scripts. Document the direct computational neighbors and architectural relationships that failed.
+When analyzing code or build failures, do not stop at the bash traceback. **YOU are the autonomous agent.** You MUST execute the GraphRAG tools (`find_callers_callees`, `find_env_dependencies`, `analyze_code_structure`, etc.) during the creation of the report. 
+
+Do NOT write placeholders like "An agent should execute X". You must actually run the tool, analyze the output, and document the *actual* root cause, the direct computational neighbors, and the architectural relationships that failed. The report must contain the final, synthesized conclusions of your code tracing.
 
 ## Suggested Fix / Best Practices That Prevent This
 Concrete recommendations on how to remediate the issue.
