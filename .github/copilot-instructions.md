@@ -5,7 +5,7 @@
 MCP/RAG development platform for NOAA Global Workflow AI assistance. Provides 52 tools for code analysis, EE2 compliance validation, semantic search, and session state tracking across operational weather forecasting infrastructure.
 
 **Architecture**: Node.js MCP Server → OpenSearch (vectors) + Neptune (graph) → AI Clients (Kiro, CLI, Claude)
-**AWS Backend**: DB_BACKEND=aws routes to OpenSearch + Neptune via adapter pattern
+**Backend Selector**: `DB_BACKEND=cots` (default on Parallel Works) routes to ChromaDB + Neo4j Community; `DB_BACKEND=aws` routes to OpenSearch + Neptune via adapter pattern. `DB_BACKEND=legacy` accepted for one release with deprecation WARN (Phase 63a; removal in Phase 64).
 **Deployment**: AWS Bedrock AgentCore Runtime (production) or mcp-http-server.js (development)
 
 ## Infrastructure as Code (IaC) — Primary Principle

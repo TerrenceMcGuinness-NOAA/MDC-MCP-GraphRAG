@@ -17,7 +17,7 @@ import fc from 'fast-check';
 // ── Simulate aws_backend.py routing logic in JS ───────────────────────────────
 
 function selectBackend(env = {}) {
-  const backend = env.DB_BACKEND || 'legacy';
+  const backend = env.DB_BACKEND || 'cots';
   const osEndpoint = env.OPENSEARCH_ENDPOINT || '';
   const neptuneEndpoint = env.NEPTUNE_ENDPOINT || '';
 
@@ -71,7 +71,15 @@ function simulateIngestionCycle(docs, env) {
 describe('Step 21: Re-ingestion Cycle Integration', () => {
 
   describe('Backend routing', () => {
-    test('DB_BACKEND=legacy routes to chromadb + neo4j', () => {
+    test('DB_BACKEND=cots routes to chromadb + neo4j', () => {
+      const b = selectBackend({ DB_BACKEND: 'cots' });
+      expect(b.vectorBackend).toBe('chromadb');
+      expect(b.graphBackend).toBe('neo4j');
+    });
+
+    test('DB_BACKEND=legacy still routes to chromadb + neo4j (Phase 63a deprecation shim)', () => {
+      // The historical value must continue to work for one release cycle.
+      // Removal scheduled for Phase 64.
       const b = selectBackend({ DB_BACKEND: 'legacy' });
       expect(b.vectorBackend).toBe('chromadb');
       expect(b.graphBackend).toBe('neo4j');
@@ -98,7 +106,7 @@ describe('Step 21: Re-ingestion Cycle Integration', () => {
         .toThrow('NEPTUNE_ENDPOINT required');
     });
 
-    test('property: any backend value other than aws defaults to legacy behavior', () => {
+    test('property: any backend value other than aws defaults to cots behavior', () => {
       fc.assert(
         fc.property(
           fc.string().filter(s => s !== 'aws'),
@@ -155,11 +163,11 @@ describe('Step 21: Re-ingestion Cycle Integration', () => {
       expect(result.backend.vectorBackend).toBe('opensearch');
     });
 
-    test('legacy cycle: indexed count equals source doc count', () => {
+    test('cots cycle: indexed count equals source doc count', () => {
       const docs = Array.from({ length: 50 }, (_, i) => ({
         id: `doc-${i}`, content: `text ${i}`, embedding: Array(768).fill(0.1),
       }));
-      const result = simulateIngestionCycle(docs, { DB_BACKEND: 'legacy' });
+      const result = simulateIngestionCycle(docs, { DB_BACKEND: 'cots' });
       expect(result.indexedCount).toBe(50);
       expect(result.backend.vectorBackend).toBe('chromadb');
     });

@@ -305,7 +305,7 @@ def register(
             "vector index / document counts, graph node / "
             "relationship counts, and overall health. Backend labels "
             "reflect the active DB_BACKEND (ChromaDB + Neo4j for "
-            "legacy, OpenSearch + Neptune for aws)."
+            "cots, OpenSearch + Neptune for aws)."
         ),
     )
     async def get_knowledge_base_status(
@@ -816,23 +816,23 @@ def _vector_backend_label() -> str:
     """Display name for the active vector backend.
 
     ``DB_BACKEND=aws`` routes to OpenSearch; any other value (default
-    ``legacy``) uses ChromaDB. Keeps the rendered status headers honest
+    ``cots``) uses ChromaDB. Keeps the rendered status headers honest
     on non-AWS deployments (e.g. Parallel Works / Rocky 9).
     """
-    return "OpenSearch" if os.environ.get("DB_BACKEND", "legacy") == "aws" else "ChromaDB"
+    return "OpenSearch" if os.environ.get("DB_BACKEND", "cots") == "aws" else "ChromaDB"
 
 
 def _graph_backend_label() -> str:
     """Display name for the active graph backend.
 
     ``DB_BACKEND=aws`` routes to Neptune; any other value (default
-    ``legacy``) uses Neo4j.
+    ``cots``) uses Neo4j.
     """
-    return "Neptune" if os.environ.get("DB_BACKEND", "legacy") == "aws" else "Neo4j"
+    return "Neptune" if os.environ.get("DB_BACKEND", "cots") == "aws" else "Neo4j"
 
 
 async def _render_vector_status_block(vector_db: Any) -> list[str]:
-    """Render the vector-DB block (ChromaDB legacy / OpenSearch aws).
+    """Render the vector-DB block (ChromaDB cots / OpenSearch aws).
 
     Uses ``health_check(deep=True)`` which returns the extended stats
     the Node.js ``getStatistics`` produces. The enumerated indices are
@@ -968,7 +968,7 @@ def _filter_indices_by_tenant(
 
 
 async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[str]:
-    """Render the graph-DB block (Neo4j legacy / Neptune aws).
+    """Render the graph-DB block (Neo4j cots / Neptune aws).
 
     Uses ``health_check`` first, then falls back to direct cypher
     queries for per-label / per-relationship counts when the health

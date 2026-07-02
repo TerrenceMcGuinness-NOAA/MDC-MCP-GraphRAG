@@ -147,7 +147,7 @@ async def _smoke_semantic_search(data: Any, _mcp: Any) -> bool:
     Passes the logical collection name so the adapter's
     :pyfunc:`src.config.aws_config.resolve_index` maps it to the active
     embedding profile's physical index (``mdc-workflow-docs-titan1024``
-    on AWS, ``mdc-workflow-docs-mpnet768`` on the legacy backend).
+    on AWS, ``mdc-workflow-docs-mpnet768`` on the cots backend).
     Exercises the full BM25 + k-NN + embedding path.
     """
     if data is None or data.vector_db is None:
@@ -203,7 +203,7 @@ async def _smoke_ee2_compliance(data: Any, _mcp: Any) -> bool:
     """Vector hit on the ``ee2-standards-v5-0-0-enhanced`` logical collection.
 
     Resolves to ``mdc-ee2-standards-titan1024`` on AWS and
-    ``mdc-ee2-standards-mpnet768`` on the legacy backend via
+    ``mdc-ee2-standards-mpnet768`` on the cots backend via
     :pyfunc:`src.config.aws_config.resolve_index`.
     """
     if data is None or data.vector_db is None:

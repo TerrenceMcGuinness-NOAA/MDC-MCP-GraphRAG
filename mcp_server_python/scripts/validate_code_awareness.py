@@ -25,8 +25,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 SERVER_ROOT = SCRIPTS_DIR.parent
 sys.path.append(str(SERVER_ROOT))
 
-# Setup defaults for Parallel Works legacy backend
-os.environ.setdefault("DB_BACKEND", "legacy")
+# Setup defaults for Parallel Works COTS backend
+os.environ.setdefault("DB_BACKEND", "cots")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
 os.environ.setdefault("NEO4J_USER", "neo4j")
 os.environ.setdefault("NEO4J_PASSWORD", "gfsworkflow2025")

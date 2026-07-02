@@ -6,7 +6,7 @@
       "type": "stdio",
       "env": {
         // Optional overrides (defaults live in run_mcp_stdio.sh — SPOT):
-        // "DB_BACKEND": "legacy",
+        // "DB_BACKEND": "cots",
         // "MCP_EMBEDDING_PROFILE": "mpnet768",
         // "NEO4J_URI": "bolt://localhost:7687",
         // "NEO4J_PASSWORD": "gfsworkflow2025",
@@ -18,7 +18,7 @@
     },
     "eib-mcp-gateway": {
       "type": "http",
-      "url": "https://wj9z45s5-18888.use.devtunnels.ms/mcp",
+      "url": "https://blp11zs1-18888.use.devtunnels.ms/mcp",
       "headers": {
         "Authorization": "Bearer eib-mcp-gateway-token-2025"
       }

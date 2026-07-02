@@ -9,11 +9,11 @@ to Neptune (via bolt/openCypher) and OpenSearch (via bulk API) respectively.
 Usage in ingestion scripts:
     from aws_backend import get_graph_driver, get_vector_client, BACKEND
 
-    driver = get_graph_driver()   # neo4j.Driver (legacy) or Neptune bolt driver
-    vector = get_vector_client()  # ChromaDB client (legacy) or OpenSearchVectorClient
+    driver = get_graph_driver()   # neo4j.Driver (cots) or Neptune bolt driver
+    vector = get_vector_client()  # ChromaDB client (cots) or OpenSearchVectorClient
 
 Environment variables:
-    DB_BACKEND          — 'legacy' (default) or 'aws'
+    DB_BACKEND          — 'cots' (default) or 'aws' (accepts deprecated 'legacy' alias)
     NEO4J_URI / NEPTUNE_ENDPOINT
     NEO4J_USER / NEO4J_PASSWORD
     CHROMADB_URL / OPENSEARCH_ENDPOINT
@@ -36,7 +36,16 @@ except ImportError:
     botocore = None  # type: ignore[assignment]
     urllib3 = None  # type: ignore[assignment]
 
-BACKEND = os.environ.get("DB_BACKEND", "legacy")
+BACKEND = os.environ.get("DB_BACKEND", "cots")
+if BACKEND == "legacy":
+    # Phase 63a deprecation shim: accept the historical value with a
+    # single stderr warning. Removed in Phase 64.
+    print(
+        "[WARN] DB_BACKEND=legacy is deprecated; "
+        "use DB_BACKEND=cots (auto-mapped)",
+        file=sys.stderr,
+    )
+    BACKEND = "cots"
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 
@@ -313,7 +322,7 @@ class NeptuneHTTPAdapter:
 # ── Graph driver ──────────────────────────────────────────────────────────────
 
 def get_graph_driver():
-    """Return a neo4j.Driver connected to Neo4j (legacy) or Neptune (aws)."""
+    """Return a neo4j.Driver connected to Neo4j (cots) or Neptune (aws)."""
     if BACKEND == "aws":
         endpoint = os.environ.get("NEPTUNE_ENDPOINT", "")
         if not endpoint:
@@ -517,7 +526,7 @@ class _OpenSearchCollection:
 
 
 def get_vector_client(embedding_function=None):
-    """Return a ChromaDB client (legacy) or OpenSearchVectorClient (aws).
+    """Return a ChromaDB client (cots) or OpenSearchVectorClient (aws).
 
     If embedding_function is provided, it will be used for auto-embedding
     when documents are added without explicit embeddings.

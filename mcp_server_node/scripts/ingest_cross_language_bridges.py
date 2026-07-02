@@ -78,7 +78,7 @@ try:
     _AWS_BACKEND_AVAILABLE = True
 except ImportError:
     _AWS_BACKEND_AVAILABLE = False
-    _BACKEND = "legacy"
+    _BACKEND = "cots"
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 

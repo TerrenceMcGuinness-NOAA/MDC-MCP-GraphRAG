@@ -708,7 +708,7 @@ async def _tool_search_architecture(
         
         score = hit.get("score")
         if score is None and hit.get("distance") is not None:
-            # Under legacy ChromaDB backend, correct distance to cosine score
+            # Under cots ChromaDB backend, correct distance to cosine score
             score = 1.0 - float(hit["distance"]) / 2.0
             
         similarity = float(score or 0.0)

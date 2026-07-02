@@ -89,9 +89,18 @@ def main():
     parser.add_argument('collection', help='Collection name')
     parser.add_argument('--output', required=True, help='Output JSONL file')
     parser.add_argument('--max-triples', type=int, default=1000)
-    parser.add_argument('--backend', default='aws', choices=['aws', 'legacy'])
+    parser.add_argument('--backend', default='aws', choices=['aws', 'cots', 'legacy'])
     
     args = parser.parse_args()
+
+    # Phase 63a deprecation shim: --backend=legacy is auto-mapped to cots.
+    if args.backend == 'legacy':
+        print(
+            "[WARN] --backend=legacy is deprecated; "
+            "use --backend=cots (auto-mapped)",
+            file=sys.stderr,
+        )
+        args.backend = 'cots'
     
     # Placeholder: would connect to Neptune/Neo4j
     graph_driver = None

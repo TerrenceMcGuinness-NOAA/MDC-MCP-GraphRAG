@@ -1,5 +1,38 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 63a — Backend Label Rename (`legacy` → `cots`) (Jul 2, 2026)
+
+### Summary
+Renamed the on-prem backend selector value from `DB_BACKEND=legacy` to
+`DB_BACKEND=cots` (Commercial Off-The-Shelf: ChromaDB + Neo4j Community). The
+`legacy` label falsely implied the on-prem stack was deprecated; `cots` names
+the stack accurately at the same conceptual level as `aws`. `DB_BACKEND=aws`
+is unchanged. `DB_BACKEND=legacy` continues to work through a one-release
+deprecation shim that logs a single `[WARN]` and auto-maps to `cots` —
+scheduled for removal in Phase 64. Docker MCP Gateway container parity is
+tracked separately as Phase 63b.
+
+### Changed
+- `mcp_server_python/src/config/environment.py`: `VALID_BACKENDS = ("aws", "cots")`; added `LEGACY_BACKEND_ALIAS` and `_resolve_backend_alias()` shim; `ServerConfig.is_legacy()` retained as deprecated alias for new `is_cots()`.
+- `mcp_server_python/src/data/backend_selector.py`: dispatch now checks `db_backend == "cots"` instead of `"legacy"`.
+- `mcp_server_python/src/data/aws_backend.py`, `mcp_server_python/src/data/unified_data_access.py`, `mcp_server_python/src/tools/{semantic_search,smoke_queries,graph_rag}.py`: string comparisons and docstrings updated `legacy` → `cots` where the label refers to the DB_BACKEND stack.
+- `mcp_server_python/scripts/run_mcp_stdio.sh`, `mcp_server_python/scripts/validate_code_awareness.py`: default `DB_BACKEND=cots`.
+- `mcp_server_node/scripts/{aws_backend,ingest_code_v8,ingest_cross_language_bridges,ingest_env_variables,ingestion_base,hard_negative_miner}.py`: default `DB_BACKEND=cots` with same deprecation shim on stderr; `--backend` CLI accepts `aws`, `cots`, `legacy` (last auto-maps).
+- `.vscode/mcp.json`: commented example env now shows `"DB_BACKEND": "cots"`.
+- `mcp_server_python/tests/unit/test_environment.py`, `mcp_server_python/tests/unit/test_data_layer.py`, `mcp_server_node/src/__tests__/step21-reingest-integration.test.js`: tests use `cots` as the canonical value.
+
+### Added
+- `mcp_server_python/tests/unit/test_environment_backend_resolver.py`: 6 dedicated tests covering the shim — `cots` accepted silently, `legacy` shimmed with exactly one WARN per process, `LEGACY`/whitespace variants also shimmed, unknown values raise `ConfigError` listing canonical values, and the WARN emits at most once across repeated `load_config` calls.
+- New `test_legacy_still_routes_to_chromadb (Phase 63a deprecation shim)` case in the Node vitest suite as regression coverage for the JS routing.
+
+### Deprecated
+- `DB_BACKEND=legacy` — accepted for one release cycle with auto-mapping to `cots` and a `[WARN]` log line. Removal scheduled for Phase 64.
+- `ServerConfig.is_legacy()` — remains as an alias for `is_cots()` through Phase 64.
+
+### Specs
+- `sdd_framework/workflows/phase63a_backend_label_rename_legacy_to_cots.md` — this change.
+- `sdd_framework/workflows/phase63b_python_container_gateway_parity.md` — follow-up phase that brings the Docker MCP Gateway to parity with the stdio server by containerizing `mcp_server_python/` (deferred, blocked on this phase merging).
+
 ## [8.40.0] - Phase 62 — CI Error-Log Distillation & MCP Tool (Jun 26, 2026)
 
 ### Summary

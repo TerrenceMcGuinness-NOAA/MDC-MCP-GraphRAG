@@ -36,23 +36,25 @@ def test_defaults_are_frozen():
     """ServerConfig is immutable (frozen dataclass)."""
     cfg = load_config(env={})
     with pytest.raises((AttributeError, Exception)):
-        cfg.db_backend = "legacy"  # type: ignore[misc]
+        cfg.db_backend = "cots"  # type: ignore[misc]
 
 
 # ── DB_BACKEND routing (Requirement 1.8) ──────────────────────────────────
 
 
-@pytest.mark.parametrize("backend", ["aws", "legacy"])
+@pytest.mark.parametrize("backend", ["aws", "cots"])
 def test_valid_db_backends(backend):
     cfg = load_config(env={"DB_BACKEND": backend})
     assert cfg.db_backend == backend
     assert cfg.is_aws() is (backend == "aws")
-    assert cfg.is_legacy() is (backend == "legacy")
+    assert cfg.is_cots() is (backend == "cots")
+    # is_legacy() is a deprecated alias for is_cots() through Phase 64
+    assert cfg.is_legacy() is cfg.is_cots()
 
 
 def test_db_backend_case_insensitive():
     assert load_config(env={"DB_BACKEND": "AWS"}).db_backend == "aws"
-    assert load_config(env={"DB_BACKEND": " Legacy "}).db_backend == "legacy"
+    assert load_config(env={"DB_BACKEND": " Cots "}).db_backend == "cots"
 
 
 def test_db_backend_invalid_raises():
@@ -180,20 +182,20 @@ def test_known_modules_covers_nine_tool_modules():
     assert len(KNOWN_MODULES) == 9
 
 
-# ── legacy backend config ─────────────────────────────────────────────────
+# ── cots backend config ───────────────────────────────────────────────────
 
 
-def test_legacy_backend_neo4j_defaults():
-    cfg = load_config(env={"DB_BACKEND": "legacy"})
+def test_cots_backend_neo4j_defaults():
+    cfg = load_config(env={"DB_BACKEND": "cots"})
     assert cfg.neo4j_uri == "bolt://localhost:7687"
     assert cfg.chromadb_host == "localhost"
     assert cfg.chromadb_port == 8080
 
 
-def test_legacy_backend_neo4j_overrides():
+def test_cots_backend_neo4j_overrides():
     cfg = load_config(
         env={
-            "DB_BACKEND": "legacy",
+            "DB_BACKEND": "cots",
             "NEO4J_URI": "bolt://remote:7687",
             "NEO4J_USER": "admin",
             "NEO4J_PASSWORD": "s3cr3t",
@@ -225,10 +227,10 @@ def test_sdd_state_dir_override():
 
 
 def test_env_none_reads_os_environ(monkeypatch):
-    monkeypatch.setenv("DB_BACKEND", "legacy")
+    monkeypatch.setenv("DB_BACKEND", "cots")
     monkeypatch.setenv("PORT", "4242")
     cfg = load_config()  # no env arg -> real os.environ
-    assert cfg.db_backend == "legacy"
+    assert cfg.db_backend == "cots"
     assert cfg.port == 4242
 
 
