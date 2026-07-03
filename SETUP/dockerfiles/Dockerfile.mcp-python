@@ -19,7 +19,9 @@ COPY mcp_server_python/pyproject.toml ./
 COPY mcp_server_python/src ./src
 
 RUN pip install --no-cache-dir --upgrade pip wheel \
- && pip wheel --no-cache-dir --wheel-dir /wheels .
+ && pip wheel --no-cache-dir --wheel-dir /wheels \
+      --extra-index-url https://download.pytorch.org/whl/cpu \
+      ".[cots]"
 
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────
@@ -36,6 +38,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NEO4J_URI=bolt://172.17.0.1:7687 \
     NEO4J_USER=neo4j \
     NEO4J_PASSWORD=gfsworkflow2025 \
+    MCP_EMBEDDING_PROFILE=mpnet768 \
+    HF_HOME=/app/.hf_cache \
+    HF_HUB_CACHE=/app/.hf_cache \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
     MCP_TENANT_CATALOG_PATH=/app/mcp_server_python/src/config/tenants.yaml
 
 WORKDIR /app/mcp_server_python

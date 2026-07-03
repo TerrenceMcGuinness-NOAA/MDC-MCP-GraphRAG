@@ -1,5 +1,80 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 63b — Python Container Gateway Parity (Jul 3, 2026)
+
+### Summary
+Brought the Docker MCP Gateway (`eib-mcp-gateway`) to parity with the stdio server
+(`eib-mcp-rag-full`) by swapping the gateway's server image from the stale Node.js
+build (`eib-mcp-rag:latest`, 51 tools / 7 modules, single-tenant) to a new x86_64
+Python image (`eib-mcp-rag-python:latest`, 53 tools / 9 modules, 5 tenants). The
+Docker MCP Gateway itself remains a thin wrapper managed by `mcp-gateway.service`
+(systemd, `Restart=always`); only the *server container it launches* changed. The
+devtunnel URL, port 18888, streaming transport, and `.vscode/mcp.json` are all
+unchanged. Spec: `.kiro/specs/python-container-gateway-parity/`.
+
+### Changed
+- `mcp_server_python/scripts/setup_pw_workflow_mount.sh` (R5.4): emit **relative**
+  per-tenant symlinks (`develop -> ../supported_repos/global-workflow`) via
+  `realpath --relative-to`, replacing host-absolute targets that dangled inside the
+  container. `.pw_workflow_mount` and `supported_repos` are sibling read-only mounts
+  under `/app`, so the same links resolve on host and in-container. Result: all 5
+  tenants report `workflow_root reachable = yes`.
+- `mcp_server_python/pyproject.toml` (R9): added a `cots` optional-dependency extra
+  for the on-prem (Commercial Off-The-Shelf) backend clients, pinned to the Spack
+  install the stdio server loads — `chromadb==1.3.4`, `neo4j==5.25.0`,
+  `sentence-transformers==5.1.2`, `torch==2.9.0+cpu` (Spack: py-neo4j@5.25.0,
+  py-torch@2.9.0, py-transformers@4.57.0). AWS/AgentCore builds are unaffected
+  (they use opensearch-py + boto3).
+- `SETUP/dockerfiles/Dockerfile.mcp-python` (R9): install `.[cots]` (CPU torch via the
+  PyTorch CPU index); bake `MCP_EMBEDDING_PROFILE=mpnet768`, `HF_HUB_CACHE=/app/.hf_cache`,
+  `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` so the 768-dim mpnet encoder loads
+  offline from the mounted host model cache.
+- `SETUP/docker-mcp/catalogs/eib-local.yaml` (R9): mount the host HuggingFace model
+  cache read-only (`/mcp_rag_eib/cache/huggingface:/app/.hf_cache:ro`) for offline
+  mpnet embeddings.
+
+### Fixed
+- Gateway `mcp_health_check` previously reported `Vector Database`/`Graph Database`
+  as `degraded — adapter not configured`. Root cause was **missing packages**, not
+  env: `backend_selector.py` late-imports `chromadb` / `neo4j`, which were absent
+  from the AWS-only dependency set. With the `cots` extra installed, both adapters
+  initialize `healthy`.
+
+### Verification (2026-07-03, against `eib-mcp-gateway`)
+- `get_server_info`: `MDC MCP/RAG Server`, 53 tools, 9 modules, 5 tenants — matches
+  `eib-mcp-rag-full`.
+- `mcp_health_check`: 4/4 components healthy; Vector Database `15 indices`, Graph
+  Database `108280 nodes, 4220211 relationships`; all 5 tenants
+  `workflow_root reachable = yes`.
+- `get_knowledge_base_status`: 15 collections / 220,538 docs (same backing ChromaDB +
+  Neo4j at 172.17.0.1 as the stdio server → zero drift by construction).
+- `mcp_health_check(deep, detailed, functional)`: **11/11 passed, 0 failed, 0 skipped**.
+  All semantic modules, `code_awareness`, `branch_isolation`, and `github_tools`
+  pass — full functional parity with `eib-mcp-rag-full`.
+
+### GitHub token wiring (`--secrets`)
+docker-mcp classifies `GITHUB_TOKEN` as a secret and will not pass it through as a
+plain `-e` env var, so it must be supplied via the gateway's `--secrets <.env>`
+switch and declared in the catalog. Added:
+- `SETUP/docker-mcp/catalogs/eib-local.yaml`: a `secrets:` block
+  (`GITHUB_TOKEN` -> container env `GITHUB_TOKEN`), replacing the ineffective
+  `env: GITHUB_TOKEN: "${GITHUB_TOKEN}"` entry (which docker-mcp interpolated to
+  empty and dropped).
+- `SETUP/docker-mcp/mcp-gateway-launch.sh`: a launch wrapper (referenced by the
+  `mcp-gateway.service` drop-in) that sources the shell secrets SPOT
+  (`~/.config/eib-mcp/secrets.env`, the same file `run_mcp_stdio.sh` uses),
+  materializes a docker-mcp-format `.env` on tmpfs (`/run`, mode 600, wiped on
+  reboot, never committed), and execs `docker mcp gateway run --secrets <that
+  file>`. Kept in a wrapper — not inline in the unit's `ExecStart` — because
+  systemd's own `$VAR` expansion otherwise mangles the shell.
+
+### Operational
+- Apply catalog/image/mount changes with `sudo systemctl restart mcp-gateway.service`
+  (the gateway relaunches its container from the catalog). The old
+  `pkill "docker-mcp gateway"` + `docker rm -f` recipe is retired.
+- Rollback: one-line catalog edit back to `eib-mcp-rag:latest` (Node image preserved
+  locally); no rebuild required.
+
 ## [Unreleased] - Kiro CLI glibc Fix (musl) + Dev-Host ARM Migration Plan (Jul 2, 2026)
 
 ### Summary

@@ -48,38 +48,55 @@ curl http://localhost:7474                              # verify Neo4j
 
 ### Docker MCP Gateway
 
-The MCP server can run natively (stdio) or via the **Docker MCP Gateway** (Streamable HTTP on port 18888). The gateway spawns containers from the `eib-mcp-rag:latest` Docker image.
+The MCP server can run natively (stdio) or via the **Docker MCP Gateway** (Streamable HTTP on port 18888). The gateway is a thin wrapper managed by the `mcp-gateway.service` systemd unit (`Restart=always`); it spawns the server container from the `eib-mcp-rag-python:latest` Docker image (the x86_64 Python build — it replaced the legacy Node.js `eib-mcp-rag:latest` image in Phase 63b).
 
-**CRITICAL: The Docker image is a snapshot.** Unlike native mode (which runs live source code), the gateway runs code **baked into the image at build time**. Any changes to files under `mcp_server_node/` require an image rebuild before they take effect in gateway mode.
+**CRITICAL: The Docker image is a snapshot.** Unlike native mode (which runs live source code), the gateway runs code **baked into the image at build time**. Any changes to files under `mcp_server_python/` require an image rebuild before they take effect in gateway mode.
 
 ```bash
-# Rebuild after ANY code change
-docker build -f SETUP/dockerfiles/Dockerfile.mcp-server -t eib-mcp-rag:latest ./mcp_server_node
+# Rebuild after ANY code change (build context is the repo root)
+docker build -f SETUP/dockerfiles/Dockerfile.mcp-python -t eib-mcp-rag-python:latest .
 
-# Restart gateway to use new image
-pkill -f "docker-mcp gateway"
-docker stop $(docker ps -q --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
-docker rm $(docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag") 2>/dev/null
-MCP_GATEWAY_AUTH_TOKEN="eib-mcp-gateway-token-2025" docker mcp gateway run \
-  --catalog eib-local.yaml --servers eib-mcp-rag \
-  --transport streaming --port 18888 --long-lived &
+# Apply the new image — the systemd unit relaunches the container from the catalog
+sudo systemctl restart mcp-gateway.service
 ```
+
+The gateway run command (catalog, `--transport streaming --port 18888 --long-lived`)
+lives in the `mcp-gateway.service` unit and does not change. The old
+`pkill "docker-mcp gateway"` + `docker stop/rm` recipe is retired — do not use it.
+
+**Rollback**: one-line edit of `SETUP/docker-mcp/catalogs/eib-local.yaml` back to
+`image: eib-mcp-rag:latest` (the Node image is preserved locally), then
+`sudo systemctl restart mcp-gateway.service`. No rebuild required to revert.
 
 #### What requires an image rebuild
 
 | Changed File/Directory | Baked into Image? | Rebuild? |
 |------------------------|-------------------|----------|
-| `mcp_server_node/src/` (tools, core, data) | Yes | **Yes** |
-| `mcp_server_node/utils/` | Yes | **Yes** |
-| `mcp_server_node/config/` | Yes | **Yes** |
-| `mcp_server_node/phase2_anti_patterns.json` | Yes | **Yes** |
-| `mcp_server_node/package.json` (dependencies) | Yes | **Yes** |
-| `sdd_framework/` | No (volume-mounted) | No |
-| `supported_repos/` | No (volume-mounted) | No |
+| `mcp_server_python/src/` (tools, core, data) | Yes | **Yes** |
+| `mcp_server_python/pyproject.toml` (dependencies) | Yes | **Yes** |
+| `SETUP/dockerfiles/Dockerfile.mcp-python` | Yes | **Yes** |
+| `SETUP/mcp-env.sh` | Yes | **Yes** |
+| `SETUP/docker-mcp/catalogs/eib-local.yaml` (image/env/volumes) | No (gateway config) | No — `systemctl restart` |
+| `.pw_workflow_mount/` symlinks | No (volume-mounted `:ro`) | No — `systemctl restart` |
+| `mcp_server_python/src/config/tenants.yaml` | No (volume-mounted `:ro`) | No — `systemctl restart` |
+| `sdd_framework/` | No (volume-mounted `:rw`) | No |
+| `supported_repos/` | No (volume-mounted `:ro`) | No |
 | `.vscode/mcp.json` | No (client-side) | No |
-| `~/.docker/mcp/catalogs/eib-local.yaml` | No (gateway config) | No |
 
-**Common pitfall**: Adding/modifying tools in `src/tools/` and testing only via native mode. The gateway will still serve the old tools until rebuilt.
+**Common pitfall**: Adding/modifying tools in `src/tools/` and testing only via native mode. The gateway will still serve the old tools until the image is rebuilt and `mcp-gateway.service` is restarted.
+
+**COTS backend note**: the gateway image bundles the on-prem (`DB_BACKEND=cots`) clients
+— `chromadb`, `neo4j`, and `sentence-transformers`/`torch` for the 768-dim `mpnet768`
+local embeddings — pinned to the Spack versions the stdio server uses. The mpnet model
+loads offline from the host HuggingFace cache mounted read-only at `/app/.hf_cache`.
+
+**GitHub token note**: docker-mcp treats `GITHUB_TOKEN` as a secret and will not pass it
+through as a plain `-e` env var. It is declared in the catalog `secrets:` block and its
+value is supplied via `docker mcp gateway run --secrets <.env>`. The
+`mcp-gateway.service` drop-in runs `SETUP/docker-mcp/mcp-gateway-launch.sh`, which
+sources the shell secrets SPOT (`~/.config/eib-mcp/secrets.env`) and writes a tmpfs
+`.env` for the switch. Rotate the token in that secrets file, then
+`sudo systemctl restart mcp-gateway.service`.
 
 ## Architecture
 

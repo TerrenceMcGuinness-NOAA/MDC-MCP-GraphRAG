@@ -53,9 +53,15 @@ for subdir in "${!SUBDIR_TO_CHECKOUT[@]}"; do
     continue
   fi
 
+  # Relative link target (computed from the link's own directory, MOUNT_BASE).
+  # This resolves both on the host AND inside the container, where
+  # .pw_workflow_mount and supported_repos are sibling mounts under /app.
+  # Host-absolute targets dangle inside the container (see R5.4).
+  rel_target="$(realpath --relative-to="${MOUNT_BASE}" "${target}")"
+
   # ln -sfn: idempotent, replaces an existing symlink without nesting.
-  ln -sfn "${target}" "${link}"
-  echo "[OK] ${subdir} -> ${target}"
+  ln -sfn "${rel_target}" "${link}"
+  echo "[OK] ${subdir} -> ${rel_target}"
   linked=$((linked + 1))
 done
 

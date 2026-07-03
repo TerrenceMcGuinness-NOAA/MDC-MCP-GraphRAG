@@ -23,6 +23,8 @@ registry:
         value: "cots"
       - name: MCP_TENANT_CATALOG_PATH
         value: "/app/mcp_server_python/src/config/tenants.yaml"
+      - name: MCP_WORKFLOW_MOUNT
+        value: "/app/.pw_workflow_mount"
       - name: CHROMADB_HOST
         value: "172.17.0.1"
       - name: CHROMADB_PORT
@@ -43,12 +45,23 @@ registry:
         value: "true"
       - name: ENABLE_GITHUB
         value: "true"
+    # docker-mcp classifies GITHUB_TOKEN as a secret and will not pass it through
+    # as a plain `-e` env var. It must be declared here and its value supplied via
+    # the gateway's `--secrets <.env>` switch (see mcp-gateway.service drop-in,
+    # fed from the shell secrets.env SPOT). `env:` maps the secret into the
+    # container as $GITHUB_TOKEN, matching what the github_tools module reads.
+    secrets:
       - name: GITHUB_TOKEN
-        value: "${GITHUB_TOKEN}"
+        env: GITHUB_TOKEN
     volumes:
       - "/mcp_rag_eib/eib-mcp-rag-server/.pw_workflow_mount:/app/.pw_workflow_mount:ro"
       - "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_python/src/config/tenants.yaml:/app/mcp_server_python/src/config/tenants.yaml:ro"
       - "/mcp_rag_eib/eib-mcp-rag-server/supported_repos:/app/supported_repos:ro"
+      # HuggingFace model cache (all-mpnet-base-v2) for the mpnet768 local
+      # embedding profile — reused from the host/Spack install so the COTS
+      # server embeds queries offline (HF_HUB_OFFLINE=1), matching the stdio
+      # server byte-for-byte.
+      - "/mcp_rag_eib/cache/huggingface:/app/.hf_cache:ro"
       # sdd_framework must be read-write: the SDD session tools persist
       # active_session.json + history.jsonl under execution_state/ at runtime.
       - "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework:/app/mcp_server_python/sdd_framework:rw"

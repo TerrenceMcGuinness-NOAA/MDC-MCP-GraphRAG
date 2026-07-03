@@ -30,6 +30,24 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# COTS (Commercial Off-The-Shelf) backend clients — the Parallel Works
+# on-prem stack (DB_BACKEND=cots). Not needed on AgentCore (AWS backend uses
+# opensearch-py + boto3). Versions pinned to match the Spack install the stdio
+# server loads (py-neo4j@5.25.0; chromadb 1.3.4 in the Spack Python env), so the
+# gateway container and the stdio host wire identical adapters.
+cots = [
+    "chromadb==1.3.4",
+    "neo4j==5.25.0",
+    # Local embedding model for the mpnet768 profile — the COTS ChromaDB
+    # collections are 768-dim (mpnet), so semantic_search / ee2_compliance /
+    # operational / branch_isolation need sentence-transformers to embed
+    # queries (Bedrock/Titan is unavailable on Parallel Works). Pinned to the
+    # Spack install the stdio server loads (sentence-transformers 5.1.2,
+    # py-torch@2.9.0, py-transformers@4.57.0). CPU torch keeps the image small;
+    # embeddings are identical to the GPU build for the mpnet encoder.
+    "sentence-transformers==5.1.2",
+    "torch==2.9.0+cpu",
+]
 test = [
     "pytest==8.4.2",
     "pytest-asyncio==0.24.0",
