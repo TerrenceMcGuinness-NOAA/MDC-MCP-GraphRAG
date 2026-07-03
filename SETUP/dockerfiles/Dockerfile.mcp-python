@@ -1,0 +1,66 @@
+# syntax=docker/dockerfile:1.7
+#
+# Dockerfile — MDC MCP/RAG Python Server (Docker MCP Gateway, x86_64)
+#
+
+ARG PYTHON_VERSION=3.12
+
+# ── Stage 1: build dependencies ─────────────────────────────────────────────
+FROM --platform=linux/amd64 python:${PYTHON_VERSION}-slim AS builder
+
+WORKDIR /build
+
+# Install build tools required by optional C extensions
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY mcp_server_python/pyproject.toml ./
+COPY mcp_server_python/src ./src
+
+RUN pip install --no-cache-dir --upgrade pip wheel \
+ && pip wheel --no-cache-dir --wheel-dir /wheels .
+
+
+# ── Stage 2: runtime ────────────────────────────────────────────────────────
+FROM --platform=linux/amd64 python:${PYTHON_VERSION}-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MCP_TRANSPORT=stdio \
+    PORT=18888 \
+    HOST=0.0.0.0 \
+    DB_BACKEND=cots \
+    CHROMADB_HOST=172.17.0.1 \
+    CHROMADB_PORT=8080 \
+    NEO4J_URI=bolt://172.17.0.1:7687 \
+    NEO4J_USER=neo4j \
+    NEO4J_PASSWORD=gfsworkflow2025 \
+    MCP_TENANT_CATALOG_PATH=/app/mcp_server_python/src/config/tenants.yaml
+
+WORKDIR /app/mcp_server_python
+
+# Non-root user per AgentCore guidance.
+RUN groupadd --system --gid 1000 app \
+ && useradd  --system --uid 1000 --gid app --home /app app \
+ && chown -R app:app /app
+
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir /wheels/*.whl \
+ && rm -rf /wheels
+
+COPY --chown=app:app mcp_server_python/src ./src
+COPY --chown=app:app mcp_server_python/pyproject.toml ./
+COPY --chown=app:app SETUP/mcp-env.sh /app/SETUP/mcp-env.sh
+
+# Seed the SDD execution-state directory so SessionManager can write
+# to it on first use.
+RUN mkdir -p /app/mcp_server_python/sdd_framework/execution_state \
+ && touch /app/mcp_server_python/sdd_framework/execution_state/history.jsonl \
+ && chown -R app:app /app/mcp_server_python/sdd_framework
+
+USER app
+EXPOSE 18888
+
+# Streamable HTTP entrypoint
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info,github_tools,error_analysis"]
