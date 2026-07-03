@@ -1,5 +1,112 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 63c — Retire Static Node MCP Container (Jul 3, 2026)
+
+### Summary
+Retired the vestigial `eib-mcp-rag-static` container and its `mcp-rag.service`
+systemd unit on the COTS Parallel Works host. Post-Phase-63b, the Docker MCP
+Gateway (`mcp-gateway.service`) already served all remote traffic on port
+18888 from `eib-mcp-rag-python:latest` (5 tenants, 53 tools). The static Node.js
+container (single-tenant, 51 tools, no host ports bound) was still running under
+`mcp-rag.service` from the previous topology, consuming an 8 GB / 4 CPU
+reservation and creating operator confusion (`docker ps` implied it was the
+serving surface). Spec: `.kiro/specs/retire-static-node-container/`.
+
+### Changed
+- `/etc/systemd/system/mcp-gateway.service` (live) and
+  `SETUP/systemd/mcp-gateway.service` + `SETUP/systemd/mcp-gateway.service.template`
+  (SPOT): retargeted `[Unit] After=` and `Requires=` from `mcp-rag.service` to
+  `docker.service` — the actual runtime prerequisite for the docker-mcp CLI. Live
+  edit made in place (systemd drop-ins cannot reset dependency lists — only add
+  to them — so an override file was insufficient; base unit rewrite was the only
+  path). Backup preserved at
+  `/etc/systemd/system/mcp-gateway.service.bak-phase63c`.
+
+### Deprecated (kept in-tree for Phase 63b rollback)
+- `SETUP/systemd/mcp-rag.service` — header comment marking it deprecated.
+- `SETUP/systemd/mcp-rag.service.template` — header comment marking it deprecated.
+- `SETUP/provisioning/12-static-mode-gateway.sh` — header comment; new hosts must
+  skip this script.
+
+### Runtime actions (operator-run, sudo, executed 2026-07-03 04:40–05:00 UTC)
+```
+sudo systemctl restart mcp-gateway.service   # picks up the dep change
+sudo systemctl stop mcp-rag.service          # first stop
+sudo systemctl disable mcp-rag.service
+sudo mv /etc/cron.d/mcp-health \
+        /etc/cron.d/mcp-health.disabled-phase63c   # attempt 1 (insufficient)
+sudo rm /etc/cron.d/mcp-health.disabled-phase63c   # cron on Rocky reads
+                                                    # dotted filenames too;
+                                                    # delete required
+sudo systemctl stop mcp-rag.service          # final stop after cron removed
+```
+
+### The cron resurrection gap (discovered mid-retirement, two levels)
+After the first `stop` + `disable`, `mcp-rag.service` came back as `active
+(disabled)` within minutes. Journal traced it to
+`/etc/cron.d/mcp-health` — a `*/5 * * * *` root cron job installed by the
+Phase 23 provisioning script that runs `/opt/mcp/bin/health-check.sh`, which
+"heals" a missing `eib-mcp-rag-static` container by calling `systemctl
+restart mcp-rag`.
+
+**Second gotcha:** renaming the file to `mcp-health.disabled-phase63c` was
+NOT enough on Rocky 9. Its `crond` reads every regular file in `/etc/cron.d/`
+regardless of dotted-suffix naming (unlike `run-parts`), so the disabled
+copy still fired at the next `*/5` boundary (verified in the journal:
+`CROND[2140587]: (root) CMD (/opt/mcp/bin/health-check.sh ...)` at 05:00:01
+after the rename). The file was then `rm`ed. Rollback is `sudo cp
+$REPO/SETUP/cron.d/mcp-health /etc/cron.d/` after stripping the DEPRECATED
+header from the repo SPOT.
+
+Fully retiring the static container therefore requires deleting (not just
+renaming) the cron entry. On the live host the file is gone from
+`/etc/cron.d/`; in-tree the four Phase 23 static-mode SPOT files were
+deprecated with header comments and short-circuit guards so a re-provision
+of a new host does not resurrect the stack:
+
+- `SETUP/provisioning/12-static-mode-gateway.sh` — early `exit 0` unless
+  `MCP_ALLOW_STATIC_MODE_ROLLBACK=1`.
+- `SETUP/cron.d/mcp-health` — DEPRECATED header; must not be copied to
+  `/etc/cron.d/`.
+- `SETUP/bin/health-check.sh` — DEPRECATED header; must not be copied to
+  `/opt/mcp/bin/`.
+- `SETUP/bin/deploy-static-gateway.sh` — DEPRECATED header + same
+  `MCP_ALLOW_STATIC_MODE_ROLLBACK` guard.
+- `SETUP/provisioning/provision.sh` — the `SCRIPTS` array entry for
+  `12-static-mode-gateway.sh` retitled `Phase 23 Static Mode (DEPRECATED
+  Phase 63c — no-op unless MCP_ALLOW_STATIC_MODE_ROLLBACK=1)` so
+  `provision.sh --list` shows the retirement.
+
+### Preserved for rollback
+- Node image `eib-mcp-rag:latest` (id `cc69b32e3c67`) — kept in the host's local
+  docker image store per Phase 63b policy.
+- The deprecated systemd unit files above are not deleted; restoring the static
+  container is `sudo systemctl enable --now mcp-rag.service` after stripping the
+  DEPRECATED header (and, if desired, reverting the dep swap in
+  `mcp-gateway.service` from the `.bak-phase63c` backup).
+- The cron file on the live host was deleted, not renamed: rollback is `sudo
+  cp $REPO/SETUP/cron.d/mcp-health /etc/cron.d/` after stripping the
+  DEPRECATED header from the repo SPOT. (Renaming to `.disabled-*` was
+  attempted first but Rocky's `crond` reads dotted filenames anyway.)
+
+### Verification (2026-07-03)
+- `systemctl show mcp-gateway.service -p Requires` →
+  `Requires=system.slice docker.service sysinit.target` (no `mcp-rag.service`).
+- `systemctl is-active mcp-rag.service` → `inactive`;
+  `systemctl is-enabled mcp-rag.service` → `disabled`.
+- `ls /etc/cron.d/ | grep mcp` → empty (no `mcp-health` cron file installed).
+- `docker ps` → only `infallible_ellis` (`eib-mcp-rag-python:latest`) alongside
+  the data-store containers. No `eib-mcp-rag-static`.
+- `get_server_info` via the Devtunnel gateway → `Total Tools: 53`,
+  `Active Modules: 9 of 10`, `Tenants: 5 (default: gw)` — unchanged.
+
+### Known follow-up (out of scope)
+- `mcp-gateway.service`'s `ExecStopPost=` uses a shell pipe (`... | xargs -r
+  docker stop`) that systemd does not evaluate as a shell, producing harmless
+  `unknown shorthand flag: 'r' in -r` errors in the journal on stop. Wrap in
+  `/bin/sh -c '...'` in a follow-on cleanup phase (does not affect running
+  service or the retirement above).
+
 ## [Unreleased] - Phase 63b — Python Container Gateway Parity (Jul 3, 2026)
 
 ### Summary

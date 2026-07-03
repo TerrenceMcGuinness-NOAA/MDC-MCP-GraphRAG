@@ -8,9 +8,12 @@
 [Unit]
 Description=Docker MCP Gateway (Streamable HTTP transport)
 Documentation=https://github.com/docker/mcp-gateway
-After=network.target docker.service chromadb-persistent.service mcp-rag.service
+# Phase 63c (2026-07-03): dropped mcp-rag.service dependency (retired vestigial
+# static Node container). Keeping chromadb-persistent.service as a Wants= (the
+# per-session Python container the gateway spawns talks to it at 172.17.0.1).
+After=network.target docker.service chromadb-persistent.service
 Requires=docker.service
-Wants=chromadb-persistent.service mcp-rag.service
+Wants=chromadb-persistent.service
 
 [Service]
 Type=simple

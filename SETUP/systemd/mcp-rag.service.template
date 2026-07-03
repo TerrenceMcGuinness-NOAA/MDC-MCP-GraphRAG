@@ -1,3 +1,9 @@
+# DEPRECATED (Phase 63c, 2026-07-03): superseded by mcp-gateway.service, which
+# spawns per-session Python containers from eib-mcp-rag-python:latest (5 tenants,
+# 53 tools). Kept in-tree only as Phase 63b rollback material — see
+# .kiro/specs/retire-static-node-container/. New hosts SHALL NOT install this
+# unit; the provisioning bootstrap must skip 12-static-mode-gateway.sh.
+
 # Template: mcp-rag.service (Static Container Mode)
 # Installed by: SETUP/provisioning/12-static-mode-gateway.sh
 # Variables replaced: ${USER_NAME}, ${NEO4J_PASSWORD}, ${EIB_REPO}

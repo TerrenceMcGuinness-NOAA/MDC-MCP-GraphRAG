@@ -23,6 +23,16 @@ feature creates the x86_64 sibling for the Parallel Works Docker MCP Gateway.
 This feature **depends on Phase 63a** (the backend label rename), which establishes
 `DB_BACKEND=cots` as the canonical backend label.
 
+> **Verified implementation status (2026-07-03):** Requirements 1–4 are already satisfied on
+> the live system — the gateway launches its own Python container from the catalog and serves
+> port 18888 as the Python build (53 tools, 9 modules), with the `MCP_WORKFLOW_MOUNT` catalog
+> env (R2.7) live in that container. Two gaps remain, captured as Requirement 5 (tenant
+> workflow-root symlink resolution, AC 4) and Requirement 9 (COTS data-adapter wiring). The
+> `pkill`/`docker rm` cutover originally envisioned does not apply: the gateway auto-relaunches
+> its container from the catalog under systemd (`mcp-gateway.service`, `Restart=always`), so
+> applying catalog changes is a `systemctl restart mcp-gateway.service`, and the Node
+> `eib-mcp-rag-static` container (`mcp-rag.service`) is vestigial and unrelated.
+
 ## Glossary
 
 - **Docker_MCP_Gateway**: The `eib-mcp-gateway` MCP entry point — a `docker mcp gateway run`
@@ -45,6 +55,23 @@ This feature **depends on Phase 63a** (the backend label rename), which establis
   managed via `scripts/manage-devtunnel.sh`.
 - **Workflow_Mount**: The host directory `.pw_workflow_mount`, mounted read-only into the
   container, required by the Tenant_Catalog for workflow-root reachability probes.
+- **Workflow_Mount_Base**: The in-container path `/app/.pw_workflow_mount` that the
+  `MCP_WORKFLOW_MOUNT` environment variable points at. Each tenant's `workflow_root`
+  resolves as `<Workflow_Mount_Base>/<workflow_subdir>`. Without `MCP_WORKFLOW_MOUNT`
+  set, the tenant model falls back to the AgentCore EFS default `/mnt/workflow`, which
+  is absent on Parallel Works nodes — so the reachability probe fails for every tenant.
+- **Gateway_Launched_Container**: The Python server container the Docker_MCP_Gateway
+  launches from the Gateway_Catalog (carrying the label `docker-mcp-name=eib-mcp-rag`). This
+  container — not any externally-managed static container — serves port 18888. Editing the
+  Gateway_Catalog image/env/volumes is therefore the correct lever; the gateway relaunches
+  this container from the catalog on restart.
+- **Static_Node_Container**: The legacy `eib-mcp-rag-static` container run by the
+  `mcp-rag.service` systemd unit from the Node_Image. Vestigial; does not front port 18888;
+  out of scope for this feature.
+- **Workflow_Symlinks**: The five per-tenant entries under the Workflow_Mount (`develop`,
+  `dev-sfs`, `dev-jedi-gfs`, `dev-v17`, `gefs-v12`) that link to the tenant worktrees under
+  `supported_repos/`. They must resolve to real directories INSIDE the container, which
+  requires relative (not host-absolute) link targets.
 
 ## Requirements
 
@@ -92,6 +119,9 @@ server.
    `MCP_TENANT_CATALOG_PATH: "/app/mcp_server_python/src/config/tenants.yaml"`.
 6. THE Gateway_Catalog SHALL retain the same DB endpoint environment variables as the
    current gateway image.
+7. THE Gateway_Catalog SHALL set the env `MCP_WORKFLOW_MOUNT: "/app/.pw_workflow_mount"`
+   so that each tenant's `workflow_root` resolves as
+   `/app/.pw_workflow_mount/<workflow_subdir>` against the mounted host directory.
 
 ### Requirement 3: Transparent Cutover
 
@@ -137,8 +167,18 @@ gateway, so that branch-scoped queries work from the gateway entry point.
 1. WHEN `mcp_health_check` is called against the Docker_MCP_Gateway, THE Docker_MCP_Gateway
    SHALL report all five tenants (`gw`, `gw_sfs`, `gw_jedi_gfs`, `gw_v17`, `gw_gefs_v12`)
    as reachable.
-2. THE Workflow_Mount SHALL be present inside the container so that tenant workflow-root
-   reachability probes succeed.
+2. THE Workflow_Mount SHALL be mounted at the Workflow_Mount_Base
+   (`/app/.pw_workflow_mount`) inside the container.
+3. THE `MCP_WORKFLOW_MOUNT` env SHALL point at the Workflow_Mount_Base so that each
+   tenant's `workflow_root` (`MCP_WORKFLOW_MOUNT/<workflow_subdir>`) resolves to a
+   present directory AND `mcp_health_check` reports `workflow_root reachable = yes` for
+   all five tenants (`gw`, `gw_sfs`, `gw_jedi_gfs`, `gw_v17`, `gw_gefs_v12`).
+4. THE Workflow_Symlinks SHALL be relative symlinks (e.g.
+   `develop -> ../supported_repos/global-workflow`) so that each tenant's `workflow_root`
+   resolves to a present directory INSIDE the container — where `.pw_workflow_mount` and
+   `supported_repos` are sibling mounts under `/app` — not only on the host. Host-absolute
+   link targets (`/mcp_rag_eib/.../supported_repos/...`) dangle inside the container and SHALL
+   NOT be used.
 
 ### Requirement 6: Functional Parity
 
@@ -181,3 +221,19 @@ gateway to the Node.js image if the swap regresses.
 1. THE Node_Image (`eib-mcp-rag:latest`) SHALL be preserved locally after the cutover.
 2. WHERE a rollback is required, THE Gateway_Catalog SHALL support reverting to the
    Node_Image via a one-line image edit.
+
+### Requirement 9: COTS Data Adapter Wiring
+
+**User Story:** As a maintainer, I want the gateway's Python server to wire its ChromaDB and
+Neo4j adapters, so that the vector- and graph-backed modules are healthy and match the stdio
+server.
+
+#### Acceptance Criteria
+
+1. THE Gateway_Launched_Container SHALL initialize the vector-database adapter (ChromaDB) from
+   `DB_BACKEND=cots` and the `CHROMADB_URL` / `CHROMADB_HOST` / `CHROMADB_PORT` env.
+2. THE Gateway_Launched_Container SHALL initialize the graph-database adapter (Neo4j) from
+   `DB_BACKEND=cots` and the `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` env.
+3. WHEN `mcp_health_check` is called against the Docker_MCP_Gateway, THE Vector Database AND
+   Graph Database components SHALL report `healthy` (not `degraded — not configured`).
+4. THE Docker_MCP_Gateway data-adapter health SHALL match the Stdio_Server's.

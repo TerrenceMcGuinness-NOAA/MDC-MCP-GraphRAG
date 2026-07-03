@@ -1,4 +1,10 @@
 #!/bin/bash
+# DEPRECATED (Phase 63c, 2026-07-03): pairs with the retired eib-mcp-rag-static
+# container. This script calls `systemctl restart mcp-rag` when the container
+# is missing, so leaving it wired to cron resurrects the retired service. Kept
+# in-tree only as Phase 63b rollback material. Do NOT install to /opt/mcp/bin/
+# on new hosts. See .kiro/specs/retire-static-node-container/.
+
 # MCP Gateway Health Check Script
 # Runs via cron every 5 minutes
 # Phase 23: Static Mode Multi-User Gateway

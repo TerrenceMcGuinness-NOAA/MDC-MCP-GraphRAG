@@ -1,8 +1,11 @@
 [Unit]
 Description=Docker MCP Gateway (Static Mode)
 Documentation=https://github.com/docker/mcp-gateway
-After=mcp-rag.service
-Requires=mcp-rag.service
+# Phase 63c (2026-07-03): dependency retargeted from mcp-rag.service (retired
+# vestigial static Node container) to docker.service, which is the actual
+# runtime prerequisite for the docker-mcp CLI.
+After=docker.service
+Requires=docker.service
 
 [Service]
 Type=simple

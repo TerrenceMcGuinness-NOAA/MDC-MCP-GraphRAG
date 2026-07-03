@@ -1,5 +1,5 @@
 {
-  "servers": {
+  "mcpServers": {
     "eib-mcp-rag-full": {
       "command": "node",
       "args": [

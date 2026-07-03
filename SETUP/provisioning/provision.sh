@@ -41,7 +41,7 @@ declare -a SCRIPTS=(
     "09-desktop-vnc.sh:Desktop VNC (TigerVNC + MATE for PW noVNC)"
     "10-verification.sh:Final Verification"
     "11-docker-mcp-gateway.sh:Docker MCP Gateway"
-    "12-static-mode-gateway.sh:Phase 23 Static Mode (Production)"
+    "12-static-mode-gateway.sh:Phase 23 Static Mode (DEPRECATED Phase 63c — no-op unless MCP_ALLOW_STATIC_MODE_ROLLBACK=1)"
     "13-container-cleanup.sh:Smart Container Cleanup Timer"
     "14-final-ownership.sh:Final Ownership Correction"
     "15-github-copilot-cli.sh:GitHub Copilot CLI"

@@ -1,3 +1,8 @@
+# DEPRECATED (Phase 63c, 2026-07-03): This cron file resurrected the retired
+# eib-mcp-rag-static container every 5 minutes by calling `systemctl restart
+# mcp-rag`. Kept in-tree only as Phase 63b rollback material — do NOT install
+# to /etc/cron.d/ on new hosts. See .kiro/specs/retire-static-node-container/.
+
 # MCP Gateway Health Monitoring
 # Phase 23: Static Mode Multi-User Gateway
 # Runs every 5 minutes

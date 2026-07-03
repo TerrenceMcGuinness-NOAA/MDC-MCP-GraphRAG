@@ -1,10 +1,22 @@
 #!/bin/bash
+# DEPRECATED (Phase 63c, 2026-07-03): This deployer installs the retired static-
+# mode stack (health-check.sh, /etc/cron.d/mcp-health, mcp-rag.service). Kept
+# in-tree only as Phase 63b rollback material. Do NOT run on new hosts. See
+# .kiro/specs/retire-static-node-container/.
+
 # Deploy Static Mode MCP Gateway Architecture
 # Phase 23 Implementation
-# 
+#
 # Usage: sudo ./deploy-static-gateway.sh
 
 set -euo pipefail
+
+# Short-circuit unless explicitly opted in for rollback.
+if [[ "${MCP_ALLOW_STATIC_MODE_ROLLBACK:-0}" != "1" ]]; then
+    echo "[SKIP] deploy-static-gateway.sh is DEPRECATED (Phase 63c)." >&2
+    echo "       Rollback path: set MCP_ALLOW_STATIC_MODE_ROLLBACK=1 to run." >&2
+    exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

@@ -74,6 +74,23 @@ derived from the other.
 | Port | 18888 (unchanged) | 18888 (unchanged) |
 | Transport | Streaming HTTP (unchanged) | Streaming HTTP (unchanged) |
 
+#### Corrected topology (verified 2026-07-03)
+
+The gateway does not connect to an externally-managed static container. It launches its OWN
+server container from the Gateway_Catalog (`--enable-all-servers` + `--catalog`), labeled
+`docker-mcp-name=eib-mcp-rag`, and that container serves port 18888. Verified live: the gateway
+reports the Python build (`MDC MCP/RAG Server` v1.0.0, 53 tools, 9 modules) and the running
+container is `eib-mcp-rag-python:latest` carrying the `MCP_WORKFLOW_MOUNT` env from the catalog.
+
+A separate `eib-mcp-rag-static` container exists, launched by the `mcp-rag.service` systemd unit
+from the Node_Image. It is **vestigial** — it does not front port 18888 and is not part of this
+feature. Do NOT edit `mcp-rag.service` as part of the cutover.
+
+Two systemd units are in play, both `Restart=always`:
+- `mcp-gateway.service` — runs `docker-mcp gateway run --catalog ... --port 18888`. Restarting
+  it makes the gateway re-read the catalog and relaunch its Python container.
+- `mcp-rag.service` — runs the legacy Node static container. Unrelated to this feature.
+
 The devtunnel URL and the `.vscode/mcp.json` `eib-mcp-gateway` entry stay identical across
 the swap — only the image, base, and server binary change.
 
@@ -134,40 +151,52 @@ env the Python server needs.
 - Add env:
   - `DB_BACKEND: "cots"` (per Phase 63a)
   - `MCP_TENANT_CATALOG_PATH: "/app/mcp_server_python/src/config/tenants.yaml"`
+  - `MCP_WORKFLOW_MOUNT: "/app/.pw_workflow_mount"` — repoints the tenant workflow-root
+    base at the mounted host directory (see "Tenant workflow-root resolution" below).
 - Retain the same DB endpoint ENVs as the current gateway image.
 
 The `.pw_workflow_mount` mount is the load-bearing addition: without it, tenant
 workflow-root reachability probes fail inside the container and tenants report as
 unreachable.
 
-### 3. Cutover procedure
+#### Tenant workflow-root resolution
 
-The cutover stops the old gateway + old container, builds the new image, and restarts the
-gateway with the **same run command** — only the catalog (already edited in Component 2)
-now points at the Python image.
+Each tenant's `workflow_root` is derived in `mcp_server_python/src/config/tenants.py`
+as `MCP_WORKFLOW_MOUNT / workflow_subdir`, defaulting to `/mnt/workflow` — the AWS
+AgentCore EFS access-point path. The `mcp_health_check` reachability probe then tests
+`workflow_root.is_dir()`.
+
+The volume mount alone is therefore inert: mounting the host `.pw_workflow_mount` at
+`/app/.pw_workflow_mount` does nothing unless `MCP_WORKFLOW_MOUNT` also points there.
+Without the env, the probe resolves against the unmounted `/mnt/workflow` default and
+every tenant reports `reachable = no`. The host `.pw_workflow_mount` directory contains
+exactly the five `workflow_subdir` entries (`develop`, `dev-sfs`, `dev-jedi-gfs`,
+`dev-v17`, `gefs-v12`), so with `MCP_WORKFLOW_MOUNT=/app/.pw_workflow_mount` each
+tenant's `workflow_root` resolves to a present directory and the probe passes for all
+five tenants.
+
+### 3. Cutover procedure (corrected)
+
+Because the gateway launches its container from the catalog under systemd, the cutover is NOT a
+`pkill` + `docker rm -f` sequence — systemd `Restart=always` respawns, and those commands also
+target the wrong (vestigial Node) container. The image/env/volume swap is applied by editing the
+Gateway_Catalog (Component 2) and then having the gateway re-read it:
 
 ```bash
 # Baseline
 ./scripts/manage-devtunnel.sh --status
 
-# Stop old gateway + old container
-pkill -f "docker-mcp gateway"
-docker rm -f $(docker ps -aq --filter "label=docker-mcp-name=eib-mcp-rag")
+# Apply catalog changes: restart the gateway unit so it re-reads eib-local.yaml and
+# relaunches its Python container from the updated image/env/volumes.
+sudo systemctl restart mcp-gateway.service
 
-# Build new image
-docker build -f SETUP/dockerfiles/Dockerfile.mcp-python \
-  -t eib-mcp-rag-python:latest .
-
-# Restart gateway (command unchanged)
-MCP_GATEWAY_AUTH_TOKEN="..." docker mcp gateway run \
-  --catalog SETUP/docker-mcp/catalogs/eib-local.yaml \
-  --enable-all-servers --transport streaming --port 18888 --long-lived &
+# Verify by curling the gateway directly (see Testing / Verification Strategy).
 ```
 
-The run command (`docker mcp gateway run ... --transport streaming --port 18888
---long-lived`) is **byte-for-byte unchanged** from the current gateway launch. The old
-`eib-mcp-rag:latest` image is preserved locally so a rollback is a one-line catalog revert
-(see Risks).
+The `docker mcp gateway run ...` invocation inside the unit is unchanged; only the catalog it
+reads changed. Rollback is a one-line catalog edit (`image:` back to `eib-mcp-rag:latest`)
+followed by the same `systemctl restart mcp-gateway.service`. The Node_Image is preserved
+locally.
 
 ## Testing / Verification Strategy
 
@@ -225,7 +254,7 @@ The parity diff decomposes into eight discrete probes (mapped to requirements R1
 | Risk | Mitigation |
 |---|---|
 | Python image has different DB defaults than the Node.js image | Copy the exact `172.17.0.1` endpoint block into the new Dockerfile; smoke-test that it connects to the same endpoints |
-| Missing volume mounts break tenant workflow-root probes inside the container | Explicit `.pw_workflow_mount` mount in the catalog; probe 5 asserts all 5 tenants report `reachable` |
+| Missing volume mount OR unset `MCP_WORKFLOW_MOUNT` breaks tenant workflow-root probes | Catalog declares both the `.pw_workflow_mount` volume AND `MCP_WORKFLOW_MOUNT=/app/.pw_workflow_mount`; probe 5 asserts all 5 tenants report `reachable = yes` |
 | Rebuild forgotten after a future code change (repeat of the Docker snapshot pitfall) | Add a `--rebuild` flag to `scripts/manage-devtunnel.sh` in a follow-up (not blocking this feature) |
 | ARM64 vs. x86_64 wheel differences (rare) | Multi-stage build uses `python:3.12-slim` (glibc) on both platforms; wheels resolve at pip-install time |
 | Rollback path | The old `eib-mcp-rag:latest` image is preserved locally; catalog rollback is a one-line YAML edit back to the Node image |

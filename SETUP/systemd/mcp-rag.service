@@ -1,3 +1,9 @@
+# DEPRECATED (Phase 63c, 2026-07-03): superseded by mcp-gateway.service, which
+# spawns per-session Python containers from eib-mcp-rag-python:latest (5 tenants,
+# 53 tools). This static Node.js container is retired but the unit file is kept
+# in-tree for Phase 63b rollback per .kiro/specs/retire-static-node-container/.
+# Do NOT re-enable without a follow-on spec.
+
 [Unit]
 Description=EIB MCP RAG Server (Static Container)
 Documentation=https://github.com/NOAA-EMC/eib-mcp-rag-server

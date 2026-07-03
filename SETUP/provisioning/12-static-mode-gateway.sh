@@ -1,5 +1,25 @@
 #!/bin/bash
 ################################################################################
+# DEPRECATED (Phase 63c, 2026-07-03): The static Node.js container this script
+# installs is retired. mcp-gateway.service now spawns per-session Python
+# containers (eib-mcp-rag-python:latest, 5 tenants, 53 tools) directly from the
+# catalog. New hosts SHALL NOT run this script. Kept in-tree only as Phase 63b
+# rollback material. See .kiro/specs/retire-static-node-container/.
+################################################################################
+
+# Short-circuit: refuse to run unless explicitly overridden.
+# The prior script body would (re)install /opt/mcp/bin/health-check.sh,
+# /etc/cron.d/mcp-health (which resurrects mcp-rag.service every 5 min),
+# mcp-rag.service, and mcp-gateway.service with Requires=mcp-rag.service.
+# All four are retired in Phase 63c.
+if [[ "${MCP_ALLOW_STATIC_MODE_ROLLBACK:-0}" != "1" ]]; then
+    echo "[SKIP] 12-static-mode-gateway.sh is DEPRECATED (Phase 63c)." >&2
+    echo "       Rollback path: set MCP_ALLOW_STATIC_MODE_ROLLBACK=1 to run this script." >&2
+    exit 0
+fi
+
+################################################################################
+#
 # 12-static-mode-gateway.sh - Phase 23: Static Mode Multi-User Gateway
 # Part of modular provisioning system v4.1.0
 #
