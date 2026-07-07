@@ -1,28 +1,37 @@
 # MCP Server Changelog
 
-## [Unreleased] - Phase 66 — Gemini Embedding Provider Evaluation (Jul 7, 2026)
+## [Unreleased] - Phase 66 — Gemini Embedding 2 Multimodal Provider Evaluation (Jul 7, 2026)
 
 ### Summary
-Formalized the Gemini embedding-provider evaluation as a Kiro spec plus a
-sister SDD workflow, so `gemini-embedding-001` can be added as a first-class
-`EmbeddingProvider` and benchmarked head-to-head against `titan1024` (Bedrock)
-and `mpnet768` (local). This entry covers the **planning artifacts only** — no
-provider code, registry change, or ingestion has landed yet; implementation is
-gated on `GEMINI_API_KEY` provisioning (Step 6 checkpoint in the workflow).
-Companion wiki page: `Gemini-Embedding-Provider-Evaluation-and-Key-Request`.
+Formalized (as a Kiro spec + sister SDD workflow) the plan to add Google's
+`gemini-embedding-2` — its first natively multimodal embedding model (text +
+image + audio + video + PDF in one unified vector space) — as an additive
+`EmbeddingProvider`, and to benchmark it head-to-head against `titan1024`
+(Bedrock) and `mpnet768` (local). Verified against
+ai.google.dev/gemini-api/docs/embeddings. This entry covers **planning
+artifacts only** — no provider code or ingestion has landed yet; implementation
+is gated on `GEMINI_API_KEY` provisioning (the workflow's Step 6 checkpoint).
+The earlier text-only `gemini-embedding-001` framing was dropped — v2 supersedes
+it (multimodal, 8,192-token context, server-side normalization), so carrying
+both added dual code paths for no benefit. Companion wiki page:
+`Gemini-Embedding-Provider-Evaluation-and-Key-Request`.
 
 ### Added
 - `.kiro/specs/gemini-embedding-provider/` — Kiro spec (`requirements.md` with
-  11 EARS requirements, `design.md`, `tasks.md` with a 7-group plan + dependency
+  14 EARS requirements, `design.md`, `tasks.md` with a 7-group plan + dependency
   graph, `.config.kiro`). Scopes an additive `GeminiProvider` (stdlib `urllib`
-  REST `embedContent`, `BedrockProvider`-style 1s/2s/4s retry, sub-3072 L2
-  normalization, key from `GEMINI_API_KEY`/`GOOGLE_API_KEY`), a `gemini768`
-  registry profile, and a `create_provider` `"gemini"` dispatch arm — duplicated
+  REST `embedContent`, 1s/2s/4s retry, **no** client-side normalization since v2
+  auto-normalizes, text-prefix task control, key from
+  `GEMINI_API_KEY`/`GOOGLE_API_KEY`) with **text and image** paths;
+  `gemini2_3072` / `gemini2_768` multimodal registry profiles; a
+  `create_provider` `"gemini"` dispatch arm; and an additive `--images`
+  ingestion route that writes `modality="image"` vectors into a unified
+  `gemini2_*` collection for cross-modal (text→image) search. Duplicated
   field-for-field across the Node.js (`mcp_server_node/scripts/`) and Python
   (`mcp_server_python/src/data/`) copies. Zero new runtime dependencies.
 - `sdd_framework/workflows/phase66_gemini_embedding_provider_evaluation.md` —
-  sister SDD workflow (COTS-consistent phase format: 8 semantic-tagged steps,
-  acceptance-criteria table, risks). Cross-references the Kiro spec and wiki.
+  sister SDD workflow (COTS-consistent phase format: 9 semantic-tagged steps,
+  a 12-row acceptance-criteria table, risks). Cross-references the Kiro spec and wiki.
 
 ### Notes
 - SDD framework exercised via `agentcore-mcp-rag` to validate the authoring:
