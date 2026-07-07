@@ -1,5 +1,40 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 66 — Gemini Embedding Provider Evaluation (Jul 7, 2026)
+
+### Summary
+Formalized the Gemini embedding-provider evaluation as a Kiro spec plus a
+sister SDD workflow, so `gemini-embedding-001` can be added as a first-class
+`EmbeddingProvider` and benchmarked head-to-head against `titan1024` (Bedrock)
+and `mpnet768` (local). This entry covers the **planning artifacts only** — no
+provider code, registry change, or ingestion has landed yet; implementation is
+gated on `GEMINI_API_KEY` provisioning (Step 6 checkpoint in the workflow).
+Companion wiki page: `Gemini-Embedding-Provider-Evaluation-and-Key-Request`.
+
+### Added
+- `.kiro/specs/gemini-embedding-provider/` — Kiro spec (`requirements.md` with
+  11 EARS requirements, `design.md`, `tasks.md` with a 7-group plan + dependency
+  graph, `.config.kiro`). Scopes an additive `GeminiProvider` (stdlib `urllib`
+  REST `embedContent`, `BedrockProvider`-style 1s/2s/4s retry, sub-3072 L2
+  normalization, key from `GEMINI_API_KEY`/`GOOGLE_API_KEY`), a `gemini768`
+  registry profile, and a `create_provider` `"gemini"` dispatch arm — duplicated
+  field-for-field across the Node.js (`mcp_server_node/scripts/`) and Python
+  (`mcp_server_python/src/data/`) copies. Zero new runtime dependencies.
+- `sdd_framework/workflows/phase66_gemini_embedding_provider_evaluation.md` —
+  sister SDD workflow (COTS-consistent phase format: 8 semantic-tagged steps,
+  acceptance-criteria table, risks). Cross-references the Kiro spec and wiki.
+
+### Notes
+- SDD framework exercised via `agentcore-mcp-rag` to validate the authoring:
+  `get_sdd_framework_status` (Operational v6.0 Phase 31), `validate_sdd_compliance`
+  (pass), and `start_sdd_session` all work. The stateful multi-call lifecycle
+  (`record_sdd_step` / `get_sdd_session`) does not persist across calls on the
+  stateless AgentCore runtime (`MCP_STATELESS_HTTP=true`) — session continuity
+  requires the filesystem-backed local/COTS Node server. `list_sdd_workflows`
+  over the hosted runtime cannot see the new file (the runtime does not
+  bind-mount `sdd_framework/workflows/`); the on-disk file is the source of truth.
+- No code, no re-ingest, and no behavior change in this entry.
+
 ## [Unreleased] - Phase 63c — Retire Static Node MCP Container (Jul 3, 2026)
 
 ### Summary
