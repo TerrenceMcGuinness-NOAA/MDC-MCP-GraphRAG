@@ -1,5 +1,5 @@
-[submodule "supported_repos/global-workflow"]
-	path = supported_repos/global-workflow
+[submodule "supported_repos/global-workflow_develop"]
+	path = supported_repos/global-workflow_develop
 	url = https://github.com/NOAA-EMC/global-workflow.git
 	branch = develop
 [submodule "supported_repos/nws-hpc-standards"]
@@ -38,10 +38,10 @@
 	path = supported_repos/parallel-works-mcp
 	url = https://github.com/parallelworks/pw-mcp.git
 	branch = main
-[submodule "supported_repos/rocoto"]
-	path = supported_repos/rocoto
-	url = https://github.com/TerrenceMcGuinness-NOAA/rocoto.git
-	branch = feature/dryrun_nodaemon
+[submodule "supported_repos/rocoto_NOAA-GSL"]
+	path = supported_repos/rocoto_NOAA-GSL
+	url = https://github.com/NOAA-GSL/rocoto.git
+	branch = develop
 [submodule "supported_repos/ECFLOW/ecflow"]
 	path = supported_repos/ECFLOW/ecflow
 	url = https://github.com/ecmwf/ecflow
@@ -62,12 +62,12 @@
 	path = supported_repos/global-workflow_dev-jedi-gfs
 	url = https://github.com/NOAA-EMC/global-workflow.git
 	branch = dev/jedi-gfs
-[submodule "supported_repos/global-workflow_dev-v17"]
-	path = supported_repos/global-workflow_dev-v17
+[submodule "supported_repos/global-workflow_dev-gfs.v17"]
+	path = supported_repos/global-workflow_dev-gfs.v17
 	url = https://github.com/NOAA-EMC/global-workflow.git
 	branch = dev/gfs.v17
-[submodule "supported_repos/global-workflow_gefs-v12"]
-	path = supported_repos/global-workflow_gefs-v12
+[submodule "supported_repos/global-workflow_release-gefs_v12"]
+	path = supported_repos/global-workflow_release-gefs_v12
 	url = https://github.com/NOAA-EMC/global-workflow.git
 	branch = release/gefs_v12
 [submodule "supported_repos/nceplibs/NCEPLIBS-bacio"]
@@ -114,3 +114,7 @@
 	path = supported_repos/nceplibs/NCEPLIBS-w3emc
 	url = https://github.com/NOAA-EMC/NCEPLIBS-w3emc.git
 	branch = develop
+[submodule "supported_repos/miss-islington"]
+	path = supported_repos/miss-islington
+	url = https://github.com/python/miss-islington.git
+	branch = main

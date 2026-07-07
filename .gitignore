@@ -146,3 +146,13 @@ htmlcov/
 
 # Copilot CLI session state (symlink to ~/.copilot)
 .copilot/
+
+# ltm-power: commit repo-portable tooling only, never the local memory data
+# (per ltm/README.md commit policy)
+ltm/store/
+ltm/runtime/
+ltm/reports/
+ltm/snapshots/
+
+# Provisioning file contains live AWS session credentials - NEVER commit
+SETUP_AWS/provisioning/parallel_works_bucket.txt
