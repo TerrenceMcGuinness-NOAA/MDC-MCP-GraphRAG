@@ -59,7 +59,7 @@ EMBEDDING_MODEL = "all-mpnet-base-v2"
 COLLECTION_NAME = os.getenv("CODE_COLLECTION", "code-with-context-v8-0-0")
 
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT",
-    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
+    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop")
 
 CONFIG_DIRECTORIES = {
     'dev/parm/config/gfs': 'gfs',

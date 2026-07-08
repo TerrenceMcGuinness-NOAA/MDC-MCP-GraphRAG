@@ -65,8 +65,8 @@ async def run_mcp_tool(mcp, name: str, arguments: dict, tenant_id: str) -> str:
 class ValidationRunner:
     def __init__(self):
         self.repo_root = SERVER_ROOT.parent
-        self.gw_root = self.repo_root / "supported_repos" / "global-workflow"
-        self.v17_root = self.repo_root / "supported_repos" / "global-workflow_dev-v17"
+        self.gw_root = self.repo_root / "supported_repos" / "global-workflow_develop"
+        self.v17_root = self.repo_root / "supported_repos" / "global-workflow_dev-gfs.v17"
         
         self.gaps: List[Dict[str, Any]] = []
         self.summary_lines: List[str] = []

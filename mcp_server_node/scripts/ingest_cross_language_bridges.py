@@ -83,7 +83,7 @@ NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT",
-    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
+    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop")
 
 # Patterns for finding executable invocations in shell scripts
 EXEC_PATTERNS = [

@@ -76,7 +76,7 @@ except ImportError:
 
 WORKFLOW_ROOT = os.environ.get(
     "MCP_WORKFLOW_ROOT",
-    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow"
+    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop"
 )
 
 # Directories to scan (relative to WORKFLOW_ROOT)

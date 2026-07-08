@@ -27,7 +27,7 @@ export class OperationalTools {
   constructor(dataAccess = null) {
     this.dataAccess = dataAccess;  // Accept injected dependency for testing
     this.isInitialized = !!dataAccess;  // Already initialized if dataAccess provided
-    this.workflowRoot = process.env.MCP_WORKFLOW_ROOT || process.env.HOMEgfs || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
+    this.workflowRoot = process.env.MCP_WORKFLOW_ROOT || process.env.HOMEgfs || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop';
   }
 
   async initialize() {

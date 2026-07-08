@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 const NEO4J_URI = process.env.NEO4J_URI || 'bolt://localhost:7687';
 const NEO4J_USER = process.env.NEO4J_USER || 'neo4j';
 const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || 'gfsworkflow2025';
-const WORKFLOW_ROOT = process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
+const WORKFLOW_ROOT = process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop';
 
 // NCEPLIBS library names to track versions for
 const NCEPLIBS_NAMES = new Set([

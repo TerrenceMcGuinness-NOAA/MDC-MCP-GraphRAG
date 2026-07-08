@@ -152,8 +152,8 @@ while IFS=: read -r username fullname email; do
     email = ${email}
 [safe]
     directory = ${WORKSPACE}
-    directory = ${WORKSPACE}/supported_repos/global-workflow
-    directory = ${WORKSPACE}/supported_repos/global-workflow_dev-v17
+    directory = ${WORKSPACE}/supported_repos/global-workflow_develop
+    directory = ${WORKSPACE}/supported_repos/global-workflow_dev-gfs.v17
 [init]
     defaultBranch = develop
 EOF

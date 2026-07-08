@@ -59,7 +59,7 @@ COLLECTION_NAME = os.getenv("DOCS_COLLECTION", DEFAULT_COLLECTION_NAME)
 #   description : Human-readable purpose
 #   max_pages   : Crawl limit (default: 100)
 #   enabled     : Set to False to skip during ingestion (default: True)
-#   local_path  : (optional) Path relative to GW_REPO (supported_repos/global-workflow)
+#   local_path  : (optional) Path relative to GW_REPO (supported_repos/global-workflow_develop)
 #                 where RST/MD docs live on disk. When set, the ingester can read
 #                 local files instead of crawling the URL — faster, no 404s, always
 #                 in sync with the checked-out branch. URL is kept as fallback.

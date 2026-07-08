@@ -1097,7 +1097,7 @@ def main():
     )
     parser.add_argument(
         '--workflow-root',
-        default='/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow',
+        default='/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop',
         help='Path to global-workflow repository'
     )
     parser.add_argument(

@@ -128,7 +128,7 @@ FILE_TYPE_VALUES: tuple[str, ...] = ("file", "directory")
 #: Default workflow root, relative to the project working tree. The
 #: Node.js source falls back to this same path when neither
 #: ``MCP_WORKFLOW_ROOT`` nor ``HOMEgfs`` is set.
-DEFAULT_WORKFLOW_ROOT: str = "supported_repos/global-workflow"
+DEFAULT_WORKFLOW_ROOT: str = "supported_repos/global-workflow_develop"
 
 #: Maximum size (bytes) of an env-file body inlined in the response.
 #: Mirrors the Node.js ``content.slice(0, 2000)`` limit so the rendered

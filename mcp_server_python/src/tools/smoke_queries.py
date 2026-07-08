@@ -284,7 +284,7 @@ async def _smoke_workflow_info(_data: Any, _mcp: Any) -> bool:
     else:
         workflow_root = Path(
             os.environ.get("MCP_WORKFLOW_ROOT")
-            or "supported_repos/global-workflow"
+            or "supported_repos/global-workflow_develop"
         )
     if not workflow_root.exists():
         raise SkipProbe(f"workflow_root={workflow_root} not mounted")

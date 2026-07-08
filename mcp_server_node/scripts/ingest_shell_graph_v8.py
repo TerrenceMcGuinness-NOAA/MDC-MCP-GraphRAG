@@ -77,7 +77,7 @@ except ImportError:
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "gfsworkflow2025")
 
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
-    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
+    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop")
 
 # Script directories to scan
 SCRIPT_DIRECTORIES = {

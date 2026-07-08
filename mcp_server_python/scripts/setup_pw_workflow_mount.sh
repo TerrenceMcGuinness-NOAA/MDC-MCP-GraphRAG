@@ -30,11 +30,11 @@ REPOS_DIR="${REPO_ROOT}/supported_repos"
 # ── SPOT mapping: catalog workflow_subdir -> supported_repos checkout name ──
 # Keep in sync with mcp_server_python/src/config/tenants.yaml.
 declare -A SUBDIR_TO_CHECKOUT=(
-  [develop]="global-workflow"
+  [develop]="global-workflow_develop"
   [dev-sfs]="global-workflow_dev-sfs"
   [dev-jedi-gfs]="global-workflow_dev-jedi-gfs"
-  [dev-v17]="global-workflow_dev-v17"
-  [gefs-v12]="global-workflow_gefs-v12"
+  [dev-v17]="global-workflow_dev-gfs.v17"
+  [gefs-v12]="global-workflow_release-gefs_v12"
 )
 
 echo "[INFO] workflow mount base: ${MOUNT_BASE}"

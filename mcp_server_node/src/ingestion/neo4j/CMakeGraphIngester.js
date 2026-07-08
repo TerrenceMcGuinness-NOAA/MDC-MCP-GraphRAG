@@ -55,7 +55,7 @@ export class CMakeGraphIngester {
    */
   constructor(neo4jClient, options = {}) {
     this.neo4jClient = neo4jClient;
-    this.rootDir = options.rootDir || process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow';
+    this.rootDir = options.rootDir || process.env.MCP_WORKFLOW_ROOT || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop';
     this.verbose = options.verbose || false;
     
     // Known NCEPLIBS packages (Phase 34B)

@@ -107,7 +107,7 @@ whatis("Description: MCP RAG Development Environment")
 setenv("PERSISTENT_ROOT", "/mcp_rag_eib")
 setenv("EIB_REPO", "/mcp_rag_eib/eib-mcp-rag-server")
 setenv("MCP_ROOT", "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node")
-setenv("GW_REPO", "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
+setenv("GW_REPO", "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop")
 
 -- Add MCP bin to PATH
 prepend_path("PATH", "/mcp_rag_eib/eib-mcp-rag-server/mcp_server_node/bin")

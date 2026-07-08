@@ -215,7 +215,7 @@ def register(
         Optional override for the path used by
         ``check_knowledge_integrity`` to count Fortran files on disk
         and run ``git log`` for stale-embedding detection. Defaults to
-        ``supported_repos/global-workflow`` relative to the working
+        ``supported_repos/global-workflow_develop`` relative to the working
         tree, matching the Node.js layout.
     """
     from src.tenancy.runtime import get_catalog
@@ -1210,7 +1210,7 @@ def _resolve_repo_base(override: str | os.PathLike[str] | None) -> Path:
     env = os.environ.get("MCP_REPO_BASE")
     if env:
         return Path(env).resolve()
-    # Default: ``supported_repos/global-workflow`` relative to the
+    # Default: ``supported_repos/global-workflow_develop`` relative to the
     # workspace root (four levels up from this file in the container
     # layout: ``/app/src/tools/semantic_search.py`` → ``/app``).
     candidate = (

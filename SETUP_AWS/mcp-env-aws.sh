@@ -12,7 +12,7 @@ export PERSISTENT_ROOT="${PERSISTENT_ROOT:-/mdc-mcp-rag}"
 export MDC_REPO="${MDC_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export SETUP_AWS="${MDC_REPO}/SETUP_AWS"
 export MCP_ROOT="${MDC_REPO}/mcp_server_node"
-export GW_REPO="${MDC_REPO}/supported_repos/global-workflow"
+export GW_REPO="${MDC_REPO}/supported_repos/global-workflow_develop"
 
 # Data directories
 export DATA_ROOT="${PERSISTENT_ROOT}/data"

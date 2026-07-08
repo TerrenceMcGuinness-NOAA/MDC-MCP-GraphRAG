@@ -143,8 +143,8 @@ def extract_callers_callees(function_name: str, checkout_root: Path) -> Dict[str
 if __name__ == "__main__":
     # Smoke test the extractors
     repo_root = Path(__file__).resolve().parent.parent.parent
-    gw_root = repo_root / "supported_repos" / "global-workflow"
-    v17_root = repo_root / "supported_repos" / "global-workflow_dev-v17"
+    gw_root = repo_root / "supported_repos" / "global-workflow_develop"
+    v17_root = repo_root / "supported_repos" / "global-workflow_dev-gfs.v17"
 
     print("[INFO] Ground-truth extractors smoke test:")
     if gw_root.is_dir():
