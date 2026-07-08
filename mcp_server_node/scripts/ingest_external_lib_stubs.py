@@ -5,7 +5,7 @@ ExternalLibrary Stub Creator for ESMF, NUOPC, and FMS/MPP
 Phase 46 Step 8: Creates ExternalLibrary nodes in Neo4j for external Fortran
 libraries that are referenced via USE statements but have no graph representation.
 
-Scans supported_repos/global-workflow/sorc/ for USE statements, then creates:
+Scans supported_repos/global-workflow_develop/sorc/ for USE statements, then creates:
   - ExternalLibrary nodes (esmf, nuopc, fms)
   - USES edges from existing File nodes to ExternalLibrary nodes
 

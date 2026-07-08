@@ -13,7 +13,7 @@ export PERSISTENT_ROOT="/mcp_rag_eib"
 export EIB_REPO="${PERSISTENT_ROOT}/eib-mcp-rag-server"
 export SETUP="${EIB_REPO}/SETUP"
 export MCP_ROOT="${EIB_REPO}/mcp_server_node"
-export GW_REPO="${EIB_REPO}/supported_repos/global-workflow"
+export GW_REPO="${EIB_REPO}/supported_repos/global-workflow_develop"
 export GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
 # ChromaDB configuration

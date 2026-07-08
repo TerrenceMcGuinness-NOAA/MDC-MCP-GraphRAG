@@ -8,7 +8,7 @@ export DB_BACKEND=aws
 export NEPTUNE_ENDPOINT="wss://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182"
 export OPENSEARCH_ENDPOINT="https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com"
 export AWS_REGION=us-east-1
-export WORKFLOW_ROOT="/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow"
+export WORKFLOW_ROOT="/mnt/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow_develop"
 
 # Use python3.12 — packages (fparser, sentence-transformers, opensearch-py) are installed here
 PYTHON=python3.12

@@ -58,7 +58,7 @@ export CHROMADB_PORT="${CHROMADB_PORT:-8080}"
 export SDD_STATE_DIR="${SDD_STATE_DIR:-${REPO_ROOT}/sdd_framework/execution_state}"
 export SDD_WORKFLOWS_DIR="${SDD_WORKFLOWS_DIR:-${REPO_ROOT}/sdd_framework/workflows}"
 export MCP_TENANT_CATALOG_PATH="${MCP_TENANT_CATALOG_PATH:-${SERVER_ROOT}/src/config/tenants.yaml}"
-export MCP_WORKFLOW_ROOT="${MCP_WORKFLOW_ROOT:-${REPO_ROOT}/supported_repos/global-workflow}"
+export MCP_WORKFLOW_ROOT="${MCP_WORKFLOW_ROOT:-${REPO_ROOT}/supported_repos/global-workflow_develop}"
 
 # ── Per-tenant workflow mount base (Phase 61) ──────────────────────────────
 # The tenant catalog resolves each tenant's filesystem root as

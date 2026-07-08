@@ -27,7 +27,7 @@ export class GitHubGraphIngester {
   constructor(neo4jClient, options = {}) {
     this.client = neo4jClient;
     this.options = {
-      rootPath: options.rootPath || process.env.MCP_WORKFLOW_ROOT || process.env.GW_REPO || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow',
+      rootPath: options.rootPath || process.env.MCP_WORKFLOW_ROOT || process.env.GW_REPO || '/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop',
       maxCommitsPerRepo: options.maxCommitsPerRepo || 100,
       includeGitHubAPI: options.includeGitHubAPI !== false,
       githubToken: options.githubToken || process.env.GH_TOKEN || process.env.GITHUB_TOKEN,

@@ -910,7 +910,7 @@ export class SemanticSearchTools {
           passed: diskFortranCount === 0 || graphFortranCount / diskFortranCount > 0.20,
           details: diskFortranCount > 0
             ? `${graphFortranCount} Fortran symbols in graph, ${diskFortranCount} files on disk (${coveragePct}% coverage)`
-            : `[SKIP] No Fortran files found in supported_repos/global-workflow`
+            : `[SKIP] No Fortran files found in supported_repos/global-workflow_develop`
         });
       } else {
         checks.push({ name: 'Coverage Gap', passed: true, details: '[SKIP] Neo4j not available' });

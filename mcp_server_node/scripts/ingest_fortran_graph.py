@@ -113,7 +113,7 @@ except ImportError:
     _BACKEND = "legacy"
 
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
-    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
+    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop")
 
 # Fortran file extensions to process
 FORTRAN_EXTENSIONS = {'.F90', '.f90', '.F', '.f', '.F95', '.f95', '.F03', '.f03', '.F08', '.f08'}

@@ -38,7 +38,7 @@ registry:
       - name: NEO4J_PASSWORD
         value: gfsworkflow2025
       - name: MCP_WORKFLOW_ROOT
-        value: "/app/supported_repos/global-workflow"
+        value: "/app/supported_repos/global-workflow_develop"
       - name: MCP_SCENARIO
         value: full
       - name: ENABLE_RAG

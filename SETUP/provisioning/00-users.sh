@@ -336,7 +336,7 @@ setup_vscode_mcp_config() {
       "type": "stdio",
       "env": {
         "MCP_WORKSPACE_ROOT": "${repo_dir}",
-        "MCP_WORKFLOW_ROOT": "${repo_dir}/supported_repos/global-workflow",
+        "MCP_WORKFLOW_ROOT": "${repo_dir}/supported_repos/global-workflow_develop",
         "SDD_FRAMEWORK_ROOT": "${repo_dir}/sdd_framework",
         "CHROMA_SERVER_URL": "http://localhost:8080",
         "CHROMADB_URL": "http://127.0.0.1:8080",

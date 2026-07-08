@@ -79,7 +79,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "ingestion_script": "scripts/ingest_local_docs_v4.py",
         "doc_count": 1759,
         "type_fields": {
-            "local_path": "supported_repos/global-workflow/docs",
+            "local_path": "supported_repos/global-workflow_develop/docs",
             "file_patterns": ["**/*.rst"],
             "parser": "rst_sphinx",
         },
@@ -94,7 +94,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "ingestion_script": "scripts/ingest_code_v8.py",
         "doc_count": 77613,
         "type_fields": {
-            "root_path": "supported_repos/global-workflow/sorc",
+            "root_path": "supported_repos/global-workflow_develop/sorc",
             "languages": ["fortran"],
             "chunk_strategy": "function_boundary",
         },
@@ -109,7 +109,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "ingestion_script": "scripts/ingest_shell_graph_v8.py",
         "doc_count": 0,
         "type_fields": {
-            "root_path": "supported_repos/global-workflow",
+            "root_path": "supported_repos/global-workflow_develop",
             "languages": ["shell"],
             "chunk_strategy": "function_boundary",
         },
@@ -124,7 +124,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "ingestion_script": "scripts/ingest_python_graph.py",
         "doc_count": 0,
         "type_fields": {
-            "root_path": "supported_repos/global-workflow/ush",
+            "root_path": "supported_repos/global-workflow_develop/ush",
             "languages": ["python"],
             "chunk_strategy": "function_boundary",
         },
@@ -139,7 +139,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "ingestion_script": "scripts/ingest_rocoto_xml.py",
         "doc_count": 0,
         "type_fields": {
-            "config_root": "supported_repos/global-workflow/parm",
+            "config_root": "supported_repos/global-workflow_develop/parm",
             "file_patterns": ["**/*.xml"],
             "parser": "rocoto_xml",
         },
@@ -154,7 +154,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "ingestion_script": "scripts/ingest_expdir_configs.py",
         "doc_count": 0,
         "type_fields": {
-            "config_root": "supported_repos/global-workflow/parm/config",
+            "config_root": "supported_repos/global-workflow_develop/parm/config",
             "file_patterns": ["config.*"],
             "parser": "bash_kv",
         },
@@ -197,7 +197,7 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "ingestion_script": "scripts/ingest_jjobs_v8.py",
         "doc_count": 0,
         "type_fields": {
-            "job_script_root": "supported_repos/global-workflow/jobs",
+            "job_script_root": "supported_repos/global-workflow_develop/jobs",
             "documentation_format": "header_block",
         },
     },

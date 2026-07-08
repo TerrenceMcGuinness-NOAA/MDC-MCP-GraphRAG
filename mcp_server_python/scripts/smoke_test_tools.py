@@ -14,7 +14,7 @@ Usage
       OPENSEARCH_ENDPOINT=https://vpc-mdc-mcp-rag-search-...es.amazonaws.com \\
       NEPTUNE_ENDPOINT=https://mdc-mcp-graprag-neptune-1...:8182 \\
       AWS_REGION=us-east-1 \\
-      MCP_WORKFLOW_ROOT=/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow \\
+      MCP_WORKFLOW_ROOT=/mdc-mcp-rag/eib-mcp-rag-server/supported_repos/global-workflow_develop \\
       python3.12 mcp_server_python/scripts/smoke_test_tools.py
 
 Flags

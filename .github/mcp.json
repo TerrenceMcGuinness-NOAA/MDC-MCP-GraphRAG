@@ -9,7 +9,7 @@
       "type": "stdio",
       "env": {
         "MCP_WORKSPACE_ROOT": "/mcp_rag_eib/eib-mcp-rag-server",
-        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow",
+        "MCP_WORKFLOW_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop",
         "SDD_FRAMEWORK_ROOT": "/mcp_rag_eib/eib-mcp-rag-server/sdd_framework",
         "CHROMA_SERVER_URL": "http://localhost:8080",
         "CHROMADB_URL": "http://127.0.0.1:8080",

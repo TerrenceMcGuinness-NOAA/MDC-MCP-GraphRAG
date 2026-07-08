@@ -91,7 +91,7 @@ if not _REGISTRY_AVAILABLE:
 
 # Source paths (use submodule)
 WORKFLOW_ROOT = os.getenv("WORKFLOW_ROOT", 
-    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow")
+    "/mcp_rag_eib/eib-mcp-rag-server/supported_repos/global-workflow_develop")
 
 # Language configurations
 PYTHON_EXTENSIONS = ['.py']

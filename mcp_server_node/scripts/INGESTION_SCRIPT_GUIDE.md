@@ -144,7 +144,7 @@ python3 scripts/ingest_documentation_week3.py \
 ```bash
 cd mcp_server_node
 python3 scripts/ingest_code_graph_enriched_v6.py \
-    --directory ../supported_repos/global-workflow \
+    --directory ../supported_repos/global-workflow_develop \
     --collection code-graph-v6-0-0 \
     --neo4j-uri bolt://localhost:7687
 ```

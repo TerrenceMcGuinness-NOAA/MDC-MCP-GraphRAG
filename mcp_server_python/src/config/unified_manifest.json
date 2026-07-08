@@ -905,7 +905,7 @@
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_local_docs_v4.py",
       "doc_count": 1759,
-      "local_path": "supported_repos/global-workflow/docs",
+      "local_path": "supported_repos/global-workflow_develop/docs",
       "file_patterns": [
         "**/*.rst"
       ],
@@ -921,7 +921,7 @@
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_code_v8.py",
       "doc_count": 77613,
-      "root_path": "supported_repos/global-workflow/sorc",
+      "root_path": "supported_repos/global-workflow_develop/sorc",
       "languages": [
         "fortran"
       ],
@@ -937,7 +937,7 @@
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_shell_graph_v8.py",
       "doc_count": 2079,
-      "root_path": "supported_repos/global-workflow",
+      "root_path": "supported_repos/global-workflow_develop",
       "languages": [
         "shell"
       ],
@@ -953,7 +953,7 @@
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_python_graph.py",
       "doc_count": 8922,
-      "root_path": "supported_repos/global-workflow/ush",
+      "root_path": "supported_repos/global-workflow_develop/ush",
       "languages": [
         "python"
       ],
@@ -969,7 +969,7 @@
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_rocoto_xml.py",
       "doc_count": 187,
-      "config_root": "supported_repos/global-workflow/parm",
+      "config_root": "supported_repos/global-workflow_develop/parm",
       "file_patterns": [
         "**/*.xml"
       ],
@@ -985,7 +985,7 @@
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_expdir_configs.py",
       "doc_count": 1297,
-      "config_root": "supported_repos/global-workflow/parm/config",
+      "config_root": "supported_repos/global-workflow_develop/parm/config",
       "file_patterns": [
         "config.*"
       ],
@@ -1027,7 +1027,7 @@
       "last_ingested": null,
       "ingestion_script": "scripts/ingest_jjobs_v8.py",
       "doc_count": 751,
-      "job_script_root": "supported_repos/global-workflow/jobs",
+      "job_script_root": "supported_repos/global-workflow_develop/jobs",
       "documentation_format": "header_block"
     },
     {

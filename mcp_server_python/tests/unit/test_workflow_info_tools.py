@@ -5,7 +5,7 @@ rendering, content-abstraction (the ``structure_data`` /
 ``content`` bypass paths), and the 12-path filesystem search for
 ``describe_component``. Filesystem-backed assertions use a tmp_path
 fixture seeded with a minimal global-workflow-like tree so the tests
-do not depend on the real ``supported_repos/global-workflow`` clone
+do not depend on the real ``supported_repos/global-workflow_develop`` clone
 being present.
 """
 
