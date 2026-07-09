@@ -49,31 +49,31 @@ babysitting, while all destructive actions stay behind explicit gates.
 ## Architecture
 
 ```
-                        ┌──────────────────────────────────────────────┐
-  nohup, detached  ───► │  Loop_Driver  scripts/ralph_reingest_loop.sh  │
+                        ┌────────────────────────────────────────────────┐
+  nohup, detached  ───► │  Loop_Driver  scripts/ralph_reingest_loop.sh   │
                         │  while not is-complete and not STOP and i<MAX: │
                         │    kiro-cli --prompt ralph_reingest_prompt.md  │──┐
-                        └──────────────────────────────────────────────┘  │ one
+                        └────────────────────────────────────────────────┘  │ one
                                         ▲                                   │ iteration
                     is-complete? (0/1)  │                                   ▼
-                        ┌───────────────┴───────────────┐   ┌──────────────────────────┐
-                        │  State_Manager reingest_state  │◄──│  Kiro CLI (this agent)   │
-                        │  .reingest_state/<ver>/state.json │  1. next → one (tenant,stage)
-                        │  init·next·start·done·fail·skip│   │  2. run stage ingester   │
-                        │  report·is-complete (atomic)   │──►│     (COTS env, --tenant) │
-                        └────────────────────────────────┘   │  3. Validation_Probe     │
-                                        │                     │     (MCP tools)          │
+                        ┌───────────────┴──────────────────┐   ┌──────────────────────────┐
+                        │  State_Manager reingest_state    │◄──│  Kiro CLI (this agent)   │
+                        │ .reingest_state/<ver>/state.json │   │ 1. next → one (tenant,stage)
+                        │  init·next·start·done·fail·skip  │   │  2. run stage ingester   │
+                        │  report·is-complete (atomic)     │──►│     (COTS env, --tenant) │
+                        └──────────────────────────────────┘   │  3. Validation_Probe     │
+                                        │                      │     (MCP tools)          │
                                         │ PROGRESS.md          │  4. done | fail | skip   │
-                                        ▼                     │  5. adapt+re-queue?      │
-                              human-readable mirror           │  6. STOP (one unit only) │
-                                                              └───────────┬──────────────┘
-                                                                          │ runs
-                          ┌───────────────────────────────────────────────┴───────────┐
-                          │  v8 ingesters (COTS: ChromaDB + Neo4j, mpnet768)            │
-                          │  documentation·code·jjobs·config·expdir·rocoto·shell_graph  │
-                          │  ·fortran_graph·bridge   +  reset (COTS-aware)              │
-                          │  target Collection_Version (fresh, alongside serving set)   │
-                          └─────────────────────────────────────────────────────────────┘
+                                        ▼                      │  5. adapt+re-queue?      │
+                              human-readable mirror            │  6. STOP (one unit only) │
+                                                               └───────────┬──────────────┘
+                                                                           │ runs
+                          ┌────────────────────────────────────────────────┴───────────┐
+                          │  v8 ingesters (COTS: ChromaDB + Neo4j, mpnet768)           │
+                          │  documentation·code·jjobs·config·expdir·rocoto·shell_graph │
+                          │  ·fortran_graph·bridge   +  reset (COTS-aware)             │
+                          │  target Collection_Version (fresh, alongside serving set)  │
+                          └────────────────────────────────────────────────────────────┘
 ```
 
 ## The work matrix

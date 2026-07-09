@@ -32,6 +32,39 @@ _LIFECYCLE_MODE_MAP = {
 }
 _REFUSED_LIFECYCLES = {"merged", "stale"}
 
+# ── Collection versioning (cots-reingest-ralph-loop, Requirement 1.2/4.1) ──
+# The serving collections carry no version suffix on their physical names, so
+# the default version returns names UNCHANGED — preserving current behaviour
+# byte-for-byte. A non-default version appends ``-<version>`` so a fresh,
+# isolated collection set is built alongside the serving one.
+DEFAULT_COLLECTION_VERSION = "v8-0-0"
+
+
+def resolve_collection_version(args) -> str:
+    """Resolve the target Collection_Version for an ingest run.
+
+    Precedence: ``--collection-version`` > env ``REINGEST_COLLECTION_VERSION``
+    > :data:`DEFAULT_COLLECTION_VERSION` (which preserves current serving
+    behaviour).
+    """
+    cv = getattr(args, "collection_version", None)
+    if cv:
+        return cv
+    return os.environ.get("REINGEST_COLLECTION_VERSION") or DEFAULT_COLLECTION_VERSION
+
+
+def versioned_collection_name(base: str, version: str) -> str:
+    """Return ``base`` for the default version, else ``base-<version>``.
+
+    Threads the single Collection_Version value through every target
+    collection/index name so one value drives them all (Requirement 1.2). The
+    default version is a no-op so existing collections and the serving layer's
+    ``resolve_index`` mapping are untouched (Requirement 4.1).
+    """
+    if not version or version == DEFAULT_COLLECTION_VERSION:
+        return base
+    return f"{base}-{version}"
+
 
 def derive_mode_from_lifecycle(lifecycle: str) -> str:
     """Map tenant lifecycle to default ingestion mode.
@@ -64,6 +97,9 @@ def build_ingestion_parser(description: str) -> argparse.ArgumentParser:
                    help="Delay between API calls (seconds).")
     p.add_argument("--only", nargs="*", default=None,
                    help="Only process these specific sources/files.")
+    p.add_argument("--collection-version", default=None,
+                   help="Target Collection_Version (env REINGEST_COLLECTION_VERSION). "
+                        "Default preserves current serving collection names.")
     return p
 
 
@@ -96,6 +132,34 @@ def resolve_worktree_root(tenant: "Tenant") -> Path:
     return tenant.workflow_root
 
 
+async def write_vector_doc(
+    uda,
+    raw_os_client,
+    *,
+    index: str,
+    doc_id: str,
+    content: str,
+    metadata: dict,
+    embedding,
+) -> None:
+    """Write one embedded document to the active vector backend.
+
+    AWS: index into OpenSearch via the raw client. COTS: upsert into ChromaDB
+    via the adapter (``raw_os_client`` is None there). Lets the v8 vector
+    ingesters run unchanged on either backend (cots-reingest-ralph-loop).
+    """
+    import asyncio as _asyncio
+
+    if raw_os_client is not None:
+        body = {"content": content, "metadata": metadata, "embedding": embedding}
+        await _asyncio.to_thread(raw_os_client.index, index=index, id=doc_id, body=body)
+    else:
+        await uda.vector_db.upsert_document(
+            collection=index, doc_id=doc_id, content=content,
+            metadata=metadata, embedding=embedding,
+        )
+
+
 async def build_ingestion_data_access():
     """Build and connect the data access layer for ingestion scripts.
 
@@ -115,5 +179,11 @@ async def build_ingestion_data_access():
             "vector_db is None — check OPENSEARCH_ENDPOINT env var"
         )
 
-    raw_os_client = uda.vector_db._raw_client()
+    # AWS OpenSearchAdapter exposes ``_raw_client``; the COTS ChromaDBAdapter
+    # does not (it has a collection-based API, not an OpenSearch client). On
+    # COTS return None so the graph-only ingesters (which never touch the raw
+    # client) can still connect and run; the vector ingesters remain gated on
+    # a ChromaDB write path (out of scope here). AWS behaviour is unchanged.
+    raw_client_fn = getattr(uda.vector_db, "_raw_client", None)
+    raw_os_client = raw_client_fn() if callable(raw_client_fn) else None
     return uda, raw_os_client

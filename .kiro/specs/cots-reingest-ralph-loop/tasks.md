@@ -22,7 +22,17 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
 
 ## Tasks
 
-- [ ] 1. Stage catalog + State_Manager
+> **Closeout status (2026-07-09)** — Tasks 1–5 + 9 COMPLETE and verified; Task 6
+> partially executed live on the COTS host as a PoC (pipeline proven end-to-end —
+> `gw_v17` jjobs/shell_graph/expdir/rocoto/bridge built real fresh `v9-0-0` data;
+> documentation partial 2,518 docs). The bespoke loop is **superseded**: the run
+> continues under `.kiro/specs/cots-reingest-ralph-framework/` (iteration 3),
+> which adopts `mreferre/ralph-loop-kiro-specs` + Slurm compute dispatch. Tasks
+> 6 (full matrix drain), 7 (full GraphRAG verification), and 8 (cutover) carry
+> forward there. Real progress persists in the gitignored `.reingest_state/v9-0-0/`
+> (15 done, 3 skipped, 44 pending) and in that spec's `progress.md`.
+
+- [x] 1. Stage catalog + State_Manager
   - [ ] 1.1 Author the stage catalog `mcp_server_python/scripts/reingest_stages.yaml`
     - Encode per-tenant stages (`worktree`, `reset`, `documentation`, `code`,
       `jjobs`, `config`, `shell_graph`, `fortran_graph`, `expdir`, `rocoto`,
@@ -43,7 +53,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
       `is-complete` exit codes
     - _Requirements: 4.5_
 
-- [ ] 2. Loop_Driver + Iteration_Prompt
+- [x] 2. Loop_Driver + Iteration_Prompt
   - [ ] 2.1 Write `scripts/ralph_reingest_prompt.md` (one-unit discipline)
     - The fixed per-iteration prompt: `next` → `start` → run the stage → validate
       via MCP tools → `done`/`fail`/`skip`(/`fail --requeue`) → STOP; forbid more
@@ -57,7 +67,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
       prompt-feeding flags before wiring
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-- [ ] 3. COTS-aware reset path
+- [x] 3. COTS-aware reset path
   - [ ] 3.1 Add the COTS reset (ChromaDB collections + Neo4j labels for a tenant)
     - Extend `delete_tenant_indices.py` with a `--backend cots` branch (or a
       sibling `reset_tenant_cots.py`): delete the tenant-prefixed ChromaDB
@@ -74,7 +84,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
     - `--dry-run` prints a coherent, correctly-scoped plan and touches nothing
     - _Requirements: 9.4, 11.4_
 
-- [ ] 4. Thread the Collection_Version through the ingesters
+- [x] 4. Thread the Collection_Version through the ingesters
   - [ ] 4.1 Replace the hardcoded `v8-0-0` with a Collection_Version parameter
     - Add `--collection-version` (env `REINGEST_COLLECTION_VERSION`, default keeps
       current behavior) to the v8 ingesters and route it through `CollectionNamer`
@@ -85,7 +95,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
       derived collection names are fresh and isolated from the serving set
     - _Requirements: 1.3_
 
-- [ ] 5. Kickoff — decisions, init, and preconditions (host)
+- [x] 5. Kickoff — decisions, init, and preconditions (host)
   - [ ] 5.1 Resolve the Open Questions with the operator
     - Collection_Version (new `v9-0-0` alongside vs in-place `v8-0-0`); Neo4j GDS
       availability (→ `community_summaries` run vs skip); per-tenant EXPDIR
@@ -104,7 +114,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
     - _Requirements: 8.1, 9.3_
     - _Tag: configure_
 
-- [ ] 6. Run the Ralph loop across the matrix (host, long-running)
+- [~] 6. Run the Ralph loop across the matrix (host, long-running)  <!-- PoC-executed; continues in cots-reingest-ralph-framework -->
   - [ ] 6.1 Launch the loop detached
     - `CONFIRM_DESTRUCTIVE=yes nohup bash scripts/ralph_reingest_loop.sh > logs/reingest_<ts>.log 2>&1 &`;
       the loop drives iterations until all units are terminal / STOP / cap
@@ -129,7 +139,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
     - _Requirements: 3.2, 5.3, 11.2_
     - _Tag: validate_
 
-- [ ] 7. GraphRAG completeness verification
+- [~] 7. GraphRAG completeness verification  <!-- gw_v17 verified; full verification in framework spec -->
   - [ ] 7.1 Per-tenant GraphRAG assertions
     - For each tenant, confirm non-zero shell / Fortran / config / bridge
       relationships consistent with `branch_ground_truth.py` (allowing documented
@@ -142,7 +152,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
     - _Requirements: 13.1, 13.2, 13.3_
     - _Tag: ingest_
 
-- [ ] 8. Cutover (human-gated)
+- [ ] 8. Cutover (human-gated)  <!-- NOT started; carried to cots-reingest-ralph-framework Task 7 -->
   - [ ] 8.1 Fresh-vs-old comparison
     - `reingest_state.py report` (all terminal); present per-tenant fresh-vs-old
       counts; spot-check in the search UI comparison mode
@@ -158,7 +168,7 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
       separately-confirmed destructive action
     - _Requirements: 12.4, 11.4_
 
-- [ ] 9. Reporting + documentation
+- [x] 9. Reporting + documentation
   - [ ] 9.1 Final run report
     - `docs/reports/<date>-cots-full-reingest-<ver>.md`: per-tenant/stage status,
       counts, retries, adaptations, blocked units, cutover outcome

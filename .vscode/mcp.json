@@ -15,13 +15,13 @@
         // "MCP_DEFAULT_TENANT": "gw",
         // "GITHUB_TOKEN": "<pat>"
       }
-    },
-    "eib-mcp-gateway": {
-      "type": "http",
-      "url": "https://wj9z45s5-18888.use.devtunnels.ms/mcp",
-      "headers": {
-        "Authorization": "Bearer eib-mcp-gateway-token-2025"
-      }
     }
+    // "eib-mcp-gateway": {
+    //   "type": "http",
+    //   "url": "https://wj9z45s5-18888.use.devtunnels.ms/mcp",
+    //   "headers": {
+    //     "Authorization": "Bearer eib-mcp-gateway-token-2025"
+    //   }
+    // }
   }
 }

@@ -22,8 +22,11 @@ from _ingest_common import (
     COLLECTION_CONFIG,
     build_ingestion_data_access,
     build_ingestion_parser,
+    resolve_collection_version,
     resolve_tenant_and_mode,
     resolve_worktree_root,
+    versioned_collection_name,
+    write_vector_doc,
 )
 from _ingest_cost_model import IngestionReportWriter
 from _ingest_dedupe import SHAIndex
@@ -209,7 +212,10 @@ async def main() -> int:
 
     graph_db = uda.graph_db
     sha_index = SHAIndex(client=raw_os_client)
-    index_name = f"{tenant.index_prefix}mdc-code-titan1024"
+    collection_version = resolve_collection_version(args)
+    index_name = versioned_collection_name(
+        f"{tenant.index_prefix}mdc-code-titan1024", collection_version)
+    print(f"[INFO] collection_version={collection_version} index={index_name}")
     report = IngestionReportWriter(tenant.tenant_id, tenant.branch, mode)
 
     for cfg in configs:
@@ -237,9 +243,11 @@ async def main() -> int:
                 content = _build_context_header(cfg, parsed) + parsed['raw_content']
                 embedding = await uda.vector_db._generate_embedding(content[:8000])
                 doc_id = f"config_{sha[:12]}"
-                await _write_os_document(raw_os_client, index_name, doc_id,
-                                         content, embedding,
-                                         _build_os_metadata(cfg, parsed, tenant))
+                await write_vector_doc(
+                    uda, raw_os_client, index=index_name, doc_id=doc_id,
+                    content=content[:8000], embedding=embedding,
+                    metadata=_build_os_metadata(cfg, parsed, tenant),
+                )
                 await sha_index.register(sha, collection=COLLECTION_CONFIG,
                                          tenant=tenant, index=index_name,
                                          doc_id=doc_id)

@@ -238,6 +238,58 @@ class ChromaDBAdapter(VectorDBProtocol):
         self._client = None
         self._connected = False
 
+    # ── ingestion write path (cots-reingest-ralph-loop) ────────────────
+
+    @staticmethod
+    def _sanitize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+        """Flatten metadata to ChromaDB-legal scalars (str/int/float/bool).
+
+        Nested dicts/lists are JSON-encoded; None values are dropped.
+        ChromaDB rejects non-scalar or null metadata values.
+        """
+        import json as _json
+
+        out: dict[str, Any] = {}
+        for key, value in (metadata or {}).items():
+            if value is None:
+                continue
+            if isinstance(value, (str, int, float, bool)):
+                out[key] = value
+            else:
+                out[key] = _json.dumps(value)
+        return out
+
+    async def upsert_document(
+        self,
+        *,
+        collection: str,
+        doc_id: str,
+        content: str,
+        metadata: dict[str, Any] | None,
+        embedding: list[float],
+    ) -> None:
+        """Upsert one precomputed-embedding document into a ChromaDB collection.
+
+        Idempotent by ``doc_id`` (content-addressed SHA id from the ingesters).
+        The collection is created on first write; the embedding dimension is
+        fixed by the first vector. Always writes with an explicit embedding, so
+        the collection's default embedding function is never invoked.
+        """
+        if not self._connected:
+            await self.connect()
+
+        def _do() -> None:
+            assert self._client is not None
+            coll = self._client.get_or_create_collection(collection)
+            coll.upsert(
+                ids=[doc_id],
+                embeddings=[list(embedding)],
+                documents=[content],
+                metadatas=[self._sanitize_metadata(metadata)],
+            )
+
+        await asyncio.to_thread(_do)
+
     # ── internals ──────────────────────────────────────────────────────
 
     async def _generate_embedding(self, query_text: str) -> list[float]:

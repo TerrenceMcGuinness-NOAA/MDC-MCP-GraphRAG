@@ -19,8 +19,11 @@ from _ingest_common import (
     COLLECTION_JJOBS,
     build_ingestion_data_access,
     build_ingestion_parser,
+    resolve_collection_version,
     resolve_tenant_and_mode,
     resolve_worktree_root,
+    versioned_collection_name,
+    write_vector_doc,
 )
 from _ingest_cost_model import IngestionReportWriter
 from _ingest_dedupe import SHAIndex, make_reference_document
@@ -59,8 +62,11 @@ async def main() -> int:
         return 1
 
     sha_index = SHAIndex(client=raw_os_client)
-    index_name = f"{tenant.index_prefix}mdc-jjobs-titan1024"
+    collection_version = resolve_collection_version(args)
+    index_name = versioned_collection_name(
+        f"{tenant.index_prefix}mdc-jjobs-titan1024", collection_version)
     label = f"{tenant.label_prefix}JJob"
+    print(f"[INFO] collection_version={collection_version} index={index_name}")
 
     files = [p for p in jobs_dir.rglob("*") if p.is_file() and ".git" not in p.parts] \
         if jobs_dir.is_dir() else []
@@ -97,17 +103,14 @@ async def main() -> int:
                 embedding = await uda.vector_db._generate_embedding(truncated)
 
                 doc_id = f"jjob_{sha[:12]}"
-                doc_body = {
-                    "content": truncated,
-                    "metadata": {
-                        "tenant_id": tenant.tenant_id,
-                        "source": str(path),
-                        "content_sha256": sha,
-                    },
-                    "embedding": embedding,
+                doc_meta = {
+                    "tenant_id": tenant.tenant_id,
+                    "source": str(path),
+                    "content_sha256": sha,
                 }
-                await asyncio.to_thread(
-                    raw_os_client.index, index=index_name, id=doc_id, body=doc_body,
+                await write_vector_doc(
+                    uda, raw_os_client, index=index_name, doc_id=doc_id,
+                    content=truncated, metadata=doc_meta, embedding=embedding,
                 )
                 report.increment("bedrock_invocations")
                 report.increment("estimated_tokens", len(truncated) // 4)
@@ -121,11 +124,13 @@ async def main() -> int:
             # ALWAYS model the graph — independent of the embedding/dedupe decision
             cypher = (
                 f"MERGE (n:`{label}` {{name: $name, path: $path}}) "
-                f"SET n.tenant_id = $tenant_id, n.sha256 = $sha"
+                f"SET n.tenant_id = $tenant_id, n.sha256 = $sha, "
+                f"n.collection_version = $cv"
             )
             await uda.graph_db.query(cypher, params={
                 "name": path.stem, "path": str(path),
                 "tenant_id": tenant.tenant_id, "sha": sha,
+                "cv": collection_version,
             })
             report.increment(f"nodes:{label}")
 

@@ -1,5 +1,138 @@
 # MCP Server Changelog
 
+## [Unreleased] - COTS Re-Ingest: PoC live run + pivot to Ralph-Loop framework (Jul 9, 2026)
+
+### Summary
+Executed the `cots-reingest-ralph-loop` orchestration live on the COTS host as a
+PoC (operator-authorized, risk-accepted), **proving the fresh `v9-0-0` vector +
+GraphRAG pipeline end-to-end**, then pivoted the remaining multi-hour work to a
+new third spec that adopts the community **`mreferre/ralph-loop-kiro-specs`**
+framework and **Slurm** compute dispatch. Work pauses here to resume tomorrow.
+
+### Added
+- **New spec** `.kiro/specs/cots-reingest-ralph-framework/`
+  (`requirements.md`, `design.md`, `tasks.md`, `progress.md`, `.config.kiro`):
+  adopt `mreferre/ralph-loop-kiro-specs` (Apache-2.0) as the loop driver; keep
+  `reingest_state.py` as the `(tenant, stage)` DAG backend; dispatch heavy stages
+  (documentation/code embedding, Fortran parse) to the **Slurm minicluster**
+  (`emcmcpminicluster`, 8×4-CPU cloud-burst nodes, Slurm 23.11.9, GPU-optional).
+  `progress.md` is pre-seeded with a Corrections table capturing every PoC gotcha.
+
+### Changed (PoC code fixes — enable COTS ingest; staged)
+- `mcp_server_python/src/data/chromadb_adapter.py` — added `upsert_document`
+  (+ metadata sanitizer): precomputed-embedding writes to COTS ChromaDB.
+- `mcp_server_python/scripts/_ingest_common.py` — added `write_vector_doc`
+  (backend-agnostic: OpenSearch `index` on AWS, ChromaDB `upsert` on COTS) and
+  made `build_ingestion_data_access` COTS-tolerant (`raw_os_client=None` when the
+  vector adapter has no `_raw_client`). AWS behaviour unchanged.
+- `ingest_{documentation,code,jjobs,config_files}_v8.py` — route the doc write
+  through `write_vector_doc` so vector ingest works on COTS.
+- `reset_tenant_cots.py` — **safe default**: fresh (alongside) version now does
+  **version-scoped** graph deletes (never wipes the serving graph); added
+  `--full-prefix-wipe` for the explicit in-place case.
+- `scripts/ralph_reingest_prompt.md` — validation now uses **direct ChromaDB/Neo4j**
+  on COTS (the `agentcore-mcp-rag` MCP targets AWS).
+- `.kiro/specs/cots-reingest-ralph-loop/tasks.md` — closeout status: Tasks 1–5,9
+  complete; 6–8 carried to the framework spec.
+
+### Live PoC results (verified on COTS; state in gitignored `.reingest_state/v9-0-0/`)
+- `worktree`×5 (worktrees mounted via `sudo chown` + `setup_pw_workflow_mount.sh`;
+  sorc: develop/sfs/jedi/v17 ≈29k, gefs-v12 265) + version-scoped no-op `reset`×5
+  (0 nodes deleted — serving graph untouched).
+- **gw_v17 fresh v9-0-0**: `jjobs` → 92 docs in
+  `gw_v17_mdc-jjobs-titan1024-v9-0-0` + 92 `GW_V17_JJob` stamped `v9-0-0`;
+  `shell_graph` → 1,479 SOURCES / 6,069 EXPORTS / 21,005 DEPENDS_ON_ENV;
+  `expdir` → 1,582 `GW_V17_EXPDIRConfig`; `rocoto` → 724 `GW_V17_RocotoTask`;
+  `bridge` → 12 `EXECUTES`; `documentation` → 2,518 docs (partial, 20-min cap).
+- Environment facts: ChromaDB 15 live collections; Neo4j 343,363 nodes /
+  4,220,211 rels; GDS 2.13.7 present; `mpnet768` embeddings functional (768-dim).
+
+### Resume tomorrow (persistence)
+1. Continue under `.kiro/specs/cots-reingest-ralph-framework/` (see its `tasks.md`).
+2. Vendor the framework (Task 1), productize graph version-stamp + naming
+   reconcile (Task 2), add Slurm `sbatch` dispatch + verify compute→head-node DB
+   reachability (Task 3), then drain the matrix (Task 5) — heavy stages to Slurm.
+3. PoC progress is durable in `.reingest_state/v9-0-0/` (15 done / 3 skipped /
+   44 pending) and mirrored in the framework spec's `progress.md`.
+4. Nothing committed — 14+ files staged for review (git policy 08, human-gated).
+
+## [Unreleased] - COTS Full Re-Ingest via Ralph Loop (Jul 8, 2026)
+
+### Summary
+Added the orchestration layer for a resumable, self-continuing **Ralph loop**
+that re-ingests a fresh, version-tagged RAG collection (vector + GraphRAG) across
+all five tenants on the Parallel Works COTS host (ChromaDB + Neo4j,
+`DB_BACKEND=cots`, `mpnet768`). Each iteration does exactly one `(tenant, stage)`
+unit — run → validate → adapt → record → stop — checkpointing to a durable state
+file so a multi-hour run survives disconnects. Spec:
+`.kiro/specs/cots-reingest-ralph-loop/`. Recommended Collection_Version `v9-0-0`
+(built alongside the serving `v8-0-0`; cutover is a separate human step).
+
+### Added
+- `mcp_server_python/scripts/reingest_stages.yaml` — stage catalog (12 per-tenant
+  + 2 global stages; `order`/`kind`/`depends_on`/`destructive`/`optional`/`probe`/
+  `source_precondition`).
+- `mcp_server_python/scripts/reingest_state.py` — **State_Manager** CLI
+  (`init`/`next`/`start`/`done`/`fail`/`skip`/`report`/`is-complete`): atomic
+  temp-file + `os.replace` writes, `PROGRESS.md` mirror, `depends_on` terminality
+  + attempt-cap gating in `next`, `fail`→`failed`→`blocked` at cap, `fail
+  --requeue` (no attempt penalty for a systematic fix), idempotent `init` that
+  preserves statuses/adds new tenants/warns on catalog+stages SHA drift. State at
+  `.reingest_state/<version>/state.json` (gitignored).
+- `mcp_server_python/tests/unit/test_reingest_state.py` — 16 unit tests (all pass).
+- `scripts/ralph_reingest_prompt.md` — fixed one-unit-per-iteration Iteration_Prompt.
+- `scripts/ralph_reingest_loop.sh` — bounded, detached (`nohup`), resumable
+  Loop_Driver (STOP file, per-iteration `timeout`, `MAX_ITERATIONS`, continue on
+  non-zero, final `report`). Confirmed headless invocation:
+  `kiro-cli chat --no-interactive --trust-all-tools --agent <agent> "<prompt>"`.
+- `mcp_server_python/scripts/reset_tenant_cots.py` — COTS-aware tenant reset
+  (ChromaDB collections + Neo4j nodes) scoped to a Collection_Version via the same
+  naming helper the ingesters use; `CONFIRM_DESTRUCTIVE=yes` + `--dry-run` guards;
+  pre-reset ChromaDB snapshot + Neo4j dump hook; refuses in-place rebuild of the
+  empty-prefix `gw` baseline; idempotent.
+- `docs/reports/2026-07-08-cots-full-reingest-v9-0-0.md` — build/kickoff report,
+  resolved Open Questions, runbook, and the operator-gated boundary.
+
+### Changed
+- `mcp_server_python/scripts/_ingest_common.py` — added `DEFAULT_COLLECTION_VERSION`
+  (`v8-0-0`), `resolve_collection_version` (flag > env `REINGEST_COLLECTION_VERSION`
+  > default), `versioned_collection_name` (default → name unchanged; else
+  `base-<version>`), and a `--collection-version` flag on the shared ingestion
+  parser. **Default behaviour is byte-for-byte preserved.**
+- `ingest_documentation_v8.py`, `ingest_code_v8.py`, `ingest_jjobs_v8.py`,
+  `ingest_config_files_v8.py` — target index/collection names now derive from the
+  Collection_Version; `ingest_code_v8`/`ingest_jjobs_v8` also stamp graph nodes
+  with `n.collection_version` (enables version-scoped graph reset for `gw`).
+- `.gitignore` — ignore `.reingest_state/` (mirrors `.remediation_state/`).
+- `_ingest_common.build_ingestion_data_access` — **COTS-tolerant**: returns
+  `raw_os_client=None` when the vector adapter has no `_raw_client` (ChromaDB), so
+  the graph-only ingesters can connect on `DB_BACKEND=cots`. AWS unchanged.
+- `reset_tenant_cots.py` — **safe default**: for a fresh (alongside) version, graph
+  deletes are now **version-scoped** (only `collection_version=<ver>` nodes) so a
+  non-`gw` reset never wipes the serving graph; added `--full-prefix-wipe` for the
+  explicit in-place case.
+
+### Verified
+- `pytest tests/unit/test_reingest_state.py` → 16 passed; ingester regression
+  suite (32 tests) still passes. Live COTS dry-runs of `reset_tenant_cots.py`
+  proved all four guards. Real state initialized (62 units), idempotent re-init.
+
+### Live run (2026-07-09, COTS)
+- Executed the **safe prefix** of the loop: `worktree` ×5 (all worktrees mounted
+  via `sudo chown` + `setup_pw_workflow_mount.sh`) + real version-scoped **no-op**
+  `reset` ×5 (0 nodes deleted; serving graph untouched) = 10 units done; remaining
+  52 units skipped with precise blocker reasons; `is-complete`=0.
+- Report: `docs/reports/2026-07-08-cots-full-reingest-v9-0-0.md`.
+
+### Known blockers (Tasks 6–8, need a follow-up spec)
+- COTS stores hold LIVE serving data (Neo4j 343k nodes/4.2M rels; 15 ChromaDB
+  collections). **Vector** ingest is blocked: `ChromaDBAdapter` has no `_raw_client`
+  (proven: `gw_v17:documentation` wrote 0 docs) + the `mpnet768` provider is
+  non-functional. **Graph** ingest is blocked for a safe alongside build: the graph
+  ingesters do not version-stamp, so running them would MERGE into serving labels
+  (Req 1.3). Both are out of scope here (Req 14.4). Cutover (Task 8) is NOT READY
+  (fresh v9-0-0 = 0 collections/0 graph nodes) and remains human-gated.
+
 ## [Unreleased] - Phase 67 — supported_repos Rename Path Conformance (Jul 8, 2026)
 
 ### Summary

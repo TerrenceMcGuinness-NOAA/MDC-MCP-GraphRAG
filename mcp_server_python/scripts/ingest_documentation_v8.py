@@ -20,8 +20,11 @@ from _ingest_common import (
     COLLECTION_DOCUMENTATION,
     build_ingestion_data_access,
     build_ingestion_parser,
+    resolve_collection_version,
     resolve_tenant_and_mode,
     resolve_worktree_root,
+    versioned_collection_name,
+    write_vector_doc,
 )
 from _ingest_cost_model import IngestionReportWriter
 from _ingest_dedupe import SHAIndex, make_reference_document
@@ -57,7 +60,10 @@ async def main() -> int:
         return 1
 
     sha_index = SHAIndex(client=raw_os_client)
-    index_name = f"{tenant.index_prefix}mdc-workflow-docs-titan1024"
+    collection_version = resolve_collection_version(args)
+    index_name = versioned_collection_name(
+        f"{tenant.index_prefix}mdc-workflow-docs-titan1024", collection_version)
+    print(f"[INFO] collection_version={collection_version} index={index_name}")
 
     # File enumeration
     files = list(files_for_diff(worktree_root) if mode == "diff"
@@ -98,17 +104,14 @@ async def main() -> int:
                 embedding = await uda.vector_db._generate_embedding(truncated)
 
                 doc_id = f"doc_{sha[:12]}"
-                doc_body = {
-                    "content": truncated,
-                    "metadata": {
-                        "tenant_id": tenant.tenant_id,
-                        "source": str(path),
-                        "content_sha256": sha,
-                    },
-                    "embedding": embedding,
+                doc_meta = {
+                    "tenant_id": tenant.tenant_id,
+                    "source": str(path),
+                    "content_sha256": sha,
                 }
-                await asyncio.to_thread(
-                    raw_os_client.index, index=index_name, id=doc_id, body=doc_body,
+                await write_vector_doc(
+                    uda, raw_os_client, index=index_name, doc_id=doc_id,
+                    content=truncated, metadata=doc_meta, embedding=embedding,
                 )
                 report.increment("bedrock_invocations")
                 report.increment("estimated_tokens", len(truncated) // 4)

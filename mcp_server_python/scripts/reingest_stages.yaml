@@ -1,0 +1,242 @@
+# reingest_stages.yaml — stage catalog for the COTS full re-ingest Ralph loop.
+#
+# Spec: .kiro/specs/cots-reingest-ralph-loop/ (Task 1.1).
+# Consumed by: reingest_state.py (State_Manager) to build the Work_Matrix
+#   (Tenant_Catalog x per_tenant_stages + global_stages).
+#
+# Each stage is a Reingest_Unit template. The State_Manager stamps the
+# per-tenant fields (tenant_id, branch, workflow_subdir, label_prefix,
+# index_prefix, lifecycle, mode) onto each unit so a unit is self-describing
+# without re-reading the catalog (Requirement 2.2).
+#
+# Field reference
+# ---------------
+#   name                Stage token (1:1 with an ingester or probe).
+#   order               Sort key for State_Manager `next` selection (lower
+#                       runs first). worktree/reset sort earliest.
+#   kind                prep | destructive | vector | dual | graph | validate
+#                       (drives which Validation_Probe the iteration runs and
+#                        whether --mode / --collection-version are passed).
+#   script              Executable the iteration invokes. `null` means the
+#                       stage is handled inline by the iteration prompt (e.g.
+#                       `validate` calls MCP tools, not a script).
+#   depends_on          Same-tenant stage names that MUST be terminal
+#                       (done/skipped) before this unit is actionable
+#                       (Requirement 8.6). Enforced by `reingest_state.py next`.
+#   destructive         true => requires CONFIRM_DESTRUCTIVE=yes (Requirement 11.4).
+#   optional            true => failure/absence does not block run completion
+#                       (Requirement 13.1 — community_summaries).
+#   probe               Validation_Probe selector (Requirement 10):
+#                         none | vector | dual | graph_shell | graph_fortran
+#                         | graph_expdir | graph_rocoto | graph_bridge | integrity
+#   source_precondition Human description + optional machine `check`
+#                       {path (relative to workflow_root), min_files}. When the
+#                       precondition is unmet the iteration marks the unit
+#                       `skipped` with a reason (Requirement 7.4). Where the
+#                       check is not a simple sub-path (e.g. EXPDIR lives outside
+#                       the tenant tree) `check` is null and the iteration
+#                       evaluates the description.
+
+schema_version: 1
+
+# Default per-unit retry cap; overridable via `reingest_state.py init --attempt-cap`.
+attempt_cap_default: 3
+
+# ---------------------------------------------------------------------------
+# Per-tenant stages (Tenant_Catalog x these). Ordered; depends_on is scoped to
+# the SAME tenant.
+# ---------------------------------------------------------------------------
+per_tenant_stages:
+  - name: worktree
+    order: 10
+    kind: prep
+    script: setup_pw_workflow_mount.sh
+    depends_on: []
+    destructive: false
+    optional: false
+    probe: none
+    source_precondition: null
+
+  - name: reset
+    order: 20
+    kind: destructive
+    script: reset_tenant_cots.py
+    depends_on: [worktree]
+    destructive: true
+    optional: false
+    probe: none
+    source_precondition: null
+
+  - name: documentation
+    order: 30
+    kind: vector
+    script: ingest_documentation_v8.py
+    depends_on: [reset]
+    destructive: false
+    optional: false
+    probe: vector
+    source_precondition:
+      description: "documentation files present under the tenant worktree (docs/ or repo-local markdown)"
+      check:
+        path: docs
+        min_files: 1
+
+  - name: code
+    order: 40
+    kind: vector
+    script: ingest_code_v8.py
+    depends_on: [reset]
+    destructive: false
+    optional: false
+    probe: vector
+    source_precondition:
+      description: "tenant source tree present"
+      check:
+        path: .
+        min_files: 1
+
+  - name: jjobs
+    order: 50
+    kind: vector
+    script: ingest_jjobs_v8.py
+    depends_on: [reset]
+    destructive: false
+    optional: false
+    probe: vector
+    source_precondition:
+      description: "J-Job scripts present under dev/jobs/ or jobs/"
+      check:
+        path: jobs
+        min_files: 1
+
+  - name: config
+    order: 60
+    kind: dual
+    script: ingest_config_files_v8.py
+    depends_on: [reset]
+    destructive: false
+    optional: false
+    probe: dual
+    source_precondition:
+      description: "parm/config/{gfs,gefs,gcafs,sfs} present"
+      check:
+        path: parm/config
+        min_files: 1
+
+  - name: shell_graph
+    order: 70
+    kind: graph
+    script: ingest_shell_graph_v8.py
+    depends_on: [reset]
+    destructive: false
+    optional: false
+    probe: graph_shell
+    source_precondition:
+      description: "shell scripts present (ush/ scripts/ jobs/)"
+      check:
+        path: ush
+        min_files: 1
+
+  - name: fortran_graph
+    order: 80
+    kind: graph
+    script: ingest_fortran_graph_v8.py
+    depends_on: [reset]
+    destructive: false
+    optional: false
+    probe: graph_fortran
+    source_precondition:
+      description: "sorc/ submodules initialized (>1000 files); else skip (bridge degrades to shell-only)"
+      check:
+        path: sorc
+        min_files: 1000
+
+  - name: expdir
+    order: 90
+    kind: graph
+    script: ingest_expdir_configs_v8.py
+    depends_on: [reset]
+    destructive: false
+    optional: false
+    probe: graph_expdir
+    source_precondition:
+      description: "materialized supported_repos/EXPDIR* tree for this tenant; check null (EXPDIR lives outside workflow_root, iteration evaluates)"
+      check: null
+
+  - name: rocoto
+    order: 100
+    kind: graph
+    script: ingest_rocoto_xml_v8.py
+    depends_on: [config, shell_graph, expdir]
+    destructive: false
+    optional: false
+    probe: graph_rocoto
+    source_precondition:
+      description: "EXPDIR *.xml Rocoto definitions present; check null (reads EXPDIR outside workflow_root)"
+      check: null
+
+  - name: bridge
+    order: 110
+    kind: graph
+    script: create_shell_fortran_bridge.py
+    depends_on: [shell_graph, fortran_graph]
+    destructive: false
+    optional: false
+    probe: graph_bridge
+    source_precondition: null
+
+  - name: validate
+    order: 200
+    kind: validate
+    script: null
+    depends_on:
+      - documentation
+      - code
+      - jjobs
+      - config
+      - shell_graph
+      - fortran_graph
+      - expdir
+      - rocoto
+      - bridge
+    destructive: false
+    optional: false
+    probe: integrity
+    source_precondition: null
+
+# ---------------------------------------------------------------------------
+# Global stages (run once, NOT per-tenant). tenant_id == "__global__".
+# ---------------------------------------------------------------------------
+global_stages:
+  - name: ee2_standards
+    order: 300
+    kind: vector
+    # No v8 Python EE2 ingester exists yet; the Node-era precedent is
+    # mcp_server_node/scripts/ingest_ee2_v7.py. Branch-agnostic NCO/EE2
+    # standards from supported_repos/nws-hpc-standards, ingested once into the
+    # shared (NOT tenant-prefixed) collection. Confirm the runnable script at
+    # kickoff; skip if unavailable on COTS.
+    script: ingest_ee2_v7.py
+    depends_on: []
+    destructive: false
+    optional: false
+    probe: vector
+    source_precondition:
+      description: "supported_repos/nws-hpc-standards present; check null (outside any tenant worktree)"
+      check: null
+
+  - name: community_summaries
+    order: 310
+    kind: graph
+    # Gap J: Neo4j GDS Leiden + Node-only pipeline (mcp_server_node/). Optional
+    # and non-blocking (Requirement 13). Skipped with the Gap-J rationale where
+    # GDS is unavailable on the COTS Neo4j Community instance or the Python port
+    # does not exist. See .kiro/steering/12-multi-tenant-gap-tracker.md Gap J.
+    script: null
+    depends_on: []
+    destructive: false
+    optional: true
+    probe: none
+    source_precondition:
+      description: "Neo4j GDS plugin present on COTS + a runnable community-detection pipeline; otherwise skip (Gap J)"
+      check: null

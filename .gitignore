@@ -16,6 +16,9 @@ logs/
 # Operator-run remediation checkpoints (runtime state, not source)
 .remediation_state/
 
+# COTS re-ingest Ralph-loop run state (runtime state, not source; cots-reingest-ralph-loop)
+.reingest_state/
+
 # Parallel Works workflow-mount symlink farm (machine-local; Phase 61)
 .pw_workflow_mount/
 
