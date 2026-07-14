@@ -66,7 +66,24 @@ The existing drift tooling does not cover this case:
 - Standalone spec vs folding this into `cots-reingest-ralph-framework` as an
   added requirement.
 
-## 4. Notes
+## 4. Tasks
+
+- [ ] 1. AWS-parity verification of the Phase 68 tool/data-model fixes
+  - Run `mcp_health_check --deep --functional`, `check_knowledge_integrity`, and
+    `get_knowledge_base_status` against the live AWS `agentcore-mcp-rag`
+    (`DB_BACKEND=aws`, OpenSearch + Neptune) and compare to the COTS baseline.
+  - Confirm whether the AWS Python serving path exhibits the same class of bugs
+    the Phase 68 changes fixed on COTS — the `check_knowledge_integrity`
+    Coverage-Gap / Stale-Embeddings `[SKIP]`s (path-leak) and the false
+    `Total Documents: 0` / `Unhealthy` KB-status classification — since those
+    fixes live in backend-agnostic tool code (`src/tools/semantic_search.py`).
+  - Grep the AWS-side paths for any `SourceEntry` construction that omits the now
+    **required** `scope` field (manifest schema change) before an AWS deploy.
+  - Record which Phase 68 fixes actually close AWS gaps (vs COTS-only) in the run
+    report; feed genuine AWS gaps into their own spec/phase.
+  - _Verification only — no AWS serving (`resolve_index`/`aws_config.py`) change._
+
+## 5. Notes
 
 - Requirement captured 2026-07-14 during the Phase 68 check-in review (the
   `global-workflow_develop` submodule surfaced as `-dirty`, same SHA
