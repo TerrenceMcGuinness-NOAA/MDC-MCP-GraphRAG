@@ -55,10 +55,19 @@ class TestResolveExpdirBase:
         monkeypatch.setenv("MCP_EXPDIR_BASE_OVERRIDE", str(tmp_path))
         assert resolve_expdir_base(FakeTenant()) == tmp_path
 
-    def test_default_supported_repos(self, monkeypatch):
+    def test_default_tenant_derived(self, monkeypatch):
+        # Task 9.2 / R15.3: resolve_expdir_base is now TENANT-DERIVED. FakeTenant
+        # is gw_v17 → supported_repos/EXPDIR_v17 (when materialized); an unmapped
+        # tenant → None (skip signal), never another tenant's tree.
         monkeypatch.delenv("MCP_EXPDIR_BASE_OVERRIDE", raising=False)
-        base = resolve_expdir_base(FakeTenant())
-        assert base.parts[-2:] == ("supported_repos", "EXPDIR")
+        base = resolve_expdir_base(FakeTenant())  # tenant_id == "gw_v17"
+        if base is not None:
+            assert base.parts[-2:] == ("supported_repos", "EXPDIR_v17")
+
+        class _Unmapped:
+            tenant_id = "gw_sfs"
+
+        assert resolve_expdir_base(_Unmapped()) is None
 
 
 class TestDiscoverExperiments:

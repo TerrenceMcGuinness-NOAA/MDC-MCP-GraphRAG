@@ -32,16 +32,40 @@ VERSION = "8.0.0"
 HASH_SUFFIX = re.compile(r'_[0-9a-f]{6,12}-[0-9a-f]{3,6}$')
 _RESOLUTION = re.compile(r'(C\d+)')
 
+# EXPDIR is REALTIME, runtime-materialized experiment data (resolved config.* +
+# Rocoto XML produced by setup_expt), tenant-LOCALIZED — materialized only for a
+# subset of tenants. The per-tenant base is the runtime EXPDIR tree, NOT the repo
+# parm/config. Confirmed against COTS 2026-07-10 (rag-data-plane-gap-closure R15):
+#   gw      → supported_repos/EXPDIR       (17 experiment dirs)
+#   gw_v17  → supported_repos/EXPDIR_v17   (9 experiment dirs)
+# Any tenant not listed has no materialized EXPDIR → resolve returns None so the
+# expdir/rocoto stages SKIP (never fall back to another tenant's tree).
+_EXPDIR_TENANT_DIRNAME: dict[str, str] = {
+    "gw": "EXPDIR",
+    "gw_v17": "EXPDIR_v17",
+}
 
-def resolve_expdir_base(tenant) -> Path:
-    """Resolve the EXPDIR artifacts base, respecting MCP_EXPDIR_BASE_OVERRIDE.
 
-    Default (local): supported_repos/EXPDIR/ under the repo root.
+def resolve_expdir_base(tenant) -> Path | None:
+    """Resolve the tenant's realtime EXPDIR base, or None when absent.
+
+    Precedence: ``MCP_EXPDIR_BASE_OVERRIDE`` (explicit per-run override, wins for
+    any tenant) > the per-tenant mapping (:data:`_EXPDIR_TENANT_DIRNAME`). Returns
+    ``None`` — signalling "no materialized EXPDIR, skip" — when the tenant has no
+    mapping or its mapped tree is absent on disk. NEVER falls back to another
+    tenant's EXPDIR tree (R15.3, R15.4).
     """
     override = os.environ.get("MCP_EXPDIR_BASE_OVERRIDE")
     if override:
-        return Path(override)
-    return Path(__file__).parents[2] / "supported_repos" / "EXPDIR"
+        base = Path(override)
+        return base if base.is_dir() else None
+
+    tenant_id = getattr(tenant, "tenant_id", None)
+    dirname = _EXPDIR_TENANT_DIRNAME.get(tenant_id)
+    if dirname is None:
+        return None
+    base = Path(__file__).parents[2] / "supported_repos" / dirname
+    return base if base.is_dir() else None
 
 
 def discover_experiments(expdir_base: Path, experiment_filter: str | None = None
@@ -181,6 +205,13 @@ async def main() -> int:
     tenant, mode = resolve_tenant_and_mode(args, catalog)
     prefix = tenant.label_prefix
     expdir_base = resolve_expdir_base(tenant)
+
+    if expdir_base is None:
+        # No materialized EXPDIR for this tenant — SKIP (not fail). EXPDIR is
+        # tenant-localized (gw + gw_v17 today); never use another tenant's tree.
+        print(f"[SKIP] tenant={tenant.tenant_id}: no materialized EXPDIR base "
+              f"(EXPDIR is realtime + tenant-localized to gw, gw_v17); skipping.")
+        return 0
 
     experiments = discover_experiments(expdir_base, args.experiment_filter)
     print(f"[INFO] tenant={tenant.tenant_id} expdir_base={expdir_base} "

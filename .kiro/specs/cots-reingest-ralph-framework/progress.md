@@ -19,6 +19,7 @@
 - ❌ Conclude "embeddings unavailable" from the `mpnet768` "sentence-transformers is not installed" warning → ✅ the warning is cosmetic; `sentence-transformers` 5.1.2 imports and produces real 768-dim vectors (~5 s first load)
 - ❌ Treat `config`/`expdir`/`rocoto`/`fortran_graph` empties as failures → ✅ they are legitimate skips: `dev-v17` has no `parm/config`; only `gw`/`gw_v17` have EXPDIR; `gefs-v12` `sorc`=265 (<1000)
 - ❌ Assume a fresh `mdc-*-titan1024-<ver>` collection is queryable on COTS → ✅ COTS queries resolve `mdc-*-mpnet768`; until Task 2.3 the ingesters write `titan1024`-named collections that the serving query path won't find
+- ✅ **RESOLVED by Phase 68** (`rag-data-plane-gap-closure`, Task 3): the ingesters now route collection names through the single authority `src/data/collection_namer.py::resolve_collection_name(domain, scope, tenant, version, profile)`. Names are **profile-derived** (`mpnet768` on COTS via `MCP_EMBEDDING_PROFILE`, `titan1024` on AWS) and **scope-aware** — so the `titan1024`→`mpnet768` and `mdc-code`→`mdc-code-context` mismatches are fixed. **This is the authoritative naming rule for Task 2.3** — do NOT hand-build collection names; call `resolve_collection_name`.
 
 ## Codebase Patterns
 
@@ -27,6 +28,20 @@
   `resolve_tenant_and_mode()`, `resolve_worktree_root()`, and
   `build_ingestion_data_access()` (returns `(uda, raw_os_client)`; `raw_os_client`
   is `None` on COTS).
+- **Collection naming (Phase 68 — SINGLE AUTHORITY, unblocks Task 2.3)**: derive
+  EVERY collection/index name from
+  `src.data.collection_namer.resolve_collection_name(domain=…, scope=…, tenant=…,
+  version=…)`. **shared** scope (docs, EE2 standards, community summaries) →
+  `mdc-{domain}-{profile}{suffix}` (UNPREFIXED — one NWS-wide collection, ingested
+  once, NOT per tenant). **tenant** scope (code, jjobs, config) →
+  `{index_prefix}mdc-{domain}-{profile}{suffix}`. `profile` is the active
+  `MCP_EMBEDDING_PROFILE` (`mpnet768` on COTS); `suffix` is empty for the default
+  serving version (`v8-0-0`) so serving names stay byte-for-byte stable. Domains:
+  `workflow-docs`, `code-context`, `jjobs`, `ee2-standards`, `community-summaries`.
+  The four v8 ingesters + `reset_tenant_cots.py` already route through it. The
+  Work_Matrix (`reingest_stages.yaml`) now carries `scope` per stage:
+  `documentation`/`ee2_standards`/`community_summaries` are `shared` (one
+  `__global__` unit each → 58 units total, not 62); everything else is `tenant`.
 - **Collection versioning**: `resolve_collection_version(args)` (flag > env
   `REINGEST_COLLECTION_VERSION` > `DEFAULT_COLLECTION_VERSION=v8-0-0`);
   `versioned_collection_name(base, version)` returns `base` for the default version,

@@ -44,15 +44,17 @@ for _p in (str(_SCRIPT_DIR), str(_SERVER_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from _ingest_common import DEFAULT_COLLECTION_VERSION, versioned_collection_name
+from _ingest_common import DEFAULT_COLLECTION_VERSION
+from src.data.collection_namer import resolve_collection_name
 
-# Physical per-tenant ChromaDB collection base names the v8 ingesters write to
-# (before version tagging). Kept in lock-step with the ingesters' hardcoded
-# names; config shares the code collection.
-_DOMAIN_BASES = (
-    "mdc-workflow-docs-titan1024",
-    "mdc-code-titan1024",
-    "mdc-jjobs-titan1024",
+# Tenant-scoped content domains a per-tenant reset OWNS. Documentation,
+# EE2 standards, and community summaries are SHARED (unprefixed, NWS-wide)
+# — a per-tenant reset must NEVER touch them (rag-data-plane-gap-closure
+# R3.4), so they are deliberately excluded here. Names are derived from the
+# single scope-aware namer so reset and the ingesters always agree.
+_TENANT_DOMAINS = (
+    "code-context",   # ingest_code_v8 + ingest_config_files_v8
+    "jjobs",          # ingest_jjobs_v8
 )
 
 
@@ -69,11 +71,17 @@ def _log(msg: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def compute_target_collections(index_prefix: str, version: str) -> list[str]:
-    """Version-tagged ChromaDB collection names this tenant+version owns."""
+def compute_target_collections(tenant: Any, version: str) -> list[str]:
+    """Version-tagged ChromaDB collection names this tenant+version owns.
+
+    Derived through the single scope-aware namer (R3.3) over the tenant-scoped
+    domains only; shared collections are never in a per-tenant reset's scope.
+    """
     return [
-        versioned_collection_name(f"{index_prefix}{base}", version)
-        for base in _DOMAIN_BASES
+        resolve_collection_name(
+            domain=domain, scope="tenant", tenant=tenant, version=version
+        )
+        for domain in _TENANT_DOMAINS
     ]
 
 
@@ -168,7 +176,7 @@ async def run_reset(
              "the serving collections).")
         return 2
 
-    target_collections = compute_target_collections(index_prefix, version)
+    target_collections = compute_target_collections(tenant, version)
 
     _log(f"# Reset plan: tenant={tenant.tenant_id} version={version} "
          f"(dry_run={dry_run}, in_place_default={in_place_default})")

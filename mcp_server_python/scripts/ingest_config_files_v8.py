@@ -22,10 +22,10 @@ from _ingest_common import (
     COLLECTION_CONFIG,
     build_ingestion_data_access,
     build_ingestion_parser,
+    resolve_collection_name,
     resolve_collection_version,
     resolve_tenant_and_mode,
     resolve_worktree_root,
-    versioned_collection_name,
     write_vector_doc,
 )
 from _ingest_cost_model import IngestionReportWriter
@@ -213,8 +213,12 @@ async def main() -> int:
     graph_db = uda.graph_db
     sha_index = SHAIndex(client=raw_os_client)
     collection_version = resolve_collection_version(args)
-    index_name = versioned_collection_name(
-        f"{tenant.index_prefix}mdc-code-titan1024", collection_version)
+    # Config content embeds into the TENANT code-context collection (the dual
+    # writer shares the code domain). Profile-derived, scope-aware name (R3).
+    index_name = resolve_collection_name(
+        domain="code-context", scope="tenant", tenant=tenant,
+        version=collection_version,
+    )
     print(f"[INFO] collection_version={collection_version} index={index_name}")
     report = IngestionReportWriter(tenant.tenant_id, tenant.branch, mode)
 

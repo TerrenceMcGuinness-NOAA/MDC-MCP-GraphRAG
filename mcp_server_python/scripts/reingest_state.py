@@ -155,17 +155,39 @@ def _build_matrix(
     stages: dict[str, Any],
     mode_override: str | None,
 ) -> list[dict[str, Any]]:
-    """Full Work_Matrix: Tenant_Catalog x per_tenant_stages + global_stages."""
+    """Full Work_Matrix, scope-aware (rag-data-plane-gap-closure R2).
+
+    Each stage declares ``scope: shared | tenant`` (reingest_stages.yaml).
+    A ``shared`` stage emits exactly ONE unit (``tenant_id="__global__"``,
+    no tenant coupling); a ``tenant`` stage emits one unit per catalog
+    tenant. Stages in ``global_stages`` default to ``shared`` and stages
+    in ``per_tenant_stages`` default to ``tenant`` when the field is
+    absent (backward-compat with a pre-scope stages file).
+
+    For the current 5-tenant catalog this yields 55 tenant-scoped + 3
+    shared (documentation, ee2_standards, community_summaries) = 58 units
+    (down from 62 — documentation collapses 5 → 1).
+    """
     units: list[dict[str, Any]] = []
-    for tenant in catalog.tenants:
-        for stage in stages["per_tenant"]:
+
+    def _emit(stage: dict[str, Any], default_scope: str) -> None:
+        scope = stage.get("scope", default_scope)
+        if scope == "shared":
             units.append(
-                _stage_unit(stage=stage, tenant=tenant, mode_override=mode_override)
+                _stage_unit(stage=stage, tenant=None, mode_override=mode_override)
             )
+        else:
+            for tenant in catalog.tenants:
+                units.append(
+                    _stage_unit(
+                        stage=stage, tenant=tenant, mode_override=mode_override
+                    )
+                )
+
+    for stage in stages["per_tenant"]:
+        _emit(stage, "tenant")
     for stage in stages["global"]:
-        units.append(
-            _stage_unit(stage=stage, tenant=None, mode_override=mode_override)
-        )
+        _emit(stage, "shared")
     return units
 
 

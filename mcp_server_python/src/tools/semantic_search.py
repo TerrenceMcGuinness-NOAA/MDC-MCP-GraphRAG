@@ -221,7 +221,6 @@ def register(
     from src.tenancy.runtime import get_catalog
     catalog = catalog or get_catalog()
     doc_sources_resolver = _make_doc_sources_resolver(documentation_sources_path)
-    repo_base_path = _resolve_repo_base(repo_base)
 
     from src.tools._tenant_helper import run_tenant_scoped
 
@@ -405,7 +404,8 @@ def register(
         return await run_tenant_scoped(
             tenant_id, catalog,
             lambda: _tool_check_knowledge_integrity(
-                data, sample_size=sample_size, repo_base=repo_base_path,
+                data, sample_size=sample_size,
+                repo_base=_resolve_repo_base_with_tenant(repo_base),
             ),
         )
 
@@ -856,10 +856,12 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     indices, detail, total_docs = _filter_indices_by_tenant(
         health, prefix=prefix, others=others
     )
+    # Healthy when the store is up AND either it has documents OR the tenant
+    # simply owns no applicable collections yet (a fresh tenant is healthy, not
+    # unhealthy) — rag-data-plane-gap-closure R6.2.
     status_ok = (
         health.get("status") == "healthy"
-        and len(indices) > 0
-        and total_docs > 0
+        and (total_docs > 0 or len(indices) == 0)
     )
 
     lines = [
@@ -936,7 +938,11 @@ def _filter_indices_by_tenant(
     total is recomputed from the filtered subset (R2.4), never the global
     ``total_documents`` field.
     """
-    detail_raw = health.get("indices_detail") or {}
+    detail_raw = (
+        health.get("indices_detail")
+        or health.get("collections_detail")
+        or {}
+    )
     if isinstance(detail_raw, dict) and detail_raw:
         detail = {
             n: int(c)
@@ -1219,6 +1225,26 @@ def _resolve_repo_base(override: str | os.PathLike[str] | None) -> Path:
         / "global-workflow"
     )
     return candidate
+
+
+def _resolve_repo_base_with_tenant(
+    override: str | os.PathLike[str] | None,
+) -> Path:
+    """Resolve the repo base for the integrity checks, tenant-aware (R4.2).
+
+    Precedence: explicit ``override`` (e.g. a test-supplied path) > the active
+    tenant's ``workflow_root`` (Phase-67 leak fix — the default ``gw`` tenant
+    resolves to ``.pw_workflow_mount/develop`` via the mount base) >
+    ``MCP_REPO_BASE`` env var > the legacy default. Must be called inside a
+    ``tenant_aware`` scope for the tenant branch to fire (defense-in-depth via
+    ``get_current_tenant_or_none``).
+    """
+    if override is not None:
+        return Path(override).resolve()
+    ctx = get_current_tenant_or_none()
+    if ctx is not None:
+        return Path(ctx.workflow_root)
+    return _resolve_repo_base(None)
 
 
 async def _tool_list_ingested_urls(
@@ -1558,6 +1584,27 @@ def _render_summary(
         )
     lines.append("")
 
+    # Group by scope (shared vs tenant) — rag-data-plane-gap-closure R1/R10.4.
+    # shared = NWS-wide, ingested once (unprefixed); tenant = per (repo, branch).
+    by_scope: dict[str, list[SourceEntry]] = {}
+    for entry in entries:
+        by_scope.setdefault(getattr(entry, "scope", "?"), []).append(entry)
+    lines.append("## By Scope")
+    lines.append("")
+    lines.append("| Scope | Sources | Enabled | Note |")
+    lines.append("|-------|---------|---------|------|")
+    _scope_note = {
+        "shared": "NWS-wide, ingested once (unprefixed collection)",
+        "tenant": "per (repo, branch) — tenant-prefixed collection",
+    }
+    for scope in sorted(by_scope):
+        bucket = by_scope[scope]
+        enabled = sum(1 for e in bucket if e.enabled)
+        lines.append(
+            f"| {scope} | {len(bucket)} | {enabled} | {_scope_note.get(scope, '')} |"
+        )
+    lines.append("")
+
     # Group by collection_target.
     by_collection: dict[str, list[SourceEntry]] = {}
     for entry in entries:
@@ -1594,6 +1641,7 @@ def _render_detailed(
         lines.append(f"## {entry.name} ({entry.source_type.value}) {status}")
         lines.append("")
         lines.append(f"- **Description**: {entry.description}")
+        lines.append(f"- **Scope**: `{getattr(entry, 'scope', '?')}`")
         lines.append(f"- **Collection**: `{entry.collection_target}`")
         lines.append(f"- **Embedding Profile**: `{entry.embedding_profile}`")
         lines.append(f"- **Declared Docs**: {entry.doc_count:,}")
@@ -1976,8 +2024,10 @@ def _build_vector_sampler(vector_db: Any):
 
     Adapter compatibility:
 
-    * Mocks / test doubles with a ``sample_metadata(n)`` method → used
-      directly.
+    * Adapters/mocks with a ``sample_metadata`` method (ChromaDB adapter →
+      ``sample_metadata(collection=None, n=...)``; test doubles →
+      ``sample_metadata(n=...)``) → used directly (called with keyword ``n``
+      so both signatures work).
     * Production ``OpenSearchAdapter`` → falls back to a scroll-based
       sampler when possible.
 
@@ -1988,7 +2038,7 @@ def _build_vector_sampler(vector_db: Any):
 
     if hasattr(vector_db, "sample_metadata"):
         async def _adapter_sampler(n: int) -> list[dict[str, Any]]:
-            return list(await vector_db.sample_metadata(n))
+            return list(await vector_db.sample_metadata(n=n))
         return _adapter_sampler
 
     raw_client = getattr(vector_db, "_raw_client", None)

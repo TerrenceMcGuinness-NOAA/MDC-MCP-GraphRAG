@@ -20,10 +20,10 @@ from _ingest_common import (
     COLLECTION_DOCUMENTATION,
     build_ingestion_data_access,
     build_ingestion_parser,
+    resolve_collection_name,
     resolve_collection_version,
     resolve_tenant_and_mode,
     resolve_worktree_root,
-    versioned_collection_name,
     write_vector_doc,
 )
 from _ingest_cost_model import IngestionReportWriter
@@ -61,8 +61,12 @@ async def main() -> int:
 
     sha_index = SHAIndex(client=raw_os_client)
     collection_version = resolve_collection_version(args)
-    index_name = versioned_collection_name(
-        f"{tenant.index_prefix}mdc-workflow-docs-titan1024", collection_version)
+    # Documentation is SHARED (NWS-wide) — one unprefixed collection for every
+    # tenant (rag-data-plane-gap-closure R3.4). Profile-derived name.
+    index_name = resolve_collection_name(
+        domain="workflow-docs", scope="shared", tenant=tenant,
+        version=collection_version,
+    )
     print(f"[INFO] collection_version={collection_version} index={index_name}")
 
     # File enumeration

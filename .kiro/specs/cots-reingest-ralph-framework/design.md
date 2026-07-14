@@ -2,6 +2,13 @@
 
 ## Overview
 
+> **Depends on Phase 68 (`rag-data-plane-gap-closure`).** The shared-vs-tenant
+> **scope model** (that spec's Requirement 2 / design §2) and the single
+> **collection namer** `resolve_collection_name` (Requirement 3 / design §3) are
+> authoritative here: Task 2.3 derives every collection name via that function,
+> and Task 5's Work_Matrix is the 58-unit scope-aware matrix (docs ingested once
+> as a shared `__global__` unit), not the old 62-unit per-tenant matrix.
+
 Iteration 3 keeps the **valuable engine** from the PoC (`reingest_state.py` — the
 `(tenant, stage)` dependency-DAG work matrix, the COTS-aware reset, the version
 threading, the ChromaDB write path) and swaps the **driver** from the bespoke

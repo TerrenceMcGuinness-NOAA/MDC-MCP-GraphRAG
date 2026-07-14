@@ -290,6 +290,47 @@ class ChromaDBAdapter(VectorDBProtocol):
 
         await asyncio.to_thread(_do)
 
+    async def sample_metadata(
+        self, collection: str | None = None, n: int = 20
+    ) -> list[dict[str, Any]]:
+        """Return up to ``n`` document metadata dicts for integrity sampling.
+
+        rag-data-plane-gap-closure R5.1. Backed by ChromaDB ``get(limit=...)``.
+        When ``collection`` is given, samples that collection; when ``None``
+        (the default used by the integrity checks), samples across all
+        collections up to ``n`` total. Returns ``[]`` for an empty or missing
+        collection (never raises), so ``check_knowledge_integrity`` degrades
+        gracefully rather than crashing.
+        """
+        if not self._connected:
+            await self.connect()
+
+        def _do() -> list[dict[str, Any]]:
+            assert self._client is not None
+            if collection is not None:
+                names = [collection]
+            else:
+                try:
+                    names = [c.name for c in self._client.list_collections()]
+                except Exception:
+                    return []
+            out: list[dict[str, Any]] = []
+            for name in names:
+                if len(out) >= n:
+                    break
+                try:
+                    coll = self._client.get_collection(name)
+                    got = coll.get(limit=n - len(out), include=["metadatas"])
+                except Exception:
+                    # Missing/empty collection → skip (never raise).
+                    continue
+                for meta in (got.get("metadatas") or []):
+                    if meta:
+                        out.append(meta)
+            return out[:n]
+
+        return await asyncio.to_thread(_do)
+
     # ── internals ──────────────────────────────────────────────────────
 
     async def _generate_embedding(self, query_text: str) -> list[float]:

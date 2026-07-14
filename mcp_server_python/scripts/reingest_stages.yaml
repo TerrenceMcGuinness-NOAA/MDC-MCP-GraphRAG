@@ -48,6 +48,7 @@ attempt_cap_default: 3
 # ---------------------------------------------------------------------------
 per_tenant_stages:
   - name: worktree
+    scope: tenant
     order: 10
     kind: prep
     script: setup_pw_workflow_mount.sh
@@ -58,6 +59,7 @@ per_tenant_stages:
     source_precondition: null
 
   - name: reset
+    scope: tenant
     order: 20
     kind: destructive
     script: reset_tenant_cots.py
@@ -68,10 +70,11 @@ per_tenant_stages:
     source_precondition: null
 
   - name: documentation
+    scope: shared
     order: 30
     kind: vector
     script: ingest_documentation_v8.py
-    depends_on: [reset]
+    depends_on: []   # shared stage — no tenant coupling (R2.5)
     destructive: false
     optional: false
     probe: vector
@@ -82,6 +85,7 @@ per_tenant_stages:
         min_files: 1
 
   - name: code
+    scope: tenant
     order: 40
     kind: vector
     script: ingest_code_v8.py
@@ -96,6 +100,7 @@ per_tenant_stages:
         min_files: 1
 
   - name: jjobs
+    scope: tenant
     order: 50
     kind: vector
     script: ingest_jjobs_v8.py
@@ -110,6 +115,7 @@ per_tenant_stages:
         min_files: 1
 
   - name: config
+    scope: tenant
     order: 60
     kind: dual
     script: ingest_config_files_v8.py
@@ -124,6 +130,7 @@ per_tenant_stages:
         min_files: 1
 
   - name: shell_graph
+    scope: tenant
     order: 70
     kind: graph
     script: ingest_shell_graph_v8.py
@@ -138,6 +145,7 @@ per_tenant_stages:
         min_files: 1
 
   - name: fortran_graph
+    scope: tenant
     order: 80
     kind: graph
     script: ingest_fortran_graph_v8.py
@@ -152,6 +160,7 @@ per_tenant_stages:
         min_files: 1000
 
   - name: expdir
+    scope: tenant
     order: 90
     kind: graph
     script: ingest_expdir_configs_v8.py
@@ -164,6 +173,7 @@ per_tenant_stages:
       check: null
 
   - name: rocoto
+    scope: tenant
     order: 100
     kind: graph
     script: ingest_rocoto_xml_v8.py
@@ -176,6 +186,7 @@ per_tenant_stages:
       check: null
 
   - name: bridge
+    scope: tenant
     order: 110
     kind: graph
     script: create_shell_fortran_bridge.py
@@ -186,11 +197,11 @@ per_tenant_stages:
     source_precondition: null
 
   - name: validate
+    scope: tenant
     order: 200
     kind: validate
     script: null
     depends_on:
-      - documentation
       - code
       - jjobs
       - config
@@ -209,6 +220,7 @@ per_tenant_stages:
 # ---------------------------------------------------------------------------
 global_stages:
   - name: ee2_standards
+    scope: shared
     order: 300
     kind: vector
     # No v8 Python EE2 ingester exists yet; the Node-era precedent is
@@ -226,6 +238,7 @@ global_stages:
       check: null
 
   - name: community_summaries
+    scope: shared
     order: 310
     kind: graph
     # Gap J: Neo4j GDS Leiden + Node-only pipeline (mcp_server_node/). Optional

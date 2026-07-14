@@ -371,3 +371,125 @@ def test_is_complete_exit_codes(tmp_path, catalog_file, stages_file):
         u["status"] = "skipped" if u["optional"] else "done"
     store.save()
     assert rs.main(base + ["is-complete"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Scope-aware Work_Matrix (rag-data-plane-gap-closure R2)
+# ---------------------------------------------------------------------------
+
+# Stages with an explicit scope: a per-tenant stage tagged shared
+# (documentation) must collapse to ONE __global__ unit; tenant stages
+# still fan out per tenant.
+_SCOPED_STAGES_YAML = """\
+schema_version: 1
+attempt_cap_default: 3
+per_tenant_stages:
+  - name: worktree
+    scope: tenant
+    order: 10
+    kind: prep
+    script: setup_pw_workflow_mount.sh
+    depends_on: []
+  - name: documentation
+    scope: shared
+    order: 30
+    kind: vector
+    script: ingest_documentation_v8.py
+    depends_on: []
+    probe: vector
+  - name: code
+    scope: tenant
+    order: 40
+    kind: vector
+    script: ingest_code_v8.py
+    depends_on: [worktree]
+    probe: vector
+global_stages:
+  - name: ee2_standards
+    scope: shared
+    order: 300
+    kind: vector
+    script: ingest_ee2_v7.py
+    depends_on: []
+"""
+
+
+@pytest.fixture()
+def scoped_stages_file(tmp_path: Path) -> Path:
+    p = tmp_path / "scoped_stages.yaml"
+    p.write_text(_SCOPED_STAGES_YAML, encoding="utf-8")
+    return p
+
+
+def test_shared_stage_emits_single_global_unit(tmp_path, catalog_file, scoped_stages_file):
+    """A per-tenant stage tagged scope: shared yields one __global__ unit (R2.1)."""
+    _init(tmp_path, catalog_file, scoped_stages_file)
+    store = _store(tmp_path)
+    units = store.units()
+    # 2 tenants: worktree x2 + code x2 (tenant) + documentation x1 + ee2 x1 (shared) = 6
+    assert len(units) == 6
+    doc_units = [u for u in units if u["stage"] == "documentation"]
+    assert len(doc_units) == 1
+    assert doc_units[0]["id"] == "__global__:documentation"
+    assert doc_units[0]["tenant_id"] == "__global__"
+    # No per-tenant documentation units leaked.
+    assert store.by_id("gw:documentation") is None
+    assert store.by_id("gw_v17:documentation") is None
+    # Tenant stages still fan out.
+    assert store.by_id("gw:code") is not None
+    assert store.by_id("gw_v17:code") is not None
+
+
+def test_production_matrix_is_58_units(tmp_path):
+    """The real catalog x stages yields exactly 55 tenant + 3 shared = 58 (R2.2)."""
+    _init(tmp_path, Path(rs._DEFAULT_CATALOG), Path(rs._DEFAULT_STAGES))
+    store = _store(tmp_path)
+    units = store.units()
+    tenant_units = [u for u in units if u["tenant_id"] != rs.GLOBAL_TENANT]
+    shared_units = [u for u in units if u["tenant_id"] == rs.GLOBAL_TENANT]
+    assert len(units) == 58
+    assert len(tenant_units) == 55
+    assert len(shared_units) == 3
+    shared_stages = sorted(u["stage"] for u in shared_units)
+    assert shared_stages == ["community_summaries", "documentation", "ee2_standards"]
+
+
+def test_migration_preserves_terminal_and_collapses_documentation(
+    tmp_path, catalog_file
+):
+    """Re-init from a pre-scope (per-tenant documentation) state collapses the
+    per-tenant documentation units to one shared unit while preserving terminal
+    statuses of surviving units (R2.3, R2.4)."""
+    # Pre-scope stages: documentation is per-tenant (no scope → tenant default).
+    pre = tmp_path / "pre_stages.yaml"
+    pre.write_text(
+        _SCOPED_STAGES_YAML.replace(
+            "  - name: documentation\n    scope: shared\n",
+            "  - name: documentation\n",
+        ),
+        encoding="utf-8",
+    )
+    _init(tmp_path, catalog_file, pre)
+    store = _store(tmp_path)
+    # Two per-tenant documentation units exist pre-migration.
+    assert store.by_id("gw:documentation") is not None
+    assert store.by_id("gw_v17:documentation") is not None
+    # Drive a non-documentation unit terminal + one doc unit terminal.
+    store.by_id("gw:worktree")["status"] = "done"
+    store.by_id("gw_v17:documentation")["status"] = "done"
+    store.save()
+
+    # Re-init with the scoped stages (documentation now shared).
+    scoped = tmp_path / "scoped_stages.yaml"
+    scoped.write_text(_SCOPED_STAGES_YAML, encoding="utf-8")
+    _init(tmp_path, catalog_file, scoped)
+
+    store2 = _store(tmp_path)
+    # Surviving terminal status preserved.
+    assert store2.by_id("gw:worktree")["status"] == "done"
+    # Documentation collapsed to one shared unit (per-tenant ones gone).
+    doc_units = [u for u in store2.units() if u["stage"] == "documentation"]
+    assert len(doc_units) == 1
+    assert doc_units[0]["id"] == "__global__:documentation"
+    assert store2.by_id("gw:documentation") is None
+    assert store2.by_id("gw_v17:documentation") is None

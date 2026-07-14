@@ -19,10 +19,10 @@ from _ingest_common import (
     COLLECTION_CODE,
     build_ingestion_data_access,
     build_ingestion_parser,
+    resolve_collection_name,
     resolve_collection_version,
     resolve_tenant_and_mode,
     resolve_worktree_root,
-    versioned_collection_name,
     write_vector_doc,
 )
 from _ingest_cost_model import IngestionReportWriter
@@ -58,8 +58,13 @@ async def main() -> int:
 
     sha_index = SHAIndex(client=raw_os_client)
     collection_version = resolve_collection_version(args)
-    index_name = versioned_collection_name(
-        f"{tenant.index_prefix}mdc-code-titan1024", collection_version)
+    # Code is TENANT-scoped — per (repo, branch). Domain "code-context" matches
+    # the serving collection (rag-data-plane-gap-closure R3; fixes the historical
+    # mdc-code-titan1024 vs mdc-code-context-* mismatch).
+    index_name = resolve_collection_name(
+        domain="code-context", scope="tenant", tenant=tenant,
+        version=collection_version,
+    )
     label = f"{tenant.label_prefix}File"
     print(f"[INFO] collection_version={collection_version} index={index_name}")
 

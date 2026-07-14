@@ -295,6 +295,13 @@ async def main() -> int:
     prefix = tenant.label_prefix
     expdir_base = resolve_expdir_base(tenant)
 
+    if expdir_base is None:
+        # No materialized EXPDIR for this tenant — SKIP (not fail). Rocoto XML
+        # lives under the tenant's EXPDIR tree (gw + gw_v17 today).
+        print(f"[SKIP] tenant={tenant.tenant_id}: no materialized EXPDIR base "
+              f"(Rocoto XML is realtime + tenant-localized to gw, gw_v17); skipping.")
+        return 0
+
     experiments = discover_xml_experiments(expdir_base, args.experiment_filter)
     print(f"[INFO] tenant={tenant.tenant_id} expdir_base={expdir_base} "
           f"xml_files={len(experiments)}")

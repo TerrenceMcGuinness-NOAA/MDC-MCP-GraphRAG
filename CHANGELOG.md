@@ -1,6 +1,80 @@
 # MCP Server Changelog
 
-## [Unreleased] - COTS Re-Ingest: PoC live run + pivot to Ralph-Loop framework (Jul 9, 2026)
+## [Unreleased] - Phase 68: RAG Data-Plane Gap Closure & Tenant-Scope Clarification (Jul 10, 2026)
+
+### Summary
+Kiro-spec realization of SDD Phase 68 (`.kiro/specs/rag-data-plane-gap-closure/`) —
+spec + minor code fixes only, **no re-ingest**. Encodes the missing
+**tenant-vs-shared scope** principle as a machine-readable manifest field, fixes
+the eight RAG data-plane gaps found in the 2026-07-09 COTS health run, and feeds
+the naming/matrix decisions into `cots-reingest-ralph-framework`. All changes
+verified **COTS-truthfully** via a local `DB_BACKEND=cots` stdio MCP server (NOT
+the AWS `agentcore-mcp-rag`, NOT the blocked `eib-mcp-gateway`). AWS serving path
+(OpenSearch/Neptune/AgentCore, `resolve_index`) is **unchanged**; no ingest ran;
+staged for human review (no commit/push).
+
+### Added
+- **Scope-aware collection namer** `mcp_server_python/src/data/collection_namer.py`
+  — single authority `resolve_collection_name(domain, scope, tenant, version,
+  profile)`: shared → `mdc-{domain}-{profile}{suffix}` (unprefixed); tenant →
+  `{index_prefix}mdc-{domain}-{profile}{suffix}`; profile-derived
+  (`MCP_EMBEDDING_PROFILE`, mpnet768 on COTS); empty suffix for the default
+  serving version. Authoritative input to `cots-reingest-ralph-framework` Task 2.3.
+- Unit tests: `test_manifest_scope.py` (5), `test_collection_namer.py` (13),
+  `test_kb_status_and_sampler.py` (6), `test_expdir_base.py` (4); +3 scope tests
+  in `test_reingest_state.py`.
+
+### Changed
+- **Manifest schema** (`src/manifest/models.py`): `scope: "tenant" | "shared"` is
+  now a **required** common field on `SourceEntry` (`from_dict` rejects
+  missing/invalid, naming the source; emitted in stable order after
+  `description`). `generate_unified_manifest.py` classifies all sources via a
+  `_default_scope(source_type)` helper. `unified_manifest.json` → **v9.2.0**: all
+  67 sources carry `scope` (61 shared / 6 tenant), and `expdir-configs` is
+  reconciled to the **realtime runtime EXPDIR tree** (`supported_repos/EXPDIR`,
+  not `parm/config`) with realtime/tenant-localized annotations (R15).
+- **Work_Matrix** (`reingest_stages.yaml` + `reingest_state.py`): each stage
+  carries `scope`; the builder emits one `__global__` unit per shared stage and N
+  per tenant stage. `documentation` reclassified **shared** → the matrix collapses
+  **62 → 58 units** (55 tenant + 3 shared); idempotent migration preserves terminal
+  statuses.
+- **Ingesters + reset routed through the namer**: the four v8 ingesters
+  (`documentation`/`code`/`jjobs`/`config_files`) and `reset_tenant_cots.py` now
+  derive collection names via `resolve_collection_name` (fixes the historical
+  `titan1024`→`mpnet768` and `mdc-code`→`mdc-code-context` mismatches; docs are
+  shared/unprefixed). `_ingest_common` sources `DEFAULT_COLLECTION_VERSION` +
+  `resolve_collection_name` from the namer (single source of truth).
+- **EXPDIR is realtime + tenant-derived** (`ingest_expdir_configs_v8.py`,
+  imported by `ingest_rocoto_xml_v8.py`): `resolve_expdir_base(tenant)` returns a
+  per-tenant base (gw→`EXPDIR`, gw_v17→`EXPDIR_v17`, others→`None`), honors
+  `MCP_EXPDIR_BASE_OVERRIDE`, and never falls back to another tenant's tree;
+  `expdir`/`rocoto` **skip (not fail)** when absent. Write-side
+  `{prefix}Experiment` / `{prefix}EXPDIRConfig` labels unchanged.
+- **Phase-67 path-leak fix** (`src/tools/semantic_search.py`):
+  `check_knowledge_integrity` resolves its repo base from the active tenant's
+  `workflow_root` (`_resolve_repo_base_with_tenant`) — the coverage-gap +
+  stale-embeddings checks now execute instead of `[SKIP]`.
+- **ChromaDB metadata sampler** (`src/data/chromadb_adapter.py`):
+  `sample_metadata(collection=None, n=20)` (async, `[]` on empty/missing) — wires
+  the integrity Path-Consistency + Stale-Embeddings checks so they run on COTS.
+- **KB-status count fix** (`src/tools/semantic_search.py`):
+  `_filter_indices_by_tenant` now recognizes ChromaDB's `collections_detail` key
+  (root cause of the false `Total Documents: 0`); healthy when count > 0 OR the
+  tenant owns zero applicable collections. `list_all_sources` gains a **By Scope**
+  breakdown and a per-source scope line.
+- **Docs**: `.kiro/steering/11-tenant-roadmap.md` — two-axis (scope × repo) tenant
+  model + worked non-global-workflow (`pw_mcp`) example + EXPDIR realtime note.
+  Framework spec `progress.md`/`design.md` cross-referenced (unblocks its Task 2.3).
+
+### Verified (COTS-truthful, via local stdio MCP server)
+- `mcp_health_check --deep --detailed --functional` → 11/11 pass, 0 skip.
+- `check_knowledge_integrity` → 4/4 checks run (0 SKIP).
+- `get_knowledge_base_status` → `Total Documents: 220538`, `[OK] Healthy` (was 0/Unhealthy).
+- `list_all_sources` → 67 sources, By Scope 61 shared / 6 tenant.
+- Full unit suite: 1293 passed / 26 failed (all 26 pre-existing: opensearch-py not
+  installed on COTS + stale rename/module-count assertions — 0 regressions).
+
+
 
 ### Summary
 Executed the `cots-reingest-ralph-loop` orchestration live on the COTS host as a

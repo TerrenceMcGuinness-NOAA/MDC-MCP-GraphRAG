@@ -58,7 +58,14 @@ _COMMON_REQUIRED_FIELDS: tuple[str, ...] = (
     "embedding_profile",
     "enabled",
     "description",
+    "scope",
 )
+
+#: Valid values for the required :attr:`SourceEntry.scope` field
+#: (rag-data-plane-gap-closure Requirement 1.1). ``shared`` content is
+#: NWS-wide (one unprefixed embedding space, ingested once); ``tenant``
+#: content is per (repo, branch) pair (tenant-prefixed, N units).
+_VALID_SCOPES: frozenset[str] = frozenset({"tenant", "shared"})
 
 #: Per-source-type required fields enforced in :meth:`SourceEntry.from_dict`
 #: (Requirements 1.3 – 1.9). A field is "required" only in that the
@@ -100,6 +107,7 @@ class SourceEntry:
     embedding_profile: str
     enabled: bool
     description: str
+    scope: str
     last_ingested: str | None = None
     ingestion_script: str | None = None
     doc_count: int = 0
@@ -122,6 +130,7 @@ class SourceEntry:
             "embedding_profile",
             "enabled",
             "description",
+            "scope",
             "last_ingested",
             "ingestion_script",
             "doc_count",
@@ -148,6 +157,7 @@ class SourceEntry:
             "embedding_profile": self.embedding_profile,
             "enabled": self.enabled,
             "description": self.description,
+            "scope": self.scope,
             "last_ingested": self.last_ingested,
             "ingestion_script": self.ingestion_script,
             "doc_count": self.doc_count,
@@ -184,6 +194,16 @@ class SourceEntry:
                 raise ValueError(
                     f"SourceEntry {name!r}: missing required field {fld!r}"
                 )
+
+        # ``scope`` is a required common field with a closed value set
+        # (rag-data-plane-gap-closure R1.1/R1.2). Reject anything other
+        # than ``tenant``/``shared`` with a message naming the source.
+        scope = raw["scope"]
+        if scope not in _VALID_SCOPES:
+            raise ValueError(
+                f"SourceEntry {name!r}: invalid scope {scope!r} for field "
+                f"'scope' (valid values: {sorted(_VALID_SCOPES)})"
+            )
 
         # Coerce source_type into the enum so the rest of the codebase
         # can rely on enum-value comparisons. ``SourceType(value)`` raises
@@ -223,6 +243,7 @@ class SourceEntry:
             embedding_profile=str(raw["embedding_profile"]),
             enabled=bool(raw["enabled"]),
             description=str(raw["description"]),
+            scope=str(scope),
             last_ingested=raw.get("last_ingested"),
             ingestion_script=raw.get("ingestion_script"),
             doc_count=int(raw.get("doc_count") or 0),

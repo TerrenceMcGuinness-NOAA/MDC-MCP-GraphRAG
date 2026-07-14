@@ -52,6 +52,29 @@ from src.manifest.models import SourceEntry, SourceType, UnifiedManifest
 log = logging.getLogger("generate_unified_manifest")
 
 
+# ── scope classification (rag-data-plane-gap-closure R1.4) ─────────────
+
+#: Source types whose content is NWS-wide (identical for every tenant):
+#: docs, EE2 standards, general community summaries. These ingest ONCE
+#: into an unprefixed (shared) collection. Everything else is per
+#: (repo, branch) → tenant-prefixed.
+_SHARED_SOURCE_TYPES: frozenset[SourceType] = frozenset({
+    SourceType.URL_CRAWL,
+    SourceType.ON_DISK_SUBMODULE,
+    SourceType.STANDARDS,
+    SourceType.COMMUNITY_SUMMARY,
+})
+
+
+def _default_scope(source_type: SourceType) -> str:
+    """Return ``"shared"`` or ``"tenant"`` for a source type (R1.4).
+
+    shared: url_crawl, on_disk_submodule, standards, community_summary.
+    tenant: code_parse, config_parse, jjob_docs.
+    """
+    return "shared" if source_type in _SHARED_SOURCE_TYPES else "tenant"
+
+
 #: Default output location (Requirement 7.1).
 DEFAULT_OUTPUT: Path = ROOT / "src" / "config" / "unified_manifest.json"
 
@@ -150,13 +173,26 @@ KNOWN_SOURCES: list[dict[str, object]] = [
         "collection_target": "code-with-context-v8-0-0",
         "embedding_profile": "titan1024",
         "enabled": True,
-        "description": "Experiment-directory bash configs (config.* files)",
-        "ingestion_script": "scripts/ingest_expdir_configs.py",
+        "scope": "tenant",
+        "description": (
+            "REALTIME experiment-directory configs (resolved config.* + Rocoto "
+            "XML materialized by setup_expt). Tenant-localized (gw, gw_v17). "
+            "Distinct from static parm/config repo templates — read from the "
+            "runtime EXPDIR tree, tenant isolation via graph label prefix."
+        ),
+        "ingestion_script": "scripts/ingest_expdir_configs_v8.py",
         "doc_count": 0,
         "type_fields": {
-            "config_root": "supported_repos/global-workflow_develop/parm/config",
-            "file_patterns": ["config.*"],
+            # Runtime EXPDIR tree the v8 ingester actually reads (per-tenant base
+            # resolved by resolve_expdir_base: gw→EXPDIR, gw_v17→EXPDIR_v17), NOT
+            # the static repo parm/config templates (rag-data-plane-gap-closure
+            # R15.2). Realtime / runtime-materialized, not a static config_parse.
+            "config_root": "supported_repos/EXPDIR",
+            "file_patterns": ["config.*", "*.xml"],
             "parser": "bash_kv",
+            "realtime": True,
+            "materialized_by": "setup_expt",
+            "tenant_localized": ["gw", "gw_v17"],
         },
     },
     {
@@ -237,6 +273,7 @@ def _load_legacy_url_sources() -> list[SourceEntry]:
                 embedding_profile="titan1024",
                 enabled=bool(entry.get("enabled", True)),
                 description=entry.get("description") or "",
+                scope=_default_scope(SourceType.URL_CRAWL),
                 last_ingested=entry.get("last_ingested"),
                 ingestion_script="scripts/ingest_documentation_v8.py",
                 doc_count=int(entry.get("doc_count") or 0),
@@ -271,14 +308,16 @@ def _build_known_sources() -> list[SourceEntry]:
     """Materialize the curated KNOWN_SOURCES list as SourceEntry instances."""
     out: list[SourceEntry] = []
     for spec in KNOWN_SOURCES:
+        source_type: SourceType = spec["source_type"]  # type: ignore[assignment]
         out.append(
             SourceEntry(
                 name=str(spec["name"]),
-                source_type=spec["source_type"],  # type: ignore[arg-type]
+                source_type=source_type,
                 collection_target=str(spec["collection_target"]),
                 embedding_profile=str(spec["embedding_profile"]),
                 enabled=bool(spec["enabled"]),
                 description=str(spec["description"]),
+                scope=str(spec.get("scope") or _default_scope(source_type)),
                 last_ingested=None,
                 ingestion_script=str(spec.get("ingestion_script") or ""),
                 doc_count=int(spec.get("doc_count") or 0),
@@ -453,6 +492,7 @@ async def _populate_actual_counts(
                 embedding_profile=entry.embedding_profile,
                 enabled=entry.enabled,
                 description=entry.description,
+                scope=entry.scope,
                 last_ingested=entry.last_ingested,
                 ingestion_script=entry.ingestion_script,
                 doc_count=doc_count if doc_count > 0 else entry.doc_count,
@@ -465,7 +505,7 @@ async def _populate_actual_counts(
     return new_sources
 
 
-def build_manifest(version: str = "9.0.0") -> UnifiedManifest:
+def build_manifest(version: str = "9.1.0") -> UnifiedManifest:
     """Produce a manifest combining legacy URL sources + known non-URL sources."""
     sources: list[SourceEntry] = []
     sources.extend(_load_legacy_url_sources())
@@ -476,7 +516,9 @@ def build_manifest(version: str = "9.0.0") -> UnifiedManifest:
         description=(
             "Unified ingest manifest — all knowledge base sources "
             "(url_crawl, on_disk_submodule, code_parse, config_parse, "
-            "standards, community_summary, jjob_docs)"
+            "standards, community_summary, jjob_docs). "
+            "v9.1.0 (2026-07-10): added required scope field "
+            "(tenant|shared) per source — rag-data-plane-gap-closure R1."
         ),
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         sources=sources,
@@ -517,8 +559,8 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--version",
-        default="9.0.0",
-        help="Manifest version string (default: 9.0.0)",
+        default="9.1.0",
+        help="Manifest version string (default: 9.1.0)",
     )
     p.add_argument(
         "--log-level",

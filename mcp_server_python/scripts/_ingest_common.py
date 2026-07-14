@@ -10,6 +10,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+# Ensure the server root is importable so the module-level
+# ``src.data.collection_namer`` import below resolves whether this module is
+# imported by an ingester (which sets up sys.path) or standalone.
+_SERVER_ROOT = str(Path(__file__).resolve().parents[1])
+if _SERVER_ROOT not in sys.path:
+    sys.path.insert(0, _SERVER_ROOT)
+
 if TYPE_CHECKING:
     from src.config.tenants import Tenant, TenantCatalog
 
@@ -37,7 +44,14 @@ _REFUSED_LIFECYCLES = {"merged", "stale"}
 # the default version returns names UNCHANGED — preserving current behaviour
 # byte-for-byte. A non-default version appends ``-<version>`` so a fresh,
 # isolated collection set is built alongside the serving one.
-DEFAULT_COLLECTION_VERSION = "v8-0-0"
+#
+# DEFAULT_COLLECTION_VERSION + the scope-aware resolve_collection_name are the
+# single naming authority (rag-data-plane-gap-closure R3) — imported here so
+# the ingesters can reach them via the existing _ingest_common import surface.
+from src.data.collection_namer import (  # noqa: E402
+    DEFAULT_COLLECTION_VERSION,
+    resolve_collection_name,
+)
 
 
 def resolve_collection_version(args) -> str:
