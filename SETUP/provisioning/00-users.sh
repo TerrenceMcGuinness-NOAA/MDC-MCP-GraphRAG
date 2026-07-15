@@ -25,17 +25,20 @@ usage() {
 Usage:
   sudo ./00-users.sh                 # Provision all PROVISION_USERS
   sudo ./00-users.sh --user <name>   # Provision a specific user (repeatable)
+  sudo ./00-users.sh --dry-run       # Print the plan; do NOT mutate the host
   sudo ./00-users.sh --status        # Show configured vs existing users
 
 Options:
-  --user <username>     Provision only this user (can be repeated)
-  --status              Print a quick status summary (no changes)
+  --user <username>      Provision only this user (can be repeated)
+  --dry-run              Render the provisioning plan without any mutations
+  --status               Print a quick status summary (no changes)
   -h, --help             Show this help
 EOF
 }
 
 TARGET_USERS=()
 STATUS_ONLY=false
+DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +49,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --status)
       STATUS_ONLY=true
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=true
       shift
       ;;
     -h|--help)
@@ -74,17 +81,27 @@ get_first_name() {
 
 create_user() {
   local username="$1"
+  local group="${PROVISION_PRIMARY_GROUP}"
+  local useradd_args=(-m -s /bin/bash)
 
   log_info "Creating user account: ${username}"
+
+  if getent group "${group}" > /dev/null 2>&1; then
+    useradd_args+=(-g "${group}")
+  else
+    log_warning "Primary group '${group}' missing — falling back to private group for ${username}"
+  fi
 
   if id "${username}" &>/dev/null; then
     log_warning "User ${username} already exists; skipping creation"
     return 0
   fi
 
-  useradd -m -s /bin/bash "${username}"
+  useradd "${useradd_args[@]}" "${username}"
 
-  echo "${username}:ChangeMe123!" | chpasswd
+  local password
+  password="$(resolve_initial_password "${username}")"
+  echo "${username}:${password}" | chpasswd
   chage -d 0 "${username}"
 
   log_success "User ${username} created"
@@ -121,13 +138,29 @@ setup_ssh() {
 create_scratch_space() {
   local username="$1"
   local workspace_dir="${SCRATCH_ROOT}/${username}"
-  local user_group
-  user_group=$(get_user_group "${username}")
+  local owner_group
+  owner_group="$(resolve_ownership "${username}")"
 
   log_info "Creating scratch space for ${username}: ${workspace_dir}"
-  mkdir -p "${SCRATCH_ROOT}"
-  mkdir -p "${workspace_dir}"
-  chown -R "${username}:${user_group}" "${workspace_dir}"
+  mkdir -p "${SCRATCH_ROOT}" "${workspace_dir}"
+
+  # R3: enumerate operator-pre-staged paths (entries not owned by the target user)
+  # and either preserve them (default) or adopt them (PROVISION_ADOPT_PRESTAGED=yes).
+  mapfile -t prestaged < <(list_prestaged_paths "${workspace_dir}" "${username}")
+
+  if [[ ${#prestaged[@]} -eq 0 ]]; then
+    chown -R "${owner_group}" "${workspace_dir}"
+  elif [[ "${PROVISION_ADOPT_PRESTAGED}" == "yes" ]]; then
+    log_warning "Adopting ${#prestaged[@]} pre-staged path(s) into ${username}"
+    chown -R "${owner_group}" "${workspace_dir}"
+  else
+    log_warning "Preserving ${#prestaged[@]} pre-staged path(s); set PROVISION_ADOPT_PRESTAGED=yes to adopt:"
+    printf '  [PRESERVED] %s\n' "${prestaged[@]}"
+    # chown only the workspace_dir itself (not -R) so the top-level entry is
+    # user-writable while the pre-staged children retain their existing ownership.
+    chown "${owner_group}" "${workspace_dir}"
+  fi
+
   chmod 755 "${workspace_dir}"
 }
 
@@ -369,6 +402,12 @@ add_to_groups() {
 provision_user() {
   local username="$1"
 
+  # R6: dry-run gate — render the plan and short-circuit before any mutation.
+  if [[ "${DRY_RUN}" == true ]]; then
+    render_provisioning_plan "${username}"
+    return 0
+  fi
+
   log_subsection "Provisioning user: ${username}"
 
   create_user "${username}"
@@ -384,6 +423,281 @@ provision_user() {
   log_success "User provisioned: ${username}"
 }
 
+# render_provisioning_plan — R6 (dry-run)
+#
+# Prints the mutating steps provision_user() would perform for <username>,
+# with rendered variable substitution and no side effects. Includes the
+# R3 [PRESERVED] section when the scratch dir holds operator-pre-staged
+# content that the default (PROVISION_ADOPT_PRESTAGED=no) branch would skip.
+#
+# Usage:   render_provisioning_plan <username>
+# Prints:  the plan on stdout; nothing is written to the host.
+render_provisioning_plan() {
+  local username="$1"
+  local group="${PROVISION_PRIMARY_GROUP}"
+  local workspace_dir="${SCRATCH_ROOT}/${username}"
+  local home_dir="/home/${username}"
+  local repo_dir="${workspace_dir}/eib-mcp-rag-server"
+  local vscode_dir="${workspace_dir}/.vscode"
+  local first_name
+  first_name="$(get_first_name "${username}")"
+  local owner_group
+  owner_group="$(resolve_ownership "${username}")"
+
+  echo ""
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo "  DRY-RUN PLAN for user: ${username}"
+  echo "  (no mutations will be performed)"
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo ""
+
+  # [1] User account (R1, R2, R5)
+  echo "[1] User account"
+  if id "${username}" &>/dev/null; then
+    echo "    (user already exists on host; useradd/chpasswd/chage would be skipped)"
+  else
+    if getent group "${group}" > /dev/null 2>&1; then
+      echo "    useradd -g ${group} -m -s /bin/bash ${username}"
+    else
+      echo "    # WARN: primary group '${group}' missing on host — private-group fallback"
+      echo "    useradd -m -s /bin/bash ${username}"
+    fi
+    echo "    echo '${username}:<initial-password-from-R5-precedence>' | chpasswd"
+    echo "    chage -d 0 ${username}    # force password change on first login"
+  fi
+  echo ""
+
+  # [2] SSH keypair
+  echo "[2] SSH keypair"
+  echo "    mkdir -p ${home_dir}/.ssh"
+  echo "    chmod 700 ${home_dir}/.ssh"
+  echo "    chown ${owner_group} ${home_dir}/.ssh"
+  echo "    ssh-keygen -t rsa -b 4096 -f ${home_dir}/.ssh/id_rsa -N '' -C '${username}@mcp-rag-dev'"
+  echo "    touch ${home_dir}/.ssh/authorized_keys"
+  echo "    chmod 600 ${home_dir}/.ssh/authorized_keys"
+  echo "    chown -R ${owner_group} ${home_dir}/.ssh"
+  echo ""
+
+  # [3] Scratch workspace (R3 preserve/adopt decision)
+  echo "[3] Scratch workspace: ${workspace_dir}"
+  echo "    mkdir -p ${SCRATCH_ROOT} ${workspace_dir}"
+
+  local -a prestaged=()
+  mapfile -t prestaged < <(list_prestaged_paths "${workspace_dir}" "${username}")
+
+  if [[ ${#prestaged[@]} -eq 0 ]]; then
+    echo "    chown -R ${owner_group} ${workspace_dir}    # (no pre-staged content)"
+  elif [[ "${PROVISION_ADOPT_PRESTAGED}" == "yes" ]]; then
+    echo "    chown -R ${owner_group} ${workspace_dir}    # ADOPT ${#prestaged[@]} pre-staged path(s)"
+  else
+    echo "    chown ${owner_group} ${workspace_dir}    # top-level only; children preserved"
+    echo ""
+    echo "    [PRESERVED] ${#prestaged[@]} pre-staged path(s) will NOT be re-owned"
+    echo "                (set PROVISION_ADOPT_PRESTAGED=yes to adopt instead):"
+    printf '      [PRESERVED] %s\n' "${prestaged[@]}"
+  fi
+  echo "    chmod 755 ${workspace_dir}"
+  echo ""
+
+  # [4] Bin directory and code.sh template
+  echo "[4] Bin directory and code-tunnel helper"
+  echo "    mkdir -p ${home_dir}/bin"
+  echo "    cp ${SETUP_DIR}/bin/code.sh ${home_dir}/bin/code.sh"
+  echo "    chmod 755 ${home_dir}/bin/code.sh"
+  echo "    chown ${owner_group} ${home_dir}/bin/code.sh"
+  echo ""
+
+  # [5] Bash environment templates
+  echo "[5] Bash environment templates"
+  echo "    cp ${SETUP_DIR}/bashrc_template       ${home_dir}/.bashrc"
+  echo "    cp ${SETUP_DIR}/bash_profile_template ${home_dir}/.bash_profile"
+  echo "    (append user-specific WORKSPACE=${workspace_dir} block to .bashrc)"
+  echo "    (rewrite 'alias work=' in .bash_profile → cd ${workspace_dir})"
+  echo "    chown ${owner_group} ${home_dir}/.bashrc ${home_dir}/.bash_profile"
+  echo ""
+
+  # [6] Repository clone from local bare mirror
+  echo "[6] Clone EIB MCP RAG repo (from local bare mirror)"
+  if [[ -d "${BARE_REPO_DIR}" ]]; then
+    echo "    su - ${username} -c 'git clone ${BARE_REPO_DIR} ${repo_dir}'"
+  else
+    echo "    # WARN: bare repo missing at ${BARE_REPO_DIR}"
+    echo "    #       (a live run would run update_bare_repo first, then clone)"
+    echo "    su - ${username} -c 'git clone ${BARE_REPO_DIR} ${repo_dir}'"
+  fi
+  echo "    su - ${username} -c 'git -C ${repo_dir} remote set-url origin ${UPSTREAM_REPO_URL}'"
+  echo "    su - ${username} -c 'git -C ${repo_dir} remote add local ${BARE_REPO_DIR}'"
+  echo "    su - ${username} -c 'git -C ${repo_dir} checkout develop'"
+  echo ""
+
+  # [7] VS Code MCP config
+  echo "[7] VS Code MCP configuration"
+  echo "    mkdir -p ${vscode_dir}"
+  echo "    write ${vscode_dir}/mcp.json    # eib-mcp-rag-full server, workspace=${repo_dir}"
+  echo "    chown -R ${owner_group} ${vscode_dir}"
+  echo ""
+
+  # [8] Workspace README
+  echo "[8] Workspace README"
+  echo "    write ${workspace_dir}/README.md    # tunnel name: pw_${first_name}"
+  echo "    chown ${owner_group} ${workspace_dir}/README.md"
+  echo ""
+
+  # [9] Supplementary group memberships (R7)
+  echo "[9] Supplementary group memberships"
+  if getent group docker > /dev/null 2>&1; then
+    echo "    usermod -aG docker ${username}"
+  else
+    echo "    (docker group not present on host; skip)"
+  fi
+  if getent group kasmvnc-cert > /dev/null 2>&1; then
+    echo "    usermod -aG kasmvnc-cert ${username}"
+  else
+    echo "    (kasmvnc-cert group not present on host; skip)"
+  fi
+  echo ""
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo "  END DRY-RUN PLAN — nothing was written to the host"
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo ""
+}
+
+# _fmt_mode — format a 3-digit octal mode with a leading zero for display
+# (stat -c '%a' emits "700"; we want "0700" for parity with the design block).
+_fmt_mode() {
+  local mode="$1"
+  if [[ ${#mode} -eq 3 ]]; then
+    echo "0${mode}"
+  else
+    echo "${mode}"
+  fi
+}
+
+# check_user_integrity — R7/R8 per-user integrity block (design.md § "--status upgrade").
+#
+# Emits a six-line report for <username>. Every check is read-only:
+#   1. account exists         (id <user>)
+#   2. primary group          matches ${PROVISION_PRIMARY_GROUP}
+#   3. scratch dir            exists and is owned by resolve_ownership <user>
+#   4. ~/.ssh mode            0700
+#   5. ~/.ssh/authorized_keys mode 0600
+#   6. supplementary groups   include docker + kasmvnc-cert (only those groups
+#                             that actually exist on this host)
+#
+# Emits "[OK]" for a matching check and
+# "[DRIFT expected=X actual=Y]" for a mismatch. No mutations.
+check_user_integrity() {
+  local username="$1"
+  local expected_group="${PROVISION_PRIMARY_GROUP}"
+
+  echo ""
+  echo "User: ${username}"
+
+  # [1] Account existence — every downstream check needs a real UID/GID/home.
+  if ! id "${username}" &>/dev/null; then
+    echo "  account: [DRIFT expected=exists actual=missing]"
+    return 0
+  fi
+  echo "  account: [OK]"
+
+  # [2] Primary group
+  local actual_group
+  actual_group="$(get_user_group "${username}")"
+  if [[ "${actual_group}" == "${expected_group}" ]]; then
+    echo "  primary group: ${expected_group} [OK]"
+  else
+    echo "  primary group: [DRIFT expected=${expected_group} actual=${actual_group}]"
+  fi
+
+  # [3] Scratch dir + ownership
+  local scratch_dir="${SCRATCH_ROOT}/${username}"
+  local expected_owner
+  expected_owner="$(resolve_ownership "${username}")"
+  if [[ ! -d "${scratch_dir}" ]]; then
+    echo "  scratch: ${scratch_dir} [DRIFT expected=exists actual=missing]"
+  else
+    local actual_owner
+    actual_owner="$(stat -c '%U:%G' "${scratch_dir}" 2>/dev/null || echo "unknown:unknown")"
+    if [[ "${actual_owner}" == "${expected_owner}" ]]; then
+      echo "  scratch: ${scratch_dir} [OK]"
+    else
+      echo "  scratch: ${scratch_dir} [DRIFT expected=${expected_owner} actual=${actual_owner}]"
+    fi
+  fi
+
+  # [4] ~/.ssh mode
+  local home_dir
+  home_dir="$(getent passwd "${username}" | cut -d: -f6)"
+  local ssh_dir="${home_dir}/.ssh"
+  local auth_keys="${ssh_dir}/authorized_keys"
+
+  if [[ ! -d "${ssh_dir}" ]]; then
+    echo "  ~/.ssh mode: [DRIFT expected=0700 actual=missing]"
+  else
+    local ssh_mode
+    ssh_mode="$(stat -c '%a' "${ssh_dir}" 2>/dev/null || echo "unknown")"
+    if [[ "${ssh_mode}" == "700" ]]; then
+      echo "  ~/.ssh mode: 0700 [OK]"
+    else
+      echo "  ~/.ssh mode: [DRIFT expected=0700 actual=$(_fmt_mode "${ssh_mode}")]"
+    fi
+  fi
+
+  # [5] ~/.ssh/authorized_keys mode
+  if [[ ! -f "${auth_keys}" ]]; then
+    echo "  ~/.ssh/authorized_keys mode: [DRIFT expected=0600 actual=missing]"
+  else
+    local ak_mode
+    ak_mode="$(stat -c '%a' "${auth_keys}" 2>/dev/null || echo "unknown")"
+    if [[ "${ak_mode}" == "600" ]]; then
+      echo "  ~/.ssh/authorized_keys mode: 0600 [OK]"
+    else
+      echo "  ~/.ssh/authorized_keys mode: [DRIFT expected=0600 actual=$(_fmt_mode "${ak_mode}")]"
+    fi
+  fi
+
+  # [6] Supplementary groups — only check the groups that actually exist on host.
+  local -a expected_supp=()
+  local g
+  for g in docker kasmvnc-cert; do
+    if getent group "${g}" > /dev/null 2>&1; then
+      expected_supp+=("${g}")
+    fi
+  done
+
+  if [[ ${#expected_supp[@]} -eq 0 ]]; then
+    echo "  supplementary groups: (none applicable on this host) [OK]"
+    return 0
+  fi
+
+  local expected_str
+  expected_str="$(IFS=,; echo "${expected_supp[*]}")"
+
+  # id -Gn returns space-separated group names; wrap for whole-word matching.
+  local user_groups
+  user_groups=" $(id -Gn "${username}" 2>/dev/null || echo "") "
+
+  local -a missing=()
+  local -a has=()
+  for g in "${expected_supp[@]}"; do
+    if [[ "${user_groups}" == *" ${g} "* ]]; then
+      has+=("${g}")
+    else
+      missing+=("${g}")
+    fi
+  done
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    echo "  supplementary groups: ${expected_str} [OK]"
+  else
+    local has_str="(none)"
+    if [[ ${#has[@]} -gt 0 ]]; then
+      has_str="$(IFS=,; echo "${has[*]}")"
+    fi
+    echo "  supplementary groups: [DRIFT expected=${expected_str} actual=${has_str}]"
+  fi
+}
+
 print_status() {
   log_subsection "User Provisioning Status"
   echo "Configured default users (PROVISION_USERS):"
@@ -391,6 +705,13 @@ print_status() {
   echo ""
   echo "Existing local users (UID>=1000):"
   getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print "  - " $1}'
+
+  echo ""
+  log_subsection "Per-user Integrity Check"
+  local username
+  for username in "${PROVISION_USERS[@]}"; do
+    check_user_integrity "${username}"
+  done
 }
 
 log_subsection "Provisioning Linux User Accounts"
@@ -400,10 +721,14 @@ if [[ "${STATUS_ONLY}" == true ]]; then
   exit 0
 fi
 
-# Update bare repository before provisioning users
-log_info "Ensuring bare repository is up-to-date..."
-if ! update_bare_repo; then
-  log_warning "Bare repo update failed; user clones may use stale code"
+# Update bare repository before provisioning users (skipped in dry-run mode)
+if [[ "${DRY_RUN}" == true ]]; then
+  log_info "[DRY-RUN] Would refresh bare repository at ${BARE_REPO_DIR} (skipped)"
+else
+  log_info "Ensuring bare repository is up-to-date..."
+  if ! update_bare_repo; then
+    log_warning "Bare repo update failed; user clones may use stale code"
+  fi
 fi
 
 for username in "${USERS_TO_PROVISION[@]}"; do

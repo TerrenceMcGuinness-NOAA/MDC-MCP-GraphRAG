@@ -316,6 +316,122 @@ load_modules() {
 }
 
 ################################################################################
+# Provisioning Ownership & Password Helpers (spec: user-provisioning-ownership-hardening)
+#
+# These helpers collapse the four ownership-resolution schemes onto a single
+# SPOT (R4), enumerate operator-pre-staged content that must not be re-owned
+# (R3), and keep the initial password out of source (R5).
+################################################################################
+
+# Resolve user:group ownership honoring the PROVISION_PRIMARY_GROUP SPOT.
+# Precedence (design.md § "common.sh additions"):
+#   1. "${PROVISION_PRIMARY_GROUP}" iff that group exists on the host
+#   2. get_user_group "<username>"  (current per-user primary group fallback)
+# Usage:   resolve_ownership <username>
+# Prints:  "username:group" on stdout
+resolve_ownership() {
+    local username="${1:-$(get_actual_user)}"
+    local group="${PROVISION_PRIMARY_GROUP:-}"
+
+    if [[ -n "${group}" ]] && getent group "${group}" > /dev/null 2>&1; then
+        echo "${username}:${group}"
+        return 0
+    fi
+
+    # Fallback: resolve via the target user's actual primary group.
+    group="$(get_user_group "${username}")"
+    echo "${username}:${group}"
+}
+
+# Enumerate direct children of <path> that are NOT owned by <owner>.
+# Consumed by create_scratch_space (R3) to detect operator-pre-staged content
+# so it is preserved instead of blindly chowned, and by render_provisioning_plan
+# (R6) to include a "protected pre-staged paths" section in the dry-run plan.
+# Usage:   list_prestaged_paths <path> <owner>
+# Prints:  one absolute path per line on stdout, sorted; nothing when the path
+#          is missing/empty or every entry is already owned by <owner>.
+# Note:    When <owner> is not yet a resolvable user on the host (typical for a
+#          first-time provisioning), every direct child is pre-staged by
+#          definition — a not-yet-created UID cannot own anything.
+list_prestaged_paths() {
+    local path="$1"
+    local owner="$2"
+
+    [[ -d "${path}" ]] || return 0
+
+    local owner_uid
+    owner_uid="$(id -u "${owner}" 2>/dev/null || true)"
+
+    if [[ -z "${owner_uid}" ]]; then
+        find "${path}" -mindepth 1 -maxdepth 1 -print 2>/dev/null | sort
+        return 0
+    fi
+
+    # -not -uid: filter by resolved numeric UID so this works even in nsswitch
+    # edge cases where the name lookup drifts from getpwuid.
+    find "${path}" -mindepth 1 -maxdepth 1 -not -uid "${owner_uid}" -print 2>/dev/null | sort
+}
+
+# Resolve the initial password for a new user with R5 precedence:
+#   (a) contents of "${PROVISION_INITIAL_PASSWORD_FILE}" (must be mode 0600),
+#   (b) interactive `read -s` prompt when a TTY is attached to stdin,
+#   (c) a randomly-generated 16-character password, echoed to stderr for the
+#       operator to record (stdout is reserved for the caller's chpasswd pipe).
+# The value is never persisted to the state file or the systemd journal.
+# Usage:   resolve_initial_password <username>
+# Prints:  the password on stdout; diagnostics and generator disclosure on stderr.
+resolve_initial_password() {
+    local username="$1"
+    local pw_file="${PROVISION_INITIAL_PASSWORD_FILE:-}"
+    local password=""
+
+    # (a) File source
+    if [[ -n "${pw_file}" ]]; then
+        if [[ ! -f "${pw_file}" ]]; then
+            log_error "PROVISION_INITIAL_PASSWORD_FILE=${pw_file} does not exist" >&2
+            return 1
+        fi
+        local mode
+        mode="$(stat -c '%a' "${pw_file}" 2>/dev/null || echo "")"
+        if [[ "${mode}" != "600" ]]; then
+            log_error "PROVISION_INITIAL_PASSWORD_FILE=${pw_file} must be mode 0600 (got ${mode:-unknown})" >&2
+            return 1
+        fi
+        password="$(head -n 1 "${pw_file}")"
+        if [[ -z "${password}" ]]; then
+            log_error "PROVISION_INITIAL_PASSWORD_FILE=${pw_file} is empty" >&2
+            return 1
+        fi
+        log_info "Using initial password for ${username} from ${pw_file}" >&2
+        echo "${password}"
+        return 0
+    fi
+
+    # (b) Interactive prompt (only when a TTY is attached to stdin)
+    if [[ -t 0 ]]; then
+        read -r -s -p "Initial password for ${username}: " password < /dev/tty
+        echo "" >&2  # newline after the silent prompt
+        if [[ -n "${password}" ]]; then
+            log_info "Using operator-entered initial password for ${username}" >&2
+            echo "${password}"
+            return 0
+        fi
+        log_warning "Empty password entered; falling through to generator" >&2
+    fi
+
+    # (c) Generator: 16 characters drawn from an alphanumeric + symbol pool
+    # broad enough to satisfy typical PAM policies.
+    password="$(tr -dc 'A-Za-z0-9!@#%^_+=' </dev/urandom | head -c 16 || true)"
+    if [[ -z "${password}" ]] || [[ "${#password}" -lt 16 ]]; then
+        log_error "Failed to generate initial password for ${username}" >&2
+        return 1
+    fi
+    log_warning "Generated initial password for ${username}: ${password}" >&2
+    log_warning "  Record this value before the user's first login (chage -d 0 forces a change)." >&2
+    echo "${password}"
+}
+
+################################################################################
 # Script Execution Wrapper
 ################################################################################
 
@@ -419,6 +535,7 @@ export -f record_result clear_status_file read_all_results
 export -f require_root command_exists service_running wait_for_service
 export -f get_actual_user get_user_group get_ownership run_as_user create_dir_as_user
 export -f copy_as_user ensure_user_ownership
+export -f resolve_ownership list_prestaged_paths resolve_initial_password
 export -f load_spack_env load_modules
 export -f run_subscript print_summary_report
 
