@@ -27,20 +27,24 @@ UPSTREAM_REPO_URL="ssh://git@gitlab-community.vlab.noaa.gov:29418/NWS/Operations
 usage() {
   cat << 'EOF'
 Usage:
-  sudo ./00-users.sh                 # Provision all PROVISION_USERS
-  sudo ./00-users.sh --user <name>   # Provision a specific user (repeatable)
-  sudo ./00-users.sh --dry-run       # Print the plan; do NOT mutate the host
-  sudo ./00-users.sh --status        # Show configured vs existing users
+  sudo ./00-users.sh                     # Provision all PROVISION_USERS
+  sudo ./00-users.sh --user <name>       # Provision a specific user (repeatable)
+  sudo ./00-users.sh --remediate <name>  # Retroactively fix drift on an existing user (repeatable)
+  sudo ./00-users.sh --dry-run           # Print the plan; do NOT mutate the host
+  sudo ./00-users.sh --status            # Show configured vs existing users
 
 Options:
-  --user <username>      Provision only this user (can be repeated)
-  --dry-run              Render the provisioning plan without any mutations
-  --status               Print a quick status summary (no changes)
-  -h, --help             Show this help
+  --user <username>       Provision only this user (can be repeated)
+  --remediate <username>  Fix drift on an existing user; refuses to create (repeatable).
+                          Mutually exclusive with --user.
+  --dry-run               Render the plan without any mutations
+  --status                Print a quick status summary (no changes)
+  -h, --help              Show this help
 EOF
 }
 
 TARGET_USERS=()
+REMEDIATE_USERS=()
 STATUS_ONLY=false
 DRY_RUN=false
 
@@ -49,6 +53,11 @@ while [[ $# -gt 0 ]]; do
     --user)
       [[ $# -ge 2 ]] || { log_error "--user requires a username"; exit 2; }
       TARGET_USERS+=("$2")
+      shift 2
+      ;;
+    --remediate)
+      [[ $# -ge 2 ]] || { log_error "--remediate requires a username"; exit 2; }
+      REMEDIATE_USERS+=("$2")
       shift 2
       ;;
     --status)
@@ -70,6 +79,14 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Mutual-exclusion guard: --user (create) and --remediate (fix existing) express
+# opposing intents in the same invocation. Reject up front rather than letting
+# one silently override the other.
+if [[ ${#TARGET_USERS[@]} -gt 0 ]] && [[ ${#REMEDIATE_USERS[@]} -gt 0 ]]; then
+  log_error "--user and --remediate are mutually exclusive in the same invocation"
+  exit 2
+fi
 
 USERS_TO_PROVISION=()
 if [[ ${#TARGET_USERS[@]} -gt 0 ]]; then
@@ -445,6 +462,121 @@ provision_user() {
   log_success "User provisioned: ${username}"
 }
 
+# remediate_user — R2/R3/R4/R5/R7/R8/R9 retroactive drift fix for an existing user.
+#
+# Applies only the surgical fixes needed for whatever drift check_user_drifts()
+# reports; a user reporting no drift is a clean no-op (R2/R8). Refuses to touch
+# a non-existent user (R9) — this path is not for creation. Honors the DRY_RUN
+# gate (R6) by delegating to render_remediation_plan and returning without
+# mutation. On a real run, ends with a check_user_integrity re-check so the
+# operator sees the post-remediation state per user (R7).
+#
+# Fix semantics mirror provision_user()'s R3/R4/R5 branches:
+#   primary_group  → usermod -g "${PROVISION_PRIMARY_GROUP}" <user>
+#   scratch_owner  → chown "${user}:${PROVISION_PRIMARY_GROUP}" <scratch>
+#                    (top-level only; children preserved unless
+#                    PROVISION_ADOPT_PRESTAGED=yes)
+#   supp_groups    → usermod -aG <group> <user> for each missing group that
+#                    actually exists on the host
+#
+# Usage:  remediate_user <username>
+# Return: 0 on success or clean no-op; 1 on R9 refusal or unrecoverable error.
+remediate_user() {
+  local username="$1"
+
+  log_subsection "Remediating user: ${username}"
+
+  # R9: refuse on non-existent user. Pre-flight before any drift detection so
+  # the refusal fires under --dry-run as well (matches T4 Verify AC5 shape).
+  if ! id "${username}" &>/dev/null; then
+    log_error "user ${username} does not exist; --remediate is not for creation"
+    return 1
+  fi
+
+  # R2/R7: detect drifts up front from the machine-parseable feed.
+  local drifts
+  drifts="$(check_user_drifts "${username}")"
+  if [[ -z "${drifts}" ]]; then
+    log_info "No drift detected for ${username}; nothing to remediate"
+    return 0
+  fi
+
+  # R6: dry-run gate — render the plan and short-circuit before any mutation.
+  if [[ "${DRY_RUN}" == true ]]; then
+    render_remediation_plan "${username}" "${drifts}"
+    return 0
+  fi
+
+  local group="${PROVISION_PRIMARY_GROUP}"
+
+  # R3: primary group
+  if grep -q '^primary_group ' <<<"${drifts}"; then
+    if getent group "${group}" > /dev/null 2>&1; then
+      log_info "usermod -g ${group} ${username}"
+      usermod -g "${group}" "${username}" || log_error "usermod -g failed"
+    else
+      log_warning "Primary group '${group}' missing on host; skipping"
+    fi
+  fi
+
+  # R4: scratch top-level owner (R3-safe: top-level only unless adopt opt-in)
+  if grep -q '^scratch_owner ' <<<"${drifts}"; then
+    local scratch="${SCRATCH_ROOT}/${username}"
+    log_info "chown ${username}:${group} ${scratch}    # top-level only (R3-safe)"
+    chown "${username}:${group}" "${scratch}" || log_error "scratch chown failed"
+
+    # Enumerate any children still not owned by the target user post-fix;
+    # either preserve (default) or adopt (PROVISION_ADOPT_PRESTAGED=yes).
+    # Reuses the T2 helper unchanged.
+    local -a prestaged=()
+    mapfile -t prestaged < <(list_prestaged_paths "${scratch}" "${username}")
+    if [[ ${#prestaged[@]} -gt 0 ]]; then
+      if [[ "${PROVISION_ADOPT_PRESTAGED}" == "yes" ]]; then
+        log_warning "Adopting ${#prestaged[@]} pre-staged path(s) into ${username}"
+        chown -R "${username}:${group}" "${scratch}"
+      else
+        log_warning "Preserving ${#prestaged[@]} pre-staged path(s) (set PROVISION_ADOPT_PRESTAGED=yes to adopt):"
+        printf '  [PRESERVED] %s\n' "${prestaged[@]}"
+      fi
+    fi
+  fi
+
+  # R5: supplementary group memberships. Missing-group names are encoded after
+  # the tag as a comma-separated list; parse and iterate.
+  if grep -q '^supp_groups ' <<<"${drifts}"; then
+    local missing_line missing g
+    missing_line="$(grep '^supp_groups ' <<<"${drifts}")"
+    missing="${missing_line#supp_groups }"
+    for g in ${missing//,/ }; do
+      if getent group "${g}" > /dev/null 2>&1; then
+        log_info "usermod -aG ${g} ${username}"
+        usermod -aG "${g}" "${username}" || log_error "usermod -aG ${g} failed"
+      else
+        log_warning "Supplementary group '${g}' missing on host; skipping"
+      fi
+    done
+  fi
+
+  # R10: missing eib-mcp-rag-server clone in scratch. Reuses the parent-spec's
+  # clone_mcp_rag_repo() unchanged — the same function that landed Anton's
+  # clone during parent-spec T8. It clones from ${UPSTREAM_REPO_URL} as
+  # ${SUDO_USER} (the invoking operator, whose SSH key already has GitLab
+  # access), pre-creates ${repo_dir} chown'd to that operator so `git clone`
+  # has a writable target, and hands the finished tree back to <username> via
+  # chown -R. Exempt users (PROVISION_CLONE_EXEMPT_USERS) never emit
+  # missing_clone from check_user_drifts, so this branch is skipped for them.
+  if grep -q '^missing_clone' <<<"${drifts}"; then
+    log_info "clone_mcp_rag_repo ${username}    # calling parent-spec's cloner"
+    clone_mcp_rag_repo "${username}" || log_error "clone_mcp_rag_repo failed for ${username}"
+  fi
+
+  # R7: post-remediation status re-check for this user.
+  log_info "Post-remediation integrity for ${username}:"
+  check_user_integrity "${username}"
+
+  log_success "Remediation complete for ${username}"
+}
+
 # render_provisioning_plan — R6 (dry-run)
 #
 # Prints the mutating steps provision_user() would perform for <username>,
@@ -576,6 +708,114 @@ render_provisioning_plan() {
   echo ""
   echo "═══════════════════════════════════════════════════════════════════"
   echo "  END DRY-RUN PLAN — nothing was written to the host"
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo ""
+}
+
+# render_remediation_plan — R6 (dry-run for --remediate)
+#
+# Prints the surgical fixes remediate_user() would perform for <username>,
+# based on the machine-parseable drift set produced by check_user_drifts().
+# Renders every planned usermod/chown with resolved variable substitution
+# and no side effects. Includes the R3 [PRESERVED] section when the scratch
+# top-level owner-flip would leave operator-pre-staged children still owned
+# by someone other than the target user (the default preserve branch,
+# PROVISION_ADOPT_PRESTAGED=no).
+#
+# Section numbering mirrors render_provisioning_plan(): sections appear
+# only for drift rows that are actually present, so a user with just a
+# scratch_owner drift sees a single-section plan numbered [1].
+#
+# Usage:   render_remediation_plan <username> <drifts>
+# Prints:  the plan on stdout; nothing is written to the host.
+render_remediation_plan() {
+  local username="$1"
+  local drifts="$2"
+  local group="${PROVISION_PRIMARY_GROUP}"
+  local workspace_dir="${SCRATCH_ROOT}/${username}"
+
+  echo ""
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo "  DRY-RUN REMEDIATION PLAN for user: ${username}"
+  echo "  (no mutations will be performed)"
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo ""
+
+  local n=0
+
+  # [n] Primary group flip (R3)
+  if grep -q '^primary_group ' <<<"${drifts}"; then
+    n=$((n+1))
+    echo "[${n}] Primary group"
+    if getent group "${group}" > /dev/null 2>&1; then
+      echo "    usermod -g ${group} ${username}"
+    else
+      echo "    # WARN: primary group '${group}' missing on host — would skip"
+    fi
+    echo ""
+  fi
+
+  # [n] Scratch top-level owner flip (R4, R3-safe preserve/adopt)
+  if grep -q '^scratch_owner ' <<<"${drifts}"; then
+    n=$((n+1))
+    echo "[${n}] Scratch dir top-level: ${workspace_dir}"
+    echo "    chown ${username}:${group} ${workspace_dir}    # top-level only (R3-safe)"
+
+    local -a prestaged=()
+    mapfile -t prestaged < <(list_prestaged_paths "${workspace_dir}" "${username}")
+
+    if [[ ${#prestaged[@]} -gt 0 ]]; then
+      if [[ "${PROVISION_ADOPT_PRESTAGED}" == "yes" ]]; then
+        echo "    chown -R ${username}:${group} ${workspace_dir}    # ADOPT ${#prestaged[@]} pre-staged path(s)"
+      else
+        echo ""
+        echo "    [PRESERVED] ${#prestaged[@]} pre-staged child path(s) will NOT be re-owned"
+        echo "                (set PROVISION_ADOPT_PRESTAGED=yes to adopt instead):"
+        printf '      [PRESERVED] %s\n' "${prestaged[@]}"
+      fi
+    fi
+    echo ""
+  fi
+
+  # [n] Supplementary group memberships (R5)
+  if grep -q '^supp_groups ' <<<"${drifts}"; then
+    n=$((n+1))
+    echo "[${n}] Supplementary group memberships"
+    local missing_line missing g
+    missing_line="$(grep '^supp_groups ' <<<"${drifts}")"
+    missing="${missing_line#supp_groups }"
+    for g in ${missing//,/ }; do
+      if getent group "${g}" > /dev/null 2>&1; then
+        echo "    usermod -aG ${g} ${username}"
+      else
+        echo "    # WARN: supplementary group '${g}' missing on host — would skip"
+      fi
+    done
+    echo ""
+  fi
+
+  # [n] Missing clone (R10) — the remediate_user R10 branch delegates to
+  # clone_mcp_rag_repo(); the plan echoes the command shape that function
+  # would invoke so the operator can preview it. ${SUDO_USER} is deliberately
+  # escaped (\${SUDO_USER}) so the literal placeholder is shown in the
+  # dry-run output rather than expanded here — the real value is only known
+  # at real-run time via sudo. workspace_dir, UPSTREAM_REPO_URL, and group
+  # are expanded because they are statically resolvable from <username> and
+  # the SPOT.
+  if grep -q '^missing_clone' <<<"${drifts}"; then
+    n=$((n+1))
+    echo "[${n}] Missing eib-mcp-rag-server clone in scratch"
+    echo "    (clone_mcp_rag_repo ${username} — will invoke:)"
+    echo "    install -d -m 755 -o \${SUDO_USER} -g pwuser \\"
+    echo "        ${workspace_dir}/eib-mcp-rag-server"
+    echo "    sudo -u \${SUDO_USER} git clone ${UPSTREAM_REPO_URL} \\"
+    echo "        ${workspace_dir}/eib-mcp-rag-server"
+    echo "    chown -R ${username}:${group} ${workspace_dir}/eib-mcp-rag-server"
+    echo ""
+  fi
+
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo "  END DRY-RUN REMEDIATION PLAN — nothing was written to the host"
   echo "═══════════════════════════════════════════════════════════════════"
   echo ""
 }
@@ -714,6 +954,97 @@ check_user_integrity() {
     fi
     echo "  supplementary groups: [DRIFT expected=${expected_str} actual=${has_str}]"
   fi
+
+  # [7] R10 clone presence — mirrors check_user_drifts' missing_clone check.
+  # Symmetric-helper contract: check_user_drifts (machine-parseable) and
+  # check_user_integrity (human-facing) must report the same drift set.
+  # Cross-spec touch to the parent-spec T6 helper is acknowledged in
+  # design.md § "Cross-spec touch". Exempt users (PROVISION_CLONE_EXEMPT_USERS)
+  # emit no row — symmetric with check_user_drifts' skip-on-exempt behavior.
+  # Non-exempt users render [OK] when the clone exists at
+  # ${SCRATCH_ROOT}/<user>/eib-mcp-rag-server/.git,
+  # else [DRIFT expected=cloned actual=missing].
+  local clone_exempt=false eu
+  for eu in "${PROVISION_CLONE_EXEMPT_USERS[@]}"; do
+    [[ "${username}" == "${eu}" ]] && { clone_exempt=true; break; }
+  done
+  if ! ${clone_exempt}; then
+    local repo_dir="${SCRATCH_ROOT}/${username}/eib-mcp-rag-server"
+    if [[ -d "${repo_dir}/.git" ]]; then
+      echo "  scratch clone: ${repo_dir} [OK]"
+    else
+      echo "  scratch clone: [DRIFT expected=cloned actual=missing]"
+    fi
+  fi
+}
+
+# check_user_drifts — machine-parseable drift feed for remediate_user (T4).
+#
+# check_user_integrity (T6) is the human-facing report; its rows are prose
+# and not suitable for a switch. remediate_user needs to know exactly which
+# drifts are present and which payload to act on, so this sibling helper
+# emits one tag-line per drift on stdout:
+#
+#   primary_group <actual_group>
+#   scratch_owner <actual_owner>
+#   supp_groups   <comma-separated missing groups>
+#
+# A clean user (all checks OK) emits nothing — the caller distinguishes
+# "no drift" from "some drift" by testing for an empty result. Every check
+# is read-only; no mutations.
+check_user_drifts() {
+  local username="$1"
+  local drifts=()
+  local group="${PROVISION_PRIMARY_GROUP}"
+  local scratch="${SCRATCH_ROOT}/${username}"
+  local expected_owner="${username}:${group}"
+
+  # primary group
+  local actual_group
+  actual_group="$(id -gn "${username}" 2>/dev/null || echo "")"
+  [[ "${actual_group}" != "${group}" ]] && drifts+=("primary_group ${actual_group}")
+
+  # scratch top-level owner
+  if [[ -d "${scratch}" ]]; then
+    local actual_owner
+    actual_owner="$(stat -c '%U:%G' "${scratch}" 2>/dev/null || echo "")"
+    [[ "${actual_owner}" != "${expected_owner}" ]] \
+      && drifts+=("scratch_owner ${actual_owner}")
+  fi
+
+  # supplementary groups — only for groups that exist on host
+  local required=(docker kasmvnc-cert)
+  local missing=()
+  local g
+  for g in "${required[@]}"; do
+    if getent group "${g}" > /dev/null 2>&1; then
+      id -nG "${username}" 2>/dev/null | tr ' ' '\n' | grep -qx "${g}" \
+        || missing+=("${g}")
+    fi
+  done
+  [[ ${#missing[@]} -gt 0 ]] && drifts+=("supp_groups $(IFS=,; echo "${missing[*]}")")
+
+  # R10: missing eib-mcp-rag-server clone in scratch. Users on the exempt
+  # allowlist (PROVISION_CLONE_EXEMPT_USERS — typically the operator who works
+  # from the shared main checkout) are skipped; everyone else is expected to
+  # have a clone at ${SCRATCH_ROOT}/<user>/eib-mcp-rag-server. A missing .git
+  # directory is drift.
+  local exempt=false u
+  for u in "${PROVISION_CLONE_EXEMPT_USERS[@]}"; do
+    [[ "${username}" == "${u}" ]] && { exempt=true; break; }
+  done
+  if ! ${exempt}; then
+    local repo="${scratch}/eib-mcp-rag-server"
+    [[ ! -d "${repo}/.git" ]] && drifts+=("missing_clone")
+  fi
+
+  # Guard the empty-array case so `printf '%s\n' "${drifts[@]}"` does not
+  # trip the nounset check on older bash. On bash 4.4+ this is a no-op, but
+  # the guard keeps the function safe under `set -u` regardless of shell age
+  # and preserves the "clean user prints nothing" contract.
+  if [[ ${#drifts[@]} -gt 0 ]]; then
+    printf '%s\n' "${drifts[@]}"
+  fi
 }
 
 print_status() {
@@ -736,6 +1067,20 @@ log_subsection "Provisioning Linux User Accounts"
 
 if [[ "${STATUS_ONLY}" == true ]]; then
   print_status
+  exit 0
+fi
+
+# --remediate <user> dispatch (R1). Runs after arg parsing per design.md
+# § "Flag parsing changes" → "Main-flow dispatch after arg parsing". Mirrors
+# the STATUS_ONLY early-exit shape above: iterate REMEDIATE_USERS, call
+# remediate_user for each, and exit before the default provisioning path.
+# The mutex guard immediately after arg parsing already rejects any run that
+# combines --user with --remediate.
+if [[ ${#REMEDIATE_USERS[@]} -gt 0 ]]; then
+  for username in "${REMEDIATE_USERS[@]}"; do
+    remediate_user "${username}"
+  done
+  log_success "Remediation step complete"
   exit 0
 fi
 

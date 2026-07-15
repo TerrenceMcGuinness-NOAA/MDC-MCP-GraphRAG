@@ -1,6 +1,6 @@
 # MCP RAG Modular Provisioning System
 
-**Version:** 4.2.0
+**Version:** 4.3.1
 **Date:** July 2026
 
 ## Overview
@@ -176,6 +176,173 @@ The rendered plan lists, in execution order:
 `--dry-run` exits `0` if the plan renders cleanly and does not perform any
 `useradd`, `chown`, `usermod`, `chpasswd`, or file-write side effect. Verify
 with `getent passwd <user>` before and after — the entry must not appear.
+
+## Retroactive drift remediation (`--remediate`)
+
+`00-users.sh --remediate <user>` (repeatable) fixes drift on a user that
+**already exists** on the host. It is the counterpart to `--user`, which
+creates new users: `--remediate` never creates, and `--user` never re-runs
+against an existing account. Use it to close the gap when
+`sudo ./00-users.sh --status` reports `[DRIFT]` rows against a legacy account
+whose primary group, scratch top-level owner, or supplementary-group
+membership no longer matches the SPOT in `user_config.sh`.
+
+> **Run `--dry-run` first.** Preview the plan with
+> `sudo ./00-users.sh --dry-run --remediate <User.Name>` and inspect the
+> rendered `usermod` / `chown` commands before executing the same command
+> without `--dry-run`. The dry-run mutates nothing.
+
+### Purpose and scope
+
+- **In scope**: primary-group flip (R3), scratch top-level owner flip (R4),
+  and adding any missing supplementary groups that exist on the host (R5).
+- **Out of scope**: user creation, password resets, SSH key regeneration,
+  `bashrc` / `.vscode/mcp.json` templating, home-directory contents. Those
+  are handled once at initial provisioning by `--user`; `--remediate` does
+  not touch them.
+- **Drift-driven**: `--remediate` calls the same `check_user_integrity`
+  helper that `--status` uses and applies **only** the fixes needed for each
+  `[DRIFT]` row. A user reporting `[OK]` on all six checks is a no-op that
+  logs "No drift detected" and exits 0.
+
+### R9 refusal on non-existent user
+
+`--remediate` is not for creation. If the named account does not exist,
+the script prints
+`[ERROR] user <User.Name> does not exist; --remediate is not for creation`
+and exits 1 without touching the host. Contrast with `--user`, which would
+create the account. If you meant to create a new user, drop `--remediate`
+and use `--user` instead.
+
+### R8 idempotency guarantee
+
+Running `--remediate <user>` twice back-to-back produces identical `[OK]`
+output on the second invocation and issues zero `usermod` / `chown`
+commands. The second run reads current host state, sees no drift, and
+short-circuits. Safe to include in idempotent runbooks.
+
+### R3 preserve/adopt behavior on scratch children
+
+`--remediate` fixes only the **top level** of `${SCRATCH_ROOT}/<user>`.
+Children (files and subdirectories one level down) that are not owned by
+the target user are treated exactly like pre-staged content during initial
+provisioning:
+
+- **Default (`PROVISION_ADOPT_PRESTAGED=no`)** — children keep their
+  original owner:group. The script enumerates each such path as
+  `[PRESERVED] <path>` in the report. The target user's `--status` will
+  still show scratch `[OK]` at the top level (children are not part of the
+  T6 gate).
+- **Opt-in (`PROVISION_ADOPT_PRESTAGED=yes`)** — the script runs
+  `chown -R "${user}:${PROVISION_PRIMARY_GROUP}" "${SCRATCH_ROOT}/<user>"`
+  and adopts every child. Set the flag inline for a one-off adoption:
+
+  ```bash
+  PROVISION_ADOPT_PRESTAGED=yes sudo ./00-users.sh --remediate <User.Name>
+  ```
+
+Decide preserve vs. adopt from the dry-run's `[PRESERVED]` list before
+running the real command.
+
+### R10 missing-clone drift and the exempt allowlist
+
+`--remediate` also detects a **missing `eib-mcp-rag-server` clone** under
+`${SCRATCH_ROOT}/<user>/eib-mcp-rag-server` and, unless the user is on the
+exempt allowlist, treats it as drift. Every provisioned user is expected to
+have a personal scratch clone by default so they can work independently of
+the shared `${EIB_REPO}` checkout; a missing scratch clone will surface as
+a `[DRIFT expected=cloned actual=missing]` row on `--status` and as a
+`missing_clone` entry inside `--remediate`'s drift set.
+
+When `--remediate` applies the fix, it delegates to the parent spec's
+`clone_mcp_rag_repo <user>` function **unchanged**. The `git clone` executes
+as `${SUDO_USER}` — the operator running `sudo ./00-users.sh --remediate` —
+reusing the operator's existing SSH authentication against
+`${UPSTREAM_REPO_URL}`. After the clone lands, ownership is handed off to
+the target user via `chown -R <user>:${PROVISION_PRIMARY_GROUP}
+${SCRATCH_ROOT}/<user>/eib-mcp-rag-server`. No new authentication path is
+introduced: if `${SUDO_USER}` lacks SSH access to the upstream repo, the
+clone fails with the same `[ERROR] Clone failed. Confirm ${operator} has
+SSH access...` message emitted by `--user` provisioning.
+
+The dry-run plan (`--dry-run --remediate <user>`) previews the exact
+triplet:
+
+```bash
+install -d -m 755 -o ${SUDO_USER} -g pwuser \
+    ${SCRATCH_ROOT}/<user>/eib-mcp-rag-server
+sudo -u ${SUDO_USER} git clone ${UPSTREAM_REPO_URL} \
+    ${SCRATCH_ROOT}/<user>/eib-mcp-rag-server
+chown -R <user>:${PROVISION_PRIMARY_GROUP} \
+    ${SCRATCH_ROOT}/<user>/eib-mcp-rag-server
+```
+
+#### `PROVISION_CLONE_EXEMPT_USERS` allowlist
+
+Some users legitimately do not need a scratch clone — most commonly the
+operator running provisioning, who works from the shared main checkout at
+`${EIB_REPO}` rather than a personal scratch copy. Those users are listed
+in `PROVISION_CLONE_EXEMPT_USERS` in `user_config.sh`:
+
+```bash
+# user_config.sh
+PROVISION_CLONE_EXEMPT_USERS=(
+  "Terry.McGuinness"
+)
+```
+
+Exempt users have the `missing_clone` drift check skipped entirely:
+`check_user_drifts` emits no `missing_clone` line for them, and
+`check_user_integrity` (the `--status` output) omits the row for exempt
+users the same way it omits the `kasmvnc-cert` supplementary-group check
+when that group is absent on the host. This keeps the two helpers
+behaviorally symmetric.
+
+**To expand the allowlist**, edit `user_config.sh` and append usernames to
+the array — one entry per line, quoted, matching the on-host Linux
+username exactly:
+
+```bash
+PROVISION_CLONE_EXEMPT_USERS=(
+  "Terry.McGuinness"
+  "New.Operator"        # takes over provisioning from Terry
+)
+```
+
+Common reasons to add someone to the allowlist:
+
+- A new operator takes over provisioning duties and works from
+  `${EIB_REPO}` rather than maintaining a personal scratch clone.
+- A shared-checkout user who intentionally does not maintain a personal
+  scratch clone (rare; document the rationale in a comment above the
+  array).
+
+Note: the allowlist is a **per-host** list, not per-operator. If the
+operator changes and the previous operator no longer works from
+`${EIB_REPO}`, remove them from the allowlist so their missing clone is
+caught on the next `--status` run. Explicit is better than clever.
+
+### Typical operator flow
+
+```bash
+# 1. See what's drifted
+sudo ./00-users.sh --status
+
+# 2. Preview the plan for a drifted user (no mutation)
+sudo ./00-users.sh --dry-run --remediate Firstname.Lastname
+
+# 3. Decide: preserve pre-staged scratch children (default) or adopt them
+#    (prepend PROVISION_ADOPT_PRESTAGED=yes)
+
+# 4. Execute the plan
+sudo ./00-users.sh --remediate Firstname.Lastname
+
+# 5. Confirm the drift is gone
+sudo ./00-users.sh --status
+```
+
+`--remediate` is repeatable: pass it multiple times in one invocation to
+remediate several users in a single dry-run/apply pair.
 
 ## Script Inventory
 
@@ -353,6 +520,23 @@ When adding new provisioning steps:
 
 ## Version History
 
+- **4.3.1** (Jul 2026): `user-provisioning-drift-remediation` Option C
+  addendum — added R10 missing-clone drift detection and remediation.
+  `--remediate` now surfaces a `missing_clone` drift when
+  `${SCRATCH_ROOT}/<user>/eib-mcp-rag-server/.git` is absent and
+  delegates to the parent spec's `clone_mcp_rag_repo` (executing as
+  `${SUDO_USER}`) to fix it. Introduced the `PROVISION_CLONE_EXEMPT_USERS`
+  allowlist in `user_config.sh` for users who work from the shared
+  `${EIB_REPO}` checkout instead of a personal scratch clone (default:
+  `Terry.McGuinness`). `check_user_integrity` gains a matching seventh
+  row for non-exempt users.
+- **4.3.0** (Jul 2026): `user-provisioning-drift-remediation` — added the
+  `--remediate <user>` flag on `00-users.sh` for retroactive drift fix on
+  existing users (primary group, scratch top-level owner, supplementary
+  groups). Documented the R9 refusal-on-non-existent-user contract, the
+  R8 idempotency guarantee, and the R3 preserve/adopt behavior on scratch
+  children (inherited from the parent spec's `PROVISION_ADOPT_PRESTAGED`
+  toggle).
 - **4.2.0** (Jul 2026): `user-provisioning-ownership-hardening` — documented
   the three new SPOT fields (`PROVISION_PRIMARY_GROUP`,
   `PROVISION_ADOPT_PRESTAGED`, `PROVISION_INITIAL_PASSWORD_FILE`), the

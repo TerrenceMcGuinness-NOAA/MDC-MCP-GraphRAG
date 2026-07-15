@@ -1,9 +1,17 @@
-# User-Provisioning Drift Remediation — Stub Spec
+# User-Provisioning Drift Remediation — Full Spec
 
 **Spec ID**: `user-provisioning-drift-remediation`
-**Status**: **stub / follow-up** — do not implement until `user-provisioning-ownership-hardening` lands
+**Status**: **spec-authored, implementation pending** (Kiro-CLI ready)
 **Discovered**: 2026-07-15 by the T6 `--status` upgrade in `user-provisioning-ownership-hardening`
-**Parent spec**: [`.kiro/specs/user-provisioning-ownership-hardening/`](../user-provisioning-ownership-hardening/)
+**Parent spec**: [`.kiro/specs/user-provisioning-ownership-hardening/`](../user-provisioning-ownership-hardening/)  — committed on `develop` as `dc20d69` (T1–T7) + `30af7fd` (T8 live remediation)
+
+## Spec artifacts
+
+- [`requirements.md`](requirements.md) — 9 EARS requirements + 7 acceptance criteria + traceability matrix
+- [`design.md`](design.md) — additive changes to `SETUP/provisioning/00-users.sh` only; no new SPOT fields; new functions `remediate_user()`, `check_user_drifts()`, `render_remediation_plan()`
+- [`tasks.md`](tasks.md) — 13 sequenced tasks (T1–T5 code + docs, T6–T12 operator-gated, T13 closeout)
+- [`progress.md`](progress.md) — task tracker + corrections log + human-gated boundaries + preserve/adopt decision points
+- [`.config.kiro`](.config.kiro) — spec metadata
 
 ## Problem
 
@@ -73,4 +81,4 @@ Not folded into the parent spec because:
 
 ## Full spec authoring deferred
 
-`requirements.md`, `design.md`, `tasks.md`, and `progress.md` will be authored when this spec is picked up. This README exists only to preserve the discovery and its context so the follow-up is not lost.
+*(historical — the four canonical files above supersede this section; see [`requirements.md`](requirements.md), [`design.md`](design.md), [`tasks.md`](tasks.md), [`progress.md`](progress.md))*
