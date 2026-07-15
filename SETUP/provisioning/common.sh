@@ -407,8 +407,12 @@ resolve_initial_password() {
         return 0
     fi
 
-    # (b) Interactive prompt (only when a TTY is attached to stdin)
-    if [[ -t 0 ]]; then
+    # (b) Interactive prompt (only when a real TTY is attached to BOTH stdin
+    # and stderr — the second check excludes captured/piped contexts such as
+    # VS Code's run_in_terminal tool, where stdin appears as a TTY but stderr
+    # is redirected, previously causing `read -r -s` to accept stray buffer
+    # bytes and silently set the password to an unknown value.)
+    if [[ -t 0 && -t 2 ]]; then
         read -r -s -p "Initial password for ${username}: " password < /dev/tty
         echo "" >&2  # newline after the silent prompt
         if [[ -n "${password}" ]]; then

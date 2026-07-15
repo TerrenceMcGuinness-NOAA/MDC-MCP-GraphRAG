@@ -16,9 +16,13 @@ require_root
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/user_config.sh"
 
-# Bare repository configuration for faster local clones
-BARE_REPO_DIR="${SCRATCH_ROOT}/eib-mcp-rag-server_bare"
-UPSTREAM_REPO_URL="ssh://git@gitlab-licensed.vlab.noaa.gov:29418/NWS/Operations/NCEP/EMC/EIB/eib-mcp-rag-server.git"
+# Upstream repository (SPOT for provisioning-side clones only). Each new user's
+# initial clone is performed as the invoking operator (SUDO_USER) whose SSH key
+# already has GitLab access, then chown'd to the target user. This retired the
+# earlier on-disk bare-repo scheme (2026-07-15 remediation) which required root
+# SSH keys to fetch, cross-user `safe.directory` workarounds, and a stale-fetch
+# fallback path — all obviated by cloning directly from the source of truth.
+UPSTREAM_REPO_URL="ssh://git@gitlab-community.vlab.noaa.gov:29418/NWS/Operations/NCEP/EMC/eib-mcp-rag-server.git"
 
 usage() {
   cat << 'EOF'
@@ -97,10 +101,21 @@ create_user() {
     return 0
   fi
 
-  useradd "${useradd_args[@]}" "${username}"
-
+  # Pre-flight the password source BEFORE useradd so a bad password
+  # configuration (missing file, wrong mode, empty file, no TTY, generator
+  # failure) fails cleanly with zero host mutation. If we called useradd first
+  # and password resolution then errored, we would leave a passwordless
+  # partial account behind — the exact class of half-created state that
+  # motivated this reorder.
   local password
-  password="$(resolve_initial_password "${username}")"
+  if ! password="$(resolve_initial_password "${username}")"; then
+    log_error "Aborting ${username} provisioning: no valid initial password source"
+    log_error "Set PROVISION_INITIAL_PASSWORD_FILE (mode 0600, non-empty), run"
+    log_error "interactively in a TTY, or unset it to fall through to the generator."
+    return 1
+  fi
+
+  useradd "${useradd_args[@]}" "${username}"
   echo "${username}:${password}" | chpasswd
   chage -d 0 "${username}"
 
@@ -277,29 +292,9 @@ EOF
 }
 
 update_bare_repo() {
-  # Update or create the bare repository from upstream
-  # This should be run once before provisioning users
-  log_info "Updating bare repository at ${BARE_REPO_DIR}"
-
-  if [[ -d "${BARE_REPO_DIR}" ]]; then
-    log_info "Fetching latest changes from upstream..."
-    git -C "${BARE_REPO_DIR}" fetch --all --prune 2>&1 || {
-      log_warning "Failed to fetch from upstream; bare repo may be stale"
-      return 1
-    }
-    log_success "Bare repository updated from upstream"
-  else
-    log_info "Creating bare repository from upstream..."
-    git clone --bare "${UPSTREAM_REPO_URL}" "${BARE_REPO_DIR}" 2>&1 || {
-      log_error "Failed to create bare repository from upstream"
-      log_error "Ensure you have SSH access to: ${UPSTREAM_REPO_URL}"
-      return 1
-    }
-    log_success "Bare repository created at ${BARE_REPO_DIR}"
-  fi
-
-  # Ensure the bare repo is readable by all users
-  chmod -R a+rX "${BARE_REPO_DIR}" 2>/dev/null || true
+  # RETIRED 2026-07-15 — the on-disk bare repo scheme was replaced with a
+  # direct upstream clone in clone_mcp_rag_repo(). This shim remains only so any
+  # out-of-tree caller does not error; it is a no-op.
   return 0
 }
 
@@ -307,38 +302,58 @@ clone_mcp_rag_repo() {
   local username="$1"
   local workspace_dir="${SCRATCH_ROOT}/${username}"
   local repo_dir="${workspace_dir}/eib-mcp-rag-server"
-  local user_group
-  user_group=$(get_user_group "${username}")
+  local owner_group
+  owner_group="$(resolve_ownership "${username}")"
+  local operator="${SUDO_USER:-$(get_actual_user)}"
 
   log_info "Setting up EIB MCP RAG repository for ${username}"
 
-  # Verify bare repo exists
-  if [[ ! -d "${BARE_REPO_DIR}" ]]; then
-    log_error "Bare repository not found at ${BARE_REPO_DIR}"
-    log_error "Run update_bare_repo first or ensure bare repo exists"
+  if [[ -d "${repo_dir}/.git" ]]; then
+    log_warning "Repository already exists at ${repo_dir}; leaving as-is"
+    return 0
+  fi
+
+  if [[ -z "${operator}" ]] || [[ "${operator}" == "root" ]]; then
+    log_error "Cannot determine an operator with GitLab access (SUDO_USER unset"
+    log_error "or is root). Set SUDO_USER=<operator> or run via 'sudo -u <op>'."
     return 1
   fi
 
-  if [[ -d "${repo_dir}/.git" ]]; then
-    log_warning "Repository already exists at ${repo_dir}; updating..."
-    run_as_user "${username}" "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' git -C ${repo_dir} fetch origin 2>/dev/null || true"
-  else
-    log_info "Cloning from local bare repository to ${repo_dir}"
-    # Clone from local bare repo as the target user (not root)
-    run_as_user "${username}" "git clone ${BARE_REPO_DIR} ${repo_dir}" || {
-      log_error "Failed to clone from bare repository"
-      return 1
-    }
-    
-    # Set upstream remote to the actual GitLab URL for future pulls
-    if [[ -d "${repo_dir}/.git" ]]; then
-      run_as_user "${username}" "git -C ${repo_dir} remote set-url origin ${UPSTREAM_REPO_URL} 2>/dev/null || true"
-      run_as_user "${username}" "git -C ${repo_dir} remote add local ${BARE_REPO_DIR} 2>/dev/null || true"
-      run_as_user "${username}" "git -C ${repo_dir} checkout develop 2>/dev/null || true"
-      log_success "Repository cloned and set to develop branch (owned by ${username})"
-      log_info "Remote 'origin' set to upstream, 'local' set to bare repo"
-    fi
-  fi
+  # Clone as the invoking operator whose SSH key already has GitLab access.
+  # New users don't have their SSH key registered with GitLab yet, so cloning
+  # as ${username} directly would fail with 'Permission denied (publickey)'.
+  # GIT_SSH_COMMAND auto-accepts the host key so a first-time SSH does not hang
+  # on an interactive prompt.
+  #
+  # Filesystem note: ${workspace_dir} is owned by ${username} mode 755 (set by
+  # create_scratch_space), so the operator cannot create ${repo_dir} on its
+  # own. Root (the script runs under sudo) pre-creates ${repo_dir} chown'd to
+  # the operator so `git clone` has a writable target; we hand the finished
+  # tree back to ${username} immediately after.
+  log_info "Cloning ${UPSTREAM_REPO_URL} as ${operator} → ${repo_dir}"
+  install -d -m 755 -o "${operator}" -g pwuser "${repo_dir}" || {
+    log_error "Could not pre-create ${repo_dir} as ${operator}:pwuser"
+    return 1
+  }
+  sudo -u "${operator}" -H \
+    env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' \
+    git clone "${UPSTREAM_REPO_URL}" "${repo_dir}" || {
+    log_error "Clone failed. Confirm ${operator} has SSH access to ${UPSTREAM_REPO_URL}."
+    # Roll back the empty pre-created dir so a subsequent re-run does not hit
+    # the 'Repository already exists' short-circuit at the top of this function.
+    rmdir "${repo_dir}" 2>/dev/null || true
+    return 1
+  }
+
+  # Transfer ownership to the target user.
+  chown -R "${owner_group}" "${repo_dir}"
+
+  # Check out develop as the target user (their key isn't on GitLab yet, so any
+  # future fetch/push waits until they upload one — documented in the README).
+  sudo -u "${username}" git -C "${repo_dir}" checkout develop 2>/dev/null \
+    || log_warning "Could not check out 'develop' — branch may not exist or default is different"
+
+  log_success "Repository cloned and owned by ${username}"
 }
 
 setup_vscode_mcp_config() {
@@ -410,7 +425,14 @@ provision_user() {
 
   log_subsection "Provisioning user: ${username}"
 
-  create_user "${username}"
+  # Halt the whole chain if create_user returns non-zero — the most likely
+  # cause is a bad PROVISION_INITIAL_PASSWORD_FILE (missing / wrong mode /
+  # empty), which is pre-flighted inside create_user() before useradd runs.
+  if ! create_user "${username}"; then
+    log_error "Aborting provision_user(${username}) after create_user failure"
+    return 1
+  fi
+
   setup_ssh "${username}"
   create_scratch_space "${username}"
   setup_bin_directory "${username}"
@@ -516,18 +538,14 @@ render_provisioning_plan() {
   echo "    chown ${owner_group} ${home_dir}/.bashrc ${home_dir}/.bash_profile"
   echo ""
 
-  # [6] Repository clone from local bare mirror
-  echo "[6] Clone EIB MCP RAG repo (from local bare mirror)"
-  if [[ -d "${BARE_REPO_DIR}" ]]; then
-    echo "    su - ${username} -c 'git clone ${BARE_REPO_DIR} ${repo_dir}'"
-  else
-    echo "    # WARN: bare repo missing at ${BARE_REPO_DIR}"
-    echo "    #       (a live run would run update_bare_repo first, then clone)"
-    echo "    su - ${username} -c 'git clone ${BARE_REPO_DIR} ${repo_dir}'"
-  fi
-  echo "    su - ${username} -c 'git -C ${repo_dir} remote set-url origin ${UPSTREAM_REPO_URL}'"
-  echo "    su - ${username} -c 'git -C ${repo_dir} remote add local ${BARE_REPO_DIR}'"
-  echo "    su - ${username} -c 'git -C ${repo_dir} checkout develop'"
+  # [6] Repository clone from upstream (as operator, then chown to target user)
+  local operator="${SUDO_USER:-$(get_actual_user)}"
+  echo "[6] Clone EIB MCP RAG repo (direct from upstream, retire bare-repo scheme)"
+  echo "    sudo -u ${operator} -H \\"
+  echo "      env GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' \\"
+  echo "      git clone ${UPSTREAM_REPO_URL} ${repo_dir}"
+  echo "    chown -R ${owner_group} ${repo_dir}"
+  echo "    sudo -u ${username} git -C ${repo_dir} checkout develop"
   echo ""
 
   # [7] VS Code MCP config
@@ -721,15 +739,9 @@ if [[ "${STATUS_ONLY}" == true ]]; then
   exit 0
 fi
 
-# Update bare repository before provisioning users (skipped in dry-run mode)
-if [[ "${DRY_RUN}" == true ]]; then
-  log_info "[DRY-RUN] Would refresh bare repository at ${BARE_REPO_DIR} (skipped)"
-else
-  log_info "Ensuring bare repository is up-to-date..."
-  if ! update_bare_repo; then
-    log_warning "Bare repo update failed; user clones may use stale code"
-  fi
-fi
+# Bare-repo pre-fetch retired 2026-07-15 — clone_mcp_rag_repo now pulls directly
+# from ${UPSTREAM_REPO_URL} as the invoking operator (SUDO_USER). No pre-step
+# needed here; the dry-run gate is also unnecessary for a no-op.
 
 for username in "${USERS_TO_PROVISION[@]}"; do
   provision_user "${username}"
