@@ -243,3 +243,82 @@ Sub-tasks marked `*` are test-only and may be skipped to ship faster.
 - The tenant-scope clarification is the durable value here — it prevents the
   next 3 tenants (be they global-workflow branches or external repos) from
   duplicating the doc embedding space by default.
+
+
+---
+
+## 8. Supplement — AWS Platform Gaps (observed 2026-07-14)
+
+The original Phase 68 gaps (§1–7) were surfaced on the **COTS host**
+(ChromaDB + Neo4j, `DB_BACKEND=cots`). The 2026-07-14 post-wake health run on
+the **AWS platform** (Neptune + OpenSearch, `DB_BACKEND=aws`, Titan1024 +
+AgentCore runtime) surfaced the following AWS-specific gaps. These need
+separate addressing because the AWS backend has different adapters, naming, and
+operational constraints.
+
+### 8.1 AWS-Specific Gaps
+
+| # | Gap | Severity | Evidence | Affected |
+|---|---|---|---|---|
+| A1 | **Stale embeddings (44/58 URL-crawl sources >30 days old)** — 94.9% doc coverage but 44 sources are stale (last ingested before Phase 67 rename, some before the titan1024 migration) | Medium | `list_all_sources --include_gaps`: 44 stale, 14 never-ingested | `mdc-workflow-docs-titan1024` (20,155 docs; should be ~21,248) |
+| A2 | **14 doc sources never ingested** — `rocoto`, `cmeps`, `nceplibs-{nemsio,sfcio,sigio}`, `kokkos-api`, `google-shell-style`, `pep8`, `numpy-docstrings`, `ufs-srweather-app`, `global-workflow-rst`, `ecmwf-atlas`, `jedi-academy-{2021-10,2021-06}` | Low | Same gap detector output | Same collection; ~1,093 declared docs missing |
+| A3 | **`workflow_info` SKIP (EFS not mounted on EC2)** — `/mnt/workflow` is the AgentCore EFS mount, not present on the operator EC2 host; the module is unusable from the development workstation | Low (by design) | `mcp_health_check --functional`: `workflow_info [SKIP]` | `workflow_info` tools only |
+| A4 | **Path Consistency WARN (2/34 sampled docs have old checkout-specific prefix)** — a few docs carry stale `supported_repos/global-workflow/…` path metadata from a pre-Phase-67 ingestion | Low | `check_knowledge_integrity`: Path Consistency [WARN] | Metadata accuracy for path-based lookups |
+| A5 | **Coverage Gap check SKIP on EC2** — `check_knowledge_integrity` tries to count Fortran files at a hard-coded path (`/supported_repos/global-workflow`) that doesn't exist on EC2 | Medium | Same integrity check: Coverage Gap [SKIP] | Same Phase-67 path leak as COTS Gap 5, but the fix here is **also** blocked on the EFS mount (even with a tenant-resolved path, the source tree isn't on EC2) |
+| A6 | **`nova1024` indices empty (5 indices, 4 with 0 docs, 1 with 150 test docs)** — pre-created during the Matryoshka evaluation but never fully ingested; Titan won the eval | None (by design) | `get_knowledge_base_status`: nova indices at 0 | No user impact (nova is not the serving profile) |
+| A7 | **No quality benchmark baseline on AWS** — `get_quality_metrics` returns "no benchmark results found" because the harness was only run on COTS | Low | `get_quality_metrics`: empty | Cannot track retrieval-quality drift on the serving platform |
+| A8 | **No health trend history** — `get_health_trend` returns "no health history found" because the platform was sleeping and this is the first post-wake check | None (self-healing) | First snapshot persisted by today's check; trend builds over time | Historical trend comparison |
+| A9 | **`gw_v17` community summaries empty (Gap J)** — `gw_v17_mdc-community-summaries-titan1024` has 0 docs (pipeline not ported to Neptune) | Medium | `get_knowledge_base_status(tenant_id="gw_v17")`: 0 docs | Architecture/subsystem search for v17 returns no results |
+| A10 | **Workspace MCP config carried COTS-only launcher** — `.kiro/settings/mcp.json` had `eib-mcp-rag-full` pointing at `run_mcp_stdio.sh` (Spack-dependent, COTS-only); failed immediately on AWS | Fixed (today) | `source: No such file or directory` on script line 27 | Replaced with correct `agentcore-mcp-rag` proxy entry |
+
+### 8.2 AWS vs COTS Gap Overlap
+
+| Phase 68 COTS Gap | AWS equivalent | Same fix? |
+|---|---|---|
+| Gap 4 (workflow_info path leak) | A3 + A5 | Partially — the tenant-resolved path fix (Task 4) helps, but on EC2 the source tree still isn't present (EFS mount is AgentCore-only). The fix makes it work inside the container and on COTS, but the EC2 SKIP is architectural (by design). |
+| Gap 5 (integrity coverage-gap path) | A5 | Same root cause, same fix (Task 4.2); but on EC2 it degrades to SKIP even after the fix unless the tree is mounted. |
+| Gap 6 (ChromaDB metadata sampler) | N/A | AWS uses the OpenSearch adapter which already has the interface. |
+| Gap 7 (KB-status count) | N/A | AWS `get_knowledge_base_status` correctly reports 252,013 docs today — the count bug was COTS-specific (ChromaDB adapter). |
+
+### 8.3 AWS Gaps That Need Specific Addressing (priority order)
+
+1. **A1 + A2 — Stale/never-ingested URL-crawl docs** → Run a **doc refresh
+   ingest** (`ingest_documentation_v8.py --mode full --tiers all`) on the AWS
+   backend. This is the `url-crawl-gap-closure` / Phase 58 follow-up, not
+   Phase 68. Estimated: 2–4 hours runtime, ~$2 Titan embed cost.
+
+2. **A5 — Coverage-gap check SKIP** → Phase 68 Task 4.2 fixes the hard-coded
+   path. After the fix, on EC2 the check will gracefully report "source tree
+   not mounted" instead of failing on a stale literal. Inside AgentCore (where
+   the runtime serves clients), the check will run against the EFS.
+
+3. **A7 — No quality benchmark on AWS** → Run the benchmark harness
+   (`benchmark_runner.py`) against the live AWS OpenSearch with the
+   `config/benchmark_ground_truth.json` queries. One-time setup, then periodic.
+
+4. **A4 — Path Consistency WARN** → Self-heals on next full re-ingest (the
+   framework spec). Not urgent; 2/34 = ~6% of sampled docs.
+
+5. **A9 — Gap J (community summaries)** → Tracked in
+   `.kiro/steering/12-multi-tenant-gap-tracker.md`. Q3 work (Leiden port to
+   Neptune via external Python + LLM summarization). Not this phase.
+
+6. **A6 — Nova indices empty** → By design (Titan won the eval). Options:
+   delete the empty indices to reduce clutter, or keep them for future
+   Matryoshka/multimodal evaluation. No urgency.
+
+### 8.4 Recommended Tomorrow (full gap detection process)
+
+1. Run `list_all_sources --include_gaps --format detailed` and cross-reference
+   every `stale` and `never` source against its URL / crawler config to
+   determine root cause (dead URL, rate-limited, path_prefix needed, disabled).
+2. Run `check_knowledge_integrity --sample_size 100` for both `gw` and `gw_v17`
+   and record a before-baseline.
+3. Assess whether the A1/A2 doc refresh should happen before or after Phase 68
+   lands (it's independent — different axes of the problem).
+4. Confirm the `nova1024` index disposition decision: keep (future eval) or
+   delete (reduce clutter + cost).
+
+---
+
+*Supplement added: 2026-07-14 by Kiro (AWS health run findings)*

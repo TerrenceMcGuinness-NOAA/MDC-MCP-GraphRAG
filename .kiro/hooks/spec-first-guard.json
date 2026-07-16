@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Spec-First Guard",
+      "description": "When shared pipeline code, SPOT configs, or CLI entry points are edited, reminds the agent to confirm a Kiro spec exists for the change and to stop-and-spec if not. Counter-measure to the 2026-05-21 MPAS path-prefix slip where a feature shipped as a 'trivial fix'.",
+      "trigger": "PostFileSave",
+      "matcher": "(mcp_server_node/scripts/ingestion_base\\.py$|mcp_server_node/scripts/ingest_documentation_v[^/]*\\.py$|mcp_server_node/scripts/ingest_[^/]*\\.py$|mcp_server_node/scripts/documentation_sources_config\\.py$|mcp_server_node/scripts/aws_backend\\.py$|mcp_server_node/scripts/embedding_provider\\.py$|mcp_server_node/scripts/embedding_registry\\.py$|mcp_server_python/src/data/[^/]*\\.py$|mcp_server_python/src/manifest/[^/]*\\.py$|mcp_server_python/src/tools/[^/]*\\.py$|mcp_server_python/src/core/[^/]*\\.py$|mcp_server_python/src/config/unified_manifest\\.json$|mcp_server_python/src/config/aws_config\\.py$|mcp_server_python/src/config/environment\\.py$|mcp_server_python/scripts/generate_unified_manifest\\.py$|mcp_server_python/scripts/backfill_manifest_status\\.py$)",
+      "action": {
+        "type": "agent",
+        "prompt": "SPEC-FIRST CHECK: This file is shared pipeline / SPOT / public surface code. Before continuing, confirm that **all** of these are true:\n\n1. There is a Kiro spec under `.kiro/specs/<spec-name>/` (or an SDD phase under `sdd_framework/workflows/`) that names this change.\n2. The spec was committed to `develop_aws` BEFORE this edit.\n3. The change does NOT do any of the following without an explicit spec line:\n   - add / remove / rename / re-type a SPOT config field\n   - add a CLI flag, env var, or new public function arg\n   - bump a SPOT version (e.g. `VERSION = '8.x.y'`)\n   - establish a new heuristic or convention other contributors must follow\n   - touch >= 3 non-test files\n\nIf any of those is false, STOP, revert the edit, write the spec first, and resume on `develop_aws` (or `feature/<spec-name>` for multi-session work).\n\nReference rules:\n- `.kiro/steering/02-development-workflow.md` (Spec-First Rule)\n- `.kiro/steering/07-feature-branch-spec-workflow.md` (What Counts as a 'Trivial Fix')\n\nRetrospective trigger: 2026-05-21 MPAS path-prefix fix shipped as a 'trivial fix' but added a new SPOT field, a new CLI flag, and changed shared crawler behavior across 8 files / 255 lines."
+      },
+      "enabled": true
+    }
+  ]
+}

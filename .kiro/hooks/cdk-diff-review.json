@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "CDK Diff Safety Review",
+      "description": "When any CDK infrastructure file is edited, reminds the agent to run cdk diff before deploying and check for unintended resource deletions — especially stateful resources like Neptune, OpenSearch, EFS, and S3.",
+      "trigger": "PostFileSave",
+      "matcher": "(infrastructure/cdk/lib/[^/]*\\.ts$|infrastructure/cdk/bin/[^/]*\\.ts$)",
+      "action": {
+        "type": "agent",
+        "prompt": "SAFETY CHECK: A CDK infrastructure file was modified. Before running `cdk deploy`, you MUST:\n1. Run `cdk diff <StackName>` and review the output\n2. Check for ANY resource deletions (lines starting with `[-]`)\n3. Verify ALL stateful resources (Neptune, OpenSearch, EFS, S3, KMS) have `removalPolicy: RETAIN`\n4. If migrating a resource out of CDK management, confirm the two-step pattern was followed (deploy RETAIN first, then remove)\n5. Run CDK assertion tests (`npx jest` in infrastructure/cdk/)\n\nThis hook exists because of the April 22, 2026 Neptune data loss incident. See docs/postmortem/2026-04-22-neptune-data-loss.md"
+      },
+      "enabled": true
+    }
+  ]
+}
