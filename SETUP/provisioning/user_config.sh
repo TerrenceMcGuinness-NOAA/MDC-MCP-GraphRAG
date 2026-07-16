@@ -9,6 +9,7 @@ PROVISION_USERS=(
   "Anna.Smoot"
   "Brian.Curtis"
   "Georgios.Britzolakis"
+  "Anton.Fernando"
 )
 
 # Scratch workspace root for provisioned users
@@ -35,4 +36,27 @@ KASMVNC_DEPTH="${VNC_DEPTH}"
 KASMVNC_DISPLAY_START=1
 KASMVNC_AUTOSTART_USERS=(
   "Terry.McGuinness"
+)
+
+# Primary group for provisioned users on this host.
+# Rationale: matches the pre-existing `pwuser` convention shared by all
+# operator accounts; overrideable per site.
+PROVISION_PRIMARY_GROUP="pwuser"
+
+# When "yes", 00-users.sh will chown pre-existing content under
+# ${SCRATCH_ROOT}/${username} to the target user. Default "no" preserves
+# operator-staged files (see R3).
+PROVISION_ADOPT_PRESTAGED="${PROVISION_ADOPT_PRESTAGED:-no}"
+
+# Path to a mode-0600 file containing the initial password for new users.
+# If unset, 00-users.sh falls back to an interactive prompt or a generated
+# password (never both). See R5.
+PROVISION_INITIAL_PASSWORD_FILE="${PROVISION_INITIAL_PASSWORD_FILE:-}"
+
+# R10 (drift-remediation spec): users for whom check_user_drifts and
+# check_user_integrity do NOT treat a missing eib-mcp-rag-server clone in
+# scratch as drift. Typically the operator who runs provisioning and works
+# from the shared main checkout at ${EIB_REPO} instead of a personal scratch
+# clone. Everyone else on PROVISION_USERS is expected to have a clone.
+PROVISION_CLONE_EXEMPT_USERS=(
 )
