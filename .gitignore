@@ -7,6 +7,9 @@ vector_store/
 embeddings/
 indices/
 
+# VS Code CLI server installations (contains 117MB node binaries)
+.vscode-cli/
+
 # Logs - NEVER commit
 logs/
 *.log
