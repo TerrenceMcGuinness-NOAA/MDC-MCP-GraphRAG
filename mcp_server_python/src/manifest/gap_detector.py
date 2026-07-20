@@ -12,9 +12,12 @@ Usage::
     reports = await detector.detect(registry, vector_db)
 
 The vector_db argument is expected to be a ``VectorDBProtocol``-shaped
-adapter — :meth:`detect` only calls ``health_check(deep=True)`` and
-the ``indices_detail`` field added to that response in Phase C-2c.
-Mocks in ``tests/conftest.py`` already populate the right shape.
+adapter. :meth:`detect` reads per-collection counts from
+``health_check(deep=True)`` — ``indices_detail`` (OpenSearch) or
+``collections_detail`` (ChromaDB) — and falls back to the backend-abstract
+``count_documents(collection)`` when the health probe returns only names
+(cots-backend-observability-parity R5). Mocks in ``tests/conftest.py``
+already populate the right shape.
 """
 
 from __future__ import annotations
@@ -188,7 +191,7 @@ class GapDetector:
             sorted(health.keys()),
         )
 
-        detail = health.get("indices_detail")
+        detail = health.get("indices_detail") or health.get("collections_detail")
         if isinstance(detail, dict) and detail:
             return {str(k): int(v) for k, v in detail.items()}
 
@@ -203,6 +206,33 @@ class GapDetector:
                     fallback_key,
                 )
                 return {str(k): int(v) for k, v in candidate.items()}
+
+        # Last resort: the health payload enumerated collection/index NAMES
+        # but omitted a per-collection count map. Dispatch through the
+        # backend-abstract ``count_documents`` so coverage is still reported
+        # on backends whose health probe returns only names
+        # (cots-backend-observability-parity R5.1).
+        names = health.get("collections") or health.get("indices") or []
+        if (
+            isinstance(names, list)
+            and names
+            and hasattr(vector_db, "count_documents")
+        ):
+            counts: dict[str, int] = {}
+            for name in names:
+                if not isinstance(name, str):
+                    continue
+                try:
+                    counts[name] = int(await vector_db.count_documents(name))
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.debug(
+                        "GapDetector._get_actual_counts: "
+                        "count_documents(%s) failed: %s",
+                        name,
+                        exc,
+                    )
+            if counts:
+                return counts
 
         # No per-index breakdown was discoverable. If the adapter
         # reported a successful health check we want operators to

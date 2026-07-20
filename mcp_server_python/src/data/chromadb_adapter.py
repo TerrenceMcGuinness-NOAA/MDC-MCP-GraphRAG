@@ -290,18 +290,56 @@ class ChromaDBAdapter(VectorDBProtocol):
 
         await asyncio.to_thread(_do)
 
-    async def sample_metadata(
-        self, collection: str | None = None, n: int = 20
-    ) -> list[dict[str, Any]]:
-        """Return up to ``n`` document metadata dicts for integrity sampling.
+    async def count_documents(self, collection: str) -> int:
+        """Return the number of documents in ``collection`` (0 if missing).
 
+        cots-backend-observability-parity R1. Uses ChromaDB's native
+        ``collection.count()``. Non-raising: a missing collection (or any
+        client error) yields ``0`` so observability tools
+        (``get_knowledge_base_status``, ``list_all_sources --include_gaps``)
+        can dispatch through ``backend.vector.count_documents(...)`` on either
+        backend without branching on backend type. This is the ChromaDB-side
+        counterpart to :pymeth:`OpenSearchAdapter.count_documents`.
+        """
+        if not self._connected:
+            await self.connect()
+
+        def _do() -> int:
+            assert self._client is not None
+            try:
+                coll = self._client.get_collection(collection)
+            except Exception:
+                # Missing collection → 0 (never raise).
+                return 0
+            try:
+                return int(coll.count())
+            except Exception:
+                return 0
+
+        return await asyncio.to_thread(_do)
+
+    async def sample_metadata(
+        self,
+        collection: str | None = None,
+        limit: int = 50,
+        *,
+        n: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return up to ``limit`` document metadata dicts for integrity sampling.
+
+        cots-backend-observability-parity R2 (canonical ``limit`` parameter) +
         rag-data-plane-gap-closure R5.1. Backed by ChromaDB ``get(limit=...)``.
         When ``collection`` is given, samples that collection; when ``None``
         (the default used by the integrity checks), samples across all
-        collections up to ``n`` total. Returns ``[]`` for an empty or missing
-        collection (never raises), so ``check_knowledge_integrity`` degrades
-        gracefully rather than crashing.
+        collections up to ``limit`` total. Returns ``[]`` for an empty or
+        missing collection (never raises), so ``check_knowledge_integrity``
+        degrades gracefully rather than crashing.
+
+        ``n`` is a backward-compatible alias for ``limit`` (the pre-Phase-70
+        parameter name still used by ``_build_vector_sampler`` and older test
+        doubles); when supplied it takes precedence over ``limit``.
         """
+        effective_limit = int(n) if n is not None else int(limit)
         if not self._connected:
             await self.connect()
 
@@ -316,18 +354,21 @@ class ChromaDBAdapter(VectorDBProtocol):
                     return []
             out: list[dict[str, Any]] = []
             for name in names:
-                if len(out) >= n:
+                if len(out) >= effective_limit:
                     break
                 try:
                     coll = self._client.get_collection(name)
-                    got = coll.get(limit=n - len(out), include=["metadatas"])
+                    got = coll.get(
+                        limit=effective_limit - len(out),
+                        include=["metadatas"],
+                    )
                 except Exception:
                     # Missing/empty collection → skip (never raise).
                     continue
                 for meta in (got.get("metadatas") or []):
                     if meta:
                         out.append(meta)
-            return out[:n]
+            return out[:effective_limit]
 
         return await asyncio.to_thread(_do)
 

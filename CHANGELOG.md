@@ -1,5 +1,166 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 72: Fortran Coverage-Gap Path Fix (Jul 20, 2026)
+
+### Summary
+Kiro-spec realization of SDD Phase 72
+(`.kiro/specs/fortran-coverage-gap-path-fix/`) — fixes the
+`check_knowledge_integrity` Coverage Gap sub-check, which falsely `[SKIP]`ped
+with "no Fortran files found in /app/supported_repos/global-workflow" (a stale,
+pre-Phase-61 hard-coded path) despite ~107K Fortran nodes in the graph. The
+check now resolves the source root via the active tenant's `workflow_root`,
+cross-references on-disk sources against tenant-scoped graph nodes, falls back
+to a graph-only count when the filesystem isn't mounted, extends to Python and
+Shell, and never `[SKIP]`s. **Verified read-only against live Neo4j + the
+develop worktree.** Staged for human review (no commit/push, git policy 08).
+
+### Changed
+- **`_check_coverage_gap`** (`src/tools/semantic_search.py`) now returns one
+  `_Check` per language ("Coverage Gap (Fortran|Python|Shell)"); the integrity
+  tool `extend`s them. Each row:
+  - resolves sources under the tenant `repo_base` (`<root>/sorc`, `ush`+`workflow`,
+    `ush`+`scripts`+`jobs`) — no hard-coded path;
+  - passes `tenant=` to the graph count query (was a **global** query before —
+    a latent multi-tenant bug);
+  - graph-only fallback when the source dir is absent: `[OK]` > 100 nodes,
+    `[WARN]` 1-100, `[FAIL]` 0;
+  - never returns `[SKIP]` for a missing source path.
+- Removed the now-dead `_count_fortran_files`; added generic
+  `_count_source_files(dirs, globs)`.
+
+### Deviation from the draft design (intentional, sound)
+- The draft's file-vs-symbol percentage "divergence" is a scale mismatch (one
+  `.f90` defines many subroutines → divergence always ~thousands of percent →
+  always FAIL). Replaced with `graph_nodes >= source_files → [OK]`;
+  `0 < nodes < files → [WARN]` (partial coverage); `files present & 0 nodes →
+  [FAIL]`. Meaningful across all three buckets (ShellScript ≈ 1:1 with files).
+
+### Added
+- `tests/unit/test_coverage_gap_multilang.py` (10 tests): tenant-resolved path
+  + mock fs + graph counts → OK/WARN/FAIL; graph-only fallback; tenant-scoping
+  asserted; never-SKIP; 3 per-language rows. Updated the obsolete SKIP test in
+  `test_semantic_search_tools.py` to assert the graph-only fallback.
+
+### Verified
+- Unit: full suite **1322 passed / 26 failed** (all 26 pre-existing; 0
+  regressions; was 1311/26 after Phase 70).
+- Live (read-only, Neo4j `bolt://localhost:7687` + `.pw_workflow_mount/develop`):
+  `Coverage Gap (Fortran)` → `[OK] 107794 Fortran nodes for 7242 files under
+  sorc/`; Python `[OK] 8607 nodes / 41 files`; Shell `[OK] 589 nodes / 114
+  files`; **no `[SKIP]`**. Graph-only fallback (nonexistent repo) →
+  `[OK] 107794 Fortran nodes (graph-only; filesystem not mounted)`.
+
+## [Unreleased] - Phase 71: Nightly RAG Benchmark Harness (Jul 20, 2026)
+
+### Summary
+Kiro-spec realization of SDD Phase 71
+(`.kiro/specs/nightly-rag-benchmark-harness/`) — schedules the RAG benchmark
+nightly so `get_quality_metrics` returns real data (was "No benchmark results
+found") and `--compare` works. Adds a wrapper that runs the harness, appends
+one snapshot per run to `quality_metrics.jsonl` (host + container paths),
+rotates old runs, and fail-loud-logs quality regressions. **Wrapper logic
+verified end-to-end with a stubbed harness** (append / dual-path / rotation /
+regression). The systemd install + live benchmark run are **operator-gated**
+(root `systemctl` + live ChromaDB/Neo4j — a high-risk live-host change, not run
+autonomously). Staged for human review (no commit/push, git policy 08).
+
+### Added
+- **`mcp_server_python/scripts/run_benchmark_nightly.sh`** — nightly wrapper:
+  sources the secrets SPOT, runs the harness, compacts the run to one JSONL
+  line, appends to `quality_metrics.jsonl` at both `MCP_HOST_STATE_DIR` and the
+  container-visible `MCP_CONTAINER_STATE_DIR`, rotates to the last
+  `KEEP_RUNS`=90 runs (archives overflow to `.gz`), and emits structured
+  `[ERROR] {"event":"rag_quality_regression",...}` for any category/metric >10%
+  below its trailing 7-run median. Benchmark command is env-overridable
+  (`MCP_BENCHMARK_CMD`) so the logic is unit-testable without live DBs/systemd.
+- **`SETUP/systemd/mcp-benchmark.service`** (Type=oneshot, TimeoutStartSec=1800)
+  and **`mcp-benchmark.timer`** (OnCalendar `*-*-* 02:30:00 UTC`, Persistent).
+- **`SETUP/systemd/install-benchmark-timer.sh`** — install/enable/start +
+  `--uninstall`, mirroring `install-cleanup-timer.sh`.
+- **`SETUP/README.md`** — Phase 71 install + operations section.
+
+### Deviations from the draft design (intentional, code-truthful)
+- **One JSONL line per RUN**, not per category. The `get_quality_metrics`
+  reader (`_render_quality_metrics`) treats each line as a run with a nested
+  `categories` dict + `overall` block, and `--compare` diffs the last two runs;
+  a per-category line would break comparison. Rotation keeps 90 runs (not
+  "90 x 6").
+- **Harness = `run_benchmark.js`** (in-process tool calls, emits the exact
+  reader schema over the 6-category `test/benchmark/ground_truth.json`), not
+  the AWS-only `config/benchmark_runner.py` (OpenSearch/S3, `model×mode` schema)
+  that the draft also referenced.
+
+### Verified (autonomous, stubbed harness over temp dirs)
+- `bash -n` clean on wrapper + installer.
+- 6 logic checks pass: JSONL written to both host + container paths; rotation
+  kept `KEEP_RUNS` lines; overflow archived to `.gz`; every line is valid
+  one-line JSON with a `categories` object; a synthetic 60% mrr drop produced
+  `[ERROR] {"event":"rag_quality_regression","category":"code_structure",
+  "metric":"mrr","score":0.4,"median_7run":0.8,"drop_pct":50.0}` on stderr.
+
+### Operator-gated (not run autonomously — high-risk live-host change)
+- `sudo install-benchmark-timer.sh`; `systemctl start mcp-benchmark.service`;
+  `systemctl list-timers | grep mcp-benchmark`; the first real harness run
+  against live ChromaDB + Neo4j.
+
+## [Unreleased] - Phase 70: COTS Backend Observability Parity (Jul 20, 2026)
+
+### Summary
+Kiro-spec realization of SDD Phase 70
+(`.kiro/specs/cots-backend-observability-parity/`) — brings the ChromaDB
+(`DB_BACKEND=cots`) vector adapter to observability parity with the OpenSearch
+(`DB_BACKEND=aws`) adapter by adding the two methods the observability tools
+need: `count_documents()` and a canonical `sample_metadata(collection, limit)`.
+Fixes the false `Total Documents: 0` / `Unhealthy` and `0%` gap-coverage
+reports on COTS. **Verified read-only against the live COTS ChromaDB**
+(localhost:8080, 17 collections, 223,148 docs). AWS/OpenSearch serving path is
+unchanged (only additive methods + additive fallbacks). Staged for human review
+(no commit/push, git policy 08).
+
+### Added
+- **`VectorDBProtocol.count_documents(collection) -> int`** and
+  **`sample_metadata(collection=None, limit=50) -> list[dict]`**
+  (`src/data/protocols.py`) — canonical backend-abstract observability contract.
+- **ChromaDB `count_documents`** (`src/data/chromadb_adapter.py`) — native
+  `collection.count()`, non-raising (`0` on missing).
+- **OpenSearch `count_documents` + `sample_metadata`**
+  (`src/data/opensearch_adapter.py`) — the AWS-side counterparts so both
+  adapters fulfil the same contract (R6). `sample_metadata` faithfully
+  replicates the prior inline scroll sampler (`random_score` match_all,
+  empty-metadata inclusion) so AWS integrity behaviour is preserved.
+- Tests: `test_adapter_count_sample_contract.py` (14 parametrized — both
+  adapters), `test_gap_detector_backend_agnostic.py` (4), +2 KB-status R3
+  render tests in `test_kb_status_and_sampler.py`. Full unit suite: **1311
+  passed / 26 failed** (all 26 pre-existing: opensearch-py absent on COTS +
+  stale rename/module-count/taxonomy assertions — **0 regressions**; was
+  1293/26 at Phase 68).
+
+### Changed
+- **`ChromaDBAdapter.sample_metadata`** now takes the canonical `limit`
+  parameter (default 50) with `n` kept as a backward-compatible alias so
+  `_build_vector_sampler` and older test doubles keep working (R2).
+- **`GapDetector._get_actual_counts`** (`src/manifest/gap_detector.py`) and
+  **`_tool_list_all_sources`** (`src/tools/semantic_search.py`) now recognise
+  ChromaDB's `collections_detail` alongside OpenSearch's `indices_detail`, and
+  dispatch through `backend.vector.count_documents(collection)` when the health
+  payload returns only names — fixes the `0%`-coverage-everywhere bug on COTS
+  (R5). `indices_detail` is still checked first (AWS unchanged).
+- **`MockVectorDB`** (`tests/conftest.py`) gains `count_documents` +
+  `sample_metadata` so it still satisfies the extended `VectorDBProtocol`.
+
+### Verified (COTS-truthful, live ChromaDB localhost:8080, read-only)
+- `count_documents('mdc-code-context-mpnet768')` = 60,576 (matches health);
+  missing collection → `0`.
+- `sample_metadata(limit=10)` → 10 real metadata dicts (keys incl.
+  `ingested_at`, `source`, `url`); missing collection → `[]`.
+- `get_knowledge_base_status` (gw scope) → `Total Documents: 220,538`,
+  `[OK] Healthy` (was `0` / `[ERROR] Unhealthy`).
+- `check_knowledge_integrity` → Path Consistency `[OK] 0/50` + Stale Embeddings
+  `[WARN] 50/50 older than source` both EXECUTE (no `[SKIP]`); the WARN is a
+  real, previously-masked finding (Coverage Gap SKIP is Phase 72's scope).
+- `list_all_sources --include_gaps` actuals → GapDetector resolves 17/17
+  collections with docs > 0.
+
 ## [Unreleased] - Phase 68: RAG Data-Plane Gap Closure & Tenant-Scope Clarification (Jul 10, 2026)
 
 ### Summary

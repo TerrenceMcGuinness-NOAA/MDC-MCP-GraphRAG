@@ -421,6 +421,60 @@ journalctl -u chromadb-persistent.service -f &
 docker compose logs -f &
 ```
 
+## Nightly RAG Benchmark Harness (SDD Phase 71)
+
+Schedules the RAG benchmark nightly so `get_quality_metrics` returns real data
+and `--compare` works. The harness appends one snapshot per run to
+`quality_metrics.jsonl` (the file `get_quality_metrics` reads), rotates old
+runs, and emits a fail-loud structured ERROR log on quality regressions.
+
+Files:
+- `mcp_server_python/scripts/run_benchmark_nightly.sh` — wrapper (sources
+  secrets, runs the harness, appends/rotates the JSONL, regression check)
+- `SETUP/systemd/mcp-benchmark.service` — oneshot service (runs the wrapper)
+- `SETUP/systemd/mcp-benchmark.timer` — fires nightly at **02:30 UTC**
+- `SETUP/systemd/install-benchmark-timer.sh` — installer
+
+Install (root):
+```bash
+sudo /mcp_rag_eib/eib-mcp-rag-server/SETUP/systemd/install-benchmark-timer.sh
+```
+
+Operational commands:
+```bash
+# Run once now (also the smoke test):
+systemctl start mcp-benchmark.service
+
+# Confirm the timer is armed with a next-run inside 24h:
+systemctl list-timers mcp-benchmark.timer
+
+# Follow logs / find regressions:
+journalctl -u mcp-benchmark.service -f
+journalctl -u mcp-benchmark.service | grep rag_quality_regression
+
+# Uninstall:
+sudo /mcp_rag_eib/eib-mcp-rag-server/SETUP/systemd/install-benchmark-timer.sh --uninstall
+```
+
+Key environment variables (set in the `.service`, all have safe defaults):
+- `MCP_HOST_STATE_DIR` — host dir holding `quality_metrics.jsonl`
+  (default `/mcp_rag_eib/data/mcp-server/state`).
+- `MCP_CONTAINER_STATE_DIR` — host path bind-mounted to the container's
+  `/app/sdd_framework/execution_state`, so the in-container
+  `get_quality_metrics` sees the file. Set this to the RW-mount source.
+- `MCP_BENCHMARK_KEEP_RUNS` (default `90`), `MCP_BENCHMARK_REGRESSION_PCT`
+  (default `10`), `MCP_BENCHMARK_MEDIAN_WINDOW` (default `7`).
+
+Notes:
+- Each JSONL line is one benchmark **run** (nested `categories` + `overall`) —
+  the schema `get_quality_metrics` contracts for; `--compare` diffs the last
+  two runs. (This corrects the draft spec's "one line per category" wording,
+  which would have broken `--compare`.)
+- The harness is `mcp_server_node/scripts/run_benchmark.js` (in-process tool
+  calls over the 6-category corpus at `test/benchmark/ground_truth.json`); it
+  needs ChromaDB + Neo4j reachable. The AWS-only `config/benchmark_runner.py`
+  is **not** used here.
+
 ---
 
 **Status**: ✅ **Production Ready**  

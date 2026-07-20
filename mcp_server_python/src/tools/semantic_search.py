@@ -1484,7 +1484,15 @@ async def _tool_list_all_sources(
             health = await data.vector_db.health_check(deep=True)
             if isinstance(health, dict):
                 health_status = health.get("status")
-            detail = health.get("indices_detail") or {}
+            # ChromaDB (cots) reports per-collection counts under
+            # ``collections_detail``; OpenSearch (aws) under ``indices_detail``.
+            # Recognise either so the Actual column is populated on both
+            # backends (cots-backend-observability-parity R5).
+            detail = (
+                health.get("indices_detail")
+                or health.get("collections_detail")
+                or {}
+            )
             if isinstance(detail, dict):
                 actual_counts = {str(k): int(v) for k, v in detail.items()}
         except Exception as exc:
@@ -1811,7 +1819,7 @@ async def _tool_check_knowledge_integrity(
             data, sample_size=sample_size, repo_base=repo_base
         )
     )
-    checks.append(await _check_coverage_gap(data, repo_base=repo_base))
+    checks.extend(await _check_coverage_gap(data, repo_base=repo_base))
 
     all_passed = all(c.passed for c in checks)
     lines = [
@@ -1987,36 +1995,157 @@ async def _check_stale_embeddings(
     return _Check("Stale Embeddings", passed, details)
 
 
-async def _check_coverage_gap(data: Any, *, repo_base: Path) -> _Check:
+#: Coverage-gap language buckets: (label, graph_labels, disk_subdirs, disk_globs).
+#: Fortran symbols live under sorc/; Python under ush/ + workflow/; Shell under
+#: ush/ + scripts/ + jobs/ (fortran-coverage-gap-path-fix R1.2, R3.2).
+_COVERAGE_LANGUAGES: tuple[
+    tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...]], ...
+] = (
+    (
+        "Fortran",
+        ("FortranSubroutine", "FortranFunction", "FortranModule", "FortranProgram"),
+        ("sorc",),
+        ("*.f90", "*.F90", "*.f", "*.F"),
+    ),
+    (
+        "Python",
+        ("PythonModule", "PythonFunction"),
+        ("ush", "workflow"),
+        ("*.py",),
+    ),
+    (
+        "Shell",
+        ("ShellScript",),
+        ("ush", "scripts", "jobs"),
+        ("*.sh", "*.ksh"),
+    ),
+)
+
+#: Graph node count above which a language's graph-only coverage is [OK]
+#: (fortran-coverage-gap-path-fix R2.3). 1..threshold → [WARN]; 0 → [FAIL].
+_COVERAGE_GRAPH_OK_THRESHOLD: int = 100
+
+
+async def _check_coverage_gap(data: Any, *, repo_base: Path) -> list[_Check]:
+    """Coverage-gap checks per primary language (fortran-coverage-gap-path-fix).
+
+    Resolves source roots under the active tenant's ``repo_base`` (the Phase-61
+    workflow_root; see :func:`_resolve_repo_base_with_tenant`) rather than a
+    hard-coded path, cross-references on-disk source files against
+    ``<Language>*``-labelled graph nodes (tenant-scoped), and falls back to a
+    graph-only count when the filesystem is not mounted. Never returns
+    ``[SKIP]`` for a missing source path — that was the Phase 72 bug. Returns
+    one ``_Check`` row per language.
+    """
     graph_db = getattr(data, "graph_db", None)
     if graph_db is None:
-        return _Check(
-            "Coverage Gap", True, "[SKIP] graph adapter not available"
+        # Degraded-mode boot: no graph to check against (consistent with the
+        # sibling Orphaned-Graph-Nodes check). Distinct from the missing-
+        # source-path SKIP that Phase 72 removes.
+        return [_Check("Coverage Gap", True, "[SKIP] graph adapter not available")]
+
+    tenant = _tenant()
+    checks: list[_Check] = []
+    for label, graph_labels, subdirs, globs in _COVERAGE_LANGUAGES:
+        checks.append(
+            await _coverage_for_language(
+                graph_db, tenant, repo_base, label, graph_labels, subdirs, globs
+            )
         )
+    return checks
+
+
+async def _coverage_for_language(
+    graph_db: Any,
+    tenant: Any,
+    repo_base: Path,
+    label: str,
+    graph_labels: tuple[str, ...],
+    subdirs: tuple[str, ...],
+    globs: tuple[str, ...],
+) -> _Check:
+    """One language's coverage-gap row (always [OK]/[WARN]/[FAIL], never [SKIP]).
+
+    * filesystem available:
+        - files present, 0 nodes  → [FAIL] (ingest gap)
+        - nodes < files           → [WARN] (possible partial coverage)
+        - nodes >= files          → [OK]
+        - no source files present → [OK] (nothing to cover)
+    * filesystem not mounted (graph-only fallback, R2):
+        - nodes > threshold → [OK]; 1..threshold → [WARN]; 0 → [FAIL]
+
+    Deviation note: the draft design compared on-disk *file* count to graph
+    *symbol* count via a percentage "divergence", but files and symbols are
+    different scales (one .f90 defines many subroutines), so that divergence is
+    always huge and meaningless. This uses the sound signal "graph nodes must
+    be at least as many as source files" — valid across all three buckets
+    (ShellScript is ~1:1 with files; Fortran/Python yield >=1 symbol per parsed
+    file).
+    """
+    name = f"Coverage Gap ({label})"
+    where = " OR ".join(f"n:{lbl}" for lbl in graph_labels)
     try:
         rows = await graph_db.query(
-            "MATCH (n) WHERE n:FortranSubroutine OR n:FortranModule "
-            "OR n:FortranFunction RETURN count(n) AS total"
+            f"MATCH (n) WHERE {where} RETURN count(n) AS total",
+            tenant=tenant,
         )
-        graph_count = int((rows or [{}])[0].get("total") or 0)
+        in_graph = int((rows or [{}])[0].get("total") or 0)
     except Exception as exc:
-        return _Check("Coverage Gap", False, f"[ERROR] {exc}")
+        return _Check(name, False, f"[ERROR] {exc}")
 
-    disk_count = _count_fortran_files(repo_base)
-    if disk_count == 0:
+    dirs = [repo_base / d for d in subdirs]
+    present_dirs = [d for d in dirs if d.is_dir()]
+    scope = "/".join(subdirs)
+
+    if not present_dirs:
+        # Graph-only fallback — filesystem not mounted (e.g. AgentCore microVM).
+        if in_graph > _COVERAGE_GRAPH_OK_THRESHOLD:
+            return _Check(
+                name, True,
+                f"[OK] {in_graph} {label} nodes "
+                "(graph-only; filesystem not mounted)",
+            )
+        if in_graph > 0:
+            return _Check(
+                name, True,
+                f"[WARN] only {in_graph} {label} nodes "
+                "(graph-only; filesystem not mounted)",
+            )
+        return _Check(name, False, f"[FAIL] 0 {label} nodes in graph")
+
+    on_disk = _count_source_files(present_dirs, globs)
+    if on_disk == 0:
         return _Check(
-            "Coverage Gap",
-            True,
-            f"[SKIP] no Fortran files found in {repo_base}",
+            name, True,
+            f"[OK] no {label} source files under {scope}/ "
+            f"({in_graph} nodes in graph)",
         )
-
-    coverage = graph_count / disk_count
-    passed = coverage > 0.20
-    details = (
-        f"{graph_count} Fortran symbols in graph, {disk_count} files on "
-        f"disk ({coverage * 100:.1f}% coverage)"
+    if in_graph == 0:
+        return _Check(
+            name, False,
+            f"[FAIL] {on_disk} {label} files under {scope}/ but 0 nodes in graph",
+        )
+    if in_graph < on_disk:
+        return _Check(
+            name, True,
+            f"[WARN] {in_graph} {label} nodes < {on_disk} files under {scope}/ "
+            "(possible partial coverage)",
+        )
+    return _Check(
+        name, True,
+        f"[OK] {in_graph} {label} nodes for {on_disk} files under {scope}/",
     )
-    return _Check("Coverage Gap", passed, details)
+
+
+def _count_source_files(dirs: list[Path], globs: tuple[str, ...]) -> int:
+    """Count files matching ``globs`` recursively under each dir in ``dirs``."""
+    count = 0
+    for d in dirs:
+        if not d.is_dir():
+            continue
+        for pattern in globs:
+            count += sum(1 for _ in d.rglob(pattern))
+    return count
 
 
 def _build_vector_sampler(vector_db: Any):
@@ -2178,15 +2307,6 @@ def _git_file_time(repo_base: Path, relative: str) -> datetime | None:
         return None
     raw = (out.stdout or "").strip()
     return _parse_iso_ts(raw) if raw else None
-
-
-def _count_fortran_files(repo_base: Path) -> int:
-    if not repo_base.is_dir():
-        return 0
-    count = 0
-    for ext in ("*.f90", "*.F90", "*.f", "*.F"):
-        count += sum(1 for _ in repo_base.rglob(ext))
-    return count
 
 
 __all__ = [

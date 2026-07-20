@@ -1,0 +1,32 @@
+[Unit]
+Description=MDC MCP-RAG Nightly Benchmark
+Documentation=https://github.com/NOAA-EMC/eib-mcp-rag-server
+# SDD Phase 71: Nightly RAG Benchmark Harness
+# Spec: .kiro/specs/nightly-rag-benchmark-harness/
+# See:  sdd_framework/workflows/phase71_nightly_rag_benchmark_harness.md
+#
+# Runs the RAG benchmark and appends a snapshot to quality_metrics.jsonl so
+# get_quality_metrics returns real data and --compare works. The gateway is a
+# soft dependency (the harness calls the tool handlers); we want it up first.
+After=docker.service mcp-gateway.service
+Wants=mcp-gateway.service
+
+[Service]
+Type=oneshot
+User=Terry.McGuinness
+Environment=HOME=/home/Terry.McGuinness
+# Host directory holding quality_metrics.jsonl (the wrapper also writes the
+# container-visible copy when MCP_CONTAINER_STATE_DIR is set to the RW-mount
+# source). Overridable here without editing the wrapper.
+Environment=MCP_HOST_STATE_DIR=/mcp_rag_eib/data/mcp-server/state
+# Set this to the host path bind-mounted to the container's
+# /app/sdd_framework/execution_state so the in-container tool sees the file:
+# Environment=MCP_CONTAINER_STATE_DIR=/mcp_rag_eib/data/mcp-server/execution_state
+ExecStart=/mcp_rag_eib/eib-mcp-rag-server/mcp_server_python/scripts/run_benchmark_nightly.sh
+
+# Bounded runtime so a hung benchmark cannot wedge the timer. The 60-query
+# corpus completes well under this; adjust if the corpus grows.
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

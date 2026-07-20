@@ -642,9 +642,12 @@ async def test_check_knowledge_integrity_flags_bad_paths(
     assert path_row and "[WARN]" in path_row[0]
 
 
-async def test_check_knowledge_integrity_skips_when_repo_missing(
+async def test_check_knowledge_integrity_coverage_uses_graph_fallback_when_repo_missing(
     tmp_path: Path,
 ) -> None:
+    """Phase 72 (fortran-coverage-gap-path-fix): when the workflow mount is
+    absent, the Coverage Gap check falls back to a graph-only count instead of
+    the old ``[SKIP] no Fortran files found``."""
     data = MockUnifiedDataAccess()
     data.graph_db.add_response(
         "MATCH (n) WHERE n:FortranSubroutine",
@@ -653,7 +656,9 @@ async def test_check_knowledge_integrity_skips_when_repo_missing(
     missing_repo = tmp_path / "nope"
     mcp = _make_server(data=data, repo_base=missing_repo)
     text = await _call_tool(mcp, "check_knowledge_integrity", {})
-    assert "[SKIP] no Fortran files found" in text
+    assert "[SKIP] no Fortran files found" not in text
+    assert "Coverage Gap (Fortran)" in text
+    assert "graph-only" in text
 
 
 async def test_check_knowledge_integrity_uses_custom_sample_size(

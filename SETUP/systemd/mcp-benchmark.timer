@@ -1,0 +1,17 @@
+[Unit]
+Description=MDC MCP-RAG Nightly Benchmark Timer
+Documentation=https://github.com/NOAA-EMC/eib-mcp-rag-server
+# SDD Phase 71 — fires nightly at 02:30 UTC: a low-traffic window, before the
+# US East morning standup, so fresh regression data is ready each morning.
+# 02:30 is offset from the mcp-container-cleanup 15-min cadence; the cleanup's
+# 30-minute grace window protects any in-flight benchmark work.
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+# If the host was off at 02:30, run once at next boot so a day is not missed.
+Persistent=true
+# Small jitter to avoid a thundering herd with other scheduled units.
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

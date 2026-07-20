@@ -103,3 +103,50 @@ def test_filter_non_default_tenant_scopes_to_prefix():
     )
     assert total == 7
     assert names == ["gw_v17_mdc-code-context-mpnet768"]
+
+
+# ── cots-backend-observability-parity R3 — KB-status vector block ────────
+
+
+class _ChromaShapeVectorDB:
+    """Vector-db double returning a ChromaDB-shaped deep health payload
+    (per-collection counts under ``collections_detail``, no OpenSearch keys)."""
+
+    def __init__(self, collections_detail: dict[str, int]):
+        self._detail = collections_detail
+
+    async def health_check(self, *, deep: bool = False):  # noqa: ARG002
+        return {
+            "status": "healthy",
+            "collections": list(self._detail.keys()),
+            "collections_detail": dict(self._detail),
+            "total_documents": sum(self._detail.values()),
+        }
+
+
+def test_kb_status_vector_block_healthy_with_chromadb_counts():
+    """R3.1/R3.2: on a ChromaDB-shaped payload the vector block reports the
+    summed document count and ``[OK] Healthy`` (not the false 0/Unhealthy)."""
+    from src.tools.semantic_search import _render_vector_status_block
+
+    vdb = _ChromaShapeVectorDB(
+        {"mdc-workflow-docs-mpnet768": 100, "mdc-code-context-mpnet768": 50}
+    )
+    lines = asyncio.run(_render_vector_status_block(vdb))
+    text = "\n".join(lines)
+    assert "- **Total Documents:** 150" in text
+    assert "[OK] Healthy" in text
+    assert "[ERROR] Unhealthy" not in text
+
+
+def test_kb_status_vector_block_fresh_tenant_zero_collections_is_healthy():
+    """R3.3: a tenant that owns no applicable collections is healthy, not
+    punished as unhealthy."""
+    from src.tools.semantic_search import _render_vector_status_block
+
+    vdb = _ChromaShapeVectorDB({})
+    lines = asyncio.run(_render_vector_status_block(vdb))
+    text = "\n".join(lines)
+    assert "- **Total Documents:** 0" in text
+    assert "[OK] Healthy" in text
+    assert "[ERROR] Unhealthy" not in text
