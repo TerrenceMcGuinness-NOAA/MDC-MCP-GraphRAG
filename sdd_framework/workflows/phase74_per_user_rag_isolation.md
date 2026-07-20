@@ -249,9 +249,9 @@ This works because:
 ## 7. Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Shared Infrastructure (single-instance, runs as today)             │
-│                                                                     │
+┌───────────────────────────────────────────────────────────────────┐
+│  Shared Infrastructure (single-instance, runs as today)           │
+│                                                                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────┐   │
 │  │ chromadb-    │  │ neo4j-devops │  │ mcp-gateway.service    │   │
 │  │ devops :8080 │  │ :7474/:7687  │  │ :18888 (shared tools)  │   │
@@ -261,23 +261,23 @@ This works because:
 │  │ p_anna_*     │  │ P_ANNA_*     │                               │
 │  │ p_anton_*    │  │ P_ANTON_*    │                               │
 │  └──────────────┘  └──────────────┘                               │
-└─────────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────────┘
          ▲ read+write (personal)      ▲ read-only (shared gw)
          │                            │
 ┌────────┼────────────────────────────┼──────────────────────────────┐
 │  User: Anna.Smoot                   │                              │
-│  Scratch: /mcp_rag_eib/SCRATCH_SPACE/Anna.Smoot/eib-mcp-rag-server│
+│  Scratch: /mcp_rag_eib/SCRATCH_SPACE/Anna.Smoot/eib-mcp-rag-server │
 │  Branch: feature/ee2-chunk-reform   │                              │
 │                                     │                              │
 │  ┌──────────────────────────────────┴───────────────────────┐      │
 │  │ MCP stdio server (from scratch clone)                    │      │
 │  │ MCP_READ_ONLY=true (for gw queries)                      │      │
 │  │ tenant=personal-anna (for personal ingestion/queries)    │      │
-│  │ Points at: bolt://localhost:7687, http://localhost:8080   │      │
+│  │ Points at: bolt://localhost:7687, http://localhost:8080  │      │
 │  └──────────────────────────────────────────────────────────┘      │
-│                                                                     │
-│  VS Code Remote Tunnel → .vscode/mcp.json (eib-mcp-rag-full-local)│
-└─────────────────────────────────────────────────────────────────────┘
+│                                                                    │
+│  VS Code Remote Tunnel → .vscode/mcp.json (eib-mcp-rag-full-local) │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 8. References
