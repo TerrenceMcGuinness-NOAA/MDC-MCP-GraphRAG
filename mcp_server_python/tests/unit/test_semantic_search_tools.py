@@ -89,7 +89,8 @@ async def test_tool_schemas_match_nodejs_parameter_names() -> None:
             "max_results",
             "include_documentation", "tenant_id"},
         "explain_with_context": {"topic", "context_type", "detail_level", "tenant_id"},
-        "get_knowledge_base_status": {"include_graph", "include_vector", "tenant_id"},
+        "get_knowledge_base_status": {
+            "include_graph", "include_vector", "all_tenants", "tenant_id"},
         "list_ingested_urls": {"format", "source_filter"},
         "get_ingested_urls_array": {"include_failed"},
         "list_all_sources": {
@@ -168,6 +169,8 @@ async def test_get_knowledge_base_status_bool_defaults_are_true() -> None:
     props = tool.parameters["properties"]
     assert props["include_graph"]["default"] is True
     assert props["include_vector"]["default"] is True
+    # Phase 73: all_tenants is additive and defaults to False (tenant scope).
+    assert props["all_tenants"]["default"] is False
 
 
 async def test_list_ingested_urls_format_enum_matches_nodejs() -> None:

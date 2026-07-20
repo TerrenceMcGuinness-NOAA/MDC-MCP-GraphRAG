@@ -276,6 +276,16 @@ async def test_health_check_functional_flag_message_when_no_data() -> None:
     assert "no data access layer" in text.lower()
 
 
+async def test_health_check_annotates_graph_node_scope() -> None:
+    """Phase 73 (graph-node-count-scope-documentation R2.1): the Graph Database
+    line names its scope so the count is not confused with the tenant-scoped
+    (get_knowledge_base_status) or whole-graph counts."""
+    data = MockUnifiedDataAccess()
+    mcp = _make_server(data=data)
+    text = await _call_tool(mcp, "mcp_health_check", {"detailed": True})
+    assert "(health-check scope)" in text
+
+
 # ── get_health_trend ────────────────────────────────────────────────────
 
 

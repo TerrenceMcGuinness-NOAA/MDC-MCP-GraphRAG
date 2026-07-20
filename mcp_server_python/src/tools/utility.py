@@ -149,7 +149,11 @@ def register(
         description=(
             "Check the health status of all MCP server components with "
             "empirical data validation. Supports detailed per-component "
-            "output, deep sample-query validation, and functional tool tests."
+            "output, deep sample-query validation, and functional tool tests. "
+            "The graph node count is the health-check-scoped curated subset; "
+            "see docs/development/graph_node_count_scopes.md for how it differs "
+            "from get_knowledge_base_status (tenant scope) and the whole-graph "
+            "count."
         ),
     )
     async def mcp_health_check(
@@ -448,7 +452,7 @@ async def _render_health_check(
                 "Graph Database",
                 graph_status,
                 (
-                    f"{graph.get('nodeCount', 0)} nodes, "
+                    f"{graph.get('nodeCount', 0)} nodes (health-check scope), "
                     f"{graph.get('relationshipCount', 0)} relationships"
                     if graph.get("ok")
                     else (graph.get("reason") or "unavailable")

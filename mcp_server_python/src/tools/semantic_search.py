@@ -304,12 +304,16 @@ def register(
             "vector index / document counts, graph node / "
             "relationship counts, and overall health. Backend labels "
             "reflect the active DB_BACKEND (ChromaDB + Neo4j for "
-            "cots, OpenSearch + Neptune for aws)."
+            "cots, OpenSearch + Neptune for aws). The graph node count "
+            "is tenant-scoped; pass all_tenants=True to also report the "
+            "whole-graph count. See "
+            "docs/development/graph_node_count_scopes.md for the scope model."
         ),
     )
     async def get_knowledge_base_status(
         include_graph: bool = True,
         include_vector: bool = True,
+        all_tenants: bool = False,
         tenant_id: str | None = None,
     ) -> str:
         return await run_tenant_scoped(
@@ -317,6 +321,7 @@ def register(
             lambda: _tool_get_knowledge_base_status(
                 data, include_graph=include_graph,
                 include_vector=include_vector,
+                all_tenants=all_tenants,
             ),
         )
 
@@ -797,6 +802,7 @@ async def _tool_get_knowledge_base_status(
     *,
     include_graph: bool,
     include_vector: bool,
+    all_tenants: bool = False,
 ) -> str:
     if data is None:
         return _error_text(_DEGRADED_DATA_MSG)
@@ -807,7 +813,11 @@ async def _tool_get_knowledge_base_status(
         lines.extend(await _render_vector_status_block(data.vector_db))
 
     if include_graph and getattr(data, "graph_db", None) is not None:
-        lines.extend(await _render_graph_status_block(data.graph_db, tenant=_tenant()))
+        lines.extend(
+            await _render_graph_status_block(
+                data.graph_db, tenant=_tenant(), all_tenants=all_tenants
+            )
+        )
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -973,7 +983,26 @@ def _filter_indices_by_tenant(
     return names, {}, total
 
 
-async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[str]:
+async def _whole_graph_node_count(graph_db: Any) -> int | None:
+    """Whole-graph node count — all labels, all tenant prefixes (R4).
+
+    Runs an unfiltered ``MATCH (n) RETURN count(n)`` (deliberately NOT tenant-
+    scoped). Returns ``None`` if the query fails (e.g. a Neptune full-scan
+    timeout on a very large graph) so the caller renders a graceful placeholder
+    instead of erroring the whole status. See
+    docs/development/graph_node_count_scopes.md for the scope model.
+    """
+    try:
+        rows = await graph_db.query("MATCH (n) RETURN count(n) AS total")
+        return int((rows or [{}])[0].get("total") or 0)
+    except Exception as exc:  # pragma: no cover - defensive
+        log.debug("whole-graph node count failed: %s", exc)
+        return None
+
+
+async def _render_graph_status_block(
+    graph_db: Any, tenant: Any = None, *, all_tenants: bool = False
+) -> list[str]:
     """Render the graph-DB block (Neo4j cots / Neptune aws).
 
     Uses ``health_check`` first, then falls back to direct cypher
@@ -1017,15 +1046,27 @@ async def _render_graph_status_block(graph_db: Any, tenant: Any = None) -> list[
         and (node_count > 0 or rel_count > 0)
     )
 
+    tid = getattr(tenant, "tenant_id", None) if tenant else None
+    scope_label = f"tenant {tid}" if tid else "tenant scope"
     lines = [
         f"## Graph Database ({_graph_backend_label()})",
         "",
         f"- **Files:** {label_counts.get('File', 0)}",
         f"- **Functions:** {label_counts.get('Function', 0) + label_counts.get('FortranFunction', 0) + label_counts.get('PythonFunction', 0)}",
         f"- **Classes:** {label_counts.get('Class', 0) + label_counts.get('PythonClass', 0)}",
-        f"- **Total Nodes:** {node_count}",
+        f"- **Total Nodes ({scope_label}):** {node_count}",
         f"- **Total Relationships:** {rel_count}",
     ]
+
+    # graph-node-count-scope-documentation R4: optional whole-graph count
+    # (all labels, all tenant prefixes) for parity troubleshooting. Additive —
+    # the tenant-scoped line above is unchanged.
+    if all_tenants:
+        whole = await _whole_graph_node_count(graph_db)
+        lines.append(
+            "- **Total Nodes (all tenants, all labels):** "
+            + (str(whole) if whole is not None else "[unavailable]")
+        )
 
     if rel_breakdown:
         lines.append("- **Relationship Types:**")

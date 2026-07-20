@@ -1,5 +1,49 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 73: Graph Node-Count Scope Documentation (Jul 20, 2026)
+
+### Summary
+Kiro-spec realization of SDD Phase 73
+(`.kiro/specs/graph-node-count-scope-documentation/`) — documents why three
+tools report three different graph node counts (whole-graph, tenant-scoped,
+health-check curated), annotates each tool's output with its scope, cross-links
+them, and adds an additive `all_tenants` flag to `get_knowledge_base_status`
+that exposes the whole-graph count. **Verified read-only against live Neo4j.**
+Staged for human review (no commit/push, git policy 08).
+
+### Added
+- **`docs/development/graph_node_count_scopes.md`** — the three scopes, their
+  queries + purposes, a "which count do I trust?" decision tree, and the
+  tenant-prefix ↔ count-scope relationship.
+- **`get_knowledge_base_status(all_tenants=False)`** — when true, appends
+  `- **Total Nodes (all tenants, all labels):** N` from an unfiltered
+  `MATCH (n) RETURN count(n)` (via new `_whole_graph_node_count`, graceful
+  `[unavailable]` on a Neptune full-scan timeout). Default behaviour unchanged.
+- Tests: `tests/unit/test_node_count_scopes.py` (6), a health-check-scope test
+  in `test_utility_tools.py`, an `all_tenants` default assertion, and the
+  tool-schema test updated to include `all_tenants`.
+
+### Changed
+- **`mcp_health_check`** "Graph Database" line → `<N> nodes (health-check
+  scope), <M> relationships`; tool description cross-links the scope doc.
+- **`get_knowledge_base_status`** "Total Nodes" line → `Total Nodes (tenant
+  scope):` (or `(tenant <id>)`); tool description cross-links the scope doc.
+  Numeric values are unchanged (additive label suffix only — downstream greps
+  of the number keep working).
+
+### Verified
+- Unit: full suite **1329 passed / 26 failed** (all 26 pre-existing; 0
+  regressions; was 1322/26 after Phase 72).
+- Live (read-only, Neo4j `bolt://localhost:7687`): `get_knowledge_base_status`
+  (gw) → `Total Nodes (tenant scope): 225836`; with `all_tenants=True` adds
+  `Total Nodes (all tenants, all labels): 344604` (whole ≥ tenant ✓). Both match
+  the spec's documented values. Default (no `all_tenants`) shows no whole-graph
+  line. `mcp_health_check` renders `(health-check scope)`.
+
+### Operator step (not autonomous)
+- Cross-linking the `supported_repos/global-workflow.wiki` submodule's
+  health-status reports to the new doc page (it is a separate repo).
+
 ## [Unreleased] - Phase 72: Fortran Coverage-Gap Path Fix (Jul 20, 2026)
 
 ### Summary
