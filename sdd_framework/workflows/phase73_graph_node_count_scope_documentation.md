@@ -27,7 +27,7 @@ first-time reader looking at the health-status wiki page will (a) not know
 which scope the number reflects, and (b) not trust the disagreement.
 
 Observed on 2026-07-20 during the post-cutover full-sweep gap analysis (see
-`supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`,
+`supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`,
 "Informational — Not a Gap" section).
 
 ## 2. Scope
@@ -83,6 +83,6 @@ Observed on 2026-07-20 during the post-cutover full-sweep gap analysis (see
 
 ## 6. References
 
-- Gap Analysis wiki: `supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`
+- Gap Analysis wiki: `supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`
 - Health history: `mcp_server_python/sdd_framework/execution_state/health_history.jsonl`
 - Tools involved: `mcp_health_check`, `get_knowledge_base_status`, `get_health_trend`

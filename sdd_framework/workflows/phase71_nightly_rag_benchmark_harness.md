@@ -35,7 +35,7 @@ This phase adds a **nightly** run so we detect RAG quality regressions the next
 morning instead of the next release.
 
 Observed on 2026-07-20 during the post-cutover full-sweep gap analysis (see
-`supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`,
+`supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`,
 Gap 4).
 
 ## 2. Scope
@@ -108,7 +108,7 @@ Gap 4).
 
 ## 6. References
 
-- Gap Analysis wiki: `supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`
+- Gap Analysis wiki: `supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`
 - Existing benchmark harness: `mcp_server_node/scripts/benchmark_runner.py`,
   `mcp_server_node/scripts/run_benchmark.js`,
   `mcp_server_node/scripts/config/benchmark_ground_truth.json`

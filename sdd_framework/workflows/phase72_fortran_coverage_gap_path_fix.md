@@ -30,7 +30,7 @@ model, source lives under `/app/.pw_workflow_mount/<subdir>` (e.g.
 `/app/.pw_workflow_mount/develop` for tenant `gw`).
 
 Observed on 2026-07-20 during the post-cutover full-sweep gap analysis (see
-`supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`,
+`supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`,
 Gap 3).
 
 ## 2. Scope
@@ -87,7 +87,7 @@ Gap 3).
 
 ## 6. References
 
-- Gap Analysis wiki: `supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`
+- Gap Analysis wiki: `supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`
 - Phase 61 spec: `sdd_framework/workflows/phase61_configurable_workflow_mount_base.md`
 - Tool: `mcp_health_check` (surfaces the SKIP) and `check_knowledge_integrity`
   (owns the check)

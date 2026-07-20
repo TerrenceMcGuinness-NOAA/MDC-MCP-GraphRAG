@@ -31,7 +31,7 @@ The graph side is fine — the same three tools report Neo4j nodes/relationships
 correctly. This is a vector-adapter-only gap.
 
 Observed on 2026-07-20 during the post-cutover full-sweep gap analysis (see
-`supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`,
+`supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`,
 Gaps 1 & 2).
 
 ## 2. Scope
@@ -92,7 +92,7 @@ Gaps 1 & 2).
 
 ## 6. References
 
-- Gap Analysis wiki: `supported_repos/global-workflow.wiki/agentcore-mcp-rag-Gap-Analysis-2026-07-20.md`
+- Gap Analysis wiki: `supported_repos/global-workflow.wiki/Docker-MCP-Gateway-COTS-Gap-Analysis-2026-07-20.md`
 - OpenSearch adapter (reference implementation): `mcp_server_python/src/data/opensearch_adapter.py`
 - ChromaDB adapter (to be extended): `mcp_server_python/src/data/chromadb_adapter.py`
 - Backend selector: `mcp_server_python/src/data/backend_selector.py`
