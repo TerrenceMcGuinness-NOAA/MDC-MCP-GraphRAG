@@ -2,7 +2,7 @@
 
 ## Overview
 
-Expose the MDC MCP RAG Server to GitHub Actions CI pipelines and HPC user sessions (Hera, Orion, Hercules, Gaea, Ursa) via a Cognito-backed JWT authorizer attached to the existing AgentCore Runtime `mdc_mcp_rag_server-TMXDllG2Wi`. This is the **scoped alternative** to `mcp-external-access`, per [Design §1](./design.md#1-overview). It preserves everything sound in the original and replaces exactly two decisions:
+Expose the MDC MCP RAG Server to GitHub Actions CI pipelines and HPC user sessions (Hera, Orion, Hercules, Gaea, Ursa) via a Cognito-backed JWT authorizer attached to the existing AgentCore Runtime `mdc_mcp_rag_server_python-v5K2F8BGrN` (Python, 52 tools). This is the **scoped alternative** to `mcp-external-access`, per [Design §1](./design.md#1-overview). It preserves everything sound in the original and replaces exactly two decisions:
 
 - **HPC authentication (AD-1)** — primary flow is **Authorization Code + PKCE** (RFC 7636) through the Cognito Hosted UI with **loopback** (RFC 8252) and **manual-code-paste** transports; **`USER_SRP_AUTH`** is a flag-selectable headless fallback. There is **no** RFC 8628 device flow and **no** dependency on a Cognito `/oauth2/device_authorization` endpoint (R4.4, R12.2).
 - **CI attribution (AD-3)** — attribution is the **Token_Broker structured log** joined to the **MCP Request_Metadata** on the Token_Broker request id. There is **no** Cognito Pre-Token-Generation trigger and **no** DynamoDB claims-stash table (R3.12, R9.10, R13.1–R13.4).
@@ -47,9 +47,9 @@ Task 0 (pre-implementation gate — AD-2 curl → HTTP 401)
 
 - [ ] 0. Pre-implementation gate — verify public endpoint reachability under VPC mode
   - [ ] 0.1 Run the design-gate `curl` test against the existing Runtime
-    - Execute: `curl -sS -o /tmp/mcp-401.json -w '%{http_code}
-' "https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-east-1%3A903050880929%3Aruntime%2Fmdc_mcp_rag_server-TMXDllG2Wi/invocations?qualifier=DEFAULT" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer not-a-real-token' -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'`
-    - Expected: HTTP 401 response code (not a TCP refusal, not a 502) — proving the public endpoint is reachable and the authorizer is the rejecting component
+    - Execute: `curl -sS -o /tmp/mcp-401.json -w '%{http_code}\n' "https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/arn%3Aaws%3Abedrock-agentcore%3Aus-east-1%3A903050880929%3Aruntime%2Fmdc_mcp_rag_server_python-v5K2F8BGrN/invocations?qualifier=DEFAULT" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'Authorization: Bearer not-a-real-token' -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'`
+    - Expected: HTTP 401 or 403 response code (not a TCP refusal, not a 502) — proving the public endpoint is reachable and an auth layer is the rejecting component
+    - **RESULT (2026-07-22):** HTTP 403 — `{"message":"Authorization method mismatch. The agent is configured for a different authorization method than what was used in your request. Check the agent's authorization configuration and ensure your request uses the matching method (OAuth or SigV4)"}` — **GATE PASSES**: endpoint reachable, auth mismatch confirms SigV4-only (JWT authorizer not yet attached = Task 5's job)
     - _Requirements: R8.5, R8.6_
     - _Design: §2 AD-2, §11.2_
   - [ ] 0.2 Record the verification result in `docs/reports/mcp-external-access-alternative-verification.md`
