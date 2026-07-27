@@ -1,0 +1,8 @@
+{
+  "_comment": "Expected AgentCore Runtime authorizerConfiguration for mdc_mcp_rag_server_python-v5K2F8BGrN. The ${...} tokens are resolved at drift-check time by authorizer-drift-detector.sh from the MdcExternalAccessAlternativeStack CloudFormation outputs (HpcUserPoolId, CiAppClientId, HpcAppClientId). Every `cdk deploy` re-applies this via updateAgentRuntime (R2.8).",
+  "customJWTAuthorizer": {
+    "discoveryUrl": "https://cognito-idp.us-east-1.amazonaws.com/${HpcUserPoolId}/.well-known/openid-configuration",
+    "allowedAudience": ["${CiAppClientId}", "${HpcAppClientId}"],
+    "allowedClients": ["${CiAppClientId}", "${HpcAppClientId}"]
+  }
+}

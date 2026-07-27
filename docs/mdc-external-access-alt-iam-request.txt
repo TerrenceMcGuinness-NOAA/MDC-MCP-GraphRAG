@@ -1,0 +1,203 @@
+MDC EXTERNAL ACCESS (ALT) — IAM PRE-CREATE REQUEST — Account 903050880929
+=========================================================================
+
+Date:       July 27, 2026
+Requestor:  MDC MCP RAG platform team
+Account:    903050880929
+Region:     us-east-1
+Project:    MDC MCP RAG Server — External Access (Path B, Cognito JWT)
+Spec:       .kiro/specs/mcp-external-access-revised/
+
+
+REQUEST
+-------
+
+The `MdcExternalAccessAlternativeStack` CDK stack REFERENCES (does not
+create) one IAM OIDC identity provider and three IAM roles. The PowerUser
+group policy blocks `iam:CreateRole` and `iam:CreateOpenIDConnectProvider`
+(same class of restriction as the Neptune bulk-loader `iam:PassRole` case),
+so these must be admin-created ONCE before the stack is deployed. The CDK
+then imports them by name/ARN (`fromRoleName` / `fromOpenIdConnectProviderArn`).
+
+Verified 2026-07-27: none of these exist yet. The only OIDC provider in the
+account is `ncis-gitlab.nesdis-hq.noaa.gov` — the GitHub Actions provider is
+ABSENT and must be created.
+
+
+1. GitHub Actions OIDC identity provider
+-----------------------------------------
+
+    aws iam create-open-id-connect-provider \
+      --url https://token.actions.githubusercontent.com \
+      --client-id-list sts.amazonaws.com \
+      --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 \
+      --region us-east-1
+
+  Resulting ARN (referenced by CDK and role #2's trust policy):
+    arn:aws:iam::903050880929:oidc-provider/token.actions.githubusercontent.com
+
+  Note: STS validates GitHub's OIDC tokens against IAM's trusted-CA library;
+  the thumbprint is required by the API but not used for path validation for
+  this well-known provider. Any current GitHub thumbprint is acceptable.
+
+
+2. Role: mdc-mcp-alt-gh-oidc-ci  (GitHub Actions -> Token_Broker)   [R3.1, R3.2]
+-------------------------------------------------------------------------------
+
+  Trust policy (federated OIDC; aud pinned; sub allowlisted — R3.1):
+
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": {
+          "Federated": "arn:aws:iam::903050880929:oidc-provider/token.actions.githubusercontent.com"
+        },
+        "Action": "sts:AssumeRoleWithWebIdentity",
+        "Condition": {
+          "StringEquals": {
+            "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+          },
+          "StringLike": {
+            "token.actions.githubusercontent.com:sub": [
+              "repo:NOAA-EMC/global-workflow:ref:refs/heads/*",
+              "repo:NOAA-EMC/mdc-mcp-rag:ref:refs/heads/*"
+            ]
+          }
+        }
+      }]
+    }
+
+  NOTE: the `sub` allowlist above MUST stay in sync with
+  `allowedGithubSubPatterns` in infrastructure/cdk/bin/cdk.ts. STS rejects any
+  AssumeRoleWithWebIdentity whose `sub` matches no entry.
+
+  Permissions policy (invoke the Token_Broker ONLY — R3.2):
+
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Action": "lambda:InvokeFunction",
+        "Resource": "arn:aws:lambda:us-east-1:903050880929:function:mdc-mcp-alt-token-broker"
+      }]
+    }
+
+
+3. Role: mdc-mcp-alt-token-broker-role  (Token_Broker execution role)   [R3.2, R9.3]
+------------------------------------------------------------------------------------
+
+  Trust policy:
+
+    { "Version":"2012-10-17","Statement":[{
+        "Effect":"Allow",
+        "Principal":{"Service":"lambda.amazonaws.com"},
+        "Action":"sts:AssumeRole" }] }
+
+  Permissions:
+    - Managed: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      (CloudWatch Logs create/put for the function's own log group)
+    - Inline (read the CI app-client secret ONLY — no DynamoDB, no other secret):
+
+      {
+        "Version":"2012-10-17",
+        "Statement":[{
+          "Effect":"Allow",
+          "Action":"secretsmanager:GetSecretValue",
+          "Resource":"arn:aws:secretsmanager:us-east-1:903050880929:secret:mdc-mcp-external-access-alt/ci-app-client-*"
+        }]
+      }
+
+  NOTE (AD-3 / R9.10): this role has NO DynamoDB permission. There is no
+  claims-stash table and no Pre-Token-Generation trigger. Attribution is the
+  Token_Broker structured log joined to MCP Request_Metadata on the request id.
+
+
+4. Role: mdc-mcp-alt-authorizer-cr-role  (Task 5 AwsCustomResource provider)   [R2.8]
+-------------------------------------------------------------------------------------
+
+  Used by the CDK custom resource that attaches the Cognito JWT authorizer to
+  the AgentCore Runtime via bedrock-agentcore-control:UpdateAgentRuntime.
+
+  Trust policy:
+
+    { "Version":"2012-10-17","Statement":[{
+        "Effect":"Allow",
+        "Principal":{"Service":"lambda.amazonaws.com"},
+        "Action":"sts:AssumeRole" }] }
+
+  Permissions:
+    - Managed: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+    - Inline (update/read the ONE runtime only):
+
+      {
+        "Version":"2012-10-17",
+        "Statement":[{
+          "Effect":"Allow",
+          "Action":[
+            "bedrock-agentcore-control:UpdateAgentRuntime",
+            "bedrock-agentcore-control:GetAgentRuntime"
+          ],
+          "Resource":"arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN"
+        }]
+      }
+
+
+WHY THIS REQUIRES ADMIN
+------------------------
+
+The PowerUser group policy does not allow `iam:CreateRole` or
+`iam:CreateOpenIDConnectProvider`. All four objects above are therefore
+admin-created once, then imported (never mutated) by the CDK stack.
+
+
+WHAT THIS DOES NOT DO
+---------------------
+
+  - Does NOT deploy the CDK stack (a separate, cdk-diff-reviewed step — R12).
+  - Does NOT attach the JWT authorizer (Task 5's custom resource does that,
+    and only after the dual-auth risk in Correction C8 is verified).
+  - Does NOT grant any role broader scope than listed above.
+  - Does NOT modify the AgentCore Runtime, Neptune, or OpenSearch.
+
+
+VERIFICATION
+------------
+
+    aws iam list-open-id-connect-providers --region us-east-1
+    aws iam get-role --role-name mdc-mcp-alt-gh-oidc-ci
+    aws iam get-role --role-name mdc-mcp-alt-token-broker-role
+    aws iam get-role --role-name mdc-mcp-alt-authorizer-cr-role
+
+
+5. One-time: populate the CI client secret value  (Correction C12)
+------------------------------------------------------------------
+
+The CDK stack creates the Secrets Manager secret
+`mdc-mcp-external-access-alt/ci-app-client` as a RETAIN shell containing the
+(non-secret) `client_id` and a `client_secret` placeholder. CDK does NOT pull
+the real client secret through CloudFormation, because doing so injects a
+`Custom::DescribeCognitoUserPoolClient` resource whose auto-created Lambda role
+needs `iam:CreateRole` (blocked for PowerUser, C7). After `cdk deploy`, inject
+the real client secret once:
+
+    CLIENT_ID=$(aws cognito-idp describe-user-pool \
+      --user-pool-id <HpcUserPoolId output> --region us-east-1 >/dev/null; \
+      aws cloudformation describe-stacks --stack-name MdcExternalAccessAlternativeStack \
+        --query "Stacks[0].Outputs[?OutputKey=='CiAppClientId'].OutputValue" --output text)
+    CLIENT_SECRET=$(aws cognito-idp describe-user-pool-client \
+      --user-pool-id <HpcUserPoolId output> --client-id "$CLIENT_ID" \
+      --query 'UserPoolClient.ClientSecret' --output text --region us-east-1)
+    aws secretsmanager put-secret-value \
+      --secret-id mdc-mcp-external-access-alt/ci-app-client \
+      --secret-string "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\"}" \
+      --region us-east-1
+
+This keeps the client secret out of CloudFormation state entirely.
+
+
+CONTACT
+-------
+
+MDC MCP RAG platform team — NOAA NWS / EMC MDC
+Project: MDC MCP RAG Server — External Access (Path B)
