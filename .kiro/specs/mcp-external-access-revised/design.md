@@ -1609,6 +1609,39 @@ pivots to an **AgentCore Gateway** fronting the Runtime:
 Implementation does not begin until either the Runtime verification passes or the design
 commits to the Gateway fallback (R8.6).
 
+### 11.3a Dual-Auth Compatibility Gate (C8) — ADDED 2026-07-22
+
+**Context:** Task 0 returned HTTP 403 (not 401, not TCP error) with body:
+`"Authorization method mismatch. The agent is configured for a different
+authorization method than what was used in your request. Check the agent's
+authorization configuration and ensure your request uses the matching method
+(OAuth or SigV4)"`.
+
+This passes R8.5 (endpoint reachable) and does NOT trigger R8.6 (no TCP error).
+However, the "(OAuth or SigV4)" phrasing indicates AgentCore Runtime may enforce
+**single-mode** inbound auth — meaning attaching `customJWTAuthorizer` would
+**replace** SigV4 as the inbound auth mode, violating R7 (developer SigV4 path
+must remain operational).
+
+**Decision gate (MUST be resolved before any `cdk deploy`):**
+
+| Outcome | Action |
+|---------|--------|
+| AWS confirms **dual-auth** (SigV4 + JWT coexist on same Runtime) | Deploy Path B as-built (Tasks 1-5 complete) |
+| AWS confirms **single-mode** (JWT replaces SigV4) | Execute the §11.3 Path C Gateway pivot: front the Runtime with an AgentCore Gateway that accepts JWT; Runtime stays SigV4-only; developer path unaffected |
+| Inconclusive | Test on a throwaway runtime (create test, attach JWT, verify SigV4 still works, delete) |
+
+**Resolution methods (priority order):**
+1. Ask AWS technical specialist at the cadence meeting (Option A — zero risk)
+2. Test on a disposable runtime (Option B — 1 hour, definitive answer)
+3. Assume single-mode and begin Path C Gateway work (Option C — conservative)
+
+All Cognito, Token_Broker, OIDC, and CDK work from Tasks 1-5 carries forward
+regardless of outcome — only the "last mile" routing (direct-to-Runtime vs
+via-Gateway) changes.
+
+**Status**: UNRESOLVED — scheduled for first AWS technical review cadence.
+
 ### 11.4 Data-plane isolation (R8.2, R8.3, R8.7)
 
 Unchanged from current state:
