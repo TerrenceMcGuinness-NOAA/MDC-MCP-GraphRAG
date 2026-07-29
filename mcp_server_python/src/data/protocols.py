@@ -103,6 +103,30 @@ class VectorDBProtocol(Protocol):
         """
         ...
 
+    async def count_documents(self, collection: str) -> int:
+        """Return the number of documents in ``collection`` (0 if missing).
+
+        Implementations MUST be non-raising: a missing collection/index
+        yields ``0`` rather than an exception, so observability tools
+        (``get_knowledge_base_status``, ``list_all_sources --include_gaps``)
+        can dispatch through this method on any backend without branching on
+        backend type (cots-backend-observability-parity R1, R6).
+        """
+        ...
+
+    async def sample_metadata(
+        self, collection: str | None = None, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Return up to ``limit`` document-metadata dicts for integrity sampling.
+
+        When ``collection`` is ``None`` the adapter samples across all
+        collections up to ``limit`` total. Returns ``[]`` for an empty or
+        missing collection (never raises). Used by
+        ``check_knowledge_integrity``'s Path-Consistency and Stale-Embeddings
+        sub-checks (cots-backend-observability-parity R2, R6).
+        """
+        ...
+
     async def close(self) -> None:
         """Release all sockets/connections held by the adapter.
 

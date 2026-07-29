@@ -364,6 +364,106 @@ class OpenSearchAdapter:
         except Exception as exc:
             log.warning("[WARN] OpenSearchAdapter.close: %s", exc)
 
+    # ── observability parity (cots-backend-observability-parity) ─────────
+
+    async def count_documents(self, collection: str) -> int:
+        """Return the document count for an index (0 if missing).
+
+        cots-backend-observability-parity R1/R6 — the OpenSearch-side
+        counterpart to :pymeth:`ChromaDBAdapter.count_documents` so both
+        adapters fulfil the same :class:`VectorDBProtocol` contract.
+        ``collection`` is the physical index name; callers such as the
+        manifest gap detector resolve the logical -> physical mapping via
+        :pyfunc:`resolve_index` before calling. Non-raising: a missing index
+        or any transport error yields ``0``.
+        """
+        if not self._connected:
+            await self.connect()
+
+        def _do() -> int:
+            raw = self._raw_client()
+            try:
+                resp = raw.count(index=collection)
+            except Exception:
+                # Missing index / transport error → 0 (never raise).
+                return 0
+            try:
+                return int(resp.get("count", 0) or 0)
+            except Exception:
+                return 0
+
+        return await asyncio.to_thread(_do)
+
+    async def sample_metadata(
+        self,
+        collection: str | None = None,
+        limit: int = 50,
+        *,
+        n: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return up to ``limit`` document-metadata dicts for integrity sampling.
+
+        cots-backend-observability-parity R2/R6 — the OpenSearch-side
+        counterpart to :pymeth:`ChromaDBAdapter.sample_metadata`. Uses a
+        ``random_score`` ``match_all`` query per index (the exact strategy the
+        ``check_knowledge_integrity`` scroll sampler used prior to Phase 70) so
+        the AWS integrity-check behaviour is preserved when the tool layer now
+        routes through this method. When ``collection`` is ``None`` the adapter
+        samples across every non-system index up to ``limit`` total. Returns
+        ``[]`` on any error (never raises).
+
+        ``n`` is a backward-compatible alias for ``limit``.
+        """
+        effective_limit = int(n) if n is not None else int(limit)
+        if not self._connected:
+            await self.connect()
+
+        def _do() -> list[dict[str, Any]]:
+            raw = self._raw_client()
+            if collection is not None:
+                index_names = [collection]
+            else:
+                try:
+                    rows = raw.cat.indices(format="json", h="index")
+                    index_names = [
+                        r["index"] for r in rows
+                        if not r["index"].startswith(".")
+                    ]
+                except Exception:
+                    index_names = []
+            if not index_names:
+                return []
+            per_index = max(1, effective_limit // max(1, len(index_names)))
+            collected: list[dict[str, Any]] = []
+            for idx in index_names:
+                try:
+                    resp = raw.search(
+                        index=idx,
+                        body={
+                            "size": per_index,
+                            "query": {
+                                "function_score": {
+                                    "query": {"match_all": {}},
+                                    "random_score": {},
+                                }
+                            },
+                            "_source": ["metadata"],
+                        },
+                    )
+                    for hit in resp.get("hits", {}).get("hits", []):
+                        # Preserve pre-Phase-70 behaviour: include the (possibly
+                        # empty) metadata dict so the Path-Consistency /
+                        # Stale-Embeddings denominators match the prior scroll
+                        # sampler exactly on AWS.
+                        meta = (hit.get("_source") or {}).get("metadata") or {}
+                        collected.append(meta)
+                except Exception:
+                    continue
+            random.shuffle(collected)
+            return collected[:effective_limit]
+
+        return await asyncio.to_thread(_do)
+
     # ── query construction (R2.2, R2.3) ─────────────────────────────────
 
     def _build_hybrid_query(

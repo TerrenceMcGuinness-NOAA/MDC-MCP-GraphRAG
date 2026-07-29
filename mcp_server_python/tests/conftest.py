@@ -199,6 +199,32 @@ class MockVectorDB:
         self.call_log.append(("list_collections", (), {}))
         return list(self.collections)
 
+    async def count_documents(self, collection: str) -> int:
+        """cots-backend-observability-parity R1/R6 contract method.
+
+        Reports ``len(hits)`` for a known collection and ``0`` for an unknown
+        one (never raises), mirroring the real adapters' non-raising contract.
+        """
+        self.call_log.append(("count_documents", (collection,), {}))
+        return len(self.hits) if collection in self.collections else 0
+
+    async def sample_metadata(
+        self,
+        collection: str | None = None,
+        limit: int = 50,
+        *,
+        n: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """cots-backend-observability-parity R2/R6 contract method.
+
+        Returns up to ``limit`` (or legacy alias ``n``) metadata dicts drawn
+        from ``hits``. Tests exercising Path-Consistency / Stale-Embeddings
+        logic inject their own ``sample_metadata`` to supply targeted fixtures.
+        """
+        effective = int(n) if n is not None else int(limit)
+        self.call_log.append(("sample_metadata", (collection,), {"limit": effective}))
+        return [h.get("metadata") or {} for h in self.hits][:effective]
+
     async def health_check(self, *, deep: bool = False) -> dict[str, Any]:
         self.call_log.append(("health_check", (), {"deep": deep}))
         if self.health is not None:
