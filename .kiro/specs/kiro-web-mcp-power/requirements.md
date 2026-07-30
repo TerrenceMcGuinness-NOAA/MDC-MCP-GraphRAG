@@ -29,12 +29,19 @@ authenticated human operating inside the project IAM boundary, and not an anonym
 browser sandbox. Plan A treats a Kiro Web session as an instance of the existing
 Developer_Principal class rather than as a new public consumer class.
 
-**Path B proceeds in parallel and stays coupled.** The spec
-`.kiro/specs/mcp-external-access-revised/` (Path_B_Baseline) retains ownership of the
-Amazon Cognito JWT posture, the GitHub Actions CI consumer class, and the RDHPCS/HPC
-login-node endpoints. The Cognito JWT posture is the eventual production migration path for
-Kiro Web, and Requirement 4 names the trigger for that migration. Path_B_Baseline is not a
-prerequisite for delivering this spec.
+**This spec is auxiliary to Path B, and Path B is read-only here.** The spec
+`.kiro/specs/mcp-external-access-revised/` (Path_B_Baseline) owns the Amazon Cognito JWT
+posture, the GitHub Actions CI consumer class, and the RDHPCS/HPC login-node endpoints.
+Path_B_Baseline is **read-only for this spec**: AWS technical personnel are following up on
+its current state for independent review, so this spec modifies no file under that directory,
+requires no amendment to it, and places no obligation on it. This spec is auxiliary to
+Path_B_Baseline rather than a dependency of it or a modifier of it, and it exists to explore
+the Power-to-Kiro-Web interface. Long-term overlap between this spec's posture and the Path B
+posture is acknowledged and expected, and that overlap creates no coordination obligation in
+either direction at this time. Requirement 4 names a migration trigger and records the Path B
+Cognito JWT posture as the migration option this project would evaluate at that trigger;
+recording that option requires no Path_B_Baseline change and commits Path_B_Baseline to
+nothing.
 
 This spec defines the requirements for the `mdc-mcp-graphrag` Power: its manifest, its
 SigV4 stdio transport through the existing proxy, its AWS credential lifecycle, its
@@ -74,8 +81,8 @@ fallback) with scope `mcp/hpc-user`. An earlier draft of this spec added Kiro We
 fourth consumer class with its own Cognito app client and its own OAuth scope. That
 decision is reversed. Under Plan A, Kiro Web uses the existing Developer_Principal IAM
 SigV4 path under a prototype trust posture, this spec creates no Cognito scope, no Cognito
-app client, and no Token_Broker consumer, and Path_B_Baseline keeps its three consumer
-classes unchanged. The cost of that reversal is that authorization is bounded by IAM at the
+app client, and no Token_Broker consumer, and this spec leaves Path_B_Baseline and its three
+consumer classes untouched. The cost of that reversal is that authorization is bounded by IAM at the
 AgentCore Runtime rather than per MCP tool; Requirement 4 states that cost plainly and
 records it as an accepted prototype risk with a named migration trigger.
 
@@ -141,23 +148,36 @@ and SigV4 signing are removed rather than restated as design choices.
   now `no-delivery-dependency`, superseding the earlier `carved-enabling-slice` resolution. No
   Path_B_Baseline task is required for the MDC_Power to function. The GitHub Actions CI
   consumer class, the RDHPCS/HPC login-node consumer class, the Token_Broker Lambda, the
-  GitHub OIDC federated IAM role, and the Cognito JWT authorizer all remain owned by
-  Path_B_Baseline and are off this spec's critical path.
-- **Path B coupling and migration intent**: Path_B_Baseline proceeds in parallel and stays
-  coupled to this spec through the shared AgentCore_Runtime_Arn. The Cognito JWT posture with
-  per-scope tool enforcement is the production migration path for Kiro Web, and the migration
-  trigger is named in Requirement 4.
+  GitHub OIDC federated IAM role, and the Cognito JWT authorizer are all outside this spec's
+  scope and off its critical path; Path_B_Baseline addresses them, and this spec asks nothing
+  of it.
+- **Auxiliary relationship to Path B, which is read-only**: this spec is auxiliary to
+  Path_B_Baseline — not a dependency of it, and not a modifier of it. Path_B_Baseline is
+  read-only for this spec and is under independent AWS review, so this spec modifies no file
+  under `.kiro/specs/mcp-external-access-revised/` and imposes no obligation on that spec.
+  Path_B_Baseline appears here only as referenced context. Long-term overlap between the two
+  postures is expected and creates no coordination obligation in either direction at this
+  time. The Cognito JWT posture with per-scope tool enforcement is recorded as the migration
+  option this project would evaluate at the trigger named in Requirement 4.
+- **Distinct runtime targets are permitted**: Path_B_Baseline targets the Node production
+  AgentCore Runtime `mdc_mcp_rag_server-TMXDllG2Wi`, while this spec is expected to target the
+  Python staging AgentCore Runtime `mdc_mcp_rag_server_python-v5K2F8BGrN`. The two are distinct
+  runtimes, per `mcp_server_python/tests/parity/test_graph_rag_parity.py`. This spec records
+  its own AgentCore_Runtime_Arn under Requirement 10 and requires no equality with the runtime
+  Path_B_Baseline targets.
 - **In scope**: the Power definition and its steering bundle; the SigV4 stdio transport
   contract through the existing proxy; the Kiro Web session's AWS credential lifecycle; the
   Kiro_Web_Principal IAM policy, the tool surface that policy grants, and the documented
   residual risk that surface carries; the tenant-selection and tenant-status surface exposed
   through the Power; attribution and audit for Kiro Web invocations; failure diagnostics;
-  documentation; and the coupling contract with `mcp-external-access-revised`.
-- **Out of scope**: implementing the Path B Cognito authorizer itself (owned by
-  `mcp-external-access-revised`); modifying `tools/agentcore-kiro-proxy.py` or
+  documentation; and the record of this spec's read-only, auxiliary relationship to
+  `mcp-external-access-revised`.
+- **Out of scope**: modifying, amending, or requiring any change to any file under
+  `.kiro/specs/mcp-external-access-revised/`; implementing the Path B Cognito authorizer itself
+  (owned by `mcp-external-access-revised`); modifying `tools/agentcore-kiro-proxy.py` or
   `.kiro/settings/mcp.json`; adding, removing, or changing any MCP tool's behavior; ingesting
-  data for any tenant; AgentCore Gateway adoption (Path C, deferred by
-  `mcp-external-access-revised` Requirement 11).
+  data for any tenant; AgentCore Gateway adoption (Path C, which
+  `mcp-external-access-revised` Requirement 11 defers).
 
 ## Glossary
 
@@ -165,13 +185,19 @@ and SigV4 signing are removed rather than restated as design choices.
   Bedrock AgentCore Runtime, backed by Amazon Neptune (openCypher graph) and Amazon
   OpenSearch (k-NN + BM25 vector).
 - **AgentCore_Runtime**: The AWS Bedrock AgentCore serverless runtime hosting the
-  MCP_Server. Two runtime identifiers appear in existing repository artifacts and are
-  reconciled by Open Question OQ-4.
+  MCP_Server. Two distinct runtimes exist — the Node production runtime
+  `mdc_mcp_rag_server-TMXDllG2Wi` and the Python staging runtime
+  `mdc_mcp_rag_server_python-v5K2F8BGrN`, both exercised by the parity suites under
+  `mcp_server_python/tests/parity/` — and Open Question OQ-4 selects which one this spec
+  targets.
 - **AgentCore_Runtime_Arn**: The single AWS resource ARN of the AgentCore_Runtime, of the form
   `arn:aws:bedrock-agentcore:<region>:<account-id>:runtime/<runtime-id>`, whose literal value
-  is fixed by Open Question OQ-4. The AgentCore_Runtime_Arn is simultaneously the
-  `agentRuntimeArn` target of every `invoke_agent_runtime` call and the sole `Resource` element
-  of the Kiro_Web_Principal IAM policy required by Requirement 4.
+  is fixed by Open Question OQ-4 and recorded by this spec under Requirement 10. The
+  AgentCore_Runtime_Arn is simultaneously the `agentRuntimeArn` target of every
+  `invoke_agent_runtime` call and the sole `Resource` element of the Kiro_Web_Principal IAM
+  policy required by Requirement 4. The AgentCore_Runtime_Arn this spec records may name a
+  runtime other than the one Path_B_Baseline targets, and no criterion of this spec requires
+  the two to be equal.
 - **Proxy_Bridge**: The existing stdio-to-SigV4 bridge program at
   `tools/agentcore-kiro-proxy.py`, delivered complete by the spec `agentcore-kiro-proxy`, which
   reads MCP JSON-RPC messages from standard input, forwards each message as a boto3
@@ -251,8 +277,14 @@ and SigV4 signing are removed rather than restated as design choices.
   registry, as stated by Requirement 4; keying an Allowed_Tool_Set by OAuth scope is a
   Path_B_Baseline mechanism.
 - **Mutation_Tool_Set**: The enumerated set of MCP_Server tools that create, update, delete,
-  or otherwise modify persistent or session state, as defined by
-  `.kiro/specs/mcp-external-access-revised/requirements.md`.
+  or otherwise modify persistent or session state. This spec re-derives the Mutation_Tool_Set
+  by reading the tool sources under `mcp_server_python/src/tools/*.py` as part of resolving
+  Open Question OQ-5, and it therefore does not depend on Path_B_Baseline to publish or
+  maintain that enumeration. The Mutation_Tool_Set definition in
+  `.kiro/specs/mcp-external-access-revised/requirements.md` is a read-only corroborating
+  reference only, and it describes the Node server rather than the Python server; WHERE the
+  two enumerations differ, THE enumeration re-derived from `mcp_server_python/src/tools/*.py`
+  SHALL govern this spec.
 - **Developer_Principal**: The existing developer path — the EC2 workstation IAM role used by
   the Proxy_Bridge over IAM SigV4 `invoke_agent_runtime`. Under Plan A the Kiro_Web_Principal
   is an instance of this principal class, differing only in how its credentials arrive.
@@ -265,7 +297,12 @@ and SigV4 signing are removed rather than restated as design choices.
   `.kiro/specs/tenant-status-honesty/`.
 - **Path_B_Baseline**: The spec `.kiro/specs/mcp-external-access-revised/`, organized as 14
   top-level task groups numbered Task 0 through Task 13, all of which were unstarted when
-  this spec was written.
+  this spec was written. Path_B_Baseline is **read-only for this spec**: AWS technical
+  personnel are following up on its current state for independent review, so this spec cites
+  Path_B_Baseline as referenced context only, modifies no file under that directory, and
+  requires no change to, and records no obligation on, anything Path_B_Baseline owns.
+  Path_B_Baseline targets the Node production AgentCore Runtime
+  `mdc_mcp_rag_server-TMXDllG2Wi`.
 - **Enabling_Slice**: The subset of Path_B_Baseline task groups that an earlier Cognito-based
   draft of this spec required in order to function. **Not used under Plan A** — Plan A requires
   no Path_B_Baseline task. The term is retained for the Path B migration discussion.
@@ -552,10 +589,11 @@ tool, including every mutation tool. Per-tool least privilege is not available u
    and the intersection of the Allowed_Tool_Set with the Mutation_Tool_Set equals the
    Mutation_Tool_Set.
 5. **Per-tool least privilege is NOT achievable under Plan A.** THE project SHALL record
-   that per-tool authorization for a Kiro_Web session requires the Path_B_Baseline
-   scope-enforcement middleware, and THE MDC_Power SHALL implement no mechanism that is
-   described as restricting which MCP_Server tools a Kiro_Web session is permitted to
-   execute.
+   that per-tool authorization for a Kiro_Web session requires a scope-enforcement middleware
+   of the kind Path_B_Baseline designs, that this spec delivers no such middleware, and that
+   this spec asks Path_B_Baseline to deliver nothing; and THE MDC_Power SHALL implement no
+   mechanism that is described as restricting which MCP_Server tools a Kiro_Web session is
+   permitted to execute.
 6. WHERE the MDC_Power presents a reduced tool list to the Kiro_Web agent, THE MDC_Power
    documentation SHALL describe that reduced list as a client-side convenience filter that a
    caller holding the Kiro_Web_Credentials can bypass, and SHALL NOT describe that reduced
@@ -568,9 +606,11 @@ tool, including every mutation tool. Per-tool least privilege is not available u
    Criterion 8.
 8. THE named migration trigger for retiring the residual risk SHALL be the earlier of the
    first Kiro_Web consumer outside the CAC single-sign-on and project IAM boundary and the
-   promotion of the MDC_Power beyond Prototype_Status, and THE recorded migration action
-   SHALL be adoption of the Path_B_Baseline Cognito JWT posture with per-scope tool
-   enforcement.
+   promotion of the MDC_Power beyond Prototype_Status, and THE recorded migration action SHALL
+   be a project evaluation of the Cognito JWT posture with per-scope tool enforcement that
+   Path_B_Baseline describes, recorded as a future option for this spec; THE recorded migration
+   action SHALL require no change to any file under
+   `.kiro/specs/mcp-external-access-revised/` and SHALL commit Path_B_Baseline to no work.
 9. THE Power_Runbook SHALL enumerate exactly these four compensating controls for the
    residual risk, each with a stated verification method: a named human authenticated
    through government CAC single sign-on holds every Kiro_Web session; AWS CloudTrail
@@ -862,12 +902,15 @@ identifiers join them.
    timestamp within a stated tolerance window of at most 5 seconds, and THE substitute join
    SHALL still resolve every Audit_Log entry of one Kiro_Web session to exactly one IAM
    principal identifier.
-9. THE Kiro_Web attribution design SHALL NOT use an Amazon Cognito Pre-Token-Generation
-   trigger and SHALL NOT rely on any custom claim injected into any access token, consistent
-   with Path_B_Baseline Requirement 13, and THIS constraint SHALL bind the migration to the
-   Path B Cognito JWT posture named in Requirement 10 Acceptance Criterion 4, such that
-   attribution after that migration is derived only from standard JWT claims validated by the
-   AgentCore_Runtime and from Request_Metadata.
+9. THE Kiro_Web attribution design SHALL derive attribution only from the three values named
+   in this requirement — the CloudTrail-recorded IAM principal identifier, the
+   Runtime_Session_Id, and the Kiro_Web_Session_Id — SHALL NOT use an Amazon Cognito
+   Pre-Token-Generation trigger, and SHALL NOT rely on any custom claim injected into any
+   access token; THIS criterion constrains only the attribution design of this spec, is
+   consistent with Path_B_Baseline Requirement 13 as read-only corroborating context, and
+   places no constraint and no obligation on Path_B_Baseline or on any future adoption of the
+   migration option recorded under Requirement 10 Acceptance Criterion 6, which a separate
+   spec would specify.
 10. THE outcome value recorded in the Audit_Log entry SHALL be determined as follows:
     `success` IF the invoked tool executed and returned a non-error MCP result;
     `invalid_request` IF the MCP_Server rejected the request without executing the tool,
@@ -1017,12 +1060,21 @@ and Acceptance Criterion 10 records the mapping from each category to its stage.
     SHALL state that no MDC_Power tool is available to the Kiro_Web session until that
     failure is resolved.
 
-### Requirement 10: Prototype Status, Path B Coupling, and the Migration Path
+### Requirement 10: Prototype Status and the Read-Only, Auxiliary Relationship to Path_B_Baseline
 
-**User Story:** As a delivery lead, I want this spec's delivery decoupled from the unstarted
-Path B work while its prototype status and its production migration path are recorded, so that
-Kiro Web ships now and its authorization gap is retired on a planned trigger rather than
+**User Story:** As a delivery lead, I want this spec held as an auxiliary exploration that
+leaves Path_B_Baseline untouched, while its prototype status and its recorded migration option
+are captured, so that Kiro Web ships now, Path_B_Baseline stays available for independent AWS
+review, and this spec's authorization gap is retired on a planned trigger rather than
 forgotten.
+
+**What "auxiliary" means here.** This spec exists to explore the Power-to-Kiro-Web interface.
+It is not a dependency of Path_B_Baseline and not a modifier of Path_B_Baseline. Path_B_Baseline
+is read-only for this spec because AWS technical personnel are following up on its current
+state for independent review, so every mention of Path_B_Baseline below is a citation of
+referenced context and none of it obligates Path_B_Baseline to do, record, or change anything.
+Long-term overlap between this spec's posture and the Path B posture is acknowledged and
+expected, and that overlap creates no coordination obligation in either direction at this time.
 
 #### Acceptance Criteria
 
@@ -1030,45 +1082,56 @@ forgotten.
    project can start and complete every implementation task of this spec while the count of
    completed Path_B_Baseline task groups is zero, and THE design document SHALL record the
    resolution of the retired Open Question OQ-2 as `no-delivery-dependency`.
-2. THE Prototype_Status value `prototype` SHALL appear in the Power_Manifest description
+2. THE implementation of this spec SHALL introduce zero changes to files under
+   `.kiro/specs/mcp-external-access-revised/`, verified by an inspection of this spec's change
+   set that reports a count of exactly 0 added files, 0 modified files, 0 renamed files, and 0
+   deleted files under that path.
+3. THIS spec SHALL cite Path_B_Baseline as read-only referenced context only, such that every
+   acceptance criterion of this spec is satisfiable while Path_B_Baseline remains
+   byte-for-byte unchanged, and such that zero acceptance criteria of this spec require
+   Path_B_Baseline to perform work, to record a value, to publish an enumeration, or to accept
+   an amendment.
+4. THE Prototype_Status value `prototype` SHALL appear in the Power_Manifest description
    required by Requirement 1 Acceptance Criterion 1, in the Powers_Interface `activate`
    output required by Requirement 4 Acceptance Criterion 11, and in the Power_Runbook
    required by Requirement 11 Acceptance Criterion 2, spelled character-for-character
    identically in all three places.
-3. THE project SHALL record the residual per-tool-authorization gap stated in Requirement 4
+5. THE project SHALL record the residual per-tool-authorization gap stated in Requirement 4
    Acceptance Criterion 3 and Requirement 4 Acceptance Criterion 5, together with the named
    migration trigger of Requirement 4 Acceptance Criterion 8, in both the design document and
    the Power_Runbook, and THE two records SHALL state the same migration trigger.
-4. THE design document SHALL record the migration path from Plan A to the Path_B_Baseline
-   Amazon Cognito JWT posture with per-scope tool enforcement, and SHALL enumerate, by
-   requirement number and criterion number, every acceptance criterion of this spec whose
-   wording changes on that migration, covering at minimum the transport criteria of
-   Requirement 2, the credential criteria of Requirement 3, the authorization criteria of
-   Requirement 4, the attribution criteria of Requirement 8, the failing-stage criteria of
-   Requirement 9, the documentation criteria of Requirement 11, and the egress criteria of
-   Requirement 12.
-5. THIS spec SHALL provision no Amazon Cognito user pool, no Cognito resource server, no
+6. THE design document SHALL record, as a future option for this spec, the migration path from
+   Plan A to the Amazon Cognito JWT posture with per-scope tool enforcement that
+   Path_B_Baseline describes, and SHALL enumerate, by requirement number and criterion number,
+   every acceptance criterion of this spec whose wording changes if that option is adopted,
+   covering at minimum the transport criteria of Requirement 2, the credential criteria of
+   Requirement 3, the authorization criteria of Requirement 4, the attribution criteria of
+   Requirement 8, the failing-stage criteria of Requirement 9, the documentation criteria of
+   Requirement 11, and the egress criteria of Requirement 12; THIS record SHALL document a
+   future option for this spec only, SHALL require no change to any file under
+   `.kiro/specs/mcp-external-access-revised/`, and SHALL commit Path_B_Baseline to no work.
+7. THIS spec SHALL provision no Amazon Cognito user pool, no Cognito resource server, no
    Cognito app client, no JWT authorizer, no Token_Broker, no GitHub OIDC federated IAM role,
    no AgentCore Gateway, and no Cedar policy, verified by a synthesis of every CDK stack this
    spec introduces reporting zero resources of those types.
-6. THE tasks document for this spec SHALL contain no task that provisions or configures an
+8. THE tasks document for this spec SHALL contain no task that provisions or configures an
    AgentCore Gateway, that authors, reviews, or deploys a Cedar policy, or that routes MCP
-   tool invocations through an AgentCore Gateway, because that work is deferred by
-   Path_B_Baseline Requirement 11.
-7. PATH_B_BASELINE SHALL retain sole ownership of the GitHub Actions CI consumer class and
-   of the RDHPCS/HPC login-node consumer class, and no acceptance criterion of this spec SHALL
+   tool invocations through an AgentCore Gateway, consistent with the Path C deferral that
+   Path_B_Baseline Requirement 11 records.
+9. THIS spec SHALL claim no ownership of the GitHub Actions CI consumer class and no ownership
+   of the RDHPCS/HPC login-node consumer class, and zero acceptance criteria of this spec SHALL
    depend on Path_B_Baseline Task 3, Task 4, Task 7, or Task 8.
-8. THIS spec and Path_B_Baseline SHALL stay coupled through the single shared
-   AgentCore_Runtime_Arn fixed by Open Question OQ-4, such that a text comparison of the
-   AgentCore_Runtime_Arn value recorded in this spec's design document against the value
-   recorded in Path_B_Baseline reports equality.
-9. WHEN the AgentCore_Runtime_Arn value changes in either this spec or Path_B_Baseline, THE
-   same change set SHALL update the recorded value in the other spec, so that the equality
-   required by Acceptance Criterion 8 holds after every such change.
-10. THE tasks document for this spec SHALL contain no task whose stated work is already the
+10. THE design document SHALL record the single AgentCore_Runtime_Arn this spec targets,
+    resolved under Open Question OQ-4, as one explicit literal value, and SHALL state whether
+    that value names the same AgentCore Runtime that Path_B_Baseline targets; WHERE the two
+    values name different runtimes, THE design document SHALL state the difference, name each
+    runtime, and state the reason for the difference, and no criterion of this spec SHALL
+    require the two values to be equal.
+11. THE tasks document for this spec SHALL contain no task whose stated work is already the
     stated work of a Path_B_Baseline task, and WHERE a task of this spec references a
     Path_B_Baseline task, THE tasks document SHALL reference it by the Path_B_Baseline spec
-    name followed by that task's identifier and SHALL NOT restate the steps of that task.
+    name followed by that task's identifier, SHALL mark that reference as read-only context,
+    and SHALL NOT restate the steps of that task.
 
 ### Requirement 11: Documentation
 
@@ -1234,7 +1297,9 @@ not enforce.
     Kiro_Web session under the IAM permission of Requirement 4 Acceptance Criterion 1, SHALL
     state no control that prevents that reachability, and SHALL rely on exactly the four
     compensating controls enumerated in Requirement 4 Acceptance Criterion 9, each verifiable
-    by the method stated in Acceptance Criterion 13.
+    by the method stated in Acceptance Criterion 13; THE Mutation_Tool_Set used for this record
+    SHALL be the enumeration this spec re-derives from `mcp_server_python/src/tools/*.py` under
+    Open Question OQ-5, and SHALL NOT depend on Path_B_Baseline publishing that enumeration.
 13. THE verification method for each compensating control named in Acceptance Criterion 12
     SHALL be exactly as follows: for the named-human control, a record showing that access to
     the Kiro_Web session requires government CAC single sign-on into the project AWS account;
@@ -1243,7 +1308,7 @@ not enforce.
     Acceptance Criterion 10; for the IAM-boundary control, the synthesized-policy assertion
     required by Requirement 4 Acceptance Criterion 2; and for the prototype-scope control, the
     presence of the Prototype_Status value in all three locations required by Requirement 10
-    Acceptance Criterion 2.
+    Acceptance Criterion 4.
 
 ## Correctness Properties (for Property-Based Testing)
 
@@ -1328,17 +1393,19 @@ before the corresponding implementation tasks begin.
 **Two identifiers are retired and are not reused.** **OQ-2** — the Path B dependency question —
 is resolved as `no-delivery-dependency` and is now stated directly as Requirement 10 Acceptance
 Criterion 1. **OQ-3** — the literal Web_Scope string — is not applicable under Plan A, because
-Plan A creates no OAuth scope; that question transfers to Path_B_Baseline, which owns the
-Cognito resource server, and it must be answered there before Kiro_Web migrates to the Path B
-posture under Requirement 10 Acceptance Criterion 4. The identifiers OQ-2 and OQ-3 are
-deliberately left unreused, and the surviving open questions keep their original identifiers
+Plan A creates no OAuth scope. That question belongs to whichever spec owns a Cognito resource
+server, which is Path_B_Baseline today, and it is out of scope for this spec; this spec asks
+Path_B_Baseline to answer nothing, and the question would need an answer only if the migration
+option recorded under Requirement 10 Acceptance Criterion 6 were later adopted by a separate
+spec. The identifiers OQ-2 and OQ-3 are deliberately left unreused, and the surviving open
+questions keep their original identifiers
 OQ-1 and OQ-4 through OQ-8, so that every existing cross-reference in downstream artifacts
 remains resolvable.
 
 | ID | Question | Why it is open | Resolution owner |
 |---|---|---|---|
 | **OQ-1** | How are the short-lived AWS credentials of Kiro_Web_Credentials delivered into the Kiro Web session? Candidates: **(a) `aws sso login` device authorization flow against AWS IAM Identity Center — recommended primary.** The CLI prints a verification URL and user code that the user completes in their own CAC-authenticated browser; the resulting credentials are cached in the sandbox and are refreshable without re-pasting a secret. **(b)** Short-lived AWS STS credentials pasted by the user into session environment variables. **(c)** An `AssumeRole` chain from a Kiro-Web-provided identity, if such an identity is later documented. | Candidate (a) fits the project's existing CAC single-sign-on and IAM Identity Center posture and avoids pasted secrets entirely, and IAM Identity Center **does** support the OAuth 2.0 device authorization grant even though Amazon Cognito user pools do not (per Path_B_Baseline AD-1) — which is precisely why the device flow is available to Plan A and was not available to the retired Cognito draft. Against (a): the verified sandbox has no `~/.aws/sso` cache (see `### Verified Kiro Web sandbox characteristics`, fact 6), so (a) requires a login step at each session start unless that cache persists across sessions, which is unverified. Candidate (b) is the lowest-effort fallback but places secret material in the session environment. Candidate (c) cannot be evaluated until a Kiro Web workload identity is documented. Requirement 3 criteria 1, 4, 5, 9, and 13; Requirement 11 criterion 3; and Requirement 12 criteria 1 and 2 all gate on this. | Design phase |
-| **OQ-4** | Which AgentCore Runtime ARN is the AgentCore_Runtime_Arn for this feature? `.kiro/specs/mcp-external-access-revised/` names `mdc_mcp_rag_server-TMXDllG2Wi`; `.kiro/steering/09-agentcore-mcp-for-global-workflow.md` names `arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN`. | **Criticality raised under Plan A.** The two artifacts disagree, and the same literal value is now simultaneously the SigV4 invocation target of Requirement 2 criterion 10 and the sole IAM policy `Resource` of Requirement 4 criteria 1 and 2. An incorrect value is therefore both a functional defect — every call fails or reaches the wrong runtime — and a security defect, because the IAM grant would be scoped to a resource other than the one the MDC_Power calls. Requirement 1 criteria 8 and 10, Requirement 2 criteria 10 and 14, Requirement 4 criteria 1 and 2, Requirement 10 criteria 8 and 9, and Requirement 12 criterion 1 all depend on this. | Design phase |
+| **OQ-4** | Which AgentCore Runtime ARN does this spec target as its AgentCore_Runtime_Arn? The two identifiers appearing in repository artifacts are **two distinct runtimes**, not an inconsistency: `mdc_mcp_rag_server-TMXDllG2Wi` is the Node production runtime that `.kiro/specs/mcp-external-access-revised/` targets, and `arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN` is the Python staging runtime named in `.kiro/steering/09-agentcore-mcp-for-global-workflow.md`; the parity suites under `mcp_server_python/tests/parity/` exercise both side by side. This spec is expected to target the Python staging runtime. | **Criticality raised under Plan A.** The chosen literal value is simultaneously the SigV4 invocation target of Requirement 2 criterion 10 and the sole IAM policy `Resource` of Requirement 4 criteria 1 and 2. An incorrect value is therefore both a functional defect — every call fails or reaches the wrong runtime — and a security defect, because the IAM grant would be scoped to a resource other than the one the MDC_Power calls. The question is which runtime this spec targets, not how to reconcile the two artifacts, and answering it requires no Path_B_Baseline change: Requirement 10 criterion 10 permits this spec's value to differ from the runtime Path_B_Baseline targets provided the design document states the difference. Requirement 1 criteria 8 and 10, Requirement 2 criteria 10 and 14, Requirement 4 criteria 1 and 2, Requirement 10 criterion 10, and Requirement 12 criterion 1 all depend on this. | Design phase |
 | **OQ-5** | What is the MCP_Server's authoritative tool count and tool list? `README.md` states 34 tools for the Node server; `.kiro/specs/mcp-external-access-revised/` states 51; `.kiro/steering/10-agentcore-mcp-tool-guide.md` states 52 across 9 modules. | Requirement 4 criterion 4 and Requirement 11 criteria 6 and 12 require an enumerated Allowed_Tool_Set, which cannot be enumerated against three conflicting counts. Under Plan A this enumeration also documents exactly what the unrestricted surface contains, including which of its members belong to the Mutation_Tool_Set, so the count is now a disclosure obligation as well as a documentation one. The count must be read from `mcp_server_python/src/tools/*.py` rather than from any of the three documents. | Design phase |
 | **OQ-6** | Does `.kiro/settings/mcp.json`'s current single stdio entry `eib-mcp-rag-full` remain the intended local developer wiring, given that steering file 09 documents `agentcore-mcp-rag` as the connection path? | Requirement 7 criterion 3 requires `.kiro/settings/mcp.json` to stay byte-identical, which locks in whichever entry is present. If the file is already stale relative to steering 09, that should be resolved by a separate spec rather than silently by this one. | Design phase |
 | **OQ-7** | Does the MDC_Power persist a session-declared `tenant_id` (Requirement 5 criterion 11) inside the Power, inside the MCP session, or not at all? | Kiro_Web session lifetime and Power state semantics are not documented in this repository. If neither layer can hold state, tenant declaration reduces to per-call `tenant_id` arguments and Requirement 5 criterion 11 must be recorded as withdrawn. | Design phase |
@@ -1346,23 +1413,30 @@ remains resolvable.
 
 ## Non-Goals
 
+- **Modifying, amending, or requiring any change to Path_B_Baseline.** The spec
+  `.kiro/specs/mcp-external-access-revised/` is read-only for this spec and is under
+  independent AWS review. This spec changes no file under that directory, requires no amendment
+  to it, asks it to record nothing, and places no coordination obligation on it. This spec is
+  auxiliary to Path_B_Baseline and cites it as referenced context only.
 - **Per-tool authorization enforcement for a Kiro_Web session.** Enforcing which MCP_Server
-  tools a Kiro_Web session may execute requires the Path_B_Baseline scope-enforcement
-  middleware, which this spec does not deliver. Requirement 4 records the resulting residual
-  risk and its migration trigger.
+  tools a Kiro_Web session may execute requires a scope-enforcement middleware of the kind
+  Path_B_Baseline designs, which this spec does not deliver and does not ask Path_B_Baseline to
+  deliver. Requirement 4 records the resulting residual risk and its migration trigger.
 - **Production readiness.** Prototype_Status is `prototype`. This spec delivers a preview
   capability for project members inside the CAC single-sign-on and project IAM boundary.
 - **Any Amazon Cognito, JWT, OAuth scope, or Bearer-token mechanism.** Plan A uses IAM SigV4
   only. Implementing the Path_B_Baseline Cognito authorizer, resource server, app clients, or
   CDK stack belongs to `.kiro/specs/mcp-external-access-revised/`.
-- Enabling the GitHub Actions CI consumer class. Path_B_Baseline retains sole ownership of it
-  (Tasks 3, 4, and 7).
+- Enabling the GitHub Actions CI consumer class. This spec claims no ownership of it and asks
+  nothing of Path_B_Baseline, which addresses it in Tasks 3, 4, and 7.
 - Enabling the RDHPCS/HPC login-node consumer class, including the `mdc-mcp-jwt`
-  HPC_CLI_Helper. Path_B_Baseline retains sole ownership of it (Task 8).
-- Building the Token_Broker Lambda or the GitHub OIDC federated IAM role. Path_B_Baseline
-  retains ownership of both (Tasks 4 and 3), and no Kiro_Web behavior depends on either.
-- Adopting AgentCore Gateway or authoring Cedar tool-level policies (Path C, deferred by
-  Path_B_Baseline Requirement 11).
+  HPC_CLI_Helper. This spec claims no ownership of it and asks nothing of Path_B_Baseline,
+  which addresses it in Task 8.
+- Building the Token_Broker Lambda or the GitHub OIDC federated IAM role. No Kiro_Web behavior
+  depends on either, this spec claims no ownership of either, and Path_B_Baseline addresses
+  both in Tasks 4 and 3.
+- Adopting AgentCore Gateway or authoring Cedar tool-level policies (Path C, which
+  Path_B_Baseline Requirement 11 defers).
 - Modifying the Proxy_Bridge `tools/agentcore-kiro-proxy.py` or `.kiro/settings/mcp.json`. The
   MDC_Power executes the Proxy_Bridge unmodified and reads no configuration from
   `.kiro/settings/mcp.json`.
