@@ -82,6 +82,18 @@ Lambda, or server code changed; nothing deployed; nothing merged.**
 - Path C spec initially specified *creating* the Gateway execution role; corrected to
   **import** via `fromRoleName(mutable:false)` plus an admin IAM request, per C7/C12.
 
+### Gate register
+- **`mcp-external-access-alternative-gateway/design.md` §9** is now the authoritative gate
+  status for the whole external-access effort: §9.1 cleared gates (AD-1, AD-3, R8.5, RDHPC
+  egress, FedRAMP boundary, OQ-1/2/3, C8, DP-1, DP-3, DP-7 server half), §9.2 open gates
+  ranked by what they block, §9.3 the standing prohibition on deploying the Path B authorizer
+  custom resource. **§10** queues seven questions for the next AWS analyst round.
+- Open gates in blocking order: **(1)** do buffered interceptors fire for a JSON-response MCP
+  Runtime target — blocks all Path C implementation; **(2)** DP-2 resource-policy vs developer
+  path — blocks any deploy; **(3)** IAM pre-creation (lead-time, start in parallel);
+  **(4)** C13 tool-count re-derivation; **(5)** DP-6 cost; **(6)** DP-4 trust hardening;
+  **(7)** DP-8 target-type, contingent on gate 1.
+
 ### Operator steps (not autonomous)
 - **Do not `cdk deploy` the Task 5 authorizer custom resource** against the live Runtime.
 - Run Path C **Task 0** (throwaway Gateway) to answer the AWS-side half of DP-7: do buffered

@@ -405,14 +405,83 @@ Inherits Path B Properties 1–5, 7–10 with "Runtime authorizer" read as "Gate
 
 ---
 
-## 9. Open Decision Points
+## 9. Gate Register
 
-Tracked in `../mcp-external-access-revised/decision-log.md`. Live at time of writing:
+Authoritative gate status for the MCP external-access effort as a whole. Full analysis and
+citations in `../mcp-external-access-revised/decision-log.md`.
 
-| DP | Question | Blocks |
+### 9.1 Gates cleared
+
+| Gate | Date | Verdict |
 |---|---|---|
-| **DP-7** | Do buffered interceptors fire for a JSON-response MCP Runtime target? | Requirement 0, and therefore everything |
-| **DP-8** | Runtime target vs MCP target | AD-C1; flips if DP-7 fails |
-| **DP-2** | Lockdown policy vs developer path | AD-C5 posture choice |
-| **DP-4** | Gateway role trust hardening | AD-C6 (answer known, needs doing) |
-| **DP-6** | Gateway + interceptor invocation cost | Go/no-go sizing |
+| **AD-1** — HPC auth grant type | 2026-07 | Cognito has no RFC 8628 device flow. Replaced with Authorization Code + PKCE (primary), SRP (fallback). |
+| **AD-3** — CI attribution | 2026-07 | Pre-Token-Generation trigger does not reliably fire/enrich for M2M client-credentials. Replaced with Token_Broker log-join on `broker_request_id`. |
+| **R8.5** — endpoint reachability (Path B Task 0) | 2026-07-22 | **PASS.** HTTP 403 "Authorization method mismatch". Endpoint reachable; no TCP error, so the R8.6 fallback never triggered. |
+| **RDHPC egress** | 2026-08-06 | **PASS.** `curl` from gaea64 to `bedrock-agentcore.us-east-1.amazonaws.com` returned an application-layer response, proving DNS + TLS + HTTP egress. |
+| **FedRAMP boundary** | 2026-08-06 | Confirmed **not** operating inside a FedRAMP boundary. The 2026-06-30 control mapping is **advisory**, not a precondition. No GovCloud migration forced. |
+| **OQ-1 / OQ-3** | 2026-07 | Resolved by AD-1 / AD-3. |
+| **OQ-2** — does `allowedScopes` exist? | 2026-08-06 | **Yes.** Documented as a list of strings validated against the `scope` claim. R2.1/R2.3 satisfiable. Same config shape for Runtime or Gateway. |
+| **C8** — dual-auth compatibility | 2026-08-06 | **RESOLVED → single-mode confirmed → Path C pivot.** An AgentCore Runtime supports either IAM SigV4 or JWT bearer inbound auth, not both simultaneously. The July inference from the 403 body was correct. |
+| **DP-1** — claims propagation | 2026-08-06 | Gateway REQUEST interceptor injects `X-Amzn-Bedrock-AgentCore-Runtime-Custom-*`; interceptor headers take precedence over client headers, giving unforgeability. |
+| **DP-3** — tool naming | 2026-08-06 | Runtime targets forward without aggregation or protocol translation. Tool names unchanged. |
+| **DP-7 (server half)** | 2026-08-06 | Verified against pinned `fastmcp==3.2.4`: `json_response=False` → `text/event-stream`; `True` → `application/json`. Fix is config, not code. `stateless_http=True` is orthogonal and mandatory. |
+
+### 9.2 Gates open — ordered by what they block
+
+| # | Gate | Blocks | Owner / method |
+|---|---|---|---|
+| **1** | **Requirement 0 / Task 0 — do buffered interceptors fire for a JSON-response MCP Runtime target, and do injected headers reach the container?** (DP-7 AWS half, DP-1 confirmation) | **All Path C implementation.** A negative answer flips DP-8 to the MCP-target architecture and changes the spec's shape. | Throwaway Gateway, ~1 hr (Task 0), or AWS analyst confirmation |
+| **2** | **DP-2 — does the Runtime resource policy restricting invocation to the Gateway also permit the Developer_Principal role?** | **Any `cdk deploy`.** AWS's documented example denies all but the gateway role, and an explicit `Deny` overrides every `Allow` — applied verbatim it severs the developer path. | Decision, then Task 1.1 |
+| **3** | **IAM pre-creation** — OIDC provider + 3 Path B roles + 2 new Path C roles (Gateway execution, interceptor execution) | **Deploy.** `iam:CreateRole` blocked by `PowerUserRestrictions` (C7/C10/C11/C12). | Admin request `docs/mdc-external-access-alt-iam-request.txt`. **Lead-time item — start in parallel with Gate 1.** |
+| **4** | **C13 — re-derive per-scope tool counts against the Python runtime** | **Correct enforcement.** "CI 40 / HPC 48 / developer 51" came from the retired Node runtime (51 tools); Python has **52**, so ≥1 tool is unclassified. | Task 5.3a |
+| **5** | **DP-6 — Gateway + interceptor invocation cost** | Go/no-go sizing. | Task 1.2 |
+| **6** | **DP-4 — Gateway execution role trust hardening** (`aws:SourceArn` / `aws:SourceAccount`) | Not blocking; answer known, needs implementing. | Task 2.3 |
+| **7** | **DP-8 — Runtime target vs MCP target** | Contingent on Gate 1. Recommendation stands: Runtime target, MCP target as fallback. | Task 0.5 branch |
+
+### 9.3 Standing constraint (not a gate)
+
+**The Path B Task 5 `authorizerConfiguration` custom resource must NEVER be applied to the
+live AgentCore Runtime.** Doing so would replace SigV4 with JWT and break the developer path
+(R7 / C6). This prohibition was provisional under C8; with C8 resolved to single-mode it is
+**permanent**. The resource may remain in-tree, unapplied, as it carries forward if the
+architecture ever changes.
+
+Also standing: any update to the Runtime must carry the **full lossless payload**, because
+`bedrock-agentcore-control:update-agent-runtime` is a full-replacement API (C9).
+
+---
+
+## 10. Questions for the next AWS analyst round
+
+Ordered by value. Gate 1 is the reason this round matters — an authoritative answer to Q1
+removes the need for the throwaway-Gateway test entirely.
+
+1. **(Gate 1 — highest value.)** For an **AgentCore Runtime target** on a Gateway, are REQUEST
+   and RESPONSE interceptor Lambdas invoked when the runtime serves MCP over Streamable HTTP?
+   The docs say interceptors are supported "in buffered mode" and "not yet supported in
+   streaming mode" for HTTP targets. **What exactly determines which mode applies** — the
+   target's response `Content-Type`, a gateway-level response-streaming setting, or something
+   else? Concretely: if our MCP server returns `application/json` rather than
+   `text/event-stream`, do interceptors run?
+2. **(Gate 1.)** Do headers injected by a REQUEST interceptor via
+   `transformedGatewayRequest.headers` reliably reach an AgentCore Runtime target's container
+   when the header names use the `X-Amzn-Bedrock-AgentCore-Runtime-Custom-*` prefix and are
+   listed in the target's `metadataConfiguration.allowedRequestHeaders`? Any additional
+   configuration required on the **Runtime** side to receive them?
+3. **(Gate 2.)** For the resource-based policy that restricts Runtime invocation to a
+   Gateway's execution role — is adding a second permitted principal (our developer role) to
+   the `ArnNotEquals` exception set a supported pattern, or is there a preferred way to keep a
+   trusted human/IAM path alongside a gateway-fronted runtime?
+4. **(DP-8.)** For an MCP server hosted **in** AgentCore Runtime, is there a supported way to
+   register it as an **MCP-type** gateway target (gaining parsed JSON-RPC, tool aggregation,
+   semantic search, and per-tool policy) rather than an `agentcoreRuntime` HTTP target — for
+   example via VPC Lattice private endpoints? Are the two mutually exclusive on one gateway,
+   given Runtime targets require protocol type unset?
+5. **(DP-6.)** Pricing model for AgentCore Gateway per invocation, and whether interceptor
+   Lambda invocations are billed separately or bundled.
+6. **(Confirmation.)** Please confirm the single-mode inbound auth constraint is permanent
+   platform behavior rather than a launch limitation, and whether multi-mode inbound auth on
+   one Runtime is on the roadmap. Our entire Path C pivot rests on this.
+7. **(Nice to have.)** Is `bedrock-agentcore` in scope for any FedRAMP authorization
+   (region + baseline), or on the roadmap? We are not currently inside a boundary, so this is
+   planning input, not a blocker.

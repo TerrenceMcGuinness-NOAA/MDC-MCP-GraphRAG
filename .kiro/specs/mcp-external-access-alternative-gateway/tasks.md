@@ -8,6 +8,12 @@ Companion: `requirements.md`, `design.md`,
 spent a full spec cycle building on an unverified platform assumption. Task 0 costs under a
 day; the alternative is discovering DP-7 after the CDK stack and interceptor are written.
 
+> **Gate status for the whole effort lives in `design.md` §9 (Gate Register)** — cleared gates
+> in §9.1, open gates ranked by what they block in §9.2, and the standing prohibition on
+> deploying the Path B authorizer custom resource in §9.3. Questions queued for the next AWS
+> analyst round are in **§10**; an authoritative answer to Q1 would clear Gate 1 without
+> running Task 0 at all.
+
 ---
 
 ## Task 0 — Verification gate (DP-7, DP-1, DP-8) — **BLOCKING**
