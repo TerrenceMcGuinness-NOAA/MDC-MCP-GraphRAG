@@ -358,6 +358,13 @@ _DOMAIN_TO_BASE_INDEX = {
 }
 
 
+#: Max characters sent to the embedding model for a single document. Matches the
+#: Python ingester's ``content[:8000]`` slice (disk-priority-ingest). Guards the
+#: Bedrock Titan 8,192-token and 50,000-character single-request limits so an
+#: oversized chunk is truncated for embedding rather than dropped entirely.
+MAX_EMBED_CHARS = 8000
+
+
 def _to_index(collection_name: str) -> str:
     """Map a collection name to an OpenSearch index name.
 
@@ -449,10 +456,26 @@ class _OpenSearchCollection:
         self._embedding_fn = embedding_function
 
     def _auto_embed(self, documents, embeddings):
-        """Generate embeddings via registry provider if not supplied."""
+        """Generate embeddings via registry provider if not supplied.
+
+        Oversized documents are truncated to ``MAX_EMBED_CHARS`` before the
+        embedding call, matching the Python ingester's ``content[:8000]``
+        (disk-priority-ingest). Bedrock Titan rejects a single ``inputText``
+        that exceeds either the 8,192-token limit or the 50,000-character
+        request limit, and ``BedrockProvider.embed`` raises ``EmbeddingError``
+        on such a call — which previously aborted the whole ``add()`` and
+        DROPPED the chunk. Truncating keeps the chunk instead of losing it.
+
+        Only the embedding input is truncated; the full text is still stored
+        as the document ``content`` by :meth:`_bulk_index`.
+        """
         if embeddings or not documents or not self._embedding_fn:
             return embeddings
-        return self._embedding_fn(documents)
+        to_embed = [
+            d[:MAX_EMBED_CHARS] if isinstance(d, str) and len(d) > MAX_EMBED_CHARS else d
+            for d in documents
+        ]
+        return self._embedding_fn(to_embed)
 
     def _bulk_index(self, ids, documents, embeddings, metadatas, action="index"):
         """Shared bulk indexing logic for add() and upsert()."""

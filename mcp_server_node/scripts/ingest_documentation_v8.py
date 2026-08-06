@@ -22,7 +22,7 @@ try:
     import sys as _sys
     from embedding_registry import EmbeddingModelRegistry as _Reg
     from collection_namer import CollectionNamer as _CN
-    _args_model = "mpnet768"
+    _args_model = os.environ.get("MCP_EMBEDDING_PROFILE", "mpnet768")
     for _i, _a in enumerate(_sys.argv):
         if _a == "--model" and _i + 1 < len(_sys.argv):
             _args_model = _sys.argv[_i + 1]
@@ -38,8 +38,17 @@ except Exception:
     EMBEDDING_DIMENSIONS = 768
     _REGISTRY_COLLECTION = None
 
+# Optional explicit collection-name override (Task 5e.b, disk-priority-ingest).
+# When absent, the default namer output (_REGISTRY_COLLECTION) is used unchanged,
+# so COTS behaviour is preserved. When present, it targets a specific serving
+# index (e.g. mdc-workflow-docs-titan1024 on AWS) WITHOUT altering the namer.
+_args_collection = None
+for _i, _a in enumerate(sys.argv):
+    if _a == "--collection" and _i + 1 < len(sys.argv):
+        _args_collection = sys.argv[_i + 1]
+
 # Set v8 collection name before importing v7 module
-_col = _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
+_col = _args_collection or _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
 os.environ['DOCS_COLLECTION'] = _col
 
 # Import the v7 ingestion logic (uses ingestion_base with MPNet)
@@ -51,7 +60,7 @@ from ingest_documentation_v7 import (
 
 # V8 Configuration
 VERSION_V8 = "8.0.0"
-COLLECTION_NAME = _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
+COLLECTION_NAME = _args_collection or _REGISTRY_COLLECTION or "global-workflow-docs-v8-0-0"
 # EMBEDDING_MODEL and EMBEDDING_DIMENSIONS set by registry block above
 
 
@@ -92,6 +101,9 @@ def main():
                        help='Seconds between page fetches (default: 1.0, use 5+ for rate-limited sites)')
     parser.add_argument('--only', nargs='+', default=None,
                        help='Only ingest the listed source names (filters within --tiers)')
+    parser.add_argument('--collection', default=None,
+                       help='Explicit target collection/index name override. '
+                            'Absent = default namer output (unchanged for COTS).')
     
     args, _ = parser.parse_known_args()
     
