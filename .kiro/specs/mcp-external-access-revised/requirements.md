@@ -100,6 +100,15 @@ as a forward reference in Requirement 11.
 
 ### Requirement 2: AgentCore Runtime JWT Authorizer
 
+> **SUPERSEDED IN PART (2026-08-06).** The premise that one Runtime can serve JWT *and*
+> SigV4 is false: "An AgentCore Runtime can support either IAM SigV4 or JWT Bearer Token
+> based inbound auth, but not both simultaneously."
+> **Criterion 9 is unsatisfiable and criterion 10's "either path" framing is void.**
+> The authorizer moves to an AgentCore **Gateway** (Path C); the Runtime stays SigV4-only.
+> Criteria 1–8 remain valid and transfer to the Gateway unchanged — the authorizer config
+> shape is identical for Runtime or Gateway. Note criterion 1's `allowedScopes` **does
+> exist** and is supported. See `decision-log.md`.
+
 **User Story:** As a platform operator, I want the AgentCore_Runtime's inbound authorizer configured to validate Cognito-issued JWTs, so that the MCP_Endpoint accepts Bearer-token requests from external callers while preserving the existing SigV4 path for the Developer_Principal.
 
 #### Acceptance Criteria
@@ -112,8 +121,8 @@ as a forward reference in Requirement 11.
 6. IF a JWT fails any validation check in criteria 2, 3, or 4, THEN THE JWT_Authorizer SHALL reject the request with HTTP 401, SHALL NOT forward the request to the MCP_Server, and SHALL NOT return any claim values or tool metadata in the error response body.
 7. IF the Cognito_User_Pool JWKS is unreachable or does not contain a key matching the JWT header `kid`, THEN THE JWT_Authorizer SHALL reject the request with HTTP 401 or HTTP 503 and SHALL NOT forward the request to the MCP_Server.
 8. THE AgentCore_Runtime authorizer configuration SHALL be defined in CDK and applied via `cdk deploy`, and IF the authorizer configuration is detected as modified outside CDK, THEN the next `cdk deploy` SHALL overwrite the out-of-band change to match the CDK-defined state.
-9. THE AgentCore_Runtime SHALL continue to accept IAM SigV4 `invoke_agent_runtime` calls from the Developer_Principal after the JWT_Authorizer is enabled.
-10. WHEN a request that has passed authentication (either SigV4 or JWT) is forwarded to the MCP_Server, THE AgentCore_Runtime SHALL deliver an MCP payload of identical structure to the MCP_Server regardless of which authentication path was used, so that the MCP_Server requires no changes to accept either path.
+9. ~~THE AgentCore_Runtime SHALL continue to accept IAM SigV4 `invoke_agent_runtime` calls from the Developer_Principal after the JWT_Authorizer is enabled.~~ **[VOID — dual inbound auth on one Runtime is not supported. Under Path C this is satisfied structurally: the Runtime never gets a JWT authorizer, so SigV4 keeps working with no change.]**
+10. ~~WHEN a request that has passed authentication (either SigV4 or JWT) is forwarded to the MCP_Server, THE AgentCore_Runtime SHALL deliver an MCP payload of identical structure to the MCP_Server regardless of which authentication path was used, so that the MCP_Server requires no changes to accept either path.~~ **[SUPERSEDED — there is no "either path" at the Runtime. Under Path C the MCP_Server does require a change: it reads principal/scope from Gateway-injected `X-Amzn-Bedrock-AgentCore-Runtime-Custom-*` headers rather than inferring them from an authorizer-claims header. Absence of those headers denotes the developer SigV4 path.]**
 
 ### Requirement 3: GitHub Actions Consumer Flow
 
@@ -198,7 +207,7 @@ as a forward reference in Requirement 11.
 #### Acceptance Criteria
 
 1. WHEN the Developer_Principal invokes the MCP_Endpoint via `tools/agentcore-kiro-proxy.py` using IAM SigV4 `invoke_agent_runtime`, THE AgentCore_Runtime SHALL route the request to the MCP_Server within 10 seconds of receipt.
-2. WHILE the JWT_Authorizer is enabled on the AgentCore_Runtime, THE AgentCore_Runtime SHALL maintain a separate SigV4 authentication path that bypasses the JWT requirement for Developer_Principal requests, such that THE Developer_Principal SHALL receive a non-error MCP response for any tool invocation over the SigV4 path that would have succeeded before the JWT_Authorizer was enabled, without presenting any JWT.
+2. ~~WHILE the JWT_Authorizer is enabled on the AgentCore_Runtime, THE AgentCore_Runtime SHALL maintain a separate SigV4 authentication path that bypasses the JWT requirement for Developer_Principal requests, such that THE Developer_Principal SHALL receive a non-error MCP response for any tool invocation over the SigV4 path that would have succeeded before the JWT_Authorizer was enabled, without presenting any JWT.~~ **[RESTATED under Path C — the mechanism was impossible, the intent is preserved and strengthened. No JWT_Authorizer is ever attached to the AgentCore_Runtime; it remains SigV4-only, so the Developer_Principal path is unchanged by construction. The replacement obligation is: THE AgentCore_Runtime SHALL NOT be configured with a `customJWTAuthorizer`, AND IF a gateway-restricting resource-based policy is attached to the Runtime, THEN that policy SHALL explicitly permit the Developer_Principal role in addition to the gateway execution role (see DP-2).]**
 3. THE `tools/agentcore-kiro-proxy.py` source file SHALL remain byte-identical to its pre-feature state, such that no code change to that file is required for the Developer_Principal path to function.
 4. THE `.kiro/settings/mcp.json` entry for the `agentcore-mcp-rag` Developer_Principal server SHALL remain byte-identical to its pre-feature state, such that no configuration change is required for the Developer_Principal path to function.
 5. WHEN a regression verification is performed that invokes each of the 51 MCP_Server tools over the Developer_Principal SigV4 path using the unmodified proxy and unmodified Kiro configuration, THE verification SHALL observe a successful MCP response for 51 of 51 tools.

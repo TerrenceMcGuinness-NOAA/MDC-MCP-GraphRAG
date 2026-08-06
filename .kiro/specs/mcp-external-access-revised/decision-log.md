@@ -364,12 +364,17 @@ Two facts that collide:
    FastMCP's Streamable HTTP listener (Requirement 1.1)", port 8000
    (`src/config/aws_config.py:18`).
 
-I found **no `json_response=True` and no `stateless_http` setting** anywhere in
-`mcp_server_python/src/`. FastMCP's streamable-http default returns SSE for responses, so
-as currently written **the interceptor may never fire — which would silently remove the
-entire DP-1 claims channel and, with it, all principal/scope enforcement and audit
-attribution.** Same failure mode as the original AD-3 defect: tokens validate, calls
-succeed, governance data is absent.
+> **ERRATUM (corrected in Part 3):** this paragraph originally claimed no `stateless_http`
+> setting existed either. **That was wrong** — `stateless_http` *is* already set and is
+> required for AgentCore. The grep behind that claim truncated before reaching it. Only
+> `json_response` is genuinely absent. See F-14 for the corrected, empirically verified
+> position.
+
+`json_response` is absent from `mcp_server_python/src/`. FastMCP's streamable-http default
+returns SSE for responses, so as currently written **the interceptor may never fire — which
+would silently remove the entire DP-1 claims channel and, with it, all principal/scope
+enforcement and audit attribution.** Same failure mode as the original AD-3 defect: tokens
+validate, calls succeed, governance data is absent.
 
 **DP-7 (blocking): confirm whether the MCP server must be pinned to buffered/JSON-response
 mode for interceptors to run, and whether doing so is acceptable for tool latency and
@@ -482,3 +487,105 @@ mutually exclusive on a single gateway because of the protocol-type constraint i
 - [Configure AgentCore Gateway VPC Egress for Gateway Targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-vpc-egress.html)
 
 *AWS documentation content was rephrased for compliance with licensing restrictions; direct quotations are kept short and attributed inline.*
+
+
+---
+
+# Part 3 — DP-7 empirically narrowed (2026-08-06)
+
+## Erratum against Part 2
+
+Part 2 (F-10) stated that neither `json_response` nor `stateless_http` was set in
+`mcp_server_python/src/`. **The `stateless_http` half of that was wrong.** The grep behind
+it was truncated by `head -20` and never reached the relevant lines. Corrected position
+below. Only `json_response` is genuinely absent.
+
+## F-14. `stateless_http` is already set — and is mandatory for AgentCore
+
+`mcp_server_python/src/mcp_server.py` (lines ~399–418) already passes
+`stateless_http=stateless` to `mcp.run()`, defaulting to **true** via the
+`MCP_STATELESS_HTTP` env var. The in-code comment documents why, and it is worth preserving
+as institutional knowledge:
+
+- AgentCore generates its own `Mcp-Session-Id` per request and expects the server to accept
+  it rather than mint one.
+- Stateful mode rejects the platform-supplied ID with **HTTP 400**, which AgentCore
+  surfaces to the client as a 500-class runtime error.
+- Load balancing and microVM affinity are handled by the platform, so stateless is correct
+  server-side.
+
+**Do not change this.** `MCP_STATELESS_HTTP=false` exists only for local multi-turn
+elicitation/sampling development.
+
+Note that `stateless_http` and `json_response` are **orthogonal**. Stateless controls
+session handling; `json_response` controls response framing. Setting the former does not
+avoid SSE.
+
+## F-15. `json_response` is supported by the pinned FastMCP, and is an env-var flip
+
+Verified against the actually pinned version (`fastmcp==3.2.4`,
+`mcp_server_python/pyproject.toml:20`) by installing it and introspecting:
+
+- `FastMCP.run(transport=None, show_banner=None, **transport_kwargs)` forwards to
+  `run_async`, which forwards to `run_http_async`.
+- `run_http_async(...)` accepts **`json_response: bool | None = None`** alongside
+  `stateless_http: bool | None = None`. `http_app(...)` accepts it too.
+- `fastmcp.settings.Settings` defaults: **`json_response = False`**,
+  `stateless_http = False`, `streamable_http_path = "/mcp"`.
+- FastMCP's own guidance for the setting names the env var **`FASTMCP_JSON_RESPONSE`** as an
+  alternative to passing the kwarg.
+
+**Consequence: the fix requires no code change.** Setting `FASTMCP_JSON_RESPONSE=true` in
+the AgentCore Runtime container environment is sufficient. Adding an explicit
+`json_response=` kwarg to `mcp.run()` remains available if we prefer it pinned in code
+rather than in environment config — recommend the kwarg with an env override, mirroring how
+`stateless_http` is already handled, so the behavior is not silently reconfigurable.
+
+## F-16. Empirical confirmation that this actually removes SSE framing
+
+Ran two real FastMCP 3.2.4 streamable-http servers on loopback and issued an MCP
+`initialize` with `Accept: application/json, text/event-stream`:
+
+| `json_response` | Response `Content-Type` | First bytes |
+|---|---|---|
+| `False` (today's effective default) | `text/event-stream` | `event: message\r\ndata: {"jsonrpc":"2.0",...` |
+| `True` | `application/json` | `{"jsonrpc":"2.0","id":1,"result":{...` |
+
+This confirms both halves of the concern:
+
+1. **As deployed today the server emits SSE**, which is precisely the mode in which
+   AgentCore documents interceptors as unsupported for HTTP/Runtime targets. DP-7 was a
+   real risk, not a theoretical one.
+2. **The mitigation works and is cheap** — one setting flips the wire format to plain
+   `application/json`.
+
+This is also consistent with the MCP specification itself, which states a server answers
+each request with either a single JSON object or an SSE stream scoped to that request —
+so single-JSON is spec-compliant, not a degradation.
+
+## Revised DP-7 status
+
+**DP-7 is now half-resolved and no longer blocking design work.**
+
+- **Server side: RESOLVED.** We can serve plain `application/json` via
+  `FASTMCP_JSON_RESPONSE=true` (or an explicit kwarg), with no code restructuring and no
+  change to the mandatory `stateless_http=True`.
+- **AWS side: still OPEN, and only testable live.** Do buffered-mode REQUEST interceptors
+  actually fire for an MCP-protocol AgentCore Runtime target once the response is
+  `application/json`? The docs say interceptors are unsupported "in streaming mode" without
+  defining the trigger precisely — it may key on the target's response framing, on
+  gateway-level response-streaming configuration, or on both.
+
+**Costs to weigh when confirming:** disabling SSE forfeits incremental
+`notifications/progress` delivery and multi-turn elicitation/sampling over the stream. For
+the CI and HPC consumer classes in this spec — discrete `tools/call` request/response — that
+is very likely acceptable. It would matter for interactive agent use.
+
+**Residual risk if the AWS-side answer is negative:** DP-8 flips to the MCP-target
+architecture, which uses the `mcp` interceptor payload (parsed JSON-RPC) rather than the
+`http` payload, and does not carry the buffered-only restriction.
+
+## Additional sources (Part 3)
+
+- [MCP specification — Streamable HTTP transport](https://modelcontextprotocol.io/specification/draft/basic/transports/streamable-http)
+- `fastmcp==3.2.4` package introspection (`FastMCP.run_http_async`, `fastmcp.settings.Settings`)
