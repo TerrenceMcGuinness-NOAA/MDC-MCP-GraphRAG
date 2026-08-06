@@ -69,7 +69,7 @@ Gateway.
 
 **Rationale:** minimal change to a working deployment; the Runtime keeps its current
 identity, image, and SigV4 developer path. Runtime targets forward requests and responses
-**without aggregation or protocol translation**, so the 51 tool names are unchanged and no
+**without aggregation or protocol translation**, so the 52 tool names are unchanged and no
 client config churns.
 
 **Accepted losses:** no capability aggregation, no semantic tool search, and — the important
@@ -337,7 +337,7 @@ The **only** substantive change to Path B §8 is principal derivation:
 +     return _forbidden()                    # default-deny (R5.4)
 ```
 
-Everything downstream — `Allowed_Tool_Set` lookup, the 40/48/51 enumeration, default-deny on
+Everything downstream — `Allowed_Tool_Set` lookup, the CI/HPC/developer enumeration (see R5.5 note on re-derivation), default-deny on
 unknown tools, the audit writer — is unchanged. Path B §10 is inherited verbatim.
 
 The server never re-validates a JWT signature. The Gateway is the trust boundary, and the
@@ -395,7 +395,7 @@ CDK-only mutation and drift detection.
 
 Inherits Path B Properties 1–5, 7–10 with "Runtime authorizer" read as "Gateway authorizer".
 
-- **Property 6 (restated):** all 51 tools succeed over Developer_Principal SigV4 directly
+- **Property 6 (restated):** all 52 tools succeed over Developer_Principal SigV4 directly
   against the Runtime, and `GetAgentRuntime` shows no `customJWTAuthorizer`.
 - **Property 11 (unforgeability):** for any client-supplied Trusted_Context_Header value, the
   value observed by the MCP_Server equals the interceptor-derived value.

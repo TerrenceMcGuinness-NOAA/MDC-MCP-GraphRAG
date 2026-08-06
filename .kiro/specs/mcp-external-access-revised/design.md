@@ -1664,7 +1664,30 @@ All Cognito, Token_Broker, OIDC, and CDK work from Tasks 1-5 carries forward
 regardless of outcome — only the "last mile" routing (direct-to-Runtime vs
 via-Gateway) changes.
 
-**Status**: UNRESOLVED — scheduled for first AWS technical review cadence.
+**Status**: ~~UNRESOLVED — scheduled for first AWS technical review cadence.~~
+**RESOLVED 2026-08-06 → SINGLE-MODE CONFIRMED → PATH C PIVOT.**
+
+Resolution method used: **Option A** (AWS confirmation), via the AgentCore documentation:
+
+> An AgentCore Runtime can support either IAM SigV4 or JWT Bearer Token based inbound auth,
+> but not both simultaneously.
+> — [runtime-oauth](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html)
+
+The inference drawn here from the Task 0 403 body — that "(OAuth or SigV4)" implied
+single-mode enforcement — was **correct**. Per this section's own decision table, the
+mandated action is the §11.3 Path C Gateway pivot: front the Runtime with an AgentCore
+Gateway that accepts JWT; the Runtime stays SigV4-only; the developer path is unaffected.
+
+**Consequences:**
+
+- The `authorizerConfiguration` custom resource authored in Task 5 **MUST NOT be applied to
+  the live Runtime.** C8's prohibition on `cdk deploy` for that resource is now **permanent,
+  not provisional** — deploying it would break the developer SigV4 path (R7 / C6).
+- All Cognito, Token_Broker, OIDC, and CDK work from Tasks 1–5 **carries forward**, exactly as
+  this section anticipated. Only the last-mile routing changes.
+- Path C is specified in **`.kiro/specs/mcp-external-access-alternative-gateway/`**.
+- Full analysis, including six further decision points and the platform constraints Path C
+  inherits, is in `decision-log.md` (Parts 1–4) in this directory.
 
 ### 11.4 Data-plane isolation (R8.2, R8.3, R8.7)
 

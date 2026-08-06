@@ -222,15 +222,14 @@ sizing against expected CI + HPC volume.
   refer throughout to `.kiro/specs/mcp-external-access-alternative/`, including in binding
   criteria R8.5, R11.1, R11.3, R11.4 and every `Feature:` property tag. R11.6 is
   self-executing on this. Resolve during DP-5.
-- **`MdcServerStack` missing:** `infrastructure/cdk/bin/cdk.ts:6` imports
-  `MdcServerStack` from `../lib/mdc-server-stack`, but `infrastructure/cdk/lib/` contains
-  only `cdk-stack.ts`, `mdc-data-stack.ts`, `mdc-security-stack.ts`, `mdc-vpc-stack.ts`.
-  No `mdc-server-stack.ts` exists under `infrastructure/cdk`. On `develop`, `cdk synth`
-  cannot resolve that import. Confirm whether the file lives on `develop_aws` before any
-  CDK task starts.
-- **Implementation state is zero:** no external-access CDK stack, no
-  `mcp_server_node/src/auth/`, no `tools/mdc_mcp_jwt/`, no `.github/actions/`, no
-  runbooks. Every task box unchecked. Nothing built needs unwinding.
+- ~~**`MdcServerStack` missing**~~ — **CORRECTED in Part 4.** `mdc-server-stack.ts` has never
+  existed in *any* branch, so this is a long-standing unresolved import in `bin/cdk.ts`, not
+  a missing-branch problem. It did not block the Path B engagement, which synthed its own
+  stack successfully.
+- ~~**Implementation state is zero**~~ — **WRONG. CORRECTED in Part 4.** Path B Tasks 0–5 are
+  implemented on `feature/congnito_endpoint` (~1,243 lines, 53/53 CDK tests passing, **not
+  deployed**). The "zero" observation was true of `develop` only, which was the wrong base to
+  judge from.
 
 ---
 
@@ -589,3 +588,126 @@ architecture, which uses the `mcp` interceptor payload (parsed JSON-RPC) rather 
 
 - [MCP specification — Streamable HTTP transport](https://modelcontextprotocol.io/specification/draft/basic/transports/streamable-http)
 - `fastmcp==3.2.4` package introspection (`FastMCP.run_http_async`, `fastmcp.settings.Settings`)
+
+
+---
+
+# Part 4 — Branch reconciliation and prior-art discovery (2026-08-06)
+
+This part corrects two factual errors in Parts 1–2 that arose from working off the wrong
+base branch, and records the branch topology so the mistake is not repeated.
+
+## F-17. Branch topology — `develop_aws` is STALE, not ahead
+
+Measured against `origin`:
+
+| Branch | vs `develop` | Tip | Specs | Verdict |
+|---|---|---|---|---|
+| `develop` | — | `77469e9` 2026-07-20 | 61 | **Current mainline** |
+| `develop_aws` | **0 ahead, 56 behind** | `570a118` 2026-06-17 *"account closure notice and transition announcement"* | 44 | **Stale. Fully contained in `develop`.** |
+| `develop_aws_startpoint` | — | — | — | Historical marker |
+| **`feature/congnito_endpoint`** | **3 ahead, 0 behind** | `9d089f4` 2026-07-27 | 61 + impl | **The branch that matters** |
+
+`git merge-base --is-ancestor origin/develop_aws origin/develop` returns true: **`develop_aws`
+contains nothing that `develop` lacks.** Branching from `develop` was correct. The branch
+carrying the external-access work is **`feature/congnito_endpoint`**, which is a strict
+superset of `develop` (3 ahead, 0 behind).
+
+**Currency rule going forward:** this work must stay rebased on
+`feature/congnito_endpoint` while that branch is open, and on `develop` after it merges.
+Verified at time of writing: **0 behind `develop`, 0 behind `feature/congnito_endpoint`.**
+
+## F-18. ERRATUM — "implementation state is zero" was WRONG
+
+Part 1 §5 asserted zero implementation. That was true of `develop` and false of the
+repository. `feature/congnito_endpoint` carries **Path B Tasks 0–5 implemented** by
+T. McGuinness on 2026-07-27 (~1,243 insertions):
+
+| Artifact | Lines |
+|---|---|
+| `infrastructure/cdk/lib/mdc-external-access-alternative-stack.ts` | 414 |
+| `infrastructure/cdk/test/mdc-external-access-alternative-stack.test.ts` | 306 |
+| `docs/mdc-external-access-alt-iam-request.txt` | 203 |
+| `infrastructure/cdk/lambda/token_broker/index.py` | 130 |
+| `infrastructure/cdk/lambda/token_broker/test_index.py` | 91 |
+| `infrastructure/cdk/scripts/authorizer-drift-detector.sh` | 58 |
+| `infrastructure/cdk/bin/cdk.ts` (wiring) | +15 |
+| `infrastructure/cdk/snapshots/authorizer-config.json` | 8 |
+
+Status: **53/53 CDK tests passing, `cdk synth` clean, stack NOT deployed.** Cognito user
+pool, both app clients, resource server with exactly two scopes, Token_Broker Lambda, CI
+secret shell, and the authorizer custom resource are all authored.
+
+**This is good news, not rework.** As the C8 note itself says, all Cognito, Token_Broker,
+OIDC, and CDK work carries forward regardless of the Path B/C outcome — only the last-mile
+routing changes. Path C is now largely a matter of *adding* a Gateway and *not* applying the
+authorizer custom resource to the Runtime.
+
+## F-19. C8 — the dual-auth risk was found empirically here, three weeks before our doc proof
+
+The Path B engagement flagged this independently. Task 0 ran **2026-07-22** and returned
+**HTTP 403** (not the expected 401) with:
+
+> Authorization method mismatch. The agent is configured for a different authorization
+> method than what was used in your request … ensure your request uses the matching method
+> (OAuth or SigV4)
+
+Correction **C8** and design **§11.3a** (added 2026-07-27) drew exactly the right inference
+from "(OAuth **or** SigV4)": that AgentCore Runtime may enforce a **single** inbound auth
+mode, so attaching `customJWTAuthorizer` would **break the developer SigV4 path**. The gate
+was recorded as UNRESOLVED, three resolution options were documented, and — importantly —
+**the stack was deliberately not deployed.** That call prevented a live outage.
+
+**Our AWS documentation finding (F-3) resolves C8 definitively: single-mode is confirmed.**
+Per §11.3a's own decision table, the mandated action is:
+
+> AWS confirms **single-mode** (JWT replaces SigV4) → Execute the §11.3 Path C Gateway
+> pivot: front the Runtime with an AgentCore Gateway that accepts JWT; Runtime stays
+> SigV4-only; developer path unaffected
+
+That is precisely the Path C decision recorded in Part 1. **C8 is now RESOLVED → pivot
+confirmed.** The one action C8 forbids — `cdk deploy` of the authorizer custom resource
+against the live Runtime — must remain forbidden.
+
+Also note C2: the 403 was correctly read as a **pass** for reachability (endpoint live, no
+JWT authorizer attached yet). So the R8.5 network gate was satisfied back in July; our
+Part 1 note that Task 0 was "unrecorded" was true only of `develop`.
+
+## F-20. Hard-won platform constraints that Path C must inherit
+
+From `progress.md` on `feature/congnito_endpoint`. These are expensive to rediscover and
+several would have broken the Path C spec as first drafted:
+
+| # | Constraint | Effect on Path C |
+|---|---|---|
+| **C1** | Active runtime is **Python** `mdc_mcp_rag_server_python-v5K2F8BGrN`, artifact `python-tenants-v11`, **52 tools** — not the retired Node runtime (51 tools) | **Path C spec corrected**: developer count 52; the CI 40 / HPC 48 split must be **re-derived** (new R5.6, Task 5.3a) since it was computed against 51 tools |
+| **C7** | `PowerUserRestrictions` blocks `iam:CreateRole` | **Path C spec corrected**: Gateway_Execution_Role and interceptor role must be *imported* via `fromRoleName(mutable:false)` and added to the admin IAM request, not created (new R8.6, Task 2.3) |
+| **C12** | Constructs that implicitly create custom-resource Lambdas pull in auto-created roles → also blocked; guarded by a test asserting `AWS::IAM::Role` count == 0 | **New R8.7.** Relevant: our interceptor Lambda must use an imported execution role |
+| **C9** | `update-agent-runtime` is a **full-replacement** API; partial payloads wipe `networkConfiguration`, `environmentVariables`, `protocolConfiguration`, `roleArn`, `agentRuntimeArtifact`, `lifecycleConfiguration` | **New R8.8.** Mostly moot under Path C (R2.3 forbids touching the Runtime authorizer) but must be honoured if the Runtime is ever updated |
+| **C10 / C11** | GitHub OIDC provider and the three IAM roles do **not** exist in account 903050880929; admin-created and imported | Inherited unchanged; same admin doc extends to Path C's two new roles |
+| **R12 note** | `cdk diff` emits **no output** in staging (no CloudFormation `GetTemplate` connectivity) | **New R8.9.** Operator must run the real `cdk diff` at deploy time; synth + resource-type assertions are a substitute only in-environment |
+
+Environment facts also inherited: region `us-east-1`, account `903050880929`, task role
+`mdc-mcp-rag-ecs-task-role`, subnets `subnet-0e13af6b3a9a6416f` /
+`subnet-04447750c61bd7e06`, SG `sg-096489a0876cc78c1`, Hosted UI domain
+`mdc-mcp-external-alt` (availability verified). Note the live runtime env sets
+`MCP_STATELESS_HTTP=true`, consistent with F-14.
+
+## Merge staging (no merge performed)
+
+Per instruction, **nothing has been merged.** Current state:
+
+- Branch `spec/mcp-external-access-path-c-decision` **rebased onto
+  `origin/feature/congnito_endpoint`** — clean, no conflicts.
+- 0 behind `develop`; 0 behind `feature/congnito_endpoint`.
+- Three commits, spec/docs only. **No CDK, Lambda, or server code modified**, so nothing is
+  deployable and nothing can regress the Path B implementation.
+
+**Alignment needed before merge** (open questions, not blockers to review):
+
+1. Does `feature/congnito_endpoint` merge to `develop` first, with this branch following?
+   Or does this branch retarget its MR at `feature/congnito_endpoint`?
+2. Should Path C's implementation continue **on** `feature/congnito_endpoint` (keeping the
+   authorizer custom resource in-tree but unapplied), or on a fresh branch off it?
+3. Confirm the authorizer custom resource stays **unapplied** — C8's prohibition still binds
+   and is now permanent, not provisional.

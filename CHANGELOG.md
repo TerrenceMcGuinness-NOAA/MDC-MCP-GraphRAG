@@ -1,5 +1,98 @@
 # MCP Server Changelog
 
+## [Unreleased] - Phase 74: MCP External Access — Path C Pivot Decision (Aug 6, 2026)
+
+### Summary
+Resolves the **C8 dual-auth compatibility gate** that blocked deployment of the Path B
+external-access stack, and pivots the design to **Path C (AgentCore Gateway-fronted)**.
+AWS documentation confirms an AgentCore Runtime supports **either** IAM SigV4 **or** JWT
+bearer inbound auth, **not both simultaneously** — so attaching the Task 5
+`customJWTAuthorizer` to the live Runtime would have **replaced** SigV4 and broken the
+developer path (R7/C6). The July inference from the Task 0 HTTP 403 *"Authorization method
+mismatch … (OAuth or SigV4)"* body was correct. Documentation and specs only — **no CDK,
+Lambda, or server code changed; nothing deployed; nothing merged.**
+
+### Branch context (important)
+- Work is based on **`feature/congnito_endpoint`** (3 ahead of `develop`, 0 behind), which
+  carries the Path B Tasks 0–5 implementation (~1,243 lines, 53/53 CDK tests, **not
+  deployed**).
+- **`develop_aws` is stale** — `git merge-base --is-ancestor origin/develop_aws
+  origin/develop` is true: **0 commits ahead, 56 behind**, tip `570a118` (Jun 17, 2026,
+  *"account closure notice and transition announcement"*), 44 specs vs `develop`'s 61. It
+  contains nothing `develop` lacks and should not be used as a base.
+- Branch `spec/mcp-external-access-path-c-decision` rebased onto
+  `feature/congnito_endpoint`; **0 behind `develop`, 0 behind `feature/congnito_endpoint`**
+  at time of writing. Staged for review, **not merged**.
+
+### Added
+- **`.kiro/specs/mcp-external-access-alternative-gateway/`** — the Path C spec reserved by
+  Path B R11.3 (`requirements.md`, `design.md`, `tasks.md`). Runtime stays SigV4-only; an
+  AgentCore Gateway holds the Cognito authorizer and signs SigV4 outbound; a REQUEST
+  interceptor Lambda injects `X-Amzn-Bedrock-AgentCore-Runtime-Custom-{Principal,Scope,
+  BrokerRequestId}`. Includes a **blocking Requirement 0 verification gate**, an explicit
+  inheritance table for what carries over from Path B, and Properties 11 (header
+  unforgeability) and 12 (attribution completeness).
+- **`.kiro/specs/mcp-external-access-revised/decision-log.md`** — four-part analysis: the
+  Path C decision, mechanism research, the DP-7 empirical result, and branch reconciliation.
+  Tracks decision points **DP-1 … DP-8** with AWS documentation citations.
+
+### Changed
+- **`mcp-external-access-revised/design.md`** — §11.3a **C8 gate marked RESOLVED →
+  single-mode confirmed → Path C pivot**, with the prohibition on deploying the authorizer
+  custom resource made **permanent**. §7.4 (SigV4/JWT coexistence) struck as factually
+  wrong with a DO-NOT-IMPLEMENT banner. AD-6 marked mechanism-invalid. §14 banner: Path C is
+  no longer deferred, and its "Cedar tool-level policy" claim is unavailable for Runtime
+  targets (opaque base64 body). §16: OQ-2 recorded **RESOLVED** — `allowedScopes` does exist.
+  The §14 heading text is preserved byte-exact because R11.1 binds on it.
+- **`mcp-external-access-revised/requirements.md`** — R2.9 / R2.10 struck (dual inbound auth
+  impossible); R7.2 struck and **restated** (the Runtime shall never receive a
+  `customJWTAuthorizer`; any gateway-restricting resource policy must explicitly permit the
+  developer role).
+- **`mcp-external-access-revised/progress.md`** — corrected the Key Facts line asserting
+  dual-auth as fact; C8 log row updated to RESOLVED → PIVOT; added **C13** (tool-count
+  re-derivation) and **C14** (interceptor buffered-mode vs SSE).
+
+### Verified
+- **AgentCore constraint** confirmed in AWS docs (`runtime-oauth`, `gateway-target-http-runtime`,
+  `gateway-headers`, `gateway-interceptors-types`).
+- **DP-7 server side, empirically:** against the pinned `fastmcp==3.2.4`, `run_http_async`
+  accepts `json_response` alongside `stateless_http`; two live loopback servers showed
+  `json_response=False` → `Content-Type: text/event-stream` (today's default) and
+  `json_response=True` → `application/json`. So the server as deployed emits SSE — the mode
+  in which AgentCore documents interceptors as unsupported. Fix needs no code
+  restructuring. `stateless_http=True` is orthogonal and **must stay** (AgentCore supplies
+  `Mcp-Session-Id`; stateful mode returns HTTP 400).
+- **DP-3:** Runtime targets forward without aggregation or protocol translation → tool names
+  unchanged.
+- **RDHPC egress** (gaea64 → `bedrock-agentcore.us-east-1`) reachable; **not** operating
+  inside a FedRAMP boundary, which de-escalates the Jun 30 control mapping to advisory.
+- R11.1's exact `## Path C — Deferred` heading confirmed intact after edits.
+
+### Corrections to earlier statements in this branch
+- *"Implementation state is zero"* — **wrong**; true of `develop` only. Path B Tasks 0–5 are
+  implemented on `feature/congnito_endpoint`.
+- *"`MdcServerStack` may live on `develop_aws`"* — **wrong**; `mdc-server-stack.ts` has never
+  existed in any branch. `bin/cdk.ts` carries a long-standing unresolved import that did not
+  block the Path B engagement.
+- *"No `stateless_http` setting"* — **wrong**; it is set and mandatory. Only `json_response`
+  was absent.
+- Path C spec initially inherited Path B's **51**-tool figures; corrected to the active
+  Python runtime's **52** (C1), with the CI 40 / HPC 48 split flagged for re-derivation
+  (new R5.6 / Task 5.3a) rather than assumed.
+- Path C spec initially specified *creating* the Gateway execution role; corrected to
+  **import** via `fromRoleName(mutable:false)` plus an admin IAM request, per C7/C12.
+
+### Operator steps (not autonomous)
+- **Do not `cdk deploy` the Task 5 authorizer custom resource** against the live Runtime.
+- Run Path C **Task 0** (throwaway Gateway) to answer the AWS-side half of DP-7: do buffered
+  interceptors fire for a JSON-response MCP Runtime target?
+- Decide **DP-2**: whether the Runtime resource-based policy restricting invocation to the
+  Gateway also permits the developer role. The documented AWS example would sever the
+  developer path, since an explicit `Deny` overrides every `Allow`.
+- Perform the real `cdk diff` at deploy time — it emits no output in staging (no
+  CloudFormation `GetTemplate` connectivity).
+- Confirm merge sequencing between `feature/congnito_endpoint` and this branch.
+
 ## [Unreleased] - Phase 73: Graph Node-Count Scope Documentation (Jul 20, 2026)
 
 ### Summary

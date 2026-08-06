@@ -43,7 +43,7 @@ referenced sections as part of this spec by reference.
 | CI attribution via Token_Broker log-join on `broker_request_id` | Path B R3.6–R3.12, R13; design AD-3, §4.4 | Migrates cleanly; the interceptor carries the same field |
 | GitHub Actions composite action | Path B R3; design §5 | Consumes a token and a URL |
 | HPC_CLI_Helper (`mdc-mcp-jwt`) | Path B R4.15; design §6 | Unchanged |
-| Allowed_Tool_Set enumeration: CI 40 / HPC 48 / developer 51, `MUTATION_TOOL_SET` excluded from both JWT scopes | Path B R5; design AD-5, §10 | Gateway does not rename tools (Runtime targets forward unmodified) |
+| Allowed_Tool_Set *structure* — explicit enumeration, default-deny, `MUTATION_TOOL_SET` excluded from both JWT scopes | Path B R5; design AD-5, §10 | Gateway does not rename tools (Runtime targets forward unmodified) |
 | Audit log JSON Lines schema and non-blocking writer | Path B R6; design §9 | Stateless by design (C-IMPACT-1) |
 | Data safety, `cdk diff` guardrails, DeletionPolicy tests | Path B R9; design §12.4–§12.6 | Repo-wide steering, unchanged |
 
@@ -204,13 +204,20 @@ the Gateway cannot see tool names for a Runtime target.
 1. THE MCP_Server middleware SHALL derive the principal from the Trusted_Context_Headers
    rather than from any authorizer-claims header. *(Inherits Path B R5 tool-set semantics.)*
 2. WHEN no Trusted_Context_Header is present, THE MCP_Server SHALL treat the request as the
-   `developer-sigv4` principal and SHALL apply the all-51-tools Allowed_Tool_Set.
+   `developer-sigv4` principal and SHALL apply the all-52-tools Allowed_Tool_Set.
 3. IF a principal invokes a tool outside its Allowed_Tool_Set, THEN THE MCP_Server SHALL
    reject with HTTP 403 and SHALL NOT execute the tool.
 4. IF a `Scope` header value is not a recognized scope, THEN THE MCP_Server SHALL reject
    with HTTP 403 (default-deny).
 5. THE Allowed_Tool_Set source file SHALL remain a single explicit enumeration with
    default-deny, preserving Path B C-IMPACT-2.
+6. **THE per-scope tool counts SHALL be re-derived against the Python runtime before
+   enforcement is written.** Path B's "CI 40 / HPC 48 / developer 51" was derived against the
+   retired **Node** runtime (`mdc_mcp_rag_server-TMXDllG2Wi`, 51 tools). The active runtime is
+   **Python** `mdc_mcp_rag_server_python-v5K2F8BGrN` with **52 tools** (progress.md C1), so at
+   least one tool is unaccounted for in the Path B split. THE re-derivation SHALL enumerate
+   the Python runtime's actual `tools/list` output and assign every tool to
+   `mcp/ci-readonly`, `mcp/hpc-user`, both, or neither, with no tool left unclassified.
 
 ### Requirement 6: Audit Logging
 
@@ -237,8 +244,8 @@ the Gateway cannot see tool names for a Runtime target.
    without presenting a JWT, satisfied structurally by R2.3 and R2.4.
 3. THE `.kiro/settings/mcp.json` entry for the developer server SHALL remain
    byte-identical to its pre-feature state.
-4. WHEN all 51 tools are invoked over the Developer_Principal SigV4 path, THE verification
-   SHALL observe a successful MCP response for 51 of 51 tools.
+4. WHEN all 52 tools are invoked over the Developer_Principal SigV4 path, THE verification
+   SHALL observe a successful MCP response for 52 of 52 tools.
 
 ### Requirement 8: Infrastructure as Code
 
@@ -249,11 +256,27 @@ the Gateway cannot see tool names for a Runtime target.
 2. THE stack SHALL NOT modify the existing Runtime's inbound auth configuration.
 3. THE stack SHALL be added to `bin/cdk.ts` with an explicit dependency on the stack owning
    the Runtime.
-4. `cdk synth` SHALL succeed for the full app before any deploy. *(Note: `bin/cdk.ts`
-   currently imports `MdcServerStack` from `../lib/mdc-server-stack`, which is absent on
-   `develop`; this SHALL be resolved first — see `decision-log.md` §5.)*
+4. `cdk synth` SHALL succeed for the full app before any deploy.
 5. THE naming inconsistency in the Path B spec SHALL NOT be reproduced: this spec's
    directory name and all internal self-references SHALL agree.
+6. **THE stack SHALL NOT create any `AWS::IAM::Role`.** `PowerUserRestrictions` blocks
+   `iam:CreateRole` (progress.md C7). All roles SHALL be imported via `fromRoleName` or
+   `fromRoleArn` with `mutable: false`, and any role that does not yet exist SHALL be added to
+   `docs/mdc-external-access-alt-iam-request.txt` for admin pre-creation. A test SHALL assert
+   `AWS::IAM::Role` count == 0, matching the Path B stack's existing guard.
+7. THE stack SHALL NOT introduce a CDK construct that implicitly provisions a custom-resource
+   Lambda with an auto-created execution role, since that also requires `iam:CreateRole`
+   (progress.md C12).
+8. IF any update to the AgentCore Runtime is ever required, THEN the call SHALL carry the
+   **full lossless payload**, because `bedrock-agentcore-control:update-agent-runtime` is a
+   full-replacement API — a partial payload silently wipes `networkConfiguration`,
+   `environmentVariables`, `protocolConfiguration`, `roleArn`, `agentRuntimeArtifact`, and
+   `lifecycleConfiguration` (progress.md C9). *(Path C should not need this: R2.3 forbids
+   attaching an authorizer to the Runtime.)*
+9. THE `cdk diff` guardrail SHALL be performed by the operator at actual deploy time.
+   `cdk diff` produces no output in the staging environment due to absent CloudFormation
+   `GetTemplate` connectivity (progress.md R12 note), so synth success plus resource-type
+   assertions are the in-environment substitute, not a replacement for operator review.
 
 ### Requirement 9: Documentation
 
@@ -273,7 +296,7 @@ the Gateway cannot see tool names for a Runtime target.
 Inherits Path B Properties 1–5, 7, 8, 9, 10 with "Runtime authorizer" read as "Gateway
 authorizer". Property 6 is restated and two are added.
 
-- **Property 6 (restated):** for all 51 tools, a SigV4 invocation by the Developer_Principal
+- **Property 6 (restated):** for all 52 tools, a SigV4 invocation by the Developer_Principal
   directly against the Runtime succeeds, and the Runtime has no `customJWTAuthorizer`.
 - **Property 11:** for any client-supplied value of a Trusted_Context_Header, the value
   observed by the MCP_Server equals the interceptor-derived value (unforgeability).

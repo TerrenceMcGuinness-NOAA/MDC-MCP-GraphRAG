@@ -97,9 +97,13 @@ downstream of the answer.
   `allowedScopes`).
   _Requirements: R1.1, R2.1_
 
-- [ ] **2.3** Define the Gateway_Execution_Role with `aws:SourceArn` and `aws:SourceAccount`
-  trust conditions scoped to the Gateway ARN.
-  _Requirements: R2.5_
+- [ ] **2.3** **Import**, do not create, the Gateway_Execution_Role — via `fromRoleName(...,
+  { mutable: false })`. `PowerUserRestrictions` blocks `iam:CreateRole` (progress.md C7), and
+  the Path B stack already established this pattern for three roles. Add the
+  Gateway_Execution_Role and the interceptor Lambda execution role to
+  `docs/mdc-external-access-alt-iam-request.txt` for admin pre-creation, specifying the
+  `aws:SourceArn` / `aws:SourceAccount` trust conditions scoped to the Gateway ARN.
+  _Requirements: R2.5, R8.6, R8.7_
 
 - [ ] **2.4** Register the Runtime target: ARN + explicit qualifier, outbound auth IAM
   (SigV4), no schema, and `metadataConfiguration.allowedRequestHeaders` listing exactly the
@@ -187,10 +191,16 @@ downstream of the answer.
   Allowed_Tool_Set.
   _Requirements: R5.3, R5.4_
 
-- [ ] **5.3** Carry Path B §10's tool enumeration across unchanged (CI 40 / HPC 48 /
-  developer 51, `MUTATION_TOOL_SET` excluded from both JWT scopes), retaining explicit
-  enumeration with default-deny.
+- [ ] **5.3** Carry Path B §10's tool-set *structure* across (explicit enumeration,
+  default-deny, `MUTATION_TOOL_SET` excluded from both JWT scopes).
   _Requirements: R5.5_
+
+- [ ] **5.3a** **Re-derive the per-scope counts against the Python runtime.** Path B's
+  "CI 40 / HPC 48 / developer 51" came from the retired Node runtime (51 tools). The active
+  runtime is Python `mdc_mcp_rag_server_python-v5K2F8BGrN` with **52 tools** (progress.md
+  C1). Enumerate the live `tools/list`, classify every tool, and leave none unclassified.
+  Record the resulting counts in `design.md`.
+  _Requirements: R5.6_
 
 - [ ] **5.4** Add `broker_request_id` from the injected header to the audit entry; add
   `SOURCE_IP` from Lambda client context, tolerating absence.
@@ -208,9 +218,9 @@ downstream of the answer.
   value, not the forged one.
   _Requirements: R4.3; Property 11_
 
-- [ ] **6.2 Property 6 (developer path).** Invoke all 51 tools over Developer_Principal
+- [ ] **6.2 Property 6 (developer path).** Invoke all 52 tools over Developer_Principal
   SigV4 directly against the Runtime with the unmodified proxy and unmodified
-  `.kiro/settings/mcp.json`; assert 51/51 succeed. Assert `GetAgentRuntime` reports no
+  `.kiro/settings/mcp.json`; assert 52/52 succeed. Assert `GetAgentRuntime` reports no
   `customJWTAuthorizer`.
   _Requirements: R7.1–R7.4; Property 6_
 
