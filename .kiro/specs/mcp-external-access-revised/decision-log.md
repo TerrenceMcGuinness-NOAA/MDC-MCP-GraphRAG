@@ -254,3 +254,231 @@ sizing against expected CI + HPC volume.
 - [Set up inbound authorization for your gateway — Amazon Bedrock AgentCore](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-inbound-auth.html)
 
 *Content from AWS documentation was rephrased for compliance with licensing restrictions; direct quotations are kept short and attributed inline.*
+
+
+---
+
+# Part 2 — Path C mechanism research (2026-08-06, same day)
+
+Follow-up investigation to resolve DP-1 and DP-3. Outcome: **both resolved**, one new
+blocking issue found (DP-7), and one architecture fork surfaced that changes the shape of
+the recommendation (DP-8).
+
+## F-7. DP-3 RESOLVED — Runtime targets do not rename or aggregate tools
+
+From [AgentCore Runtime targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-http-runtime.html):
+the gateway routes traffic straight to the runtime with no aggregation and no protocol
+translation, forwarding requests and responses between client and runtime agent
+unmodified — explicitly unlike MCP targets, which merge tool capabilities into one
+unified virtual MCP server.
+
+**Effect:** §10's 40 / 48 / 51 tool enumeration survives byte-for-byte. No prefixing, no
+renaming, no client-config churn on tool names.
+
+**But three consequences to absorb:**
+- **No capability sync and no semantic tool search** for Runtime targets. Clients must
+  know exact tool names or call the server's own `tools/list`.
+- **Path-based routing** — the endpoint becomes
+  `https://{gatewayId}.gateway.bedrock-agentcore.{region}.amazonaws.com/{targetName}/invocations`.
+  This is the new `McpEndpointUrl` value (C-IMPACT-3 anticipated exactly this).
+- **Gateway protocol type must be unset.** Runtime targets can be added to gateways with
+  no protocol type set, and *cannot* be added to MCP-protocol-type gateways.
+
+## F-8. DP-1 RESOLVED — interceptor Lambda header injection is the designed channel
+
+Under SigV4 outbound, the Runtime sees a signed request from the gateway execution role,
+so JWT claims do not arrive on their own. The supported remedy is a **REQUEST interceptor
+Lambda** that injects headers, per
+[Header propagation with Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-headers.html):
+
+- Interceptor-returned headers merge with the target allowlist
+  (`metadataConfiguration.allowedRequestHeaders`).
+- **Interceptor-provided headers take precedence over client-provided headers on
+  conflict.** This is the anti-spoofing property we need — a CI or HPC caller cannot forge
+  its own principal or scope. The docs name this use case directly: inject context derived
+  from authenticated user claims rather than trusting client-supplied values.
+- **`X-Amzn-` prefixed headers are prohibited *except* `X-Amzn-Bedrock-AgentCore-Runtime-Custom-*`.**
+  That is a purpose-built channel for runtime-bound custom context — use it.
+- `Authorization` cannot be allowlisted at target creation, **but is forwarded when
+  supplied by an interceptor Lambda**. So passing the original JWT through is also possible.
+- `passRequestHeaders: true` is required for the interceptor to see inbound headers at all.
+  The docs flag this as sensitive (headers carry tokens); ensure the interceptor does not
+  log them.
+
+**Recommended DP-1 resolution:** REQUEST interceptor validates nothing (Gateway authorizer
+already did), reads claims, and injects
+`X-Amzn-Bedrock-AgentCore-Runtime-Custom-Principal`, `-Scope`, and `-BrokerRequestId`.
+The MCP_Server middleware (§8) reads those instead of
+`X-Amzn-Bedrock-AgentCore-Runtime-Custom-Authorizer-Claims`. AD-6's *intent* survives; only
+the header names and their producer change. **AD-3's log-join keys on `broker_request_id`,
+which rides through as one of these headers — attribution survives unchanged.**
+
+Hard limits to design against: **max 10 request headers per target**, 4 KB per value,
+printable ASCII only, names matching `^[a-zA-Z0-9_-]+$`.
+
+**Bonus for §9 audit:** for HTTP targets the gateway passes `GATEWAY_ARN`,
+`GATEWAY_ACCOUNT_ID`, `REQUEST_ID`, and `SOURCE_IP` to the Lambda via **client context**
+(`SOURCE_IP` is optional — treat as may-be-absent). `SOURCE_IP` is otherwise hard to obtain
+and is useful for the audit schema.
+
+## F-9. Gateway CANNOT see tool names for a Runtime target — corrects the §14 Path C vision
+
+Runtime targets use the **`http`** interceptor payload, not the `mcp` one. Differences that
+matter:
+
+| | MCP target | HTTP / Runtime target |
+|---|---|---|
+| Body format | parsed JSON (`Map<String,Object>`) | **base64-encoded string** |
+| Path | always `/mcp` | actual path, e.g. `/my-target/invocations` |
+| `rawGatewayRequest` | included | not included |
+| Response interceptor | supported | **buffered mode only** |
+
+Because the body is an opaque base64 string, **the gateway does not parse JSON-RPC and
+therefore has no native view of `tools/call` or the tool name.** Design §14 asserted Path C
+would bring "Cedar tool-level policies … evaluated per tool invocation, replacing the
+single `allowedToolSets.js` enumeration." **That is not available in the Runtime-target
+shape.** Two workable options instead:
+
+- **(a) Keep tool gating in the MCP_Server.** §8 middleware and §10 enumeration survive
+  essentially intact — a much smaller change than "Path C deletes §8."
+- **(b) Enforce in the interceptor.** The Lambda base64-decodes the body, parses JSON-RPC,
+  reads `params.name`, and on denial returns `transformedGatewayResponse` — which
+  **short-circuits: the gateway replies immediately without calling the target, and the
+  RESPONSE interceptor does not run.** This is a clean 403 path but re-implements §10 in a
+  Lambda.
+
+**Recommendation: (a), with (b) available later as defense-in-depth.** This preserves the
+most existing design and is the least-risk path.
+
+## F-10. NEW BLOCKING ISSUE — DP-7: interceptors are buffered-only, our server streams
+
+Two facts that collide:
+
+1. Runtime targets support SSE streaming, **but** "Request and response interceptor Lambda
+   functions are supported in buffered mode. Interceptors are not yet supported in
+   streaming mode."
+2. Our deployed server is **FastMCP Streamable HTTP**. Confirmed in-repo:
+   `mcp_server_python/src/mcp_server.py:331-336` defaults `--transport` to
+   `streamable-http` (comment: "AgentCore/gateway"), and
+   `mcp_server_python/src/config/environment.py:80` documents host/port as "Address for
+   FastMCP's Streamable HTTP listener (Requirement 1.1)", port 8000
+   (`src/config/aws_config.py:18`).
+
+I found **no `json_response=True` and no `stateless_http` setting** anywhere in
+`mcp_server_python/src/`. FastMCP's streamable-http default returns SSE for responses, so
+as currently written **the interceptor may never fire — which would silently remove the
+entire DP-1 claims channel and, with it, all principal/scope enforcement and audit
+attribution.** Same failure mode as the original AD-3 defect: tokens validate, calls
+succeed, governance data is absent.
+
+**DP-7 (blocking): confirm whether the MCP server must be pinned to buffered/JSON-response
+mode for interceptors to run, and whether doing so is acceptable for tool latency and
+payload size.** This must be answered before committing to the interceptor mechanism.
+
+**Related constraint:** Lambda synchronous invoke has a **6 MB combined request+response
+payload limit**, and the base64-encoded body counts against it. For a RAG server returning
+search results this is a live risk. Mitigation is documented: configure a payload filter
+excluding `RESPONSE_BODY`, after which the interceptor still sees `statusCode`,
+`contentType`, and `headers`, can inject headers, and can override status — and returning
+`body: null` leaves the original response untouched. Our audit needs only metadata, so this
+mitigation fits well.
+
+## F-11. Outbound auth has four modes — one preserves §8 with no interceptor at all
+
+AgentCore Runtime targets support: **IAM (SigV4)** (gateway assumes its service role to
+sign — the chosen model), **caller IAM credentials**, **OAuth (JWT)** via credential
+providers, and **token passthrough** — where the gateway validates the inbound token and
+forwards it to the target unmodified, described as useful when the runtime handles its own
+authorization.
+
+**Token passthrough is a near-exact fit for the existing §8 design** (server reads the JWT
+itself). But it requires the Runtime's *inbound* auth to accept that JWT, i.e. a
+JWT-inbound Runtime — which reintroduces F-3's either/or and loses the "developer SigV4
+needs zero change" benefit that motivated Path C. **Logged as a considered-and-rejected
+alternative**, not a recommendation.
+
+## F-12. DP-2 update — bypass prevention now exists for both inbound types
+
+The docs now state you can enforce gateway-only access regardless of whether the runtime
+uses SigV4 or JWT inbound: the gateway stamps the source of each forwarded request and the
+runtime validates it. SigV4 runtimes use a resource-based policy scoped to the gateway
+execution role; JWT runtimes use `allowedWorkloadConfiguration`.
+
+**DP-2 remains an open decision, unchanged in substance:** the documented SigV4 policy
+denies all principals except the gateway role, which would sever the developer path. Decide
+explicitly between not locking down, or adding developer role ARNs to the `ArnNotEquals`
+exception set. DP-4 (trust-policy hardening with `aws:SourceArn` / `aws:SourceAccount`)
+still applies.
+
+## F-13. Guardrails need a schema — but not for us
+
+Runtime targets accept an optional `schema` (S3 URI or `inlinePayload`, OpenAPI or Smithy,
+auto-detected) used by the gateway policy engine for features such as guardrails. HTTP
+protocol runtimes must supply one; **runtimes using MCP or A2A get a default schema
+automatically.** Ours is MCP, so no schema authoring is required unless we want guardrails
+beyond the default.
+
+---
+
+## NEW DP-8 — architecture fork: Runtime target vs MCP target
+
+This is the decision that most affects the follow-on spec, and it was not visible before
+this research.
+
+| | **Runtime target** (as proposed) | **MCP target** |
+|---|---|---|
+| Gateway sees tool names | No — opaque base64 body | **Yes — parsed JSON-RPC** |
+| Tool aggregation / `tools/list` | No, isolated | Yes, unified virtual MCP server |
+| Semantic tool search | No | Yes |
+| Per-tool Cedar policy | Not natively (F-9) | Natively feasible |
+| Response interceptor | Buffered only | Supported |
+| Endpoint needed | Runtime ARN + qualifier only | Reachable MCP endpoint |
+| Gateway protocol type | must be **unset** | MCP |
+
+An MCP target would deliver the §14 Path C vision as originally written (Cedar per-tool
+policy, aggregation) and sidesteps the base64/tool-name problem — and AgentCore Gateway
+supports **VPC egress to self-hosted MCP servers via private endpoints backed by VPC
+Lattice**, so a private MCP endpoint is achievable. The cost is a different hosting story
+than "front the existing Runtime."
+
+**Recommendation: proceed with the Runtime target** (matches the adopted decision, minimal
+change, keeps §8/§10) **and record MCP-target as the fallback** if DP-7 rules out
+interceptors or if per-tool Cedar policy later becomes a hard requirement. Note the two are
+mutually exclusive on a single gateway because of the protocol-type constraint in F-7.
+
+---
+
+## Revised decision-point status
+
+| DP | Status |
+|---|---|
+| DP-1 claims propagation | **RESOLVED** — interceptor injects `X-Amzn-Bedrock-AgentCore-Runtime-Custom-*`; §8 reads those (F-8) |
+| DP-2 bypass policy vs developer path | **OPEN** — unchanged; decide before writing the resource policy |
+| DP-3 tool naming | **RESOLVED** — no renaming; §10 survives (F-7) |
+| DP-4 gateway role trust hardening | **OPEN** — confirmed still required (F-12) |
+| DP-5 spec disposition | **OPEN** — new spec still recommended; scope is now smaller than feared, since §8/§10 largely survive |
+| DP-6 gateway cost | **OPEN** — add interceptor Lambda invocations per MCP call to the estimate |
+| **DP-7 buffered vs streaming** | **OPEN / BLOCKING** — gates the whole DP-1 mechanism (F-10) |
+| **DP-8 Runtime vs MCP target** | **OPEN** — architecture fork; recommendation is Runtime target with MCP target as fallback (DP-8 table) |
+
+## Revised next actions
+
+1. **Answer DP-7 first.** If interceptors cannot run against our streamable-http server,
+   DP-1's resolution collapses and DP-8 likely flips to MCP target. Everything else is
+   downstream of this.
+2. Decide DP-8 once DP-7 is known.
+3. Decide DP-2 before any resource-based policy is written.
+4. Then create the follow-on spec (DP-5), carrying forward §3–§6 and §10, and — now
+   supported by F-9(a) — most of §8 with only the header names changed.
+5. Re-scope Task 0 to verify JWT-in / SigV4-out **through a Gateway**, asserting the
+   injected custom headers actually arrive at the container.
+
+## Additional sources (Part 2)
+
+- [Amazon Bedrock AgentCore Runtime targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-http-runtime.html)
+- [Header propagation with Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-headers.html)
+- [Types of interceptors](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-interceptors-types.html)
+- [Using interceptors with Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-interceptors.html)
+- [Configure AgentCore Gateway VPC Egress for Gateway Targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-vpc-egress.html)
+
+*AWS documentation content was rephrased for compliance with licensing restrictions; direct quotations are kept short and attributed inline.*
