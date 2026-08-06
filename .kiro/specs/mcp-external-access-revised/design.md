@@ -1176,12 +1176,21 @@ aws bedrock-agentcore-control get-agent-runtime --agent-runtime-arn "$RUNTIME_AR
   || { echo "::error::Authorizer drift detected — next cdk deploy will restore"; exit 1; }
 ```
 
-### 7.4 SigV4 coexistence (R2.9, R7.2)
+### 7.4 SigV4 coexistence (R2.9, R7.2) — **SUPERSEDED 2026-08-06: THIS SECTION IS FACTUALLY WRONG. DO NOT IMPLEMENT.**
 
-The AgentCore Runtime accepts a valid SigV4 signature **or** a valid Bearer JWT on the same
+> **STOP.** AWS documentation states: "An AgentCore Runtime can support either IAM SigV4
+> or JWT Bearer Token based inbound auth, but not both simultaneously."
+> ([runtime-oauth](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html))
+> The coexistence behavior asserted below **does not exist**. R2.9 is unsatisfiable as
+> written, AD-6's absence-of-header principal detection is invalid, and Property 6 cannot
+> be met this way. The project has adopted **Path C (Gateway-fronted)** instead: the
+> Runtime stays on SigV4 and an AgentCore Gateway holds the Cognito JWT authorizer.
+> See `decision-log.md` in this directory for the full analysis and open decision points.
+
+~~The AgentCore Runtime accepts a valid SigV4 signature **or** a valid Bearer JWT on the same
 endpoint when a JWT authorizer is configured; it rejects only requests that have neither.
 The Developer_Principal SigV4 path therefore continues to work with no CDK change and no
-JWT (R2.9, R7.2). The regression suite (§13, P6) locks this behavior across all 51 tools.
+JWT (R2.9, R7.2). The regression suite (§13, P6) locks this behavior across all 51 tools.~~
 
 ---
 
