@@ -12,6 +12,20 @@ if ! [[ "$PATH" =~ "$HOME/.local/bin" ]]; then
 fi
 export PATH
 
+# ── Shared MCP Python environment (Spack-managed venv) ───────────────────────
+# Provides boto3, fastmcp, opensearch-py, strands-agents, opentelemetry, etc.
+# for all developer accounts without any per-user pip installs.
+# Maintained by ec2-user; venv lives at /mnt/mdc-mcp-rag/spack/var/mcp-venv
+_MCP_ACTIVATE="/mnt/mdc-mcp-rag/spack/mcp-env-activate.sh"
+if [[ -f "${_MCP_ACTIVATE}" ]]; then
+    source "${_MCP_ACTIVATE}"
+else
+    echo "[WARN] MCP Spack env not found: ${_MCP_ACTIVATE}" >&2
+    echo "       Contact ec2-user to re-provision the Spack environment." >&2
+fi
+unset _MCP_ACTIVATE
+# ─────────────────────────────────────────────────────────────────────────────
+
 # AWS region default
 export AWS_REGION=us-east-1
 
@@ -37,4 +51,5 @@ PS1='\u@\h \W$(__git_branch)\$ '
 # Aliases
 alias ws='cd $MCP_WORKSPACE'
 alias work='cd $SCRATCH'
-alias mcp-health='python3.12 -c "import boto3; c=boto3.client(\"bedrock-agentcore\",region_name=\"us-east-1\"); print(\"AWS OK\")"'
+alias mcp-health='python3 -c "import boto3; c=boto3.client(\"bedrock-agentcore\",region_name=\"us-east-1\"); print(\"AWS OK\")"'
+alias mcp-env-check='python3 -c "import boto3,fastmcp,opensearchpy; print(\"boto3:\",boto3.__version__,\"| fastmcp:\",fastmcp.__version__,\"| opensearch-py:\",opensearchpy.__version__)"'
