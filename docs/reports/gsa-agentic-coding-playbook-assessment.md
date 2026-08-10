@@ -7,6 +7,32 @@
 
 ---
 
+> ## Partial Correction — Read This First
+>
+> **Sections 1-3 (what the playbook is, provenance, GSA support resources) remain
+> accurate and current.**
+>
+> **Section 4 ("Relevance to Our MCP-RAG System") contains a scope error.** It
+> evaluates the MCP-RAG server in isolation and describes the system as a read-only
+> analysis tool. The correct boundary is the composite agentic system — the LLM agent
+> plus the MCP tool surface plus filesystem write access, arbitrary command execution,
+> git push authority, and the developer's ambient AWS credentials. Under that boundary
+> the alignment picture is substantially worse than Section 4 states.
+>
+> Specific claims now known to be wrong:
+> - "Cannot reach any production system" — an agent-issued `update-agent-runtime`
+>   rotated the live AgentCore runtime v37 to v38 on 2026-08-10.
+> - "Never modifies operational code" — the agent edits source, commits, and pushes.
+> - The read-only framing omits the 2026-04-22 incident in which an agent-assisted
+>   CDK deploy destroyed the production Neptune cluster (59,759 nodes,
+>   2,633,374 relationships). See `docs/postmortem/2026-04-22-neptune-data-loss.md`.
+>
+> **Superseding analysis:**
+> [[GSA-Agentic-Coding-Playbook-Security-Controls-Reconciliation]] v2.0 — treat that
+> document as authoritative for any compliance question.
+
+---
+
 ## 1. What Is It
 
 The **Agentic Coding Playbook** is a set of markdown files, templates, validation
