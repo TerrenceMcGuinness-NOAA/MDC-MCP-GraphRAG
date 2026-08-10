@@ -20,15 +20,23 @@
 > the alignment picture is substantially worse than Section 4 states.
 >
 > Specific claims now known to be wrong:
-> - "Cannot reach any production system" — an agent-issued `update-agent-runtime`
->   rotated the live AgentCore runtime v37 to v38 on 2026-08-10.
 > - "Never modifies operational code" — the agent edits source, commits, and pushes.
+> - "Cannot reach any production system" — an agent-issued `update-agent-runtime`
+>   rotated the live AgentCore runtime v37 to v38 on 2026-08-10. That is *shared
+>   prototype* infrastructure, not NCO production, but it is still an ungated
+>   agent-issued change to shared infrastructure.
 > - The read-only framing omits the 2026-04-22 incident in which an agent-assisted
->   CDK deploy destroyed the production Neptune cluster (59,759 nodes,
+>   CDK deploy destroyed the shared prototype Neptune cluster (59,759 nodes,
 >   2,633,374 relationships). See `docs/postmortem/2026-04-22-neptune-data-loss.md`.
 >
+> **Scope note.** This system is a sandboxed pre-ATO research prototype. It has no
+> network path, credential, or data path to WCOSS or any system operated by NCO
+> (NCEP Central Operations). "Production" in the corrected analysis means the shared
+> long-lived instance of *this prototype*, never NCO operations. The severity of the
+> findings is calibrated accordingly.
+>
 > **Superseding analysis:**
-> [[GSA-Agentic-Coding-Playbook-Security-Controls-Reconciliation]] v2.0 — treat that
+> [[GSA-Agentic-Coding-Playbook-Security-Controls-Reconciliation]] v2.1 — treat that
 > document as authoritative for any compliance question.
 
 ---
