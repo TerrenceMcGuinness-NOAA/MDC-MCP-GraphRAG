@@ -45,7 +45,7 @@ vi ~/.aws/credentials
 Replace the placeholder values with your real keys:
 
 ```ini
-[default]
+[agentcore-rag]
 aws_access_key_id = AKIA...YOUR_KEY_ID...
 aws_secret_access_key = YOUR_SECRET_KEY_HERE
 ```
@@ -63,7 +63,7 @@ ls -la ~/.aws/credentials
 ## Step 3 — Verify it works
 
 ```bash
-aws sts get-caller-identity
+AWS_PROFILE=agentcore-rag aws sts get-caller-identity
 ```
 
 You should see your IAM user ARN:
@@ -76,7 +76,7 @@ You should see your IAM user ARN:
 ```
 
 If it still shows `assumed-role/SSMrole/...`, the credentials file isn't being
-read — check the path and permissions.
+read — check the path, permissions, and that the profile header is `[agentcore-rag]`.
 
 ---
 

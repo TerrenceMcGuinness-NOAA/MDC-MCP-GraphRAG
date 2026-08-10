@@ -185,7 +185,7 @@ region = us-east-1
 output = json
 EOF
     cat > "${AWS_DIR}/credentials" <<EOF
-[default]
+[agentcore-rag]
 # Create an access key in the AWS Console:
 #   https://903050880929.signin.aws.amazon.com/console
 #   → Security credentials → Access keys → Create access key
