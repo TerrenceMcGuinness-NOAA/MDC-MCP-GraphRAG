@@ -174,7 +174,36 @@ EOF
     echo "  [SKIP] .bashrc exists (use --force to overwrite)"
   fi
 
-  # 6. Create scratch workspace (CamelCase: First.Last)
+  # 6. Set up AWS CLI credentials directory
+  AWS_DIR="${HOME_DIR}/.aws"
+  if [[ ! -d "${AWS_DIR}" ]]; then
+    mkdir -p "${AWS_DIR}"
+    chmod 700 "${AWS_DIR}"
+    cat > "${AWS_DIR}/config" <<EOF
+[default]
+region = us-east-1
+output = json
+EOF
+    cat > "${AWS_DIR}/credentials" <<EOF
+[default]
+# Create an access key in the AWS Console:
+#   https://903050880929.signin.aws.amazon.com/console
+#   → Security credentials → Access keys → Create access key
+# See: SETUP_AWS/provisioning/RUNBOOK_developer_aws_credentials.md
+aws_access_key_id = PASTE_YOUR_ACCESS_KEY_ID_HERE
+aws_secret_access_key = PASTE_YOUR_SECRET_ACCESS_KEY_HERE
+EOF
+    chmod 600 "${AWS_DIR}/config" "${AWS_DIR}/credentials"
+    echo "  [OK] ~/.aws/ created (user must add access keys — see RUNBOOK)"
+  else
+    echo "  [SKIP] ~/.aws/ exists"
+  fi
+
+  # 7. Create scratch workspace (CamelCase: First.Last)
+  first=$(echo "${fullname}" | awk '{print $1}')
+  last=$(echo "${fullname}" | awk '{print $NF}')
+  SCRATCH_DIR="/mdc-mcp-rag/SCRATCH/${first}.${last}"
+  # 7. Create scratch workspace (CamelCase: First.Last)
   first=$(echo "${fullname}" | awk '{print $1}')
   last=$(echo "${fullname}" | awk '{print $NF}')
   SCRATCH_DIR="/mdc-mcp-rag/SCRATCH/${first}.${last}"
@@ -182,7 +211,7 @@ EOF
   chown "${username}:${username}" "${SCRATCH_DIR}"
   echo "  [OK] scratch: ${SCRATCH_DIR}"
 
-  # 7. Set ownership
+  # 8. Set ownership
   chown -R "${username}:${username}" "${HOME_DIR}"
 
   echo ""
