@@ -142,7 +142,76 @@ mutation.** Staged for human review (no commit/push, git policy 08).
   `"AWS_PROFILE": "agentcore-rag"` (commit `6435643`) while the untracked
   `fix-user-mcp-aws-profile.sh` exists to strip that key. This work treats the
   committed template as authoritative; one of the two should be retired.
+## [Unreleased] - Kiro CLI 2.17.0 musl update on Rocky 9 (Aug 12, 2026)
 
+### Summary
+Updated Kiro CLI from 2.16.1 → 2.17.0 via `SETUP/update-kiro-cli-musl.sh`.
+The built-in `kiro-cli update` cannot be used on this host because Rocky 9.7
+ships glibc 2.34, and the default glibc build of Kiro CLI now requires
+glibc 2.38/2.39. The musl (statically-linked) build is version-equivalent and
+avoids the glibc dependency entirely.
+
+### Changed
+- `SETUP/update-kiro-cli-musl.sh` — broadened comments to reference Rocky 9
+  alongside AL2023 (both pinned to glibc 2.34).
+
+## [Unreleased] - ChromaDB compose bind-mount race safeguard (Jul 29, 2026)
+
+### Summary
+Prevents recurrence of the boot-time race that recreated `chromadb-devops`
+against the ephemeral root filesystem on 2026-07-28, silently shadowing the
+2.3 GB persisted `chroma.sqlite3` (36 collection UUID dirs) with a fresh
+184 KB stub. Same failure mode already logged as **[7.3.12] ChromaDB Persistent
+Volume Mount Fix (Feb 9, 2026)** — that fix hardened only the retired
+`chromadb-persistent.service`; the compose-managed devops container had no
+equivalent guard. Host data was never touched by the incident.
+
+### Added
+- **`SETUP/scripts/verify-chromadb-bind.sh`** — portable preflight that
+  refuses to start Chroma when any of the following are unsafe: the
+  `mcp_rag_eib.mount` unit is inactive, the persist dir resolves to the root
+  filesystem, `chroma.sqlite3` is missing or below `CHROMADB_MIN_SQLITE_MB`
+  (default 100 MiB), fewer than `CHROMADB_MIN_UUID_DIRS` (default 5) collection
+  UUID dirs exist, or the Docker volume's own `_data` already holds a
+  small-and-different-inode stub sqlite that would shadow the bind. All
+  thresholds env-overridable.
+- **`SETUP/systemd/chromadb-devops.service`** — systemd wrapper
+  (`After=/Requires=docker.service mcp_rag_eib.mount`, `PartOf=docker.service`)
+  that runs the preflight as `ExecStartPre` and manages the compose service
+  via `docker compose -f docker-compose.devops.yaml up -d/stop chromadb`.
+- **`SETUP/systemd/install-chromadb-devops-guard.sh`** — idempotent installer
+  (root). Runs the preflight, installs and enables the unit, flips the running
+  container's Docker-side restart policy to `no` so only the unit governs boot
+  startup. `--uninstall` restores the original `unless-stopped` policy and
+  removes the unit. The compose file is not modified — CI paths using plain
+  `docker compose up -d` still work.
+
+### Changed
+- **`docker-compose.devops.yaml`** — added a BOOT-TIME SAFEGUARD comment block
+  on the `chromadb` service documenting the race, pointing at the installer,
+  and explaining the `restart: unless-stopped` interaction. No functional
+  change; volume + env unchanged.
+
+### Verified
+- `bash -n` clean on both new shell scripts.
+- Preflight tested against the current live state — correctly identifies the
+  running `chromadb-devops` volume as holding a stale 184 KB stub (vs. the
+  2.3 GB persist-dir sqlite) and prints the exact `docker compose`/`volume rm`
+  remediation sequence.
+
+### Operator action (gated — not autonomous)
+Install the guard on the Parallel Works host (requires root + is a systemd
+change to a shared service):
+```
+sudo bash SETUP/systemd/install-chromadb-devops-guard.sh
+```
+Fix the current stale bind first (host data is safe throughout):
+```
+docker compose -f docker-compose.devops.yaml stop chromadb
+docker compose -f docker-compose.devops.yaml rm -f chromadb
+docker volume rm eib-mcp-rag-server_chromadb-devops-data
+docker compose -f docker-compose.devops.yaml up -d chromadb
+```
 ## [Unreleased] - Phase 73: Graph Node-Count Scope Documentation (Jul 20, 2026)
 
 ### Summary

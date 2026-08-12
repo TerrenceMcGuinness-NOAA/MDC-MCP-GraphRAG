@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 #
 # update-kiro-cli-musl.sh — install/upgrade Kiro CLI to the latest release on
-# Amazon Linux 2023 (glibc 2.34) using the musl build.
+# hosts with glibc 2.34 (Rocky 9, AL2023) using the musl build.
 #
-# WHY: AL2023 is pinned to glibc 2.34 for its entire release lifecycle, but the
-# glibc "latest" Kiro CLI build (what `kiro-cli update` pulls) is linked against
-# glibc 2.39 and fails on AL2023 with "GLIBC_2.38/2.39 not found". The musl build
-# is statically linked, has NO glibc dependency, and is the SAME release served
-# under /latest/ — full feature and version parity with the glibc build.
+# WHY: Rocky 9 and AL2023 are pinned to glibc 2.34 for their entire release
+# lifecycle, but the glibc "latest" Kiro CLI build (what `kiro-cli update` pulls)
+# is linked against glibc 2.39 and fails with "GLIBC_2.38/2.39 not found". The
+# musl build is statically linked, has NO glibc dependency, and is the SAME
+# release served under /latest/ — full feature and version parity with the glibc
+# build.
 #
 # Re-run this any time to stay on the latest release.
-# Do NOT run `kiro-cli update` on AL2023 — it re-pulls the glibc build and breaks.
+# Do NOT run `kiro-cli update` on Rocky 9 or AL2023 — it re-pulls the glibc build and breaks.
 #
 set -euo pipefail
 
@@ -41,4 +42,4 @@ echo "[*] Installed. Verifying version ..."
 timeout 15 "${HOME}/.local/bin/kiro-cli" --version 2>/dev/null \
   || echo "    (run 'kiro-cli --version' to confirm; 'kiro-cli login' if prompted)"
 
-echo "[OK] Kiro CLI is on the latest musl release. Do NOT run 'kiro-cli update' on AL2023."
+echo "[OK] Kiro CLI is on the latest musl release. Do NOT run 'kiro-cli update' on glibc-2.34 hosts (Rocky 9, AL2023)."

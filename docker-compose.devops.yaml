@@ -15,6 +15,17 @@ services:
   # For local runs (no GitLab registry access), CHROMADB_IMAGE defaults to the
   # public Docker Hub image, which is what the on-disk /mcp_rag_eib/data/chromadb
   # store has been served with in dev.
+  #
+  # BOOT-TIME SAFEGUARD: the volume below is a bind mount to persistent storage.
+  # If Docker (re)starts this container before `mcp_rag_eib.mount` is active,
+  # the bind resolves to the ephemeral root and Chroma writes a fresh empty
+  # sqlite over the persisted 2 GB store (CHANGELOG [7.3.12] Feb 9, 2026 and
+  # 2026-07-28 recurrence). On persistent-VM hosts install the guard:
+  #   sudo bash SETUP/systemd/install-chromadb-devops-guard.sh
+  # That installs `chromadb-devops.service` (After=mcp_rag_eib.mount), runs
+  # SETUP/scripts/verify-chromadb-bind.sh as a preflight, and flips this
+  # container's Docker-side restart policy to `no` so only the unit governs
+  # boot startup. `docker compose up -d` for CI paths still works.
   # ============================================================================
   chromadb:
     image: ${CHROMADB_IMAGE:-chromadb/chroma:latest}

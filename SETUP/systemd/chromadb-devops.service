@@ -1,0 +1,34 @@
+[Unit]
+Description=ChromaDB (docker compose devops) with persistent-mount guard
+Documentation=https://docs.trychroma.com/
+# CRITICAL: same race that hit chromadb-persistent in Feb 2026 (CHANGELOG
+# [7.3.12]) and again on 2026-07-28 for the compose-managed devops container.
+# Docker's `restart: unless-stopped` re-launches the container at boot; without
+# an explicit dependency on mcp_rag_eib.mount, the bind source resolves to the
+# ephemeral root and Chroma writes a fresh empty sqlite over the persisted one.
+After=docker.service mcp_rag_eib.mount
+Requires=docker.service mcp_rag_eib.mount
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+Group=root
+WorkingDirectory=/mcp_rag_eib/eib-mcp-rag-server
+
+# Preflight: refuse to start if the persistent mount or persist dir are unsafe.
+ExecStartPre=/mcp_rag_eib/eib-mcp-rag-server/SETUP/scripts/verify-chromadb-bind.sh
+
+# Bring the compose service up (idempotent — safe if already running).
+ExecStart=/usr/bin/docker compose -f docker-compose.devops.yaml up -d chromadb
+
+# Stop only the compose-managed Chroma service.
+ExecStop=/usr/bin/docker compose -f docker-compose.devops.yaml stop chromadb
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chromadb-devops-guard
+
+[Install]
+WantedBy=multi-user.target
