@@ -408,7 +408,22 @@ Decision logic applied to the 51-tool list (per
 
 Concrete enumeration lives in §10.
 
-### AD-6. MCP_Server JWT claim propagation + developer-sigv4 principal (R5.1, R7.2) — **carried over, with R7.2 emphasis**
+### AD-6. MCP_Server JWT claim propagation + developer-sigv4 principal (R5.1, R7.2) — **SUPERSEDED 2026-08-06: MECHANISM INVALID**
+
+> **The propagation mechanism below is unverified and almost certainly wrong.** AWS
+> documents claim propagation to a Runtime as an **opt-in request-header allowlist**
+> (`RequestHeaderConfiguration`) after which the container decodes `Authorization` itself;
+> the `X-Amzn-Bedrock-AgentCore-Runtime-Custom-Authorizer-Claims` header relied on below is
+> not documented as an automatic passthrough. Under the adopted Path C the JWT is validated
+> at the **Gateway**, so no authorizer-claims header exists at the Runtime at all.
+>
+> **Replacement:** a Gateway REQUEST interceptor Lambda injects
+> `X-Amzn-Bedrock-AgentCore-Runtime-Custom-Principal`, `-Scope`, and `-BrokerRequestId`
+> (`X-Amzn-Bedrock-AgentCore-Runtime-Custom-*` is the only permitted `X-Amzn-` prefix).
+> Interceptor-supplied headers take precedence over client-supplied ones, which is what
+> makes principal and scope unspoofable. **The AD-6 *intent* survives intact** — including
+> "absence of the trusted header ⇒ `developer-sigv4` principal"; only the header names and
+> their producer change. See `decision-log.md` F-8.
 
 **AgentCore claim passthrough.** Per the AgentCore Runtime MCP authorization docs, when
 the JWT authorizer validates a token, AgentCore forwards the request to the container
@@ -1176,12 +1191,21 @@ aws bedrock-agentcore-control get-agent-runtime --agent-runtime-arn "$RUNTIME_AR
   || { echo "::error::Authorizer drift detected — next cdk deploy will restore"; exit 1; }
 ```
 
-### 7.4 SigV4 coexistence (R2.9, R7.2)
+### 7.4 SigV4 coexistence (R2.9, R7.2) — **SUPERSEDED 2026-08-06: THIS SECTION IS FACTUALLY WRONG. DO NOT IMPLEMENT.**
 
-The AgentCore Runtime accepts a valid SigV4 signature **or** a valid Bearer JWT on the same
+> **STOP.** AWS documentation states: "An AgentCore Runtime can support either IAM SigV4
+> or JWT Bearer Token based inbound auth, but not both simultaneously."
+> ([runtime-oauth](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html))
+> The coexistence behavior asserted below **does not exist**. R2.9 is unsatisfiable as
+> written, AD-6's absence-of-header principal detection is invalid, and Property 6 cannot
+> be met this way. The project has adopted **Path C (Gateway-fronted)** instead: the
+> Runtime stays on SigV4 and an AgentCore Gateway holds the Cognito JWT authorizer.
+> See `decision-log.md` in this directory for the full analysis and open decision points.
+
+~~The AgentCore Runtime accepts a valid SigV4 signature **or** a valid Bearer JWT on the same
 endpoint when a JWT authorizer is configured; it rejects only requests that have neither.
 The Developer_Principal SigV4 path therefore continues to work with no CDK change and no
-JWT (R2.9, R7.2). The regression suite (§13, P6) locks this behavior across all 51 tools.
+JWT (R2.9, R7.2). The regression suite (§13, P6) locks this behavior across all 51 tools.~~
 
 ---
 
@@ -1640,7 +1664,30 @@ All Cognito, Token_Broker, OIDC, and CDK work from Tasks 1-5 carries forward
 regardless of outcome — only the "last mile" routing (direct-to-Runtime vs
 via-Gateway) changes.
 
-**Status**: UNRESOLVED — scheduled for first AWS technical review cadence.
+**Status**: ~~UNRESOLVED — scheduled for first AWS technical review cadence.~~
+**RESOLVED 2026-08-06 → SINGLE-MODE CONFIRMED → PATH C PIVOT.**
+
+Resolution method used: **Option A** (AWS confirmation), via the AgentCore documentation:
+
+> An AgentCore Runtime can support either IAM SigV4 or JWT Bearer Token based inbound auth,
+> but not both simultaneously.
+> — [runtime-oauth](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-oauth.html)
+
+The inference drawn here from the Task 0 403 body — that "(OAuth or SigV4)" implied
+single-mode enforcement — was **correct**. Per this section's own decision table, the
+mandated action is the §11.3 Path C Gateway pivot: front the Runtime with an AgentCore
+Gateway that accepts JWT; the Runtime stays SigV4-only; the developer path is unaffected.
+
+**Consequences:**
+
+- The `authorizerConfiguration` custom resource authored in Task 5 **MUST NOT be applied to
+  the live Runtime.** C8's prohibition on `cdk deploy` for that resource is now **permanent,
+  not provisional** — deploying it would break the developer SigV4 path (R7 / C6).
+- All Cognito, Token_Broker, OIDC, and CDK work from Tasks 1–5 **carries forward**, exactly as
+  this section anticipated. Only the last-mile routing changes.
+- Path C is specified in **`.kiro/specs/mcp-external-access-alternative-gateway/`**.
+- Full analysis, including six further decision points and the platform constraints Path C
+  inherits, is in `decision-log.md` (Parts 1–4) in this directory.
 
 ### 11.4 Data-plane isolation (R8.2, R8.3, R8.7)
 
@@ -1983,7 +2030,26 @@ Token_Broker only.
 
 ## Path C — Deferred
 
-*(This section is titled exactly "Path C — Deferred" to satisfy Requirement 11.1.)*
+*(This section is titled exactly "Path C — Deferred" to satisfy Requirement 11.1. The title
+is retained verbatim for that reason only — **Path C is no longer deferred.**)*
+
+> **STATUS CHANGE 2026-08-06 — PATH C IS NOW THE BASELINE.** Because a Runtime cannot serve
+> both SigV4 and JWT (see §7.4 banner), deferral is no longer an available option. The
+> "Rationale" subsection below — cost, feature maturity, schedule discipline, reversibility
+> — is **moot as a deferral argument**; only the cost point survives, as sizing work (DP-6).
+>
+> **One scope claim below is also wrong.** "Cedar tool-level policies … evaluated per tool
+> invocation, replacing the single `allowedToolSets.js` enumeration" is **not available in
+> the Runtime-target shape**: Runtime targets use the `http` interceptor payload with a
+> **base64-encoded opaque body**, so the Gateway never parses JSON-RPC and cannot see tool
+> names natively. Tool gating therefore **stays in the MCP_Server**, meaning §8 and §10
+> survive far more intact than this section implies. An interceptor Lambda can optionally
+> decode the body and short-circuit with a 403 as defense-in-depth. Full per-tool Cedar
+> policy would require the **MCP-target** architecture instead (DP-8).
+>
+> The four **C-IMPACT** decisions below did their job and should be read as still-binding
+> guidance — stateless audit emission, explicit default-deny enumeration, and consumers
+> reading `McpEndpointUrl` are exactly what make this migration cheap. See `decision-log.md`.
 
 ### Scope
 
@@ -2082,6 +2148,15 @@ are captured in a **separate follow-on spec** created when Path C work begins (R
 |---|---|---|
 | ~~OQ-1~~ | *(original)* Does Cognito support RFC 8628 device flow / `/oauth2/device_authorization`? | **RESOLVED by AD-1.** Cognito user pools do **not** implement RFC 8628. This design uses Authorization Code + PKCE (primary) and SRP (fallback) and forbids any dependency on `/oauth2/device_authorization` (R4.4, R12.2). No open question remains. |
 | ~~OQ-3~~ | *(original)* Does a Pre-Token-Generation trigger fire for the M2M client-credentials flow and can it read `ClientMetadata`? | **RESOLVED by AD-3.** It does not reliably fire/enrich for M2M (client-credentials issues only an access token; V1/basic trigger customizes only the ID token; `clientMetadata`/custom headers not delivered for M2M). The trigger and DynamoDB stash are removed; attribution uses the Token_Broker log-join (R3.12, R9.10, R13.1–R13.4). No open question remains. |
+| ~~OQ-2~~ | *(original)* Does the AgentCore authorizer expose a scope filter, or must scope enforcement live only in MCP_Server middleware? | **RESOLVED 2026-08-06 — the field exists.** AWS documents `allowedScopes` as a list of strings validated against the token's `scope` claim, alongside `discoveryUrl`, `allowedAudience`, `allowedClients`, and required custom claims. R2.1 and R2.3 are satisfiable as written. The config shape is identical for Runtime or Gateway, so this carries to Path C unchanged. MCP_Server middleware remains as defense-in-depth, not as the sole enforcement point. |
+
+> **2026-08-06 — open questions have moved.** The live decision points for this feature are
+> now tracked as **DP-1 … DP-8 in `decision-log.md`** in this directory, not in this table.
+> Currently open: **DP-2** (does the gateway-restricting resource policy sever the developer
+> path), **DP-4** (gateway role trust hardening), **DP-5** (spec disposition), **DP-6**
+> (gateway + interceptor cost), **DP-7** (AWS-side: do buffered interceptors fire — server
+> side is resolved via `FASTMCP_JSON_RESPONSE`), **DP-8** (Runtime target vs MCP target).
+> Resolved: DP-1 (interceptor header injection), DP-3 (no tool renaming).
 | OQ-2 | AgentCore authorizer `allowedScopes` field — docs show `allowedAudience`/`allowedClients` but not a native scope filter. | Resolve during the authorizer CDK task; if scopes are not natively filtered, the MCP_Server middleware (§8, the single source of truth per R5.11) remains the enforcement point (defense-in-depth). |
 | OQ-4 | NOAA SSO federation into the Cognito Hosted UI (R12.4). | Forward reference only; requires no HPC_CLI_Helper change (§2.5). Out of scope for this spec. |
 | OQ-5 | HPC_CLI_Helper release hosting: S3 vs PyPI. | Default to S3 for v1 (NOAA supply-chain preference); add PyPI later. |

@@ -382,6 +382,63 @@ class TestSSEParserEdgeCases:
         assert results[1]["id"] == 2
 
 
+class TestJsonResponseFraming:
+    """json_response=True framing — bare JSON body, no SSE data: frames.
+
+    Path C requires json_response=True so buffered Gateway interceptors fire.
+    Framing is server-side only and not selectable via the Accept header, so the
+    proxy must accept either form. Before this, a JSON body produced zero
+    results and the caller emitted "Empty SSE response" for every call.
+    """
+
+    def test_bare_json_object(self):
+        body = '{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'
+        results = proxy.parse_sse(body)
+        assert len(results) == 1
+        assert results[0]["id"] == 1
+        assert results[0]["result"] == {"tools": []}
+
+    def test_bare_json_array_batch(self):
+        body = '[{"jsonrpc":"2.0","id":1,"result":{}},{"jsonrpc":"2.0","id":2,"result":{}}]'
+        results = proxy.parse_sse(body)
+        assert len(results) == 2
+        assert [r["id"] for r in results] == [1, 2]
+
+    def test_pretty_printed_json_with_blank_lines(self):
+        # Blank lines would be split as SSE frame separators; must still parse.
+        body = '{\n  "jsonrpc": "2.0",\n\n  "id": 7,\n\n  "result": {}\n}'
+        results = proxy.parse_sse(body)
+        assert len(results) == 1
+        assert results[0]["id"] == 7
+
+    def test_unparseable_body_returns_error_not_silence(self):
+        results = proxy.parse_sse("this is neither SSE nor JSON")
+        assert len(results) == 1
+        assert results[0]["error"]["code"] == -32603
+
+    def test_empty_body_still_returns_empty_list(self):
+        # Historical contract preserved: empty body is not an error.
+        assert proxy.parse_sse("") == []
+        assert proxy.parse_sse("   \n  ") == []
+
+    def test_sse_still_preferred_when_both_plausible(self):
+        # A valid SSE frame must parse as SSE, not fall through to JSON.
+        frame = 'event: message\ndata: {"jsonrpc":"2.0","id":9,"result":{}}\n\n'
+        results = proxy.parse_sse(frame)
+        assert len(results) == 1
+        assert results[0]["id"] == 9
+
+
+# Feature: mcp-external-access-alternative-gateway, Property 6: developer path
+@given(resp=json_rpc_response)
+@settings(max_examples=100)
+def test_property_json_framing_roundtrip(resp):
+    """A bare JSON body parses back to the original object, like SSE does."""
+    results = proxy.parse_sse(json.dumps(resp))
+    assert len(results) == 1
+    assert results[0] == resp
+
+
 class TestReadMessage:
     """Additional read_message tests."""
 

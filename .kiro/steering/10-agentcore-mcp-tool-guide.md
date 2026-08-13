@@ -5,7 +5,7 @@ inclusion: always
 # AgentCore MCP — Tool Guide for Global Workflow
 
 Tool-selection guide for the AWS Bedrock AgentCore MCP-RAG server
-(`agentcore-mcp-rag`): **52 tools across 9 modules**, backed by Amazon Neptune
+(`agentcore-mcp-rag`): **53 tools across 10 modules**, backed by Amazon Neptune
 (openCypher graph) and Amazon OpenSearch (k-NN + BM25 vector), with Amazon
 Bedrock Titan + baked-in MPNet embeddings.
 
@@ -35,10 +35,10 @@ parameter:
 - **no** — server-global tool (session state, catalog/registry, GitHub, SDD,
   health). `tenant_id` does not apply.
 
-24 of 52 tools are tenant-scoped. Valid ids: `gw`, `gw_sfs`, `gw_jedi_gfs`,
+24 of 53 tools are tenant-scoped. Valid ids: `gw`, `gw_sfs`, `gw_jedi_gfs`,
 `gw_v17`, `gw_gefs_v12` (see file 09 for the catalog).
 
-## Tool Modules (52 tools / 9 modules)
+## Tool Modules (53 tools / 10 modules)
 
 ### 1. Workflow Info (3 tools — Neptune + filesystem)
 
@@ -143,6 +143,15 @@ correct pattern is `err_chk` / `err_exit`.
 | `mcp_health_check` | no | — | Health of all components (Base, Vector, Graph) |
 | `get_health_trend` | no | — | Health trend data from persisted snapshots |
 | `get_quality_metrics` | no | — | RAG quality benchmark metrics |
+
+### 10. Error Analysis (1 tool — built-in) — not tenant-scoped
+
+| Tool | Tenant? | Required | Description |
+|------|---------|----------|-------------|
+| `extract_ci_error_signal` | no | `log_path` | Distill a large raw CI log into an 8 KB high-entropy ErrorRecord and classify it against the CI failure taxonomy |
+
+Source: `mcp_server_python/src/tools/error_analysis.py`. See
+`.kiro/steering/13-ci-error-reporting-policy.md` for the required report format when using it.
 
 ## When to Use MCP vs Direct Access
 

@@ -1,5 +1,82 @@
 # MCP Server Changelog
 
+## [Unreleased] - Path C Gateway Spec Recovery + Proxy Framing Tolerance (Aug 13, 2026)
+
+### Summary
+
+Recovers the Path C spec set (`.kiro/specs/mcp-external-access-alternative-gateway/`,
+authored in Kiro Web and pushed to `spec/mcp-external-access-path-c-decision` on the
+`vlab_comm` remote) and unblocks its Task 0 by resolving a conflict between R3.1 and R7.1
+that would have broken every developer MCP call. Staged for human review (no commit/push,
+git policy 08).
+
+### Added
+
+- **`tools/agentcore-kiro-proxy.py` v1.2.0 — framing-tolerant response parsing.**
+  `parse_sse()` now falls back to a new `_parse_json_body()` helper when a response body
+  contains no SSE `data:` frames, accepting a bare JSON object or a JSON array (batch).
+  Path C requires the MCP_Server to run `json_response=True` so buffered AgentCore Gateway
+  interceptors fire (spec R3.1). Framing is a **server-wide** switch, not negotiable by the
+  client: `mcp/server/streamable_http.py` selects JSON vs SSE from `is_json_response_enabled`
+  alone and consults `Accept` only to decide whether to return HTTP 406. The proxy previously
+  parsed SSE exclusively, so enabling `json_response` yielded zero payloads and
+  `-32603 "Empty SSE response"` on every developer tool call — with no HTTP-layer signal.
+  Also removes a pre-existing latent fragility: the proxy would have failed identically had
+  AgentCore or FastMCP changed its default framing.
+- **7 tests** in `tests/test_agentcore_kiro_proxy.py`: `TestJsonResponseFraming` (bare object,
+  batch array, pretty-printed body with blank lines, unparseable body, empty body preserving
+  the `parse_sse("") == []` contract, and SSE-still-preferred-when-both-plausible) plus
+  `test_property_json_framing_roundtrip` (Hypothesis, 100 examples). Suite: 30 passed.
+- **`.kiro/specs/mcp-external-access-revised/decision-log.md`** (713 lines) restored from
+  `spec/mcp-external-access-path-c-decision`. The Path C spec declares it normative for
+  DP-1…DP-8; without it every DP cross-reference dangled.
+- **Steering 10 — module 10 `error_analysis`** documenting `extract_ci_error_signal`, which
+  was referenced by steering 13's CI policy but absent from the tool catalog.
+- **Design AD-C7** recording the framing-negotiation verification (negative result) and the
+  rejected two-Runtime alternative, so the question is not re-litigated.
+
+### Changed
+
+- **Spec R7.1 amended** from "`agentcore-kiro-proxy.py` SHALL remain byte-identical" to "the
+  Developer_Principal path SHALL remain **functionally unchanged**". The original wording is
+  unsatisfiable alongside R3.1 for the reason above. R7.1's intent — the developer path keeps
+  working — is preserved and strengthened: the proxy is now insensitive to framing rather than
+  silently dependent on an externally-controlled default. Task 6.2 correspondingly now runs
+  the 53-tool developer sweep against both SSE- and JSON-framed Runtimes.
+- **Task 0.1 / 0.2 / 0.6 revised to use a throwaway Runtime.** The probe previously set
+  `FASTMCP_JSON_RESPONSE` on the **live** Runtime. That is a server-wide framing change
+  affecting developers, and an env-var edit means `update-agent-runtime`, a full-replacement
+  API that silently wipes `networkConfiguration`, `environmentVariables`,
+  `protocolConfiguration`, `roleArn`, `agentRuntimeArtifact`, and `lifecycleConfiguration` on
+  a partial payload (progress.md C9). Task 0.6 now also tears down the throwaway Runtime and
+  asserts the live Runtime was never modified.
+- **Tool count corrected 52 → 53** across the Path C spec (requirements, design, tasks) and
+  steering 10. Gate 4 (C13) revised from "≥1 tool unclassified" to "≥2"; the identified
+  addition is `extract_ci_error_signal`. Verified live via `get_server_info`.
+- **Path B spec restored to its post-pivot state**, adding the supersession banners that mark
+  design §7.4 "FACTUALLY WRONG. DO NOT IMPLEMENT" and AD-6 "MECHANISM INVALID". The
+  working-tree copy predated the C8 resolution and still read as though SigV4/JWT dual-auth
+  on one Runtime were viable.
+- **`.kiro/settings/mcp.json` untracked** and added to `.gitignore` (with
+  `.kiro/settings/mcp.json_org`) — landed separately in `3589492`. User-specific: local
+  script paths, runtime ARNs, AWS profiles, per-developer `disabled` toggles. Shared
+  template remains at `SETUP_AWS/provisioning/user-templates/mcp.json`.
+
+### Notes
+
+- **Dependency-pin drift, unresolved.** `mcp_server_python/pyproject.toml:20` pins
+  `fastmcp==3.2.4`; the environment has **fastmcp 3.4.1** / **mcp 1.27.2**. The DP-7 framing
+  evidence is labelled as verified against 3.2.4, so it was not established against what is
+  installed. Task 0.1 now records the container's actual version. Confirmed on 3.4.1 that
+  `mcp.run(transport="streamable-http", ..., json_response=...)` remains valid, so Task 3.1
+  is implementable as designed.
+- **Pre-existing `.gitignore` defect, left in place.** The VS Code block (lines 76–80) uses
+  trailing comments, which git does not support in ignore patterns, so all five entries are
+  inert — `.vscode/settings.json`, `.vscode/launch.json`, and `.vscode/mcp.json` are all
+  reported NOT ignored by `git check-ignore`. Four `.vscode/` files are tracked as a result,
+  including `.vscode/mcp.json.temp`. Fixing it would newly ignore a directory with tracked
+  files, so it is flagged rather than changed.
+
 ## [Unreleased] - AWS User-Provisioning Drift Remediation (Aug 12, 2026)
 
 ### Summary

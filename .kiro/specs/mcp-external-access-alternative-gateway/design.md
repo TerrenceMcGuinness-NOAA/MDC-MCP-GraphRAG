@@ -69,7 +69,7 @@ Gateway.
 
 **Rationale:** minimal change to a working deployment; the Runtime keeps its current
 identity, image, and SigV4 developer path. Runtime targets forward requests and responses
-**without aggregation or protocol translation**, so the 52 tool names are unchanged and no
+**without aggregation or protocol translation**, so the 53 tool names are unchanged and no
 client config churns.
 
 **Accepted losses:** no capability aggregation, no semantic tool search, and — the important
@@ -143,6 +143,58 @@ rejects it with HTTP 400, surfacing as a 500-class runtime error.
 **Accepted loss:** disabling SSE forfeits incremental `notifications/progress` and
 stream-based elicitation/sampling. Acceptable for CI and HPC, which issue discrete
 `tools/call` requests. It would matter for interactive agent use — hence R3.4's warning log.
+
+### AD-C7. Framing is server-wide, so the proxy is made framing-tolerant (amends R7.1)
+
+**Question asked (2026-08-13):** could the framing conflict between R3.1 (`json_response`
+enabled so interceptors fire) and R7.1 (developer proxy byte-identical) be dissolved by
+per-request content negotiation — the proxy already sends
+`Accept: application/json, text/event-stream`?
+
+**Answer: no. Verified against installed source, not inference.** In
+`mcp/server/streamable_http.py` the POST response branch is:
+
+```python
+if self.is_json_response_enabled:   # -> _create_json_response
+else:                               # -> SSE stream
+```
+
+The `Accept` header is read only by `_validate_accept_header`, and solely to decide whether
+to return HTTP 406. It never selects a format. There is no negotiation.
+
+**The failure mode is silent, which is worse than a hard error.** With `json_response=True`
+the Accept validation *relaxes* to requiring only `application/json`. The proxy sends both
+types, so it passes validation, receives a JSON body, and then `parse_sse()` finds no
+`data:` lines, returns `[]`, and the caller emits `-32603 "Empty SSE response"`. Nothing at
+the HTTP layer signals a problem; every developer tool call simply fails.
+
+**Decision:** make `parse_sse()` accept both framings — SSE frames first, falling back to a
+bare JSON object or array — and amend R7.1 from "byte-identical" to "functionally
+unchanged". Rejected alternatives:
+
+- **Two Runtimes off one image** (existing SSE for developers, a second with
+  `FASTMCP_JSON_RESPONSE=true` behind the Gateway). Satisfies R7.1 literally, but
+  permanently doubles the Runtime surface and creates an image-sync obligation on every
+  deploy; a missed one yields a subtle framing-dependent divergence. Rejected as ongoing
+  operational cost on a production-support system.
+- **Leave the proxy SSE-only and abandon `json_response`.** Forfeits interceptors, hence
+  all principal/scope enforcement. Not viable.
+
+Tolerating both framings also removes a pre-existing latent fragility: the proxy would have
+broken identically if AgentCore or FastMCP ever changed its default. Implemented in
+`tools/agentcore-kiro-proxy.py` v1.2.0 with seven tests in `TestJsonResponseFraming` plus a
+Hypothesis round-trip property.
+
+**Dependency-pin drift found while verifying — carry into Task 0.** `pyproject.toml:20` pins
+`fastmcp==3.2.4`, but the environment has **fastmcp 3.4.1** with **mcp 1.27.2**. The
+DP-7 framing evidence in AD-C4 is labelled as verified against 3.2.4, so it was not
+established against what is actually installed. Reconcile the pin (or re-verify against the
+container image) before treating DP-7's server half as settled. Confirmed on 3.4.1:
+`mcp.run(transport="streamable-http", ..., json_response=...)` is valid —
+`run()` forwards `**transport_kwargs` to
+`run_http_async(json_response: bool | None = None)`, which defaults from
+`fastmcp.settings.json_response` (`FASTMCP_JSON_RESPONSE`). Task 3.1 is therefore
+implementable as written, and Task 0.1's env-var route reaches the same switch.
 
 ### AD-C5. Bypass prevention is opt-in and must spare the developer (DP-2)
 
@@ -395,7 +447,7 @@ CDK-only mutation and drift detection.
 
 Inherits Path B Properties 1–5, 7–10 with "Runtime authorizer" read as "Gateway authorizer".
 
-- **Property 6 (restated):** all 52 tools succeed over Developer_Principal SigV4 directly
+- **Property 6 (restated):** all 53 tools succeed over Developer_Principal SigV4 directly
   against the Runtime, and `GetAgentRuntime` shows no `customJWTAuthorizer`.
 - **Property 11 (unforgeability):** for any client-supplied Trusted_Context_Header value, the
   value observed by the MCP_Server equals the interceptor-derived value.
@@ -424,7 +476,8 @@ citations in `../mcp-external-access-revised/decision-log.md`.
 | **C8** — dual-auth compatibility | 2026-08-06 | **RESOLVED → single-mode confirmed → Path C pivot.** An AgentCore Runtime supports either IAM SigV4 or JWT bearer inbound auth, not both simultaneously. The July inference from the 403 body was correct. |
 | **DP-1** — claims propagation | 2026-08-06 | Gateway REQUEST interceptor injects `X-Amzn-Bedrock-AgentCore-Runtime-Custom-*`; interceptor headers take precedence over client headers, giving unforgeability. |
 | **DP-3** — tool naming | 2026-08-06 | Runtime targets forward without aggregation or protocol translation. Tool names unchanged. |
-| **DP-7 (server half)** | 2026-08-06 | Verified against pinned `fastmcp==3.2.4`: `json_response=False` → `text/event-stream`; `True` → `application/json`. Fix is config, not code. `stateless_http=True` is orthogonal and mandatory. |
+| **DP-7 (server half)** | 2026-08-06 | Verified against pinned `fastmcp==3.2.4`: `json_response=False` → `text/event-stream`; `True` → `application/json`. Fix is config, not code. `stateless_http=True` is orthogonal and mandatory. **Caveat 2026-08-13:** the environment actually has fastmcp **3.4.1** / mcp **1.27.2**, not the pinned 3.2.4 — reconcile the pin or re-verify against the container image (AD-C7). |
+| **Framing negotiation** — can `Accept` select SSE vs JSON per request, dissolving the R3.1/R7.1 conflict? | 2026-08-13 | **No.** `streamable_http.py` branches on `is_json_response_enabled` alone; `Accept` only gates a 406. Resolved instead by making the proxy framing-tolerant and amending R7.1 (AD-C7). Proxy v1.2.0 shipped, 30 tests pass. |
 
 ### 9.2 Gates open — ordered by what they block
 
@@ -433,7 +486,7 @@ citations in `../mcp-external-access-revised/decision-log.md`.
 | **1** | **Requirement 0 / Task 0 — do buffered interceptors fire for a JSON-response MCP Runtime target, and do injected headers reach the container?** (DP-7 AWS half, DP-1 confirmation) | **All Path C implementation.** A negative answer flips DP-8 to the MCP-target architecture and changes the spec's shape. | Throwaway Gateway, ~1 hr (Task 0), or AWS analyst confirmation |
 | **2** | **DP-2 — does the Runtime resource policy restricting invocation to the Gateway also permit the Developer_Principal role?** | **Any `cdk deploy`.** AWS's documented example denies all but the gateway role, and an explicit `Deny` overrides every `Allow` — applied verbatim it severs the developer path. | Decision, then Task 1.1 |
 | **3** | **IAM pre-creation** — OIDC provider + 3 Path B roles + 2 new Path C roles (Gateway execution, interceptor execution) | **Deploy.** `iam:CreateRole` blocked by `PowerUserRestrictions` (C7/C10/C11/C12). | Admin request `docs/mdc-external-access-alt-iam-request.txt`. **Lead-time item — start in parallel with Gate 1.** |
-| **4** | **C13 — re-derive per-scope tool counts against the Python runtime** | **Correct enforcement.** "CI 40 / HPC 48 / developer 51" came from the retired Node runtime (51 tools); Python has **52**, so ≥1 tool is unclassified. | Task 5.3a |
+| **4** | **C13 — re-derive per-scope tool counts against the Python runtime** | **Correct enforcement.** "CI 40 / HPC 48 / developer 51" came from the retired Node runtime (51 tools); the live Python runtime has **53** (verified 2026-08-13 — progress.md C1's "52" is itself stale), so ≥2 tools are unclassified. One is `extract_ci_error_signal` (module `error_analysis`). | Task 5.3a |
 | **5** | **DP-6 — Gateway + interceptor invocation cost** | Go/no-go sizing. | Task 1.2 |
 | **6** | **DP-4 — Gateway execution role trust hardening** (`aws:SourceArn` / `aws:SourceAccount`) | Not blocking; answer known, needs implementing. | Task 2.3 |
 | **7** | **DP-8 — Runtime target vs MCP target** | Contingent on Gate 1. Recommendation stands: Runtime target, MCP target as fallback. | Task 0.5 branch |

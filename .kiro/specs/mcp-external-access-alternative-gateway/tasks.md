@@ -22,18 +22,36 @@ Goal: determine empirically whether a REQUEST interceptor fires for an MCP-proto
 Runtime target, and whether its injected headers reach the container. Everything else is
 downstream of the answer.
 
-- [ ] **0.1 Confirm the server can serve JSON framing in situ.**
-  Set `FASTMCP_JSON_RESPONSE=true` (or the `MCP_JSON_RESPONSE` env introduced in Task 3) on
-  the existing Runtime and confirm a `tools/list` response returns
-  `Content-Type: application/json` rather than `text/event-stream`.
-  *Already verified locally against `fastmcp==3.2.4` — `json_response=False` yields
-  `text/event-stream`, `True` yields `application/json`. This step confirms it survives the
-  AgentCore container and that `stateless_http=True` still works alongside it.*
+- [ ] **0.1 Confirm the server can serve JSON framing in situ — on a THROWAWAY Runtime.**
+
+  > **Do NOT set this on the live Runtime.** Revised 2026-08-13. Two reasons:
+  > 1. Framing is server-wide (design AD-C7), so flipping it changes the response format for
+  >    the **developer** path as well as the Gateway path. Before proxy v1.2.0 that broke
+  >    every developer tool call with `-32603 "Empty SSE response"`. The proxy is now
+  >    framing-tolerant, so this is no longer fatal — but it is still a live-config change
+  >    with no upside during a probe.
+  > 2. An env-var change means `update-agent-runtime`, a **full-replacement** API. A partial
+  >    payload silently wipes `networkConfiguration`, `environmentVariables`,
+  >    `protocolConfiguration`, `roleArn`, `agentRuntimeArtifact`, and
+  >    `lifecycleConfiguration` (progress.md C9). Not a risk worth taking to answer a
+  >    one-hour question.
+
+  Deploy a **second, throwaway Runtime from the same container image** with
+  `FASTMCP_JSON_RESPONSE=true` (or the `MCP_JSON_RESPONSE` env from Task 3). Confirm a
+  `tools/list` response returns `Content-Type: application/json` rather than
+  `text/event-stream`, and that `stateless_http=True` still functions alongside it. Use this
+  throwaway Runtime as the Gateway target for 0.2–0.5, then destroy it in 0.6.
+
+  *Verified locally that the switch works at the library level; this step confirms it
+  survives the AgentCore container. Note the pin drift recorded in AD-C7 —* `pyproject.toml`
+  *pins `fastmcp==3.2.4` while the environment has 3.4.1 / mcp 1.27.2. Record which version
+  the container image actually ships as part of this step.*
   _Requirements: R0.4, R3.1, R3.3_
 
 - [ ] **0.2 Stand up a throwaway Gateway.**
-  Protocol type unset. Attach the existing Runtime as an `agentcoreRuntime` target with
-  outbound auth IAM (SigV4). No authorizer yet — keep the variable count at one.
+  Protocol type unset. Attach the **throwaway Runtime from 0.1** — not the live one — as an
+  `agentcoreRuntime` target with outbound auth IAM (SigV4). No authorizer yet — keep the
+  variable count at one.
   _Requirements: R1.1, R1.2, R1.3_
 
 - [ ] **0.3 Attach a trivial echo interceptor.**
@@ -66,9 +84,12 @@ downstream of the answer.
     no buffered-only restriction. Amend `design.md` AD-C1 before any further task.
   _Requirements: R0.1, R0.3, R0.5_
 
-- [ ] **0.6 Tear down the throwaway Gateway** so it cannot be mistaken for the real one or
-  accrue cost. Capture observed per-invocation cost figures for DP-6 first.
-  _Requirements: R0.5_
+- [ ] **0.6 Tear down the throwaway Gateway AND the throwaway Runtime** from 0.1, so neither
+  can be mistaken for the real one or accrue cost. Capture observed per-invocation cost
+  figures for DP-6 first. Confirm the live Runtime's configuration was never modified:
+  `GetAgentRuntime` should show unchanged `environmentVariables` and no
+  `customJWTAuthorizer`.
+  _Requirements: R0.5, R2.3_
 
 ---
 
@@ -152,6 +173,17 @@ downstream of the answer.
   defaults to true.
   _Requirements: R3.1, R3.2_
 
+- [x] **3.5 Make the developer proxy framing-tolerant.** **DONE 2026-08-13.**
+  `tools/agentcore-kiro-proxy.py` v1.2.0: `parse_sse()` now falls back to parsing a bare
+  JSON object or array when no SSE `data:` frames are present, via a new `_parse_json_body()`
+  helper. Without this, enabling `json_response` (R3.1) breaks every developer tool call with
+  `-32603 "Empty SSE response"` — framing is server-wide and not negotiable via `Accept`
+  (design AD-C7). Covered by `TestJsonResponseFraming` (6 cases: bare object, batch array,
+  pretty-printed body with blank lines, unparseable body, empty body, SSE-still-preferred)
+  plus `test_property_json_framing_roundtrip`. Suite: 30 passed.
+  **This required amending R7.1 from "byte-identical" to "functionally unchanged."**
+  _Requirements: R7.1 (amended), R7.2, R3.1_
+
 ---
 
 ## Task 4 — Interceptor Lambda
@@ -203,8 +235,10 @@ downstream of the answer.
 
 - [ ] **5.3a** **Re-derive the per-scope counts against the Python runtime.** Path B's
   "CI 40 / HPC 48 / developer 51" came from the retired Node runtime (51 tools). The active
-  runtime is Python `mdc_mcp_rag_server_python-v5K2F8BGrN` with **52 tools** (progress.md
-  C1). Enumerate the live `tools/list`, classify every tool, and leave none unclassified.
+  runtime is Python `mdc_mcp_rag_server_python-v5K2F8BGrN` with **53 tools** (verified live
+  2026-08-13; progress.md C1's "52" is also stale). Enumerate the live `tools/list`, classify
+  every tool, and leave none unclassified. Note `extract_ci_error_signal` (module
+  `error_analysis`) in particular — it postdates both the Node split and the steering catalog.
   Record the resulting counts in `design.md`.
   _Requirements: R5.6_
 
@@ -224,9 +258,12 @@ downstream of the answer.
   value, not the forged one.
   _Requirements: R4.3; Property 11_
 
-- [ ] **6.2 Property 6 (developer path).** Invoke all 52 tools over Developer_Principal
-  SigV4 directly against the Runtime with the unmodified proxy and unmodified
-  `.kiro/settings/mcp.json`; assert 52/52 succeed. Assert `GetAgentRuntime` reports no
+- [ ] **6.2 Property 6 (developer path).** Invoke all 53 tools over Developer_Principal
+  SigV4 directly against the Runtime with the framing-tolerant proxy (v1.2.0+, per amended
+  R7.1) and unmodified `.kiro/settings/mcp.json`; assert 53/53 succeed. Run it **twice** —
+  once against an SSE-framed Runtime and once against a JSON-framed one — since R7.1 now
+  requires insensitivity to framing rather than an unmodified file.
+  Assert `GetAgentRuntime` reports no
   `customJWTAuthorizer`.
   _Requirements: R7.1–R7.4; Property 6_
 

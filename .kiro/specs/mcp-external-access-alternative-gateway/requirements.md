@@ -204,7 +204,7 @@ the Gateway cannot see tool names for a Runtime target.
 1. THE MCP_Server middleware SHALL derive the principal from the Trusted_Context_Headers
    rather than from any authorizer-claims header. *(Inherits Path B R5 tool-set semantics.)*
 2. WHEN no Trusted_Context_Header is present, THE MCP_Server SHALL treat the request as the
-   `developer-sigv4` principal and SHALL apply the all-52-tools Allowed_Tool_Set.
+   `developer-sigv4` principal and SHALL apply the all-53-tools Allowed_Tool_Set.
 3. IF a principal invokes a tool outside its Allowed_Tool_Set, THEN THE MCP_Server SHALL
    reject with HTTP 403 and SHALL NOT execute the tool.
 4. IF a `Scope` header value is not a recognized scope, THEN THE MCP_Server SHALL reject
@@ -214,8 +214,12 @@ the Gateway cannot see tool names for a Runtime target.
 6. **THE per-scope tool counts SHALL be re-derived against the Python runtime before
    enforcement is written.** Path B's "CI 40 / HPC 48 / developer 51" was derived against the
    retired **Node** runtime (`mdc_mcp_rag_server-TMXDllG2Wi`, 51 tools). The active runtime is
-   **Python** `mdc_mcp_rag_server_python-v5K2F8BGrN` with **52 tools** (progress.md C1), so at
-   least one tool is unaccounted for in the Path B split. THE re-derivation SHALL enumerate
+   **Python** `mdc_mcp_rag_server_python-v5K2F8BGrN` with **53 tools** (verified live
+   2026-08-13 via `get_server_info`; progress.md C1 recorded 52, which is now also stale), so at
+   least two tools are unaccounted for in the Path B split. The known additions are
+   `extract_ci_error_signal` (module `error_analysis`, absent from the steering catalog until
+   2026-08-13) plus one further tool to be identified during re-derivation. THE re-derivation
+   SHALL enumerate
    the Python runtime's actual `tools/list` output and assign every tool to
    `mcp/ci-readonly`, `mcp/hpc-user`, both, or neither, with no tool left unclassified.
 
@@ -238,14 +242,30 @@ the Gateway cannot see tool names for a Runtime target.
 
 #### Acceptance Criteria
 
-1. THE `tools/agentcore-kiro-proxy.py` source file SHALL remain byte-identical to its
-   pre-feature state.
+1. **(Amended 2026-08-13 — see design.md AD-C7.)** THE Developer_Principal path through
+   `tools/agentcore-kiro-proxy.py` SHALL remain **functionally unchanged**: the same
+   invocation transport (SigV4 `invoke_agent_runtime`), the same CLI contract, and the same
+   `.kiro/settings/mcp.json` entry. THE file is NO LONGER required to be byte-identical.
+
+   *Why amended:* the original "byte-identical" wording is unsatisfiable alongside R3.1.
+   Response framing is a single server-wide switch — `mcp/server/streamable_http.py` selects
+   JSON vs SSE from `is_json_response_enabled` alone and never from the client's `Accept`
+   header — and both the Gateway path and the developer path terminate in the same
+   MCP_Server process. The proxy's `parse_sse()` collected only `data:`-prefixed lines, so
+   enabling `json_response` made it return zero payloads and emit
+   `-32603 "Empty SSE response"` on every developer call. Holding R7.1 literally would
+   forbid R3.1 outright.
+
+   THE proxy SHALL therefore accept **both** framings (SSE frames and a bare JSON object or
+   array), so that the developer path is insensitive to the server's framing mode. This is
+   strictly more robust than the prior state, which silently depended on an
+   externally-controlled default.
 2. **(Restates Path B R7.2.)** THE Developer_Principal SHALL reach the Runtime over SigV4
    without presenting a JWT, satisfied structurally by R2.3 and R2.4.
 3. THE `.kiro/settings/mcp.json` entry for the developer server SHALL remain
    byte-identical to its pre-feature state.
-4. WHEN all 52 tools are invoked over the Developer_Principal SigV4 path, THE verification
-   SHALL observe a successful MCP response for 52 of 52 tools.
+4. WHEN all 53 tools are invoked over the Developer_Principal SigV4 path, THE verification
+   SHALL observe a successful MCP response for 53 of 53 tools.
 
 ### Requirement 8: Infrastructure as Code
 
@@ -296,7 +316,7 @@ the Gateway cannot see tool names for a Runtime target.
 Inherits Path B Properties 1–5, 7, 8, 9, 10 with "Runtime authorizer" read as "Gateway
 authorizer". Property 6 is restated and two are added.
 
-- **Property 6 (restated):** for all 52 tools, a SigV4 invocation by the Developer_Principal
+- **Property 6 (restated):** for all 53 tools, a SigV4 invocation by the Developer_Principal
   directly against the Runtime succeeds, and the Runtime has no `customJWTAuthorizer`.
 - **Property 11:** for any client-supplied value of a Trusted_Context_Header, the value
   observed by the MCP_Server equals the interceptor-derived value (unforgeability).

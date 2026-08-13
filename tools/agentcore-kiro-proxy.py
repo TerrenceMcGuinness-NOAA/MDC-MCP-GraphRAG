@@ -38,7 +38,7 @@ Troubleshooting:
 Requirements: Python 3.9+, boto3 (no other dependencies).
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 import argparse
 import json
@@ -233,10 +233,27 @@ class AgentCoreClient:
 # -- SSEParser --
 
 def parse_sse(raw_body):
-    """Parse SSE frames and extract JSON-RPC payloads.
+    """Parse an AgentCore response body into JSON-RPC payloads.
 
-    SSE format: event: message\\ndata: {json}\\n\\n
-    Returns list of parsed JSON-RPC response dicts.
+    Accepts BOTH framings the MCP Streamable HTTP transport can emit:
+
+    * SSE  (server ``json_response=False``) -- ``event: message\\ndata: {json}\\n\\n``
+    * JSON (server ``json_response=True``)  -- a bare ``{...}`` object or
+      ``[...]`` batch array
+
+    Framing is chosen server-side and is NOT negotiable by the client. In
+    ``mcp/server/streamable_http.py`` the response branch keys off
+    ``is_json_response_enabled`` alone; the ``Accept`` header is consulted only
+    to decide whether to return HTTP 406. Sending
+    ``application/json, text/event-stream`` therefore does not select a format.
+
+    Tolerating both matters because the Path C gateway-fronted architecture
+    requires JSON framing so that buffered Gateway interceptors fire, while the
+    direct developer SigV4 path may still be served SSE. Parsing only SSE made
+    this proxy fail closed with "Empty SSE response" on every call the moment
+    ``json_response`` was enabled.
+
+    Returns a list of parsed JSON-RPC response dicts.
     """
     results = []
     frames = raw_body.split("\n\n")
@@ -263,7 +280,46 @@ def parse_sse(raw_body):
             results.append(
                 make_error_response(None, -32603, "Malformed SSE data", {"raw": frame})
             )
+    if not results:
+        # No SSE frames present. The server may be serving json_response=True,
+        # in which case the body is bare JSON rather than data: framed.
+        results = _parse_json_body(raw_body)
     return results
+
+
+def _parse_json_body(raw_body):
+    """Parse a bare JSON body (server ``json_response=True``) into payloads.
+
+    Accepts a single JSON-RPC response object or a JSON array (batch). Returns
+    an empty list for an empty body, preserving the historical
+    ``parse_sse("") == []`` contract.
+    """
+    body = (raw_body or "").strip()
+    if not body:
+        return []
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        logger.error(
+            "Response body is neither SSE frames nor valid JSON: %s", body[:200]
+        )
+        return [
+            make_error_response(
+                None, -32603, "Unparseable response body", {"raw": body[:200]}
+            )
+        ]
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, list):
+        return [item for item in parsed if isinstance(item, dict)]
+    logger.error(
+        "JSON response body is not an object or array: %s", type(parsed).__name__
+    )
+    return [
+        make_error_response(
+            None, -32603, "Unexpected JSON response shape", {"raw": body[:200]}
+        )
+    ]
 
 
 # -- Signal handling --
