@@ -4,9 +4,16 @@
 # Version: 1.0.0
 ################################################################################
 
-# Prevent multiple sourcing
+# Prevent multiple sourcing.
+#
+# Deliberately NOT exported: an exported guard leaks into every child process, so
+# a subscript launched by provision.sh (which has already sourced this file) would
+# see the guard set, return early from its own `source common.sh`, and end up with
+# NONE of these functions defined — `require_root: command not found` at stage 00.
+# Keeping the variable shell-local still guards repeated sourcing within one
+# process, while each subprocess sources fresh.
 [[ -n "${_AWS_COMMON_SH_LOADED:-}" ]] && return 0
-export _AWS_COMMON_SH_LOADED=1
+_AWS_COMMON_SH_LOADED=1
 
 # Colors (ASCII-safe for MCP stdio; used only in interactive terminals)
 export RED='\033[0;31m'
@@ -38,6 +45,7 @@ log_success() { echo -e "${GREEN}[OK]${NC}    $1"; }
 log_warning() { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
 log_section() { echo ""; echo -e "${CYAN}════════════════════════════════════════${NC}"; echo -e "${CYAN}  $1${NC}"; echo -e "${CYAN}════════════════════════════════════════${NC}"; }
+log_subsection() { echo ""; echo -e "${CYAN}── $1 ──${NC}"; }
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
@@ -57,6 +65,82 @@ run_as_user() {
   local user
   user=$(get_actual_user)
   sudo -u "${user}" bash -c "$1"
+}
+
+################################################################################
+# Ownership helpers
+#
+# Ported from SETUP/provisioning/common.sh so the COTS and AWS provisioning
+# trees read the same way. Consumed by provision-user-accounts.sh for drift
+# detection and the preserve-vs-adopt scratch semantics.
+# Spec: .kiro/specs/aws-user-provisioning-drift-remediation/
+################################################################################
+
+# Get the primary group of a user (handles group name != username).
+# Usage:   get_user_group <username>
+# Prints:  primary group name, falling back to the GID then the username.
+get_user_group() {
+  local user="${1:-$(get_actual_user)}"
+  local gid
+  gid=$(id -g "${user}" 2>/dev/null)
+  if [[ -n "${gid}" ]]; then
+    local group_name
+    group_name=$(getent group "${gid}" 2>/dev/null | cut -d: -f1)
+    if [[ -n "${group_name}" ]]; then
+      echo "${group_name}"
+    else
+      echo "${gid}"
+    fi
+  else
+    echo "${user}"
+  fi
+}
+
+# Resolve user:group ownership honoring the PROVISION_PRIMARY_GROUP SPOT.
+# Precedence:
+#   1. "${PROVISION_PRIMARY_GROUP}" iff non-empty AND that group exists on host
+#   2. get_user_group <username>  (the user's private group — the AWS default,
+#      since PROVISION_PRIMARY_GROUP is empty here)
+# Usage:   resolve_ownership <username>
+# Prints:  "username:group" on stdout
+resolve_ownership() {
+  local username="${1:-$(get_actual_user)}"
+  local group="${PROVISION_PRIMARY_GROUP:-}"
+
+  if [[ -n "${group}" ]] && getent group "${group}" > /dev/null 2>&1; then
+    echo "${username}:${group}"
+    return 0
+  fi
+
+  group="$(get_user_group "${username}")"
+  echo "${username}:${group}"
+}
+
+# Enumerate direct children of <path> that are NOT owned by <owner>.
+# Used to detect pre-staged content so a scratch-owner fix preserves it instead
+# of blindly chowning, and to render the [PRESERVED] section of a dry-run plan.
+# Usage:   list_prestaged_paths <path> <owner>
+# Prints:  one absolute path per line, sorted; nothing when the path is
+#          missing/empty or every child is already owned by <owner>.
+# Note:    When <owner> is not a resolvable user on the host, every direct child
+#          is pre-staged by definition — a non-existent UID cannot own anything.
+list_prestaged_paths() {
+  local path="$1"
+  local owner="$2"
+
+  [[ -d "${path}" ]] || return 0
+
+  local owner_uid
+  owner_uid="$(id -u "${owner}" 2>/dev/null || true)"
+
+  if [[ -z "${owner_uid}" ]]; then
+    find "${path}" -mindepth 1 -maxdepth 1 -print 2>/dev/null | sort
+    return 0
+  fi
+
+  # -not -uid: filter by resolved numeric UID so this works even in nsswitch
+  # edge cases where the name lookup drifts from getpwuid.
+  find "${path}" -mindepth 1 -maxdepth 1 -not -uid "${owner_uid}" -print 2>/dev/null | sort
 }
 
 clear_status_file() { : > "${STATUS_FILE}"; }
