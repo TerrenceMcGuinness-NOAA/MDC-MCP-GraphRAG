@@ -215,3 +215,145 @@ moment the test fails for any reason.
 - #9483 — `execute_bash` returns empty stdout mid-session. We also saw intermittent
   empty output on the same host; it stopped when the trap was re-armed, so it may share
   this cause.
+
+
+---
+
+# FOLLOW-UP DRAFT — the specific mechanism that clears the DEBUG trap
+
+**Status:** DRAFT. Not posted. Holding to soak the fix first.
+**Target:** follow-up comment on the same thread, [kirodotdev/Kiro#4833](https://github.com/kirodotdev/Kiro/issues/4833).
+**Why:** the posted comment said *"something later in startup clears it."* That is now
+identified precisely. It is bash-preexec's own bootstrap string, and the reason it is
+never repaired is bash-preexec's idempotence guard defeating its own re-arm.
+
+> **Pre-post checklist**
+> - [ ] Soak period: confirm the corrected fix holds across several fresh shells and a
+>       reboot before claiming a remedy publicly. First attempt at this fix **hung the
+>       terminal** (see "What not to do" below) — do not publish a workaround we have
+>       not lived with.
+> - [ ] Re-scan body for host/project identifiers (same 16-term sweep as the first post).
+> - [ ] Decide whether to include the workaround at all, or report mechanism only.
+
+---
+
+## Draft body
+
+### Follow-up: the exact mechanism that clears the DEBUG trap
+
+In the comment above I wrote that "something later in startup clears it, and bash-preexec
+never re-arms." Having chased a recurrence, I can now name it. The culprit is
+bash-preexec's own bootstrap, and the failure is self-inflicted in a way that is worth
+reporting because it is fully deterministic.
+
+**bash-preexec's bootstrap is a one-shot that stops being one-shot.**
+
+bash-preexec installs itself by placing this string into `PROMPT_COMMAND`:
+
+```bash
+__bp_install_string=$'__bp_trap_string="$(trap -p DEBUG)"\ntrap - DEBUG\n__bp_install'
+```
+
+The intent is that it runs on the first prompt and then removes itself. On this host it
+persists. So `trap - DEBUG` executes on **every** prompt.
+
+**`__bp_install` cannot undo that, because of its own guard.** It opens with:
+
+```bash
+__bp_install() {
+    # Exit if we already have this installed.
+    if [[ "${PROMPT_COMMAND[*]:-}" == *"__bp_precmd_invoke_cmd"* ]]; then
+        return 1
+    fi
+    trap '__bp_preexec_invoke_exec "$_"' DEBUG
+    ...
+```
+
+By the time the bootstrap re-runs, `__bp_precmd_invoke_cmd` is unconditionally present in
+`PROMPT_COMMAND` — it was added by the first successful install. So `__bp_install` returns
+`1` before reaching its own `trap ... DEBUG` line. The guard that exists to make
+installation idempotent is precisely what prevents re-installation.
+
+Net effect per prompt: the trap is cleared and not restored. Observed ordering, with a
+re-arm hook of my own at position 4 to make the sequence visible:
+
+```
+__bp_precmd_invoke_cmd                 # dispatches precmd_functions
+sleep 0.050 ; :
+<my re-arm hook>                       # arms the trap
+__bp_trap_string="$(trap -p DEBUG)"    ┐
+trap - DEBUG                           ├ bash-preexec bootstrap, still present
+__bp_install                           ┘ short-circuits, does NOT re-arm
+__fig_post_prompt
+__bp_interactive_mode
+```
+
+**A sharper diagnostic than the one in my first comment.** I previously reported
+`__vsc_current_command` as empty. In the recurrence it held the literal string:
+
+```
+__vsc_current_command=[return 0]
+```
+
+That is not a user command — it is bash-preexec's own `return 0`, captured because the
+DEBUG trap fired on `__bp_install`'s internals rather than on a real command. If you are
+triaging a report of this class, `__vsc_current_command` holding `return 0` or another
+bash-preexec fragment is a strong tell that the trap is firing inside the integration's
+own machinery instead of around user commands.
+
+**Why this matters for the Kiro side specifically.** Nothing above is Kiro's bug — it is
+a bash-preexec lifecycle problem. But it demonstrates why hardening item 1 from my first
+comment is worth doing regardless of upstream: Kiro's exit-code reporting is currently
+coupled to the health of a third-party hook chain it does not control, and when that
+chain half-fails, the user sees `Exit Code: 1` on successful commands with no indication
+that status was simply unavailable. Emitting `633;D;$__vsc_status` unconditionally, or
+rendering a status-less `633;D` as unknown, decouples reporting from that fragility.
+`$__vsc_status` was correct in every single measurement across both investigations.
+
+### What not to do (recorded so nobody repeats it)
+
+My first attempt at a durable workaround was to have my `PROMPT_COMMAND` hook **strip the
+stale bootstrap lines out of `PROMPT_COMMAND` itself**. It worked when applied by hand
+mid-session — output and exit codes recovered immediately, verified with `echo` ×3 visible
+and `bash -c 'exit 9'` reporting 9. Persisted into `.bashrc`, it **hung the terminal**:
+a subsequent command timed out at 120 s.
+
+The likely reason is that mutating `PROMPT_COMMAND` from inside a function that
+`PROMPT_COMMAND` is currently iterating is unsafe, particularly with bash 5.2 treating
+`PROMPT_COMMAND` as an array. I reverted. Anyone attempting a workaround here should
+either do the cleanup **once at shell-init time**, after bash-preexec has loaded but
+outside the prompt cycle, or leave `PROMPT_COMMAND` alone entirely and accept re-arming
+each prompt. I would not recommend the in-prompt mutation I tried.
+
+The narrower re-arm — arm the trap if absent, touch nothing else — is stable and has been
+running without incident, but it is only a partial mitigation: it races the bootstrap and
+loses whenever the bootstrap sits later in the chain than the hook.
+
+### Environment (unchanged from the first comment)
+
+| | |
+|---|---|
+| Kiro | 1.0.293 (remote / `kiro-server`) |
+| Shell | GNU bash 5.2.15(1) |
+| Integrations | Kiro OSC 633 (`__vsc_*`), bash-preexec (`__bp_*`), Amazon Q / kiro-cli (`__fig_*`) |
+
+---
+
+## Internal notes (not for posting)
+
+- The two-line custom prompt was **investigated and exonerated**. Initial hypothesis was
+  that a multi-line PS1 misplaced the `633;A` marker. Disproved: with `__set_prompt`
+  unregistered and a plain single-line `PS1='[\u@\h \W]\$ '`, output was still swallowed.
+  The prompt was restored. Registering into `precmd_functions` (rather than assigning
+  `PROMPT_COMMAND`) remains correct and is not implicated.
+- Local `.bashrc` state after revert: exit-status terminators present; narrow trap re-armer
+  present; prompt registrar present; bootstrap-stripping version reverted out.
+  Backups: `.bashrc.bak-exit1-*`, `.bashrc.bak-token-*`, `.bashrc.bak-prompt-*`,
+  `.bashrc.bak-bpinstall-*`, all mode 0600.
+- Open question worth resolving before posting a remedy: **what re-adds the bootstrap
+  string?** Candidate is `__bp_install_after_session_init`, which bash-preexec queues into
+  `PROMPT_COMMAND` and which re-injects `__bp_install_string`. If confirmed, the correct
+  one-shot fix is to neutralize that at shell-init time rather than to strip lines during
+  the prompt cycle.
+- Soak criteria before posting: several fresh shells, one full IDE window reload, and one
+  host reboot with no recurrence of either swallowed output or false exit codes.
