@@ -541,6 +541,29 @@ remediate_user() {
     fi
   fi
 
+  # R11: scratch contents ownership — direct children of the scratch dir are
+  # owned by someone other than the target user (typically the operator who
+  # staged content before the provisioning hardening landed). This chowns each
+  # misowned child recursively so the user can actually write to their own
+  # workspace (git pull, editor saves, etc.).
+  if grep -q '^scratch_contents_owner ' <<<"${drifts}"; then
+    local scratch="${SCRATCH_ROOT}/${username}"
+    local target_uid
+    target_uid="$(id -u "${username}" 2>/dev/null || echo "")"
+    local -a misowned=()
+    mapfile -t misowned < <(
+      find "${scratch}" -maxdepth 1 -mindepth 1 -not -uid "${target_uid}" 2>/dev/null
+    )
+    if [[ ${#misowned[@]} -gt 0 ]]; then
+      log_info "Fixing ownership of ${#misowned[@]} scratch contents for ${username}"
+      local item
+      for item in "${misowned[@]}"; do
+        log_info "chown -R ${username}:${group} ${item}"
+        chown -R "${username}:${group}" "${item}" || log_error "chown failed: ${item}"
+      done
+    fi
+  fi
+
   # R5: supplementary group memberships. Missing-group names are encoded after
   # the tag as a comma-separated list; parse and iterate.
   if grep -q '^supp_groups ' <<<"${drifts}"; then
@@ -777,6 +800,25 @@ render_remediation_plan() {
     echo ""
   fi
 
+  # [n] Scratch contents ownership (R11 — children not owned by target user)
+  if grep -q '^scratch_contents_owner ' <<<"${drifts}"; then
+    n=$((n+1))
+    local target_uid
+    target_uid="$(id -u "${username}" 2>/dev/null || echo "")"
+    local -a misowned=()
+    mapfile -t misowned < <(
+      find "${workspace_dir}" -maxdepth 1 -mindepth 1 -not -uid "${target_uid}" 2>/dev/null
+    )
+    echo "[${n}] Scratch contents: ${#misowned[@]} item(s) not owned by ${username}"
+    local item
+    for item in "${misowned[@]}"; do
+      local item_owner
+      item_owner="$(stat -c '%U:%G' "${item}" 2>/dev/null || echo "unknown")"
+      echo "    chown -R ${username}:${group} ${item}    # currently ${item_owner}"
+    done
+    echo ""
+  fi
+
   # [n] Supplementary group memberships (R5)
   if grep -q '^supp_groups ' <<<"${drifts}"; then
     n=$((n+1))
@@ -976,6 +1018,30 @@ check_user_integrity() {
       echo "  scratch clone: [DRIFT expected=cloned actual=missing]"
     fi
   fi
+
+  # [8] Scratch contents ownership — direct children of the scratch dir should
+  # be owned by the target user. If not, they can't write to their workspace.
+  local scratch_dir_int="${SCRATCH_ROOT}/${username}"
+  if [[ -d "${scratch_dir_int}" ]]; then
+    local target_uid_int
+    target_uid_int="$(id -u "${username}" 2>/dev/null || echo "")"
+    if [[ -n "${target_uid_int}" ]]; then
+      local -a misowned_int=()
+      mapfile -t misowned_int < <(
+        find "${scratch_dir_int}" -maxdepth 1 -mindepth 1 -not -uid "${target_uid_int}" 2>/dev/null
+      )
+      if [[ ${#misowned_int[@]} -eq 0 ]]; then
+        echo "  scratch contents ownership: [OK]"
+      else
+        local misowned_names=""
+        local mi
+        for mi in "${misowned_int[@]}"; do
+          misowned_names+=" $(basename "${mi}")"
+        done
+        echo "  scratch contents ownership: [DRIFT] ${#misowned_int[@]} item(s) not owned by ${username}:${misowned_names}"
+      fi
+    fi
+  fi
 }
 
 # check_user_drifts — machine-parseable drift feed for remediate_user (T4).
@@ -1010,6 +1076,25 @@ check_user_drifts() {
     actual_owner="$(stat -c '%U:%G' "${scratch}" 2>/dev/null || echo "")"
     [[ "${actual_owner}" != "${expected_owner}" ]] \
       && drifts+=("scratch_owner ${actual_owner}")
+  fi
+
+  # scratch contents owner — detect direct children (depth 1) not owned by the
+  # target user. This catches the common case where an operator staged content
+  # (repo clone, .vscode, etc.) and the top-level was later fixed but the
+  # contents were never chown'd. Only fires when the top-level IS correct
+  # (otherwise scratch_owner already covers the full tree via adopt/preserve).
+  if [[ -d "${scratch}" ]]; then
+    local target_uid
+    target_uid="$(id -u "${username}" 2>/dev/null || echo "")"
+    if [[ -n "${target_uid}" ]]; then
+      local -a misowned_children=()
+      mapfile -t misowned_children < <(
+        find "${scratch}" -maxdepth 1 -mindepth 1 -not -uid "${target_uid}" 2>/dev/null
+      )
+      if [[ ${#misowned_children[@]} -gt 0 ]]; then
+        drifts+=("scratch_contents_owner ${#misowned_children[@]}")
+      fi
+    fi
   fi
 
   # supplementary groups — only for groups that exist on host

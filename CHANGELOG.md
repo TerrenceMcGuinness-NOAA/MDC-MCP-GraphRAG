@@ -1,5 +1,217 @@
 # MCP Server Changelog
 
+## [Unreleased] - AWS User-Provisioning Drift Remediation (Aug 12, 2026)
+
+### Summary
+Kiro-spec realization of `.kiro/specs/aws-user-provisioning-drift-remediation/`
+— ports the COTS Parallel Works drift-remediation capability (spec
+`user-provisioning-drift-remediation`, landed as `ce121cd`) onto the AWS host's
+provisioning scripts under `SETUP_AWS/provisioning/`, retargeted to AWS paths,
+naming, and asset layout. **Verified read-only against the live host; zero
+mutation.** Staged for human review (no commit/push, git policy 08).
+
+### Added
+- **Decision record — no per-user clone of `eib-mcp-rag-server` on AWS.**
+  Documented in the spec's design.md and, operator-facing, in
+  `RUNBOOK_user_drift_remediation.md` § "Why there is no per-user clone". The
+  reasoning, previously implicit: on COTS the per-user clone **is** the MCP
+  runtime (a local stdio `node` server executes out of it against local
+  ChromaDB/Neo4j); on AWS the runtime is remote (AgentCore) and the only local
+  artifact is `tools/agentcore-kiro-proxy.py`, *read* out of the one shared
+  checkout. Duplicating the 27 GB tree (12 GB `.git`, 14 GB `supported_repos`,
+  910 MB source) eight times would cost 216 GB of 381 GB free to no functional
+  end, and would fragment the proxy version against a single runtime ARN. SCRATCH
+  still holds each developer's personal clones of the repos *under study* — 0 of 8
+  users has ever cloned the platform repo there, so the decision records existing
+  practice. Accepted tradeoff (one working tree = one branch) and its remedies
+  (`git worktree`, `--reference` clone) are recorded.
+- **`git safe.directory` drift rows** (`missing_gitconfig`,
+  `stale_git_safe_dirs <count>`) — the shared-checkout model's one hard
+  requirement, now checked and repaired. Repair for an existing `~/.gitconfig`
+  **appends** entries via `git config --global --add` run as the user, so aliases
+  and credential helpers survive and no `--force` is needed.
+- **`shared_git_repos`, `missing_safe_dirs`, `write_gitconfig`,
+  `add_missing_safe_dirs`** in `provision-user-accounts.sh`.
+- **`SETUP_AWS/provisioning/user_config.sh`** — new SPOT for provisioning knobs
+  (`SCRATCH_ROOT`, `WORKSPACE`, `SHARED_GROUP`, `PROVISION_SUPP_GROUPS`,
+  `PROVISION_PRIMARY_GROUP`, `PROVISION_ADOPT_PRESTAGED`,
+  `PROVISION_KIRO_EXEMPT_USERS`, `PROVISION_AWS_PROFILE`,
+  `PROVISION_AWS_CRED_PLACEHOLDER`). `users.conf` remains the SPOT for the user
+  list. `PROVISION_PRIMARY_GROUP` keeps the COTS field name but defaults to `""`
+  — the AWS convention is a private per-user primary group, so the field is
+  inert here unless an operator opts into a shared group.
+- **`provision-user-accounts.sh` — `--status`** — read-only per-user integrity
+  report over a 12-row drift taxonomy: primary group, supplementary groups,
+  scratch presence/ownership, `~/.ssh` + `authorized_keys` modes, `~/.aws` +
+  `credentials` modes, `~/.kiro/settings/mcp.json`, `~/.kiro/steering` count,
+  `mcp.json` `AWS_PROFILE`, and a `[PENDING user action]` row for credentials
+  still holding the provisioning placeholder.
+- **`provision-user-accounts.sh` — `--remediate <user>`** (repeatable) — applies
+  only the surgical fixes a user's drift set calls for. Refuses a non-existent
+  user (not a creation path), is mutually exclusive with `--user`, and ends with
+  a post-remediation integrity re-check. Idempotent: a second run is a
+  zero-mutation no-op.
+- **`provision-user-accounts.sh` — `--dry-run`** — renders a plan and mutates
+  nothing, for both the remediation path (numbered section per drift row) and
+  the provisioning path (mirrors the loop's eight stages).
+- **`provision-user-accounts.sh` — `--user <name>`** (repeatable) and `--help`.
+- **Preserve-vs-adopt scratch semantics** — a scratch owner fix re-owns the top
+  level only; children belonging to someone else are listed as `[PRESERVED]`
+  unless `PROVISION_ADOPT_PRESTAGED=yes`.
+- **`SETUP_AWS/provisioning/common.sh`** — `log_subsection`, `get_user_group`,
+  `resolve_ownership`, `list_prestaged_paths` (ports of the COTS helpers so both
+  provisioning trees read the same way).
+- **`SETUP_AWS/provisioning/RUNBOOK_user_drift_remediation.md`** — operator doc:
+  flag reference, drift taxonomy, preserve-vs-adopt guidance, the COTS↔AWS
+  mapping table, and the `--force` caution on `mcp.json` redeploys.
+
+### Changed
+- **`provision-user-accounts.sh`** now sources `common.sh` + `user_config.sh`;
+  the `SHARED_GROUP` / `WORKSPACE` literals moved to the SPOT (same values).
+- Two provisioning stages extracted to functions so remediation can reuse them:
+  `install_kiro_assets` (was inline stage 3) and `install_aws_skeleton` (was
+  inline stage 6). The other six stages stay inline and unchanged.
+- **`install_aws_skeleton` never clobbers credentials.** The original wrote
+  `config` + `credentials` only when `~/.aws` was absent; it now creates the
+  directory when missing and writes each file independently, only when that file
+  is absent. A pasted IAM access key survives every remediation path.
+
+### Fixed
+- **Duplicated stage-7 block** in the provisioning loop (scratch workspace
+  creation was executed twice per user, with `first`/`last`/`SCRATCH_DIR`
+  recomputed identically). Removed.
+- **`--user` / `--remediate` swallowed a following flag as the username.** The
+  old `[[ $# -ge 2 ]]` guard only checked that a next word existed, so
+  `--user --help` bound the username `--help`, skipped usage, and fell through
+  into a real mutating provisioning run. New `require_value` helper rejects an
+  empty or `-`-prefixed value with `[ERROR]` + usage + exit 2. (Operator-reported.)
+- **`--status` ignored `--user` / `--remediate`** and always reported every user
+  in `users.conf`. `print_status` now takes an optional scope list, so
+  `--status --user <name>` narrows the report. (Operator-reported.)
+- **`00-users.sh` had no argument parsing** — every flag was accepted and
+  discarded, so `--help` printed nothing and `--dry-run` performed its full
+  `mkdir`/`touch`/`chmod`/`chown` mutation despite the flag. It now supports
+  `--help`, `--status`, and `--dry-run` over its own scope (the `ec2-user`
+  bootstrap account) and rejects `--user` / `--remediate` / `--force` / `--add`
+  with an error naming `provision-user-accounts.sh`. Its header, usage text, and
+  error messages now state the COTS↔AWS entry-point split explicitly: on COTS
+  `00-users.sh` *is* the per-user script, so reaching for it on AWS is the
+  correct instinct carried across platforms. (Operator-reported.)
+- **Provisioned `~/.gitconfig` had stale, incomplete `safe.directory` entries** —
+  git was unusable in the shared `supported_repos` checkouts for **all eight**
+  developers. The heredoc hardcoded `supported_repos/global-workflow` and
+  `.../global-workflow_dev-v17`, neither of which has existed since the
+  multi-tenant rename (`c15080f`), and the other 23 git repos there were never
+  listed. Ground truth before the fix:
+  `sudo -u <user> git -C .../supported_repos/global-workflow_develop status` →
+  `fatal: detected dubious ownership`. Entries are now enumerated from disk (26
+  paths today), so a future rename surfaces as `stale_git_safe_dirs` drift instead
+  of silently breaking everyone. Verified that both the symlink (`/mdc-mcp-rag/…`)
+  and resolved (`/mnt/mdc-mcp-rag/…`) path forms satisfy git's check, so the
+  existing path convention is unchanged — only the list was wrong.
+- **`SETUP_AWS/provisioning/common.sh` sourcing guard leaked into subprocesses**  (pre-existing, unrelated to this spec, found while verifying the above).
+  `export _AWS_COMMON_SH_LOADED=1` was inherited by every subscript that
+  `provision.sh` launches, so each child's own `source common.sh` returned early
+  and **no helper function was defined** — `require_root: command not found`,
+  exit 127, at stage 00. This broke all nine subscripts. Fixed by dropping
+  `export`; repeated sourcing within one process is still guarded.
+  `sudo ./provision.sh --only 00` now completes. Note: COTS
+  `SETUP/provisioning/common.sh` carries the identical
+  `export _COMMON_SH_LOADED=1` and warrants the same follow-up there.
+
+### Verified
+- `bash -n` clean on `provision-user-accounts.sh`, `common.sh`, `user_config.sh`.
+- Live `--status` (read-only) across all eight `users.conf` users found three
+  real drifts, each independently confirmed by `stat`: `anton.fernando`
+  `~/.aws/credentials` mode `0664`; `alexander.richert` and `rahul.mahajan`
+  missing `~/.ssh/authorized_keys`. Five users show `[PENDING user action]`
+  (placeholder IAM key). `terry.mcguinness` / `daniel.sarmiento` fully `[OK]`.
+- Dry-run section count equals drift-row count for every user tested; refusal
+  path exits 1; mutex and missing-argument paths exit 2.
+- All 10 remediation-plan branches exercised, including `[PRESERVED]` /
+  `ADOPT` on a real pre-staged child and both `stale_kiro_profile` modes.
+- **Zero host mutation**: a `stat` census across all eight users' `~/.ssh`,
+  `authorized_keys`, `~/.aws`, and `credentials` is byte-identical before and
+  after the full `--status` + dry-run sequence.
+
+### Notes
+- COTS `SETUP/provisioning/` is untouched — this spec is AWS-only.
+- The AWS host has no per-user repo clone, so the COTS `missing_clone` drift
+  (R10) has no analogue; its role is filled by the `~/.kiro` and `~/.aws` rows.
+- Open operator decision: `user-templates/mcp.json` sets
+  `"AWS_PROFILE": "agentcore-rag"` (commit `6435643`) while the untracked
+  `fix-user-mcp-aws-profile.sh` exists to strip that key. This work treats the
+  committed template as authoritative; one of the two should be retired.
+## [Unreleased] - Kiro CLI 2.17.0 musl update on Rocky 9 (Aug 12, 2026)
+
+### Summary
+Updated Kiro CLI from 2.16.1 → 2.17.0 via `SETUP/update-kiro-cli-musl.sh`.
+The built-in `kiro-cli update` cannot be used on this host because Rocky 9.7
+ships glibc 2.34, and the default glibc build of Kiro CLI now requires
+glibc 2.38/2.39. The musl (statically-linked) build is version-equivalent and
+avoids the glibc dependency entirely.
+
+### Changed
+- `SETUP/update-kiro-cli-musl.sh` — broadened comments to reference Rocky 9
+  alongside AL2023 (both pinned to glibc 2.34).
+
+## [Unreleased] - ChromaDB compose bind-mount race safeguard (Jul 29, 2026)
+
+### Summary
+Prevents recurrence of the boot-time race that recreated `chromadb-devops`
+against the ephemeral root filesystem on 2026-07-28, silently shadowing the
+2.3 GB persisted `chroma.sqlite3` (36 collection UUID dirs) with a fresh
+184 KB stub. Same failure mode already logged as **[7.3.12] ChromaDB Persistent
+Volume Mount Fix (Feb 9, 2026)** — that fix hardened only the retired
+`chromadb-persistent.service`; the compose-managed devops container had no
+equivalent guard. Host data was never touched by the incident.
+
+### Added
+- **`SETUP/scripts/verify-chromadb-bind.sh`** — portable preflight that
+  refuses to start Chroma when any of the following are unsafe: the
+  `mcp_rag_eib.mount` unit is inactive, the persist dir resolves to the root
+  filesystem, `chroma.sqlite3` is missing or below `CHROMADB_MIN_SQLITE_MB`
+  (default 100 MiB), fewer than `CHROMADB_MIN_UUID_DIRS` (default 5) collection
+  UUID dirs exist, or the Docker volume's own `_data` already holds a
+  small-and-different-inode stub sqlite that would shadow the bind. All
+  thresholds env-overridable.
+- **`SETUP/systemd/chromadb-devops.service`** — systemd wrapper
+  (`After=/Requires=docker.service mcp_rag_eib.mount`, `PartOf=docker.service`)
+  that runs the preflight as `ExecStartPre` and manages the compose service
+  via `docker compose -f docker-compose.devops.yaml up -d/stop chromadb`.
+- **`SETUP/systemd/install-chromadb-devops-guard.sh`** — idempotent installer
+  (root). Runs the preflight, installs and enables the unit, flips the running
+  container's Docker-side restart policy to `no` so only the unit governs boot
+  startup. `--uninstall` restores the original `unless-stopped` policy and
+  removes the unit. The compose file is not modified — CI paths using plain
+  `docker compose up -d` still work.
+
+### Changed
+- **`docker-compose.devops.yaml`** — added a BOOT-TIME SAFEGUARD comment block
+  on the `chromadb` service documenting the race, pointing at the installer,
+  and explaining the `restart: unless-stopped` interaction. No functional
+  change; volume + env unchanged.
+
+### Verified
+- `bash -n` clean on both new shell scripts.
+- Preflight tested against the current live state — correctly identifies the
+  running `chromadb-devops` volume as holding a stale 184 KB stub (vs. the
+  2.3 GB persist-dir sqlite) and prints the exact `docker compose`/`volume rm`
+  remediation sequence.
+
+### Operator action (gated — not autonomous)
+Install the guard on the Parallel Works host (requires root + is a systemd
+change to a shared service):
+```
+sudo bash SETUP/systemd/install-chromadb-devops-guard.sh
+```
+Fix the current stale bind first (host data is safe throughout):
+```
+docker compose -f docker-compose.devops.yaml stop chromadb
+docker compose -f docker-compose.devops.yaml rm -f chromadb
+docker volume rm eib-mcp-rag-server_chromadb-devops-data
+docker compose -f docker-compose.devops.yaml up -d chromadb
+```
 ## [Unreleased] - Phase 73: Graph Node-Count Scope Documentation (Jul 20, 2026)
 
 ### Summary

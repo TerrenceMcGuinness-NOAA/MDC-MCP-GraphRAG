@@ -77,8 +77,9 @@ EXPOSE 8000
 # modules are now ported (51 tools total: 4 + 7 + 6 + 9 + 5 + 4 +
 # 9 + 3 + 4 across utility, semantic_search, code_analysis,
 # graph_rag, ee2_compliance, operational, sdd_workflow,
-# workflow_info, and github_tools). Per-module degraded-mode
-# behaviour:
+# workflow_info, and github_tools). Phase 62 adds error_analysis
+# (1 tool: extract_ci_error_signal) for a total of 53 tools across
+# 10 modules. Per-module degraded-mode behaviour:
 #
 #   * utility, sdd_workflow, workflow_info — fully data-access-free;
 #     work with no Neptune/OpenSearch reachable.
@@ -94,4 +95,4 @@ EXPOSE 8000
 # CMD lists all 9 modules explicitly so Docker history records the
 # full surface area; --modules can still be overridden at run time
 # for per-module deploy slices.
-CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info,github_tools"]
+CMD ["python", "-m", "src.mcp_server", "--modules", "utility,semantic_search,code_analysis,graph_rag,ee2_compliance,operational,sdd_workflow,workflow_info,github_tools,error_analysis"]

@@ -33,9 +33,9 @@ fi
 # Get the first name from username (e.g., Anna.Smoot -> Anna)
 FIRST_NAME="${USER%%.*}"
 
-# Get short hostname (first part before any dots) - only use if <= 10 chars
+# Get short hostname (first part before any dots) - only use if <= 8 chars
 SHORT_HOST="${HOSTNAME%%.*}"
-if [[ ${#SHORT_HOST} -gt 10 ]]; then
+if [[ ${#SHORT_HOST} -gt 8 ]]; then
     SHORT_HOST=""
 fi
 
@@ -44,7 +44,7 @@ SUFFIX="${1:-$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)}"
 if [[ -n "${SHORT_HOST}" ]]; then
     SERVER_NAME="pw_inside_${FIRST_NAME}_${SHORT_HOST}_${SUFFIX}"
 else
-    SERVER_NAME="pw_inside_${FIRST_NAME}_${SUFFIX}"
+    SERVER_NAME="pw_inside_${FIRST_NAME}"
 fi
 
 # Output file for tunnel logs (use VSCODE_DIR to keep logs with server files)
