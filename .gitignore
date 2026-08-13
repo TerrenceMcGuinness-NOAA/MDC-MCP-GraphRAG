@@ -79,6 +79,15 @@ build/
 .vscode/launch.json       # Commit if project-standard
 .vscode/mcp.json          # MCP server config - user-specific, contains local paths
 
+# Kiro
+# MCP server config is user-specific: local script paths, runtime ARNs, AWS profile
+# names, and per-developer "disabled" toggles. Shared starting point for new
+# developers lives at SETUP_AWS/provisioning/user-templates/mcp.json.
+# NOTE: comments must be on their own line - git does not support trailing
+# comments in .gitignore patterns (see the VS Code block above, which is inert).
+.kiro/settings/mcp.json
+.kiro/settings/mcp.json_org
+
 # PyCharm
 .idea/workspace.xml
 .idea/tasks.xml
