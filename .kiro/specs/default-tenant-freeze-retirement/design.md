@@ -1267,8 +1267,30 @@ because the shim handles both and a module switching idioms must not silently
 drop a tool. The second clause is Requirement 2 criterion 7 observed from the
 inside: it is the only way to confirm the harness reaches tenancy the way a
 consumer does rather than the way a test double would. Its negative half — that
-the harness contains no `_tool_` and no `run_tenant_scoped` token — is a source
-assertion, since a property cannot prove the absence of a call path.
+the harness calls no internal implementation and does not invoke the
+tenancy-scoping helper itself — is a source assertion, since a property cannot
+prove the absence of a call path.
+
+**Amended 2026-08-19, after Task 3.1/3.2 implementation.** That source assertion
+was first written as "contains no `_tool_` and no `run_tenant_scoped` token", and
+as a raw substring check it is unsatisfiable: `build_tool_map`, the function name
+Task 3.1 mandates, contains `_tool_` as a substring. Measured against the landed
+harness, a naive search finds four matches and every one of them is that mandated
+name — a docstring reference, a comment, the definition, and the call site.
+
+The check must therefore be **boundary-anchored or call-shaped**, not a substring
+search. `\b_tool_` finds zero matches in the landed file, because in
+`build_tool_map` the underscore is preceded by a word character and so no word
+boundary exists there. A call-shaped pattern such as
+`(^|[^A-Za-z0-9])_tool_[a-z]` likewise finds zero. Either expresses the real
+invariant, which is that no internal implementation is *called*, rather than that
+a character sequence is absent.
+
+The `run_tenant_scoped` half needs no such care and the landed file contains zero
+occurrences, including in prose — its docstrings name the helper descriptively
+instead. But a source assertion that forbids naming a thing in a comment is
+weaker than it looks anyway, since the constraint that matters is the call, not
+the mention.
 
 **Functions under test:** `scripts.run_benchmark.build_tool_map` and the
 collected Tool_Closures against `src.tenancy.runtime`
