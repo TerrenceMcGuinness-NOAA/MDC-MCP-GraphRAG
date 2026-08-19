@@ -19,10 +19,22 @@ seven scenarios split by tool into two groups, compared under two relations:
   than blocked. Masks are not consulted here -- the relation reads
   structure, not bytes.
 * **Four query tools** -- ``search_documentation``, ``search_ee2_standards``,
-  ``search_architecture``, ``get_operational_guidance`` -- **stay
-  byte-frozen** against the masked pre-change baseline until Task 8.3 pairs a
-  structural addressed-set check with the benchmark comparison (Phase 79
-  R6.2). Their comparison is unchanged from Task 6.3's original form.
+  ``search_architecture``, ``get_operational_guidance`` -- are checked under a
+  **structural addressed-set plus hit-provenance** relation
+  (:mod:`tests.baselines.addressing`). Task 8.3 retires Byte_Equivalence for
+  these four (Phase 79 R6.2 superseded by default-tenant-freeze-retirement),
+  paired with the benchmark comparison the nightly Regression_Check performs.
+  Each scenario asserts that the set of Physical_Collections the tool
+  addresses under the Default_Tenant is unchanged from the recorded
+  expectation in ``expected/addressed_sets.json``, and that every hit a real
+  Vector_Adapter returns over those collections carries a non-empty
+  ``physical_collection``. The physical collection a read addressed is not
+  recoverable from the rendered bytes at all, so this half is not a text
+  comparison and the masks do not govern it. One consequence is stated so it
+  is not found later: a pure formatting change to Query_Tool output -- a
+  relabelled field, a changed separator, reordered hit metadata -- now passes
+  both halves. That is a deliberate reduction in what is gated; the
+  Consumer_Audit (Task 10) is what makes it tolerable.
 
 The two groups are derived from each scenario's own tool name (the reporting
 set below, and its complement) rather than from a second hardcoded list, so a
@@ -39,15 +51,32 @@ follow-up changes the output and re-records the baseline in the same change.
 This file also enforces the Task 6.2 earned-mask invariant (all five checks
 retained): every committed mask must trace back to a recorded double-run
 difference, so the mask mechanism cannot be misused to hide a real regression.
-The masks still govern the four query-tool scenarios; retiring byte-equality
-for the three reporters does not retire the earned-mask guarantee.
+No scenario's comparison consults the masks any longer -- the reporters moved
+to Structural_Equivalence (Task 6.3) and the query tools moved to the
+addressed-set plus hit-provenance relation (Task 8.3) -- but the earned-mask
+machinery is retained deliberately as an instrument for a future high-surface
+refactor, as ``tests/baselines/README.md`` records. Retiring the last
+comparison that consulted the masks is not a reason to delete the guarantee
+that keeps a mask honest.
 """
 
 from __future__ import annotations
 
+import json
+import os
+import types
+from pathlib import Path
+
 import pytest
 
-from tests.baselines import capture, structural
+from src.data.chromadb_adapter import ChromaDBAdapter
+from src.data.opensearch_adapter import OpenSearchAdapter
+from src.data.read_router import resolve_read_targets
+from tests.baselines import addressing, capture, structural
+from tests.properties.conftest import (
+    FakeChromaClient,
+    FakeOpenSearchRawClient,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -74,7 +103,8 @@ _REQUIRED_R63_TOOLS = {
 # Partition the scenarios by their own tool name -- not by a second hardcoded
 # list -- so a scenario added later cannot land in neither group. The three
 # reporting tools move to Structural_Equivalence (Task 6.3); every other
-# scenario is a Query_Tool and stays byte-frozen until Task 8.3.
+# scenario is a Query_Tool checked under the addressed-set plus hit-provenance
+# relation (Task 8.3).
 _REPORTING_SCENARIO_IDS = [
     s
     for s in SCENARIO_IDS
@@ -121,7 +151,9 @@ def test_scenario_partition_is_total_and_disjoint() -> None:
     assert reporting.isdisjoint(query)
     assert reporting | query == set(SCENARIO_IDS)
     assert reporting, "no reporting scenario found to compare structurally"
-    assert query, "no query scenario found to compare byte-for-byte"
+    assert query, (
+        "no query scenario found to check for addressed-set + provenance"
+    )
 
 
 def test_no_scenario_declares_a_tenant_id() -> None:
@@ -167,29 +199,186 @@ async def test_reporting_tools_structural_equivalence(
     )
 
 
-# ── query tools: byte-equivalence (stays until Task 8.3) ─────────────────────
+# ── query tools: addressed-set + hit-provenance (Task 8.3) ───────────────────
+#
+# Task 8.3 supersedes Byte_Equivalence for the four Query_Tool scenarios
+# (Phase 79 R6.2, superseded by default-tenant-freeze-retirement). Two things
+# replace it, and both are necessary:
+#
+#   * the addressed-set half catches a dropped collection -- a quality score
+#     cannot, because the surviving member of a two-member set still answers
+#     the corpus queries and coverage may not move; and
+#   * the benchmark comparison (run by the nightly Regression_Check, not here)
+#     catches degraded retrieval -- the addressed-set half cannot, because the
+#     right collections can be addressed and still return worse hits.
+#
+# This module owns the addressed-set half and the paired hit-provenance check
+# (R11.6). The benchmark half lives in the nightly wrapper. Neither half reads
+# rendered text: physical addressing is not recoverable from a Query_Tool's
+# rendered response, so `capture.render` is not used here (see
+# tests/baselines/addressing.py, and Phase 79 finding 6).
+
+_ADDRESSED_SETS_PATH = (
+    Path(capture.__file__).resolve().parent
+    / "expected"
+    / "addressed_sets.json"
+)
+
+
+def _expected_addressed_sets() -> dict:
+    """Load the recorded Default_Tenant addressed-set expectations.
+
+    Recorded by Task 8.1 in ``expected/addressed_sets.json``, keyed tool
+    name then Embedding_Profile short name. This is the "before the change"
+    reference the R11.2 structural check compares against: a routing change
+    that drops or adds a member fails against it.
+    """
+    return json.loads(_ADDRESSED_SETS_PATH.read_text(encoding="utf-8"))
+
+
+def _build_vector_adapter(backend: str, profile: str):
+    """Construct a real Vector_Adapter over a recording client double.
+
+    The provenance half of Requirement 11 criterion 2 needs hits stamped
+    with ``physical_collection``, and only the real adapters stamp it (their
+    ``_stamp_provenance`` / merge paths). The capture stub replaces the
+    adapter wholesale and receives the logical name, so it never stamps --
+    which is exactly why this check drives the real adapter rather than
+    re-rendering the scenario.
+
+    The adapter is the one the scenario's Backend selects -- OpenSearch for
+    ``aws``, ChromaDB otherwise -- so provenance is exercised on the same
+    stamping path the frozen response used. Hermetic: the client is a canned
+    recording double, the embedding function is a constant, and
+    ``_connected`` is pinned True so no socket is opened.
+
+    Returns
+    -------
+    tuple
+        ``(adapter, fake_client)``. ``fake_client`` exposes ``add_index``
+        (OpenSearch) or ``add_collection`` (ChromaDB) for seeding.
+    """
+    def _embed(texts: list[str]) -> list[list[float]]:
+        return [[0.0, 0.0] for _ in texts]
+
+    # The adapter reads MCP_EMBEDDING_PROFILE in __init__, so pin it for the
+    # scope of construction and restore it -- the addressed-set half compares
+    # against this same profile, keeping the seeded physical names and the
+    # adapter's internal resolution in agreement.
+    prior = os.environ.get("MCP_EMBEDDING_PROFILE")
+    os.environ["MCP_EMBEDDING_PROFILE"] = profile
+    try:
+        if backend == "aws":
+            adapter = OpenSearchAdapter(
+                endpoint="https://example.invalid",
+                embedding_function=_embed,
+            )
+            fake = FakeOpenSearchRawClient()
+            adapter._client = types.SimpleNamespace(_client=fake)
+            adapter._connected = True
+        else:
+            adapter = ChromaDBAdapter(embedding_function=_embed)
+            fake = FakeChromaClient()
+            adapter._client = fake
+            adapter._connected = True
+    finally:
+        if prior is None:
+            os.environ.pop("MCP_EMBEDDING_PROFILE", None)
+        else:
+            os.environ["MCP_EMBEDDING_PROFILE"] = prior
+    return adapter, fake
+
+
+async def _stamped_query_hits(
+    tool: str, backend: str, profile: str
+) -> list[dict]:
+    """Return hits a real Vector_Adapter stamps over ``tool``'s collections.
+
+    For each Logical_Collection ``tool`` reads (per
+    :data:`addressing.TOOL_LOGICAL_COLLECTIONS`), the addressed
+    Physical_Collection is seeded with one canned hit and queried through the
+    adapter, which stamps ``physical_collection``. Mirrors the seeding of
+    Property 13's provenance clause so the unit and property checks cannot
+    drift in how they obtain stamped hits.
+    """
+    adapter, fake = _build_vector_adapter(backend, profile)
+    canned = {"id": "probe-0", "content": "x", "score": 0.5}
+    hits: list[dict] = []
+    for logical in addressing.TOOL_LOGICAL_COLLECTIONS[tool]:
+        resolved = resolve_read_targets(logical, None, profile=profile)
+        physical = resolved.physical_names[0]
+        if hasattr(fake, "add_collection"):
+            fake.add_collection(
+                physical,
+                response={
+                    "ids": [[canned["id"]]],
+                    "documents": [[canned["content"]]],
+                    "metadatas": [[{}]],
+                    "distances": [[0.1]],
+                },
+            )
+        else:
+            fake.add_index(
+                physical,
+                hits=[
+                    {
+                        "_id": canned["id"],
+                        "_score": 0.9,
+                        "_source": {
+                            "content": canned["content"],
+                            "metadata": {},
+                        },
+                    }
+                ],
+            )
+        hits.extend(await adapter.query(logical, "probe query", k=1))
+    return hits
 
 
 @pytest.mark.parametrize("scenario_id", _QUERY_SCENARIO_IDS)
-async def test_query_tools_byte_equivalence(scenario_id: str) -> None:
-    """R6.2/R6.5: Query_Tool output matches the masked pre-change baseline.
+async def test_query_tools_addressed_set_and_provenance(
+    scenario_id: str,
+) -> None:
+    """R11.2/R11.6: Query_Tool addressing is unchanged and hits are stamped.
 
-    The four Query_Tool scenarios stay byte-frozen until Task 8.3 pairs a
-    structural addressed-set check with the benchmark comparison. Task 6.3
-    moved only the three reporter scenarios to Structural_Equivalence.
+    Task 8.3 supersedes the Phase 79 R6.2 byte-freeze for the Query_Tools
+    with a paired gate. This module owns the structural half; the benchmark
+    half is the nightly Regression_Check's. Two assertions, kept distinct
+    because they fail for different reasons a reviewer must tell apart:
+
+    * **Addressed-set unchanged.** The set of Physical_Collections the tool
+      addresses under the Default_Tenant equals the recorded expectation in
+      ``expected/addressed_sets.json``. A routing change that drops or adds a
+      member fails here with the differing member named -- the check a
+      quality score structurally cannot make, since the surviving member of a
+      two-member set still answers the corpus queries.
+    * **Hits carry provenance.** Every hit a real Vector_Adapter returns over
+      those collections carries a non-empty ``physical_collection`` that is a
+      member of the addressed set. ``check_hit_provenance`` returns findings
+      rather than raising, so its result is asserted, never discarded.
     """
     scenario = capture.load_scenario_by_id(scenario_id)
-    baseline = capture.load_baseline(scenario_id)
-    masks = capture.load_masks(scenario_id)
+    backend = scenario.env.get("DB_BACKEND", "aws")
+    profile = scenario.env.get("MCP_EMBEDDING_PROFILE", "titan1024")
 
-    candidate = await capture.render(scenario)
+    addressed = addressing.addressed_set(
+        scenario.tool, tenant=None, profile=profile
+    )
+    expected = _expected_addressed_sets()
+    expected_set = frozenset(expected[scenario.tool][profile])
+    assert addressed == expected_set, (
+        f"{scenario_id}: {scenario.tool} addresses "
+        f"{sorted(addressed)} under the Default_Tenant, but the recorded "
+        f"pre-change set is {sorted(expected_set)}. A member added or "
+        f"dropped here is a routing change to the Default_Tenant read path."
+    )
 
-    assert capture.matches_baseline(baseline, masks, candidate), (
-        f"{scenario_id}: rendered output diverges from the pre-change "
-        f"baseline outside the {len(masks)} earned volatility mask(s). Any "
-        f"span that differs and is not an earned mask is a regression, not a "
-        f"mask candidate.\n--- baseline ---\n{baseline!r}\n--- candidate ---\n"
-        f"{candidate!r}"
+    hits = await _stamped_query_hits(scenario.tool, backend, profile)
+
+    findings = addressing.check_hit_provenance(hits, addressed)
+    assert findings == [], (
+        f"{scenario_id}: one or more hits lack a valid physical_collection. "
+        f"Each finding names the offending hit:\n" + "\n".join(findings)
     )
 
 
@@ -200,9 +389,10 @@ def test_attribution_header_is_part_of_the_baseline(scenario_id: str) -> None:
     Tenant-scoped tools carry it; the server-global ``mcp_health_check``
     does not. The header is retained in the comparison rather than stripped,
     so a change to the attribution lines is caught. This guard stays for
-    every scenario it currently covers -- both the byte-frozen query tools
-    and the now-structural reporters -- since the attribution header is a
-    property of the recorded baseline regardless of the comparison relation.
+    every scenario it currently covers -- the addressed-set-checked query
+    tools and the structural reporters alike -- since the attribution header
+    is a property of the recorded baseline regardless of the comparison
+    relation applied to the rest of the response.
     """
     scenario = capture.load_scenario_by_id(scenario_id)
     baseline = capture.load_baseline(scenario_id)

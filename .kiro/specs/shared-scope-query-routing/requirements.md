@@ -526,6 +526,47 @@ refactor carries no regression risk for the default path.
    the same result limit in the range 1 to 1000, the same Backend, the same
    Embedding_Profile, and the same store content, including the tenant
    attribution header lines.
+
+   **Superseded 2026-08-19 by `default-tenant-freeze-retirement` (SDD Phase
+   80).** Byte-equivalence is retired for the Query_Tools and replaced by two
+   checks that are jointly necessary in place of it -- a structural check and a
+   benchmark comparison. `default-tenant-freeze-retirement` is the authority
+   for changing Default_Tenant Query_Tool output.
+
+   Structural check: a Query_Tool invoked without a `tenant_id` addresses the
+   same set of Physical_Collections as it addressed before the proposed change,
+   and every hit it returns carries a non-empty `physical_collection` value.
+
+   Benchmark comparison: no Gated_Metric of any Benchmark_Category, and no
+   Gated_Metric of the `overall` object, drops below its trailing
+   Median_Window median by more than the Governing_Threshold.
+
+   The benchmark comparison measures retrieval quality, not correctness, and the
+   structural check above is required in addition to, rather than in place of,
+   the benchmark comparison. A proposed change that passes the benchmark
+   comparison and fails the structural check is failing the gate. The two are
+   not interchangeable and that is why they are paired: the structural check
+   catches a dropped collection that a quality score cannot see -- the surviving
+   member of a two-member Resolved_Collection_Set still answers the corpus
+   queries, so coverage may not move while the tool sees half of what it should
+   -- and the benchmark comparison catches degraded retrieval that a structural
+   check cannot, since the right collections can be addressed and still return
+   worse hits. The physical collection a read addressed is not recoverable from
+   the rendered response text at all, so the structural check is defined as an
+   addressed-set-plus-provenance relation rather than a text comparison. It is
+   enforced by `mcp_server_python/tests/baselines/addressing.py` and
+   `mcp_server_python/tests/unit/test_default_tenant_byte_equivalence.py`; the
+   benchmark comparison is produced by
+   `mcp_server_python/scripts/run_benchmark.py` and evaluated by the nightly
+   Regression_Check. The reporting freeze of criterion 3 is retired separately,
+   also by this feature.
+
+   One consequence, recorded rather than left to be found: neither replacement
+   gates the rendered bytes of Query_Tool output, so a pure formatting change --
+   relabelling a field, changing a separator, reordering hit metadata -- now
+   passes both. That is a deliberate reduction in what is gated; the
+   Consumer_Audit named by `default-tenant-freeze-retirement` Requirement 12 is
+   what makes it tolerable by enumerating the code that parses Query_Tool output.
 3. WHEN the Status_Reporter, the Integrity_Checker, or the Health_Reporter runs
    without a `tenant_id` argument, THE invoked component SHALL render a complete
    response byte-equivalent to the response that component renders before this
@@ -550,9 +591,11 @@ refactor carries no regression risk for the default path.
    authority for changing Default_Tenant reporter output. The relation is
    defined and enforced by
    `mcp_server_python/tests/baselines/structural.py` and
-   `mcp_server_python/tests/unit/test_default_tenant_byte_equivalence.py`. The
-   query-result freeze of criterion 2 is unaffected by this supersession and
-   remains in force for the Query_Tools.
+   `mcp_server_python/tests/unit/test_default_tenant_byte_equivalence.py`. This
+   supersession of criterion 3 does not itself touch the query-result freeze of
+   criterion 2; criterion 2 is superseded separately by the same feature (see
+   the criterion 2 note above), which pairs an addressed-set-plus-provenance
+   structural check with a benchmark comparison.
 4. THE code comments and docstrings in `src/tools/semantic_search.py` and
    `src/data/opensearch_adapter.py` that cite the default-preservation invariant
    SHALL cite Property 3 (Empty-prefix passthrough) of
