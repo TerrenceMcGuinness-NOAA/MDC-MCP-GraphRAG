@@ -533,6 +533,26 @@ refactor carries no regression risk for the default path.
    in preference to the scope-labelling and totalling behaviour that
    Requirements 9, 10, and 11 require for a Tenant whose Index_Prefix is
    non-empty.
+
+   **Superseded 2026-08-19 by `default-tenant-freeze-retirement` (SDD Phase
+   80).** Byte-equivalence is retired for the Status_Reporter, the
+   Integrity_Checker, and the Health_Reporter and replaced by Structural
+   Equivalence. Under the superseding relation, a no-`tenant_id` render of any
+   of the three reporters is equivalent to the pre-change render when, and only
+   when, all three of the following hold: the set of Physical_Collection names
+   each response lists is equal; the document count each response reports for
+   each listed Physical_Collection is equal; and the pass, fail, or skip verdict
+   each response reports for each named check is equal. Wording, line order,
+   label text, field captions, and whitespace are free to change. This retires
+   the "in preference to" ranking above, so the `mdc-content-sha-registry`
+   over-count in the `gw` status total can be corrected and the Default_Tenant
+   integrity sample can be scoped; `default-tenant-freeze-retirement` is the
+   authority for changing Default_Tenant reporter output. The relation is
+   defined and enforced by
+   `mcp_server_python/tests/baselines/structural.py` and
+   `mcp_server_python/tests/unit/test_default_tenant_byte_equivalence.py`. The
+   query-result freeze of criterion 2 is unaffected by this supersession and
+   remains in force for the Query_Tools.
 4. THE code comments and docstrings in `src/tools/semantic_search.py` and
    `src/data/opensearch_adapter.py` that cite the default-preservation invariant
    SHALL cite Property 3 (Empty-prefix passthrough) of
@@ -740,28 +760,24 @@ describe that tenant rather than an unscoped mixture of all five.
    member of the active Tenant's Resolved_Collection_Sets, counting both the
    `shared` and the `tenant` members.
 5. WHEN the Integrity_Checker runs without a `tenant_id` argument, THE
-   Integrity_Checker SHALL preserve its existing unscoped sampling behaviour.
+   Integrity_Checker SHALL draw its sample from the union of the
+   Default_Tenant's Resolved_Collection_Sets across all five
+   Logical_Collections, identically to criterion 1 and to every Tenant.
 
-   **Amended 2026-08-19, after Task 10/11 implementation.** As originally written
-   this criterion required the no-`tenant_id` sample to be drawn from the union of
-   the Default_Tenant's Resolved_Collection_Sets across all five
-   Logical_Collections. That is not achievable alongside Requirement 6.3. The
-   conflict is structural: 6.3 requires the no-`tenant_id` Integrity_Checker
-   response to remain byte-equivalent, while criterion 3 above requires the report
-   to name each union member with the number of records drawn from it. Per-member
-   reporting necessarily moves the rendered bytes, so both cannot hold for the
-   Default_Tenant.
-
-   Resolved toward preservation, per the standing rule and consistent with every
-   other tension settled in this spec. The Default_Tenant retains the legacy
-   unscoped `sample_metadata(collection=None)` call.
-
-   **Consequence, recorded rather than left implicit: `gw` integrity findings
-   remain unscoped, describing a mixture across every tenant's data.** Criteria 1-4
-   and 6-8 apply as written to any Tenant whose `index_prefix` is non-empty. The
-   Default_Tenant case belongs to the default-tenant convergence follow-up, which
-   must retire the byte-equivalence freeze deliberately and under a
-   quality-benchmark gate. See the amendment note on Property 8 in `design.md`.
+   **Resolved 2026-08-19 by `default-tenant-freeze-retirement` (SDD Phase 80).**
+   The earlier amendment (Task 10/11 implementation) narrowed this criterion to
+   preserve the legacy unscoped `sample_metadata(collection=None)` call for the
+   Default_Tenant, because Requirement 6 criterion 3 required the no-`tenant_id`
+   integrity response to remain byte-equivalent and the per-member reporting
+   criterion 3 requires necessarily moves the rendered bytes, so both could not
+   hold for the Default_Tenant. `default-tenant-freeze-retirement` removes that
+   obstacle: it supersedes Requirement 6 criterion 3 with Structural_Equivalence,
+   which is insensitive to per-member reporting text. The criterion is therefore
+   restored to its original union-scoped form and applies to every Tenant, the
+   Default_Tenant included. Actually scoping the Default_Tenant sampler is the
+   second entry of that feature's Follow_Up_Sequence, performed under the
+   quality-benchmark gate that feature builds; this restatement records the
+   requirement, and that follow-up satisfies it in the code.
 6. WHEN the union of the active Tenant's Resolved_Collection_Sets contains more
    than one Physical_Collection, THE Integrity_Checker SHALL limit any single
    member's contribution to `ceil(sample_size / member_count)` records for as
