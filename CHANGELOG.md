@@ -1,5 +1,72 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: cross-backend normalization + write-path freeze (steps 4-5) (Aug 19, 2026)
+
+### Summary
+Steps 4 and 5 of `.kiro/specs/shared-scope-query-routing/`. Step 4 makes a
+missing collection render identically on both backends; step 5 freezes the write
+path so the read-path refactor can later be proven not to have touched it.
+**Still no query-routing change** — `resolve_tenant_index()` remains
+unconditional in both adapters, so every non-default tenant is still blind to
+shared collections. `read_router.py` (Task 2) and the adapter rewire (Task 7) are
+next. Staged for human review (no push, git policy 08).
+
+### Added
+- **`src/data/vector_errors.py` — one missing-collection signal (Task 4.1).**
+  `VectorReadError` base plus `CollectionNotProvisionedError` carrying
+  `physical`, and optionally `logical` and `tenant_id`, so the tool layer renders
+  a Skip_Block without re-deriving either (R4.3). Imports neither adapter, so
+  both may import it without a cycle.
+- **`tests/unit/test_write_path_frozen.py` plus
+  `tests/assets/write_path_digests.json` (Task 12.1).** Two assertions: SHA-256
+  of every file under `mcp_server_python/scripts/` against a recorded manifest,
+  and `resolve_collection_name` stability across the R12.1 combination space
+  (5 domains x 2 scopes x 5 tenants x 2 versions x 3 profiles).
+- 3 new test files; 1636 passing suite-wide.
+
+### Changed
+- **Both adapters classify collection absence before the catch-all wrap
+  (Task 4.2).** `ChromaDBAdapter.query` previously wrapped everything in
+  `ValueError("ChromaDB query failed on index=...")`, erasing the distinction
+  between "collection absent" and "query blew up" — which is why the tool
+  layer's OpenSearch-token-matching classifier never fired on COTS: one logical
+  condition, two incompatible signals, a classifier that understood only one.
+  Both adapters now raise `CollectionNotProvisionedError` on absence and leave
+  every other failure's message shape untouched (R4.6).
+- **`_is_missing_index_exc` widened, not replaced (Task 4.3).** It now also
+  accepts `CollectionNotProvisionedError`. The four existing call sites
+  (`semantic_search._tool_search_documentation`,
+  `graph_rag._tool_search_architecture`, `graph_rag._tool_find_similar_code`,
+  `operational._tool_get_operational_guidance`) keep working unchanged, which is
+  an R6.2 byte-equivalence concern rather than a nicety. `_missing_index_skip`
+  text deliberately untouched: R4.4 asks for proof of cross-backend identity, and
+  editing the renderer would make that test tautological.
+- `prompts/shared-scope-query-routing/` — added the step 6 prompt (Task 2,
+  Read_Router) at opus/xhigh and registered it in `run-step.sh`.
+
+### Notes
+- **ChromaDB version drift is real, and the guarded import is load-bearing.**
+  `pyproject.toml` pins `chromadb==1.3.4`; the interpreter has **1.5.8**.
+  Verified against 1.5.8, `chromadb.errors` exports `NotFoundError` but has no
+  `InvalidCollectionException`. Detection therefore uses a guarded import plus a
+  case-insensitive substring fallback, mirroring the two-form approach already
+  used for `opensearchpy`.
+- **A fourth standing test failure, filed and out of scope.**
+  `tests/properties/test_tenancy.py::TestP6WorkflowRootContainment::test_workflow_root_is_contained`
+  is a bug in the test's assertion, not in the validator. Hypothesis reached
+  `workflow_subdir="a.."`, which `_SUBDIR_RE` legitimately accepts, and the test
+  asserts `".." not in str(workflow_root)` — a substring check where a
+  path-component check is meant. `/mnt/workflow/a..` has parts
+  `('/', 'mnt', 'workflow', 'a..')` and resolves to itself, so nothing escapes
+  and `'..' in path.parts` is False. The correct assertion is
+  `".." not in workflow_root.parts`. It sits in the tenancy surface, not scope
+  routing; the step preamble now records it so later steps do not misread it as
+  their own regression.
+- `scripts/ingestion_reports/*.json` and `scripts/.ingest_watermark.json` are
+  excluded from the digest manifest as generated runtime output, documented in
+  the test docstring. Two untracked `gw_v17_*.json` reports currently sitting in
+  that directory are why the exclusion was necessary rather than theoretical.
+
 ## [Unreleased] - shared-scope-query-routing: foundations (steps 0-3) (Aug 19, 2026)
 
 ### Summary

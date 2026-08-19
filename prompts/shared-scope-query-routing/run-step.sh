@@ -27,25 +27,30 @@ step_spec() {
     3) echo "step3-task03-catalog-transport.md|claude-sonnet-5|high" ;;
     4) echo "step4-task04-error-normalization.md|claude-sonnet-5|high" ;;
     5) echo "step5-task12_1-write-path-frozen.md|claude-sonnet-5|high" ;;
+    6) echo "step6-task02-read-router.md|claude-opus-4.8|xhigh" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "step 0  Task 2.4  property generators + adapters fixture   [DONE]"
-  for n in 1 2 3 4 5; do
+  for n in 1 2 3 4 5 6; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf 'step %s  %-46s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
   echo
   echo "Step 1 is one-shot: it records the pre-change baseline. Later steps"
   echo "modify rendering paths, so it cannot be redone after step 4."
+  echo
+  echo "Step 6 builds the Read_Router, the resolver every later step routes"
+  echo "through. Opus/xhigh for the same reason step 1 got it: a wrong"
+  echo "cardinality or prefix-order decision here is expensive downstream."
   exit 0
 fi
 
 N="${1:-}"
 DRY="${2:-}"
-spec="$(step_spec "${N}")" || { echo "usage: $0 {1..5|--list} [--dry]"; exit 2; }
+spec="$(step_spec "${N}")" || { echo "usage: $0 {1..6|--list} [--dry]"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1

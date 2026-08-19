@@ -53,23 +53,35 @@ and report rather than creating a stub.
    Because steps are sequential you are the only writer, so a regression
    anywhere is attributable to you.
 
-   **Three tests fail before you start. Do NOT investigate or fix them.**
-   They are environment-dependent and were confirmed failing by steps 1 and 2
-   in isolation, with all step-authored files removed:
+   **Four tests fail before you start. Do NOT investigate or fix them.**
+   None touch this spec's surface. The first three are environment-dependent and
+   were confirmed failing by steps 1 and 2 in isolation, with all step-authored
+   files removed:
 
      tests/unit/test_environment.py::test_known_modules_covers_nine_tool_modules
      tests/unit/test_error_analysis.py::test_extract_ci_error_signal_tool
      tests/unit/test_workflow_info_tools.py::test_resolve_workflow_root_default_when_envs_empty
+     tests/properties/test_tenancy.py::TestP6WorkflowRootContainment::test_workflow_root_is_contained
 
    Root cause of the third, as an illustration: `_resolve_workflow_root` returns
    `global-workflow_develop` because that submodule exists on this instance,
-   while the test hard-codes `global-workflow`. None of the three touch this
-   spec's surface.
+   while the test hard-codes `global-workflow`.
 
-   So the pass condition is: **0 collection errors, exactly those 3 failures,
-   everything else green.** A 4th failure is yours. Do not expect a fixed
+   The fourth surfaced during step 5 and is a bug in the **test's assertion**,
+   not in the validator. Hypothesis reached `workflow_subdir="a.."`, which
+   `_SUBDIR_RE` legitimately accepts, and the test asserts `".." not in
+   str(workflow_root)` — a substring check where a path-component check is
+   meant. `/mnt/workflow/a..` has parts `('/', 'mnt', 'workflow', 'a..')` and
+   resolves to itself, so nothing escapes; `'..' in path.parts` is False. It is
+   filed, out of scope here, and lives in the tenancy surface, not scope routing.
+   Because Hypothesis searches randomly it may not reproduce on every run —
+   treat 3 or 4 failures as equally clean provided the set is a subset of the
+   four above.
+
+   So the pass condition is: **0 collection errors, no failure outside those
+   four, everything else green.** A 5th failure is yours. Do not expect a fixed
    collected count — it grows as each step lands tests (1544 after step 1,
-   1589 after step 2).
+   1589 after step 2, 1640 after step 5).
 3. Run pycodestyle on every file you created or modified.
 4. Report: files touched, your tests passed/failed, full-suite passed/failed,
    pycodestyle result, and anything you found that contradicts the spec.
