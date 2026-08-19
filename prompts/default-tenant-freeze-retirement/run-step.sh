@@ -31,13 +31,14 @@ step_spec() {
     1) echo "step1-task01-scoring-core.md|claude-opus-4.8|xhigh" ;;
     2) echo "step2-task02-tenant-cases.md|claude-sonnet-5|high" ;;
     3) echo "step3-task03_1_3_2-shim-and-run.md|claude-opus-4.8|xhigh" ;;
+    4) echo "step4-task03_3-03_6-cli-and-tests.md|claude-sonnet-5|high" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "Authored and dispatchable:"
-  for n in 1 2 3; do
+  for n in 1 2 3 4; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf '  step %s  %-44s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
@@ -46,7 +47,6 @@ if [ "${1:-}" = "--list" ]; then
   echo "findings from the step before it -- the same way the Phase 79 harness"
   echo "was built):"
   cat <<'PLAN'
-  step 4   Task 3.3-3.6 CLI, exits, P4/P9/P10/P14, P11/P12, failure tables
   step 5   Task 4       wrapper threshold comment + integration/log-history
   step 6   Task 6.1-6.2 structural.py + P1/P2/P3
   step 7   Task 6.3-6.4 ATOMIC R6.3 supersession + README status
@@ -58,6 +58,11 @@ PLAN
   echo "Step 1 contains a ONE-SHOT sub-task. Task 1.2 records the corpus"
   echo "categories digest BEFORE step 2 adds tenant_categories. Recorded after,"
   echo "it certifies the post-change bytes and Property 8 becomes a tautology."
+  echo
+  echo "Step 4 closes out the harness: the command line plus the tests for"
+  echo "everything steps 1-3 built. Its token check needs the boundary-"
+  echo "anchored form -- a raw _tool_ substring search cannot pass, because"
+  echo "the mandated build_tool_map contains it. Design Property 12 amended."
   echo
   echo "Step 3 writes the part that actually calls the tools. Two traps in it"
   echo "fail silently rather than loudly: a null catalog makes all eight"
@@ -79,8 +84,8 @@ fi
 N="${1:-}"
 DRY="${2:-}"
 spec="$(step_spec "${N}")" || {
-  echo "usage: $0 {1..3|--list} [--dry]"
-  echo "(steps 4-10 are planned but not yet authored; see --list)"; exit 2; }
+  echo "usage: $0 {1..4|--list} [--dry]"
+  echo "(steps 5-10 are planned but not yet authored; see --list)"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1
