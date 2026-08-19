@@ -36,13 +36,14 @@ step_spec() {
     6) echo "step6-task06_1_6_2-structural.md|claude-opus-4.8|xhigh" ;;
     7) echo "step7-task06_3_6_4-atomic-reporting.md|claude-opus-4.8|xhigh" ;;
     8) echo "step8-task08_1_8_2-addressing.md|claude-sonnet-5|high" ;;
+    9) echo "step9-task08_3-atomic-query.md|claude-opus-4.8|xhigh" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "Authored and dispatchable:"
-  for n in 1 2 3 4 5 6 7 8; do
+  for n in 1 2 3 4 5 6 7 8 9; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf '  step %s  %-44s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
@@ -51,13 +52,21 @@ if [ "${1:-}" = "--list" ]; then
   echo "findings from the step before it -- the same way the Phase 79 harness"
   echo "was built):"
   cat <<'PLAN'
-  step 9   Task 8.3     ATOMIC R6.2 supersession + both replacements
   step 10  Task 10      no-runtime-change gate, Retirement_Record, doc asserts
 PLAN
   echo
   echo "Step 1 contains a ONE-SHOT sub-task. Task 1.2 records the corpus"
   echo "categories digest BEFORE step 2 adds tenant_categories. Recorded after,"
   echo "it certifies the post-change bytes and Property 8 becomes a tautology."
+  echo
+  echo "STEP 9 IS THE SECOND ATOMIC STEP, and stricter than step 7: the"
+  echo "requirement names TWO replacements and makes them jointly necessary."
+  echo "The structural check catches a dropped collection, which a quality"
+  echo "score cannot; the benchmark catches degraded retrieval, which a"
+  echo "structural check cannot. Landing either alone claims a gate that is"
+  echo "half absent. It also RETIRES text gating for query-tool output --"
+  echo "a formatting-only change now passes both. Deliberate; the consumer"
+  echo "audit in step 10 is what makes it tolerable."
   echo
   echo "Step 8 builds the query-tool half of the replacement. Unlike step 6"
   echo "it cannot parse the render: the visible Collection field carries the"
@@ -108,8 +117,8 @@ fi
 N="${1:-}"
 DRY="${2:-}"
 spec="$(step_spec "${N}")" || {
-  echo "usage: $0 {1..8|--list} [--dry]"
-  echo "(steps 9-10 are planned but not yet authored; see --list)"; exit 2; }
+  echo "usage: $0 {1..9|--list} [--dry]"
+  echo "(step 10 is planned but not yet authored; see --list)"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1
