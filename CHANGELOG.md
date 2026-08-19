@@ -1,5 +1,52 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: GGSR tenancy + citations (step 9) (Aug 19, 2026)
+
+### Summary
+Task 8's two independently shippable corrections, both closing what the Task 7.3
+substitution left behind. Staged for human review (no push, git policy 08).
+
+### Fixed
+- **GraphGuidedRetrieval bypassed tenancy outright (Task 8.1).**
+  `_safe_semantic_enrich` called `_vector_db.query()` with no `tenant=`. The adapter
+  defaults `tenant=None`, which the Read_Router reads as the unprefixed default, so
+  every GGSR-enriched read resolved as `gw` regardless of the active tenant. Step 8
+  could not have caught this — the omission is on the caller side, and the router
+  was correctly honouring the `None` it was handed. `tenant` is now a parameter on
+  `get_code_context` and `_safe_semantic_enrich`, forwarded to `query()`, and
+  threaded from `graph_rag._tool_get_code_context` as `tenant=_tenant()`. Default
+  `None` preserved throughout.
+- **Three mis-cited preservation invariants (Task 8.2).**
+  `semantic_search.py:476` (`Property 4 / R3.5`), `semantic_search.py:894`
+  (`Property 4`), and `opensearch_adapter.py:274` (`passthrough (R3.3)`) all
+  describe empty-prefix passthrough, which is **Property 3** of
+  `.kiro/specs/omd-tenants-1-foundation/design.md` (line 1171). Property 4 (line
+  1181) is Resolution determinism — a different claim. The mis-citation had
+  propagated across three sites.
+
+### Notes
+- **`DEFAULT_SEMANTIC_COLLECTION = "mdc-code-context-mpnet768"` left untouched, by
+  scope.** It is a physical, profile-pinned name that bypasses profile resolution —
+  a real layering violation, but latent because `graph_rag.get_code_context` passes
+  `collection=CODE_COLLECTION` so it never reaches the adapter. What is now proven
+  is the failure mode if it ever does: not being a key of
+  `PRODUCTION_INDICES_BY_PROFILE`, it takes the router's R1.5 fallback cleanly with
+  no exception. That test keeps the violation latent rather than live if a caller
+  stops passing `collection=`.
+- **Over-correction avoided on the citations.** Two different `R3.3`s are in play:
+  `opensearch_adapter.py` lines 180 and 205 cite *this* spec's R3.3/R3.7 for the
+  multi-member merge and are correct, since R3.3-R3.8 govern multi-member sets
+  only. Both verified untouched; only line 274 mis-cited. The new test pins the
+  correct citations so a future sweep cannot clobber them, and scans both files for
+  *any* `Property 4` reference rather than only the three known lines.
+- **`resolve_tenant_index` deliberately not deleted** despite being orphaned by
+  step 8. Docstring corrected because R6.4 asks and the method is still reachable
+  public API. Removal belongs to Task 10.1, which rebuilds
+  `_render_vector_status_block` — the function expected to call it that derives its
+  own prefix instead — at which point it is provably unreachable.
+- 13 new tests. Suite 1756 passing, 0 collection errors, same 4 pre-existing
+  failures.
+
 ## [Unreleased] - shared-scope-query-routing: THE FIX — shared scope reachable (step 8) (Aug 19, 2026)
 
 ### Summary
