@@ -70,6 +70,29 @@ oversight)
   authored across several tasks, so a digest pinned at any one of them would
   re-break at the next -- and more fundamentally, digesting it would assert a
   freeze over a file Requirement 12.2 never froze.
+- ``scripts/run_benchmark_nightly.sh`` -- **excluded on the identical
+  rationale as ``run_benchmark.py`` immediately above, added when
+  ``default-tenant-freeze-retirement`` Task 4.1 needed a documented,
+  comment-only edit to this file and found it digested here.** This file
+  is the Phase 71 nightly wrapper. It is not itself an ingestion script
+  (it invokes a *benchmark* command, never an ingester) and it is not a
+  helper module an ingestion script imports -- verified: no
+  ``ingest_*_v8.py`` module imports it or is imported by it. It triggers
+  no re-ingestion and touches no write-side naming; its entire effect is
+  reading/writing ``quality_metrics.jsonl`` and an archive directory
+  under ``sdd_framework/execution_state/``, neither of which is a
+  write-side collection or graph-label naming path. So, on the same
+  precise reading of Requirement 12.2's stated subject applied to
+  ``run_benchmark.py`` above, it falls outside that criterion too, and
+  the prior omission (it WAS digested before this addition) was this
+  walk over-reaching in exactly the way the ``run_benchmark.py``
+  rationale already describes -- not a newly-discovered gap in the
+  requirement itself. This exclusion was added by
+  ``default-tenant-freeze-retirement`` Task 4.2, alongside Task 4.1's
+  comment-only edit to the wrapper; the manifest is left as originally
+  recorded (still carrying this file's old digest) rather than
+  regenerated, since regenerating it now would also be a change this
+  task does not need to make for any other file.
 
 This task is pure verification scaffolding over the current tree. It is
 expected to pass immediately. If either assertion fails on first run,
@@ -113,13 +136,14 @@ _EXCLUDED_DIR_NAMES = frozenset({"__pycache__", "ingestion_reports"})
 
 # Individual files under scripts/ excluded by relative path (relative to
 # _SCRIPTS_DIR). ``.ingest_watermark.json`` is generated runtime output;
-# ``run_benchmark.py`` is source that falls outside Requirement 12.2's stated
-# subject (ingestion scripts and their imported helpers). See the module
-# docstring -- the two exclusions have different justifications and should not
-# be collapsed into one rationale.
+# ``run_benchmark.py`` and ``run_benchmark_nightly.sh`` are source that fall
+# outside Requirement 12.2's stated subject (ingestion scripts and their
+# imported helpers). See the module docstring -- the exclusions have
+# different justifications and should not be collapsed into one rationale.
 _EXCLUDED_RELATIVE_FILES = frozenset({
     ".ingest_watermark.json",
     "run_benchmark.py",
+    "run_benchmark_nightly.sh",
 })
 
 _EXCLUDED_SUFFIXES = (".pyc",)

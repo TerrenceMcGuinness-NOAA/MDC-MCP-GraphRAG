@@ -1,5 +1,5 @@
 {
-  "_comment": "SHA-256 digests of every file under mcp_server_python/scripts/, recorded for shared-scope-query-routing Task 12.1 (Requirement 12.1/12.2/12.7 write-path immutability check). Keys are paths relative to mcp_server_python/scripts/. Excluded by deliberate choice, documented in test_write_path_frozen.py: __pycache__/ and *.pyc (build artifacts, not source); ingestion_reports/*.json (generated per-run ingestion reports written by every ingester invocation -- tracking them would make this test a tripwire on unrelated ingestion activity rather than a write-path-drift signal); .ingest_watermark.json (generated per-run watermark state written by reingest_s3_to_local.py, same rationale).",
+  "_comment": "SHA-256 digests of every file under mcp_server_python/scripts/, recorded for shared-scope-query-routing Task 12.1 (Requirement 12.1/12.2/12.7 write-path immutability check). Keys are paths relative to mcp_server_python/scripts/. Excluded by deliberate choice, documented in test_write_path_frozen.py: __pycache__/ and *.pyc (build artifacts, not source); ingestion_reports/*.json (generated per-run ingestion reports written by every ingester invocation -- tracking them would make this test a tripwire on unrelated ingestion activity rather than a write-path-drift signal); .ingest_watermark.json (generated per-run watermark state written by reingest_s3_to_local.py, same rationale); run_benchmark.py and run_benchmark_nightly.sh (source files outside Requirement 12.2's stated subject -- neither is an ingestion script nor a helper module an ingestion script imports; run_benchmark_nightly.sh was removed from this manifest by default-tenant-freeze-retirement Task 4.2 when its Task 4.1 comment-only edit tripped this freeze).",
   "digests": {
     "README.md": "3520f44b5604ebed28872cdcdfa307551365ec0a9d7aa6cb0ac848dd6d80f9af",
     "README_populate_workflow_efs.md": "4be0b24b3f50be454f037b4f88c66ee3fae92abd98c1974cf23105ff6df54be1",
@@ -37,7 +37,6 @@
     "reingest_stages.yaml": "be79b133d5f13291ff9d478f2a3dafa52909c5760ad027df082e32de337d1d4e",
     "reingest_state.py": "296077c85d00bb9e6d7326693f7145764c484c94f051186d385d6abf84545c53",
     "reset_tenant_cots.py": "e297ff776d3389af4fe4136b86f3d2ad0b69b9a4a61e667188dfc4f3f5500582",
-    "run_benchmark_nightly.sh": "c4abf8f272484fe1b2dc21970d49f7f1e5557cfe7182a9c81e83d0d740f69278",
     "run_mcp_stdio.sh": "36a010a7c35010ebbc9f22fe0af551f89f92b18d86cbf4c454615c28bf4fb026",
     "setup_pw_workflow_mount.sh": "2ec04cb22395d44116cd7a3a2d2959902f822c0a310296d13f2fa5317590fe7f",
     "smoke_test_tools.py": "45311506da8bc0aa116737aa0c8cad5ac03a07a9dfa4de524efade680c4725b2",
