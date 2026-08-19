@@ -40,6 +40,36 @@ oversight)
   written by ``reingest_s3_to_local.py`` (see
   ``WATERMARK_FILE`` in that script). Same rationale as
   ``ingestion_reports/``: it is legitimate runtime output, not source.
+- ``scripts/run_benchmark.py`` -- **excluded for a different reason than the
+  three above, and the difference matters.** That file is source, not
+  generated output. It is excluded because **Requirement 12.2 does not cover
+  it**, not because its content is uninteresting.
+
+  Read the criterion's scope precisely: "THE *ingestion scripts* under
+  ``mcp_server_python/scripts/``, *and the helper modules in that directory
+  that those scripts import*, SHALL be byte-identical". The subject is the
+  ingestion scripts and their imported helpers -- not every file that happens
+  to live in the directory. Requirement 12's user story says why: the freeze
+  exists "so that no re-ingestion is triggered and the already-correct
+  write-side naming stays untouched."
+
+  The Phase 80 benchmark harness (spec ``default-tenant-freeze-retirement``,
+  ``sdd_framework/workflows/phase80_default_tenant_freeze_retirement.md``) is
+  neither an ingestion script nor imported by one -- verified: no module under
+  ``scripts/`` imports it. It triggers no re-ingestion, touches no write-side
+  naming, and writes only a benchmark result JSON under its own results
+  directory. So it falls outside the criterion's stated subject.
+
+  What over-reached is *this walk*, not the requirement. Implementing 12.2 by
+  digesting the whole directory is a broader proxy than 12.2 states, and it
+  collides with a later spec that legitimately adds a read-path operator entry
+  point beside the ingesters. Excluding the file brings the walk into
+  alignment with the criterion rather than weakening the freeze.
+
+  Recording its digest instead was considered and rejected: the harness is
+  authored across several tasks, so a digest pinned at any one of them would
+  re-break at the next -- and more fundamentally, digesting it would assert a
+  freeze over a file Requirement 12.2 never froze.
 
 This task is pure verification scaffolding over the current tree. It is
 expected to pass immediately. If either assertion fails on first run,
@@ -82,8 +112,15 @@ _TENANTS_YAML_PATH = (
 _EXCLUDED_DIR_NAMES = frozenset({"__pycache__", "ingestion_reports"})
 
 # Individual files under scripts/ excluded by relative path (relative to
-# _SCRIPTS_DIR), for the same "generated runtime output" reason.
-_EXCLUDED_RELATIVE_FILES = frozenset({".ingest_watermark.json"})
+# _SCRIPTS_DIR). ``.ingest_watermark.json`` is generated runtime output;
+# ``run_benchmark.py`` is source that falls outside Requirement 12.2's stated
+# subject (ingestion scripts and their imported helpers). See the module
+# docstring -- the two exclusions have different justifications and should not
+# be collapsed into one rationale.
+_EXCLUDED_RELATIVE_FILES = frozenset({
+    ".ingest_watermark.json",
+    "run_benchmark.py",
+})
 
 _EXCLUDED_SUFFIXES = (".pyc",)
 
