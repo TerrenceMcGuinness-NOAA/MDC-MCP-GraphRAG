@@ -29,13 +29,15 @@ AGENT="spec-impl"
 step_spec() {
   case "$1" in
     1) echo "step1-task01-scoring-core.md|claude-opus-4.8|xhigh" ;;
+    2) echo "step2-task02-tenant-cases.md|claude-sonnet-5|high" ;;
+    3) echo "step3-task03_1_3_2-shim-and-run.md|claude-opus-4.8|xhigh" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "Authored and dispatchable:"
-  for n in 1; do
+  for n in 1 2 3; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf '  step %s  %-44s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
@@ -44,8 +46,6 @@ if [ "${1:-}" = "--list" ]; then
   echo "findings from the step before it -- the same way the Phase 79 harness"
   echo "was built):"
   cat <<'PLAN'
-  step 2   Task 2       corpus tenant_categories + P8 + anchoring guard
-  step 3   Task 3.1-3.2 Registration_Shim, real catalog, orchestration, record
   step 4   Task 3.3-3.6 CLI, exits, P4/P9/P10/P14, P11/P12, failure tables
   step 5   Task 4       wrapper threshold comment + integration/log-history
   step 6   Task 6.1-6.2 structural.py + P1/P2/P3
@@ -59,6 +59,16 @@ PLAN
   echo "categories digest BEFORE step 2 adds tenant_categories. Recorded after,"
   echo "it certifies the post-change bytes and Property 8 becomes a tautology."
   echo
+  echo "Step 3 writes the part that actually calls the tools. Two traps in it"
+  echo "fail silently rather than loudly: a null catalog makes all eight"
+  echo "tenant cases look like a router bug, and sharing the Node results"
+  echo "folder lets the wrapper record a stale Node result as a Python run."
+  echo
+  echo "Step 2 edits the shared corpus the older Node benchmark also reads."
+  echo "Its new cases go in a separate top-level section for that reason:"
+  echo "inside the existing one they would shift Node per-category counts"
+  echo "from 10 to 11 and move the shared history the gate compares to."
+  echo
   echo "Steps 7 and 9 are ATOMIC. Each lands a freeze supersession together with"
   echo "its replacement check, because R8.2/R8.3 forbid any revision in which a"
   echo "criterion is relaxed and its replacement is absent. Ordering alone still"
@@ -69,8 +79,8 @@ fi
 N="${1:-}"
 DRY="${2:-}"
 spec="$(step_spec "${N}")" || {
-  echo "usage: $0 {1|--list} [--dry]"
-  echo "(steps 2-10 are planned but not yet authored; see --list)"; exit 2; }
+  echo "usage: $0 {1..3|--list} [--dry]"
+  echo "(steps 4-10 are planned but not yet authored; see --list)"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1
