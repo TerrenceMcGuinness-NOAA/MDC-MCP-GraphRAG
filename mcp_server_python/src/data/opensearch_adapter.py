@@ -35,19 +35,27 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import hashlib
 import os
 import random
+import re
 import time
 from typing import Any, Callable
 
 from src.config.aws_config import DEFAULT_AWS_REGION, resolve_index
+from src.data.collection_scope import active_scope_transport
 from src.data.embedding_provider import (
     EmbeddingError,
     EmbeddingProvider,
     create_provider,
 )
 from src.data.embedding_registry import EmbeddingModelRegistry, ModelProfile
-from src.data.read_router import CollectionCondition
+from src.data.read_router import (
+    CollectionCondition,
+    ResolvedTarget,
+    RoutingDiagnostic,
+    resolve_read_targets,
+)
 from src.data.vector_errors import CollectionNotProvisionedError
 
 log = logging.getLogger(__name__)
@@ -133,6 +141,101 @@ def _is_missing_index_exc(exc: BaseException) -> bool:
             return True
 
     return "index_not_found_exception" in str(exc)
+
+
+# ── inner-merge helpers (shared-scope-query-routing Task 7.3) ────────────
+#
+# These three functions implement the design's inner merge (steps 3-6) for
+# a Resolved_Collection_Set with more than one member. They are pure and
+# deliberately duplicated verbatim in ``chromadb_adapter.py`` rather than
+# hoisted into a new module: the owned-file set for this step is the two
+# adapters, and Property 10 exercises both adapters through the same
+# ``adapters()`` fixture, so any drift between the two copies fails the
+# suite. Keep the two copies identical.
+
+_WHITESPACE_RUN: "re.Pattern[str]" = re.compile(r"\s+")
+
+
+def _scope_content_digest(hit: dict[str, Any]) -> str:
+    """SHA-256 over a hit's normalized content (R3.8).
+
+    Normalization: ``content``, else ``document``, else ``text``, else
+    ``""``; ``strip()``; collapse internal whitespace runs to one space;
+    UTF-8. Whitespace collapsing makes the digest robust to the
+    trailing-newline and indentation differences the two ingest paths
+    introduce for the same source document.
+    """
+    text = hit.get("content") or hit.get("document") or hit.get("text") or ""
+    normalized = _WHITESPACE_RUN.sub(" ", text.strip())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _stamp_provenance(
+    hits: list[dict[str, Any]], physical: str
+) -> list[dict[str, Any]]:
+    """Attach ``physical_collection`` to each hit without re-ordering (R3.5).
+
+    Used on the single-member path, where the merge is the identity by
+    construction: the backend's native ordering is preserved and no
+    de-duplication is applied (R3.3-R3.8 apply only to multi-member sets),
+    so the Default_Tenant response stays byte-equivalent (R6.1, R6.7).
+    """
+    out: list[dict[str, Any]] = []
+    for hit in hits:
+        row = dict(hit)
+        row["physical_collection"] = physical
+        out.append(row)
+    return out
+
+
+def _merge_scope_members(
+    member_hits: list[tuple[int, str, list[dict[str, Any]]]],
+    k: int,
+) -> list[dict[str, Any]]:
+    """Order, de-duplicate, and cap hits from >1 addressed member.
+
+    ``member_hits`` is ``(member_index, physical_name, hits)`` in router
+    order (unprefixed member first). Implements the design's inner merge
+    steps 3-6:
+
+    * Step 3 -- stamp ``physical_collection`` from the producing member.
+    * Step 4 -- order by the total key ``(-score, member_index,
+      str(id))``. Total because ``(member_index, id)`` is unique within
+      one read, so shared content precedes branch-local content at equal
+      score (R3.3, R3.7).
+    * Step 5 -- de-duplicate on the normalized content digest, keeping
+      the first in step-4 order and its own provenance, so a document
+      present in both members is retained as the shared copy (R3.8).
+    * Step 6 -- cap at the first ``k`` survivors (R3.4).
+
+    The per-member scores are NOT comparable in the strict sense (BM25 is
+    index-local; OpenSearch clamps ``_score`` to ``[0, 1]``), and this is
+    deliberately not corrected: per-member normalization or RRF fusion
+    would have to apply to the outer cross-collection merge to be
+    coherent, and that moves gw ordering (R6.2). The resulting semantics:
+    for a Hybrid_Domain the merged order is score-bucketed, and within a
+    bucket shared content precedes branch-local content.
+    """
+    flat: list[tuple[float, int, str, dict[str, Any]]] = []
+    for member_index, physical, hits in member_hits:
+        for hit in hits:
+            row = dict(hit)
+            row["physical_collection"] = physical
+            score = float(row.get("score") or 0.0)
+            flat.append((score, member_index, str(row.get("id")), row))
+    flat.sort(key=lambda item: (-item[0], item[1], item[2]))
+
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for _score, _member_index, _hit_id, row in flat:
+        digest = _scope_content_digest(row)
+        if digest in seen:
+            continue
+        seen.add(digest)
+        out.append(row)
+        if len(out) >= k:
+            break
+    return out
 
 
 # ── adapter ─────────────────────────────────────────────────────────────
@@ -262,7 +365,29 @@ class OpenSearchAdapter:
         include_graph: bool = True,  # noqa: ARG002 — honored upstream in tool layer
         tenant: Any = None,
     ) -> list[dict[str, Any]]:
-        """Run hybrid BM25 + k-NN with RRF fusion, then format hits."""
+        """Resolve read targets, fan out, merge, and attach provenance.
+
+        The Read_Router (shared-scope-query-routing Task 7.3) is now the
+        only component that applies an ``index_prefix`` on the read path:
+        this method addresses exactly the Physical_Collections
+        :func:`resolve_read_targets` returns. For a ``shared`` collection
+        under a prefixed tenant that is the unprefixed index; for a
+        Hybrid_Domain it is both the unprefixed and the prefixed index,
+        merged. Under the Default_Tenant every set has exactly one member,
+        so the merge is the identity by construction -- there is no
+        ``if tenant is default`` branch.
+
+        Every returned row gains ``physical_collection`` naming the member
+        that produced it (R3.5); the pre-existing ``collection`` key is
+        left untouched (it carries the logical name and is rendered by
+        ``semantic_search._format_search_hit``).
+
+        Raises
+        ------
+        CollectionNotProvisionedError
+            When every member of the Resolved_Collection_Set is absent
+            (R4.7, R7.9). A partially absent set does not raise (R7.1).
+        """
         if not self._connected:
             await self.connect()
         if not query_text:
@@ -270,59 +395,200 @@ class OpenSearchAdapter:
         if not 1 <= k <= 1000:
             raise ValueError(f"k must be between 1 and 1000, got {k}")
 
-        # Route to the index whose vector dimensionality matches the
-        # active embedding profile (Requirement 8.1, 5.3 of design).
-        #
-        # Map the Logical_Collection to its Real_Index_Name BEFORE
-        # applying the tenant prefix. The Production_Index_Map is keyed
-        # by the unprefixed legacy name; prefixing first makes the lookup
-        # miss and targets a non-existent index (the v17 404 wave).
-        real = resolve_index(collection, self._profile.short_name)
-        index = self.resolve_tenant_index(real, tenant) if tenant else real
+        profile = self._profile.short_name
+        resolved = resolve_read_targets(collection, tenant, profile=profile)
+        targets = resolved.targets
+
+        # Preserve the pre-change passthrough diagnostic on THIS adapter's
+        # log channel (message byte-identical) for callers/tests that watch
+        # ``src.data.opensearch_adapter``. The Read_Router emits its own
+        # ``unmapped-profile`` diagnostic on its channel; this is the
+        # adapter-local echo, unchanged from before the routing move.
+        real = resolve_index(collection, profile)
         if real == collection:
-            # Diagnostic: collection not in the production index map for
-            # the active profile (e.g. Nova, or a non-production name).
-            # ASCII-only, no query body or credentials (R4.1, R4.2).
+            first = resolved.physical_names[0] if resolved.physical_names \
+                else collection
             log.info(
                 "[opensearch] collection %r not in production index map "
                 "(profile=%s, tenant=%s); passthrough -> index=%r",
                 collection,
-                self._profile.short_name,
+                profile,
                 getattr(tenant, "tenant_id", "none"),
-                index,
+                first,
             )
-        embedding = await self._generate_embedding(query_text)
-        body = self._build_hybrid_query(query_text, embedding, k, where)
 
+        # Generate the embedding ONCE and reuse it for every member read:
+        # the fan-out passes identical query_text/k/threshold/where (R3.2).
+        embedding = await self._generate_embedding(query_text)
+
+        reads = [
+            self._query_member(
+                physical=target.physical,
+                query_text=query_text,
+                embedding=embedding,
+                k=k,
+                similarity_threshold=similarity_threshold,
+                where=where,
+                logical=collection,
+                tenant_id=getattr(tenant, "tenant_id", None),
+            )
+            for target in targets
+        ]
+        results = await asyncio.gather(*reads, return_exceptions=True)
+
+        member_hits, unprovisioned = self._triage_member_results(
+            targets, results, logical=collection,
+            tenant_id=getattr(tenant, "tenant_id", None),
+        )
+
+        if len(targets) == 1:
+            merged = _stamp_provenance(
+                member_hits[0][2], member_hits[0][1]
+            )
+        else:
+            merged = _merge_scope_members(member_hits, k)
+
+        await self._emit_member_conditions(
+            resolved, member_hits, unprovisioned
+        )
+        return merged
+
+    async def _query_member(
+        self,
+        *,
+        physical: str,
+        query_text: str,
+        embedding: list[float],
+        k: int,
+        similarity_threshold: float,
+        where: dict[str, Any] | None,
+        logical: str,
+        tenant_id: str | None,
+    ) -> list[dict[str, Any]]:
+        """Run one hybrid read against a single physical index.
+
+        Classifies collection absence BEFORE the caller sees the generic
+        ``OpenSearchQueryError`` (R4.3, R4.6), reusing the existing
+        ``index_not_found_exception`` detection verbatim so no behaviour
+        shifts for the paths that already call
+        ``src.tools._common._is_missing_index_exc``. Any other failure
+        (connection, auth, embedding, non-404 transport error) keeps its
+        existing ``OpenSearchQueryError`` shape and is never presented as
+        unprovisioned.
+        """
+        body = self._build_hybrid_query(query_text, embedding, k, where)
         started = time.perf_counter()
         try:
-            response = await self._search_with_retry(index=index, body=body)
+            response = await self._search_with_retry(index=physical, body=body)
         except Exception as exc:
-            # Classify collection absence BEFORE the caller sees the
-            # generic OpenSearchQueryError (shared-scope-query-routing
-            # R4.3, R4.6). Reuses the existing index_not_found_exception
-            # detection verbatim so no behaviour shifts for the paths
-            # that call src.tools._common._is_missing_index_exc today.
-            # Any other failure (connection, auth, embedding, non-404
-            # transport error) keeps its existing OpenSearchQueryError
-            # shape and is never presented as unprovisioned.
             if _is_missing_index_exc(exc):
                 log.info(
-                    "[INFO] OpenSearch index not provisioned: %r", index
+                    "[INFO] OpenSearch index not provisioned: %r", physical
                 )
                 raise CollectionNotProvisionedError(
-                    index,
-                    logical=collection,
-                    tenant_id=getattr(tenant, "tenant_id", None),
+                    physical, logical=logical, tenant_id=tenant_id
                 ) from exc
             raise
         self._metrics["queries_executed"] += 1
         self._metrics["last_query_ms"] = round(
             (time.perf_counter() - started) * 1000, 2
         )
-
         hits = response.get("hits", {}).get("hits", [])
         return self._format_hits(hits, similarity_threshold)
+
+    def _triage_member_results(
+        self,
+        targets: tuple[ResolvedTarget, ...],
+        results: list[Any],
+        *,
+        logical: str,
+        tenant_id: str | None,
+    ) -> tuple[
+        list[tuple[int, str, list[dict[str, Any]]]],
+        list[ResolvedTarget],
+    ]:
+        """Classify per-member fan-out outcomes (design step 2).
+
+        A :class:`CollectionNotProvisionedError` marks that member
+        UNPROVISIONED (contributes zero hits, R7.1/R7.3); any other
+        exception propagates as a query failure (R4.6). When EVERY member
+        is absent the whole set raises once, naming the logical collection
+        so the tool renders exactly one Skip_Block (R4.7, R7.9).
+        """
+        member_hits: list[tuple[int, str, list[dict[str, Any]]]] = []
+        unprovisioned: list[ResolvedTarget] = []
+        for member_index, (target, result) in enumerate(zip(targets, results)):
+            if isinstance(result, CollectionNotProvisionedError):
+                unprovisioned.append(target)
+                continue
+            if isinstance(result, BaseException):
+                raise result
+            member_hits.append((member_index, target.physical, result))
+
+        if not member_hits:
+            first = targets[0] if targets else None
+            physical = first.physical if first is not None else logical
+            raise CollectionNotProvisionedError(
+                physical, logical=logical, tenant_id=tenant_id
+            )
+        return member_hits, unprovisioned
+
+    async def _emit_member_conditions(
+        self,
+        resolved: Any,
+        member_hits: list[tuple[int, str, list[dict[str, Any]]]],
+        unprovisioned: list[ResolvedTarget],
+    ) -> None:
+        """Emit per-member Collection_Condition diagnostics (design step 7).
+
+        UNPROVISIONED members are known for free from the fan-out; a member
+        that returned zero hits is probed once (the sole ambiguous case) to
+        tell PROVISIONED_EMPTY from PROVISIONED_POPULATED. Log-channel-only
+        and best-effort: the whole body is guarded so a probe failure never
+        breaks a read. Fires for the Default_Tenant too (R6.8) -- a log
+        line is not rendered output, so gw byte-equivalence is unaffected.
+        """
+        try:
+            target_by_physical = {
+                t.physical: t for t in resolved.targets
+            }
+            for target in unprovisioned:
+                self._log_member_condition(
+                    resolved, target, CollectionCondition.UNPROVISIONED
+                )
+            for _member_index, physical, hits in member_hits:
+                if hits:
+                    continue
+                target = target_by_physical.get(physical)
+                if target is None:
+                    continue
+                condition = await self.collection_condition(physical)
+                if condition in (
+                    CollectionCondition.UNPROVISIONED,
+                    CollectionCondition.PROVISIONED_EMPTY,
+                ):
+                    self._log_member_condition(resolved, target, condition)
+        except Exception as exc:  # never let diagnostics break a read
+            log.debug(
+                "member-condition diagnostics failed (non-fatal): %s", exc
+            )
+
+    @staticmethod
+    def _log_member_condition(
+        resolved: Any,
+        target: ResolvedTarget,
+        condition: CollectionCondition,
+    ) -> None:
+        """Log one per-member condition Routing_Diagnostic (R7.3, R7.4)."""
+        diagnostic = RoutingDiagnostic(
+            tenant_id=resolved.tenant_id,
+            logical=resolved.logical,
+            profile=resolved.profile,
+            members=((target.physical, target.scope, target.prefixed),),
+            transport=active_scope_transport(),
+            classification=condition.value,
+        )
+        log.info(diagnostic.render())
 
     async def multi_collection_query(
         self,

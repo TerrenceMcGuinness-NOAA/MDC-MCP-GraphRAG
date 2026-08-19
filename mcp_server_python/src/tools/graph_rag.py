@@ -102,6 +102,7 @@ from src.tools._common import (
     _is_missing_index_exc,
     _missing_index_skip,
     _tenant_id_or_none,
+    _zero_hit_scope_note,
 )
 from src.tools._traversal_bounds import (
     DATA_FLOW_DEPTH,
@@ -729,9 +730,21 @@ async def _tool_search_architecture(
     filtered = enriched[:max_results]
 
     if not filtered:
+        note = await _zero_hit_scope_note(
+            getattr(data, "vector_db", None),
+            tenant=_tenant(),
+            collections=COMMUNITY_COLLECTION,
+        )
         if is_testing:
-            return f'No architectural context found for: "{query}"\n'
-        return "No high-confidence architectural matches; try a more specific symbol or filename.\n"
+            body = f'No architectural context found for: "{query}"\n'
+        else:
+            body = (
+                "No high-confidence architectural matches; try a more "
+                "specific symbol or filename.\n"
+            )
+        if note:
+            body = body.rstrip("\n") + "\n" + "\n".join(note) + "\n"
+        return body
 
     lines: list[str] = [f'# Architecture Search: "{query}"', ""]
     lines.append(

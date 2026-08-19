@@ -89,6 +89,7 @@ from src.tools._common import (
     _is_missing_index_exc,
     _missing_index_skip,
     _tenant_id_or_none,
+    _zero_hit_scope_note,
 )
 
 log = logging.getLogger(__name__)
@@ -484,7 +485,18 @@ async def _tool_search_documentation(
         return _error_text(f"Error searching documentation: {exc}")
 
     if not hits:
-        return f'No results found for: "{query}"\n'
+        note_collections = (
+            [collection] if collection else list(DEFAULT_SEARCH_COLLECTIONS)
+        )
+        note = await _zero_hit_scope_note(
+            getattr(data, "vector_db", None),
+            tenant=_tenant(),
+            collections=note_collections,
+        )
+        body = f'No results found for: "{query}"\n'
+        if note:
+            body = body.rstrip("\n") + "\n" + "\n".join(note) + "\n"
+        return body
 
     graph_counts: dict[str, int] = {}
     if include_graph and getattr(data, "graph_db", None) is not None:
