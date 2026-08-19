@@ -37,9 +37,58 @@ tests/baselines/
   README.md                       # this file
 ```
 
-`tests/unit/test_default_tenant_byte_equivalence.py` (Task 6.3) is the
-regression suite that compares the post-change rendering against
-`pre_change/<id>.md`, applying only the masks in `pre_change/<id>.masks.json`.
+`tests/unit/test_default_tenant_byte_equivalence.py` is the regression suite.
+As of `default-tenant-freeze-retirement` (Task 6.3) it compares the four
+**query-tool** scenarios against `pre_change/<id>.md` byte-for-byte, applying
+only the masks in `pre_change/<id>.masks.json`, and compares the three
+**reporting-tool** scenarios (`get_knowledge_base_status`,
+`check_knowledge_integrity`, `mcp_health_check`) under Structural_Equivalence
+(`tests/baselines/structural.py`) instead. See the status section below.
+
+## Status: an instrument, not a standing gate (default-tenant-freeze-retirement, SDD Phase 80)
+
+`default-tenant-freeze-retirement` is the authority for this status. The
+Baseline_Capture_Mechanism -- `capture.py`, the `recorded_backend/*.json`
+scenarios, the `pre_change/*` captures, and the `derive_masks` /
+`verify_masks_earned` / `matches_baseline` helpers -- is **an instrument
+available to a high-surface refactor, not a standing gate.** Byte-equivalence
+was the right instrument for the Phase 79 read-path refactor (a
+1,635-insertion change a reviewer could not read in full) and a bad permanent
+fixture: it preserved a `gw` document total known to be wrong and blocked two
+corrections. Task 6.3 retired it as a standing rule for the three reporters and
+kept the machinery here for the next high-surface refactor to reach for.
+
+### Byte baselines are revision-pinned; structural baselines are not
+
+A **Byte_Equivalence baseline is valid only from the revision immediately
+preceding the change it gates.** Once a rendering path moves, the recorded
+bytes no longer describe any reachable output, so the byte baseline is void as
+a reference and cannot be re-recorded (that is why the `pre_change/*` captures
+are one-shot -- see Provenance above).
+
+A **Structural_Equivalence baseline is re-recordable from any revision.** The
+relation reads three projections of the render -- the set of
+Physical_Collections, each one's document count, and each check's verdict --
+not the bytes, so it is stable across the reword/reorder/re-space changes a
+follow-up makes. `default-tenant-freeze-retirement` Property 1 (in
+`tests/properties/test_structural_equivalence.py`) proves the relation is an
+equivalence relation; its **transitivity** clause is what makes re-recording
+sound rather than merely asserted: re-recording from revision B and comparing a
+later revision C against B is equivalent to comparing C against the original A,
+so a chain of successive re-records cannot silently drift.
+
+### Re-record procedure for a Default_Tenant reporting correction
+
+When a Follow_Up_Sequence change alters the set of Physical_Collections the
+Status_Reporter lists for the Default_Tenant -- the first entry drops
+`mdc-content-sha-registry` from the `gw` status total -- the recorded
+`get_knowledge_base_status` baseline is **re-recorded to the corrected set in
+that same change**, and the Retirement_Record names the altered collection.
+Without that affordance the structural comparison would block the very
+corrections it exists to unblock: a gate no intended change can pass is not a
+gate. The affordance generalises to all three parts of the relation and to all
+three reporters. The provenance revision of any baseline this feature records
+is named in the Retirement_Record (R13.5).
 
 ## How a scenario is rendered (hermetic by construction)
 
