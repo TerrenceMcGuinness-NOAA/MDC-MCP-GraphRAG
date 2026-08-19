@@ -286,6 +286,63 @@ class _StubDataAccess:
         return copy.deepcopy(self._data_health)
 
 
+# ── benchmark-harness fixture support (Task 3.5, additive) ─────────────────
+#
+# ``default-tenant-freeze-retirement`` Task 3.5. The Benchmark_Harness's
+# hermetic tests reuse ``_StubDataAccess`` / ``_StubGraphDB`` rather than
+# writing a second stub: the recorded responses are the same frozen store
+# content the Structural_Equivalence baselines are built from, so a
+# benchmark test and a baseline test that disagree are disagreeing about
+# rendering, not about data. This function is purely additive -- it builds
+# a new stub instance from caller-supplied fragments/vector rows; it does
+# not alter any existing recorded scenario or dispatch rule above.
+
+
+def build_benchmark_data_access(
+    *,
+    graph_fragments: dict[str, list[dict[str, Any]]] | None = None,
+    graph_default: list[dict[str, Any]] | None = None,
+    vector_query: list[dict[str, Any]] | None = None,
+) -> _StubDataAccess:
+    """Build a :class:`_StubDataAccess` for a benchmark-harness test.
+
+    Parameters
+    ----------
+    graph_fragments
+        Cypher-substring-keyed rows, consumed by
+        :class:`_StubGraphDB`'s existing ``fragments`` override (checked
+        first, before any of the built-in dispatch rules). Supply one
+        entry per distinctive cypher substring the corpus's
+        tenant-scoped cases reach -- e.g. a snippet unique to
+        ``find_callers_callees``'s callers query, or to
+        ``trace_data_flow``'s outgoing-relationship query.
+    graph_default
+        Rows returned for any graph query that matches neither
+        ``graph_fragments`` nor one of :class:`_StubGraphDB`'s built-in
+        dispatch rules (the ``default`` key of its spec).
+    vector_query
+        Rows returned for ``vector_db.query`` / ``multi_collection_query``
+        (the ``query`` key of :class:`_StubVectorDB`'s spec).
+
+    Returns
+    -------
+    _StubDataAccess
+        A facade whose ``graph_db`` and ``vector_db`` replay the supplied
+        content -- no socket, no live backend, exactly like every other
+        scenario in this module.
+    """
+    recorded: dict[str, Any] = {
+        "graph": {
+            "fragments": dict(graph_fragments or {}),
+            "default": list(graph_default or []),
+        },
+        "vector": {
+            "query": list(vector_query or []),
+        },
+    }
+    return _StubDataAccess(recorded)
+
+
 # ── scenario loading ───────────────────────────────────────────────────────
 
 

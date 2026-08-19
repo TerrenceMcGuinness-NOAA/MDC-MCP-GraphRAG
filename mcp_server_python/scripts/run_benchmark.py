@@ -21,25 +21,27 @@ Differs from the Node harness in three ways, all recorded in the design:
    so it stays comparable with the Node-harness history already in the
    Quality_Metrics_Log.
 
-Scope note (Tasks 1.3, 3.1, 3.2)
---------------------------------
+Scope note (Tasks 1.3, 3.1, 3.2, 3.3)
+-------------------------------------
 This module lands the data model and the pure scoring arithmetic
 (Task 1.3 -- ``BenchmarkCase``, ``CaseResult``, ``ScopeMetrics``,
 ``Corpus``, ``load_corpus``, ``score_case``, ``aggregate``), the closure
 collection through a ``FastMCP`` stand-in (Task 3.1 -- ``_ToolShim``,
-``build_tool_map``), and the invocation orchestration plus the emitted
-Benchmark_Run_Record (Task 3.2 -- ``run_benchmark``, ``BenchmarkRun``).
-The CLI (``main``) is added by Task 3.3 and is deliberately absent here.
+``build_tool_map``), the invocation orchestration plus the emitted
+Benchmark_Run_Record (Task 3.2 -- ``run_benchmark``, ``BenchmarkRun``),
+and the command-line entry point (Task 3.3 -- ``main``).
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import importlib
 import json
 import math
 import os
 import shutil
+import sys
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -1209,3 +1211,207 @@ def run_benchmark(
             results_dir=results_dir,
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# CLI (Task 3.3)
+# ---------------------------------------------------------------------------
+
+
+def _default_corpus_path() -> Path:
+    """Return the Ground_Truth_Corpus path relative to this repository.
+
+    ``mcp_server_node/test/benchmark/ground_truth.json``, resolved from
+    this file's location so ``main()`` works regardless of the caller's
+    current working directory (R2.1 -- there is exactly one corpus file).
+    """
+    return (
+        Path(__file__).resolve().parent.parent.parent
+        / "mcp_server_node"
+        / "test"
+        / "benchmark"
+        / "ground_truth.json"
+    )
+
+
+def _print_ascii(stream: Any, message: str) -> None:
+    """Write ``message`` to ``stream`` with a trailing newline.
+
+    All harness console output is ASCII-only (R1.10); callers pass an
+    already-prefixed ``[OK]`` / ``[WARN]`` / ``[ERROR]`` message. This
+    helper exists so every emission point is the same one line rather
+    than a scattered ``print`` -- a future stream change (e.g. capturing
+    output in a test) has one place to intercept.
+    """
+    print(message, file=stream)
+
+
+def _plan_by_category(cases: Sequence[BenchmarkCase]) -> dict[str, int]:
+    """Return ``{category_name: case_count}``, in ``CATEGORY_NAMES`` order."""
+    counts: dict[str, int] = {name: 0 for name in CATEGORY_NAMES}
+    for case in cases:
+        if case.category in counts:
+            counts[case.category] += 1
+    return counts
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Command-line entry point. Returns the process exit status.
+
+    Modes and their exit status, per the design's Error Handling table --
+    the real failure condition is an absent Benchmark_Run_Record, not a
+    poor score:
+
+    - ``--dry-run``: validates the corpus, prints the per-category case
+      plan and the required tool names, invokes nothing, writes nothing,
+      exits 0 (R1.7).
+    - ``--category NAME`` with an unknown ``NAME``: prints a message
+      naming all six Benchmark_Category names, writes nothing, exits 1
+      (R1.9).
+    - ``--category NAME`` with a valid but empty category: a ``[WARN]``
+      plus a zero-coverage record over zero cases, exit 0 -- nothing
+      failed, which is a different situation from everything failing.
+    - Every selected case records an error: the record is still written
+      (zero coverage), and the harness exits 1, so a wholly unreachable
+      backend is a visible line in the quality history rather than a
+      hole in it.
+    - A scored run, however poor the score: exit 0. The Nightly_Wrapper's
+      Regression_Check owns the quality verdict.
+    - Corpus absent/malformed, or the tenant catalog fails to load:
+      exit 1, nothing written.
+    """
+    parser = argparse.ArgumentParser(
+        prog="run_benchmark.py",
+        description=(
+            "Python RAG benchmark harness "
+            "(default-tenant-freeze-retirement)."
+        ),
+    )
+    parser.add_argument(
+        "--corpus",
+        default=None,
+        help="Path to the Ground_Truth_Corpus JSON file.",
+    )
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Run only cases carrying this Benchmark_Category name.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate the corpus and print the per-category plan; "
+            "invoke nothing and write nothing."
+        ),
+    )
+    parser.add_argument(
+        "--tenant-only",
+        action="store_true",
+        help="Run only Tenant_Scoped_Cases.",
+    )
+    parser.add_argument(
+        "--default-only",
+        action="store_true",
+        help="Run only Default_Tenant cases.",
+    )
+    parser.add_argument(
+        "--results-dir",
+        default=None,
+        help="Override the Benchmark_Run_Record output directory.",
+    )
+    args = parser.parse_args(argv)
+
+    corpus_path = args.corpus or str(_default_corpus_path())
+    try:
+        corpus = load_corpus(corpus_path)
+    except FileNotFoundError:
+        _print_ascii(
+            sys.stderr,
+            f"[ERROR] corpus file not found: {corpus_path}",
+        )
+        return 1
+    except json.JSONDecodeError as exc:
+        _print_ascii(
+            sys.stderr,
+            f"[ERROR] corpus at {corpus_path} is not valid JSON: "
+            f"line {exc.lineno}, column {exc.colno}: {exc.msg}",
+        )
+        return 1
+    except CorpusError as exc:
+        _print_ascii(sys.stderr, f"[ERROR] {exc}")
+        return 1
+
+    if args.category is not None and args.category not in CATEGORY_NAMES:
+        _print_ascii(
+            sys.stderr,
+            "[ERROR] unknown --category "
+            f"{args.category!r}; valid names are: "
+            f"{', '.join(CATEGORY_NAMES)}",
+        )
+        return 1
+
+    selected = _select_cases(corpus, args.category)
+    if args.tenant_only:
+        selected = [c for c in selected if c.tenant_scoped]
+    if args.default_only:
+        selected = [c for c in selected if not c.tenant_scoped]
+
+    if args.dry_run:
+        plan = _plan_by_category(selected)
+        tool_names = sorted({c.tool for c in selected})
+        _print_ascii(
+            sys.stdout,
+            f"[OK] dry run: {len(selected)} case(s) selected from "
+            f"corpus version {corpus.version!r}",
+        )
+        for name in CATEGORY_NAMES:
+            _print_ascii(sys.stdout, f"[OK]   {name}: {plan[name]} case(s)")
+        _print_ascii(
+            sys.stdout,
+            f"[OK] required tool(s): {', '.join(tool_names)}",
+        )
+        return 0
+
+    if not selected:
+        _print_ascii(
+            sys.stderr,
+            f"[WARN] category {args.category!r} selected zero cases; "
+            "writing a zero-coverage record",
+        )
+
+    try:
+        catalog = get_catalog()
+    except Exception as exc:  # noqa: BLE001 - fatal per Decision 5
+        _print_ascii(
+            sys.stderr,
+            f"[ERROR] failed to load the tenant catalog: {exc}",
+        )
+        return 1
+
+    empty_corpus = replace(corpus, cases=tuple(selected))
+    run = run_benchmark(
+        empty_corpus,
+        catalog=catalog,
+        results_dir=args.results_dir,
+    )
+
+    overall = run.record.get("overall", {})
+    _print_ascii(
+        sys.stdout,
+        f"[OK] wrote {run.results_path}: "
+        f"{run.record.get('total_queries', 0)} case(s), "
+        f"coverage={overall.get('coverage', 0)}",
+    )
+    if run.all_errored:
+        _print_ascii(
+            sys.stderr,
+            "[ERROR] every selected case recorded an error; "
+            "coverage is 0 in the written record",
+        )
+        return 1
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - process entry point
+    raise SystemExit(main())
