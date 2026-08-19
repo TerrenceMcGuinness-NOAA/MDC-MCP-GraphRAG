@@ -1,5 +1,76 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: foundations (steps 0-3) (Aug 19, 2026)
+
+### Summary
+First four steps of `.kiro/specs/shared-scope-query-routing/` — the read-path
+scope-routing refactor that lets non-default tenants reach shared collections.
+`resolve_tenant_index()` prefixes every collection regardless of scope, so
+`gw_v17`, `gw_sfs`, `gw_jedi_gfs`, and `gw_gefs_v12` are blind to ~22.5K shared
+docs, 34 EE2 standards, and 2,113 community summaries. These steps land the
+foundations; **no query routing has changed yet.** Staged for human review
+(no push, git policy 08).
+
+### Added
+- **`src/data/collection_scope.py` — Scope_Authority (Task 1).** Single owner of
+  "is this collection shared or tenant-scoped", plus Hybrid_Domain membership.
+  Stdlib-only imports so both read and write paths may consume it without a
+  cycle (R12.6). Hybrid invariant asserted at import time. Override chain
+  `MCP_COLLECTION_SCOPE_JSON` then `MCP_COLLECTION_SCOPE_PATH` then built-in
+  tables, replacing wholesale rather than merging; violations raise
+  `ScopeConfigError`. `check_scope_consistency()` reads the manifest with
+  `json.load` directly, deliberately NOT via `src.manifest.loader.load_manifest`
+  whose silent empty-registry fallback is the failure mode the check exists to
+  catch.
+- **Content-carrying tenant catalog transport (Task 3).**
+  `load_catalog_from_transport()` in `src/config/tenants.py` with precedence
+  `MCP_TENANT_CATALOG_YAML` (inline content) then `MCP_TENANT_CATALOG_PATH`
+  (path) then bundled `tenants.yaml`. R5.3/R5.7 presupposed this transport; it
+  did not exist. New `CatalogConfigError`, modeled on `ScopeConfigError`.
+- **`tests/baselines/` — one-shot pre-change capture harness (Task 6).** Replays
+  recorded adapter responses through stub facades; fully hermetic. 7 frozen
+  scenarios covering the four R13.3 tool modules plus the three R6.3 reporters.
+  Parent revision `4eb4229` recorded in the README. Mask machinery with an
+  earned-mask check that rejects hand-added and over-broad masks.
+- **`tests/properties/conftest.py` — shared generators + `adapters()` fixture**
+  parameterised over ChromaDB and OpenSearch (Task 2.4).
+- 6 new test files: 1613 passed suite-wide.
+- `prompts/shared-scope-query-routing/` — sequential step prompts and
+  `run-step.sh` driver; `.kiro/agents/spec-impl.json` (6 trusted tools, no
+  `aws`, no `subagent`, no MCP).
+
+### Changed
+- `src/tenancy/runtime.py::get_catalog()` now resolves via
+  `load_catalog_from_transport`. **`load_catalog(path)` signature and behaviour
+  unchanged** — the frozen `scripts/` ingesters import it (R12.2).
+- `.kiro/specs/shared-scope-query-routing/tasks.md` — corrected three
+  dependency-ordering defects in the wave schedule: Task 2.4 moved to wave 0
+  (consumers 3.2/4.4 were scheduled ahead of it), 4.2 moved to wave 3 (it
+  mutated a rendering path while Task 6 captured baselines), 10.5 moved behind
+  the 11.1 it depends on.
+
+### Notes
+- **All seven baseline masks are empty.** Every scenario is deterministic under
+  hermetic stubs, so the comparison is exact rather than masked. The design cited
+  integrity-report timestamps as the volatile case; no such field exists with a
+  stubbed backend. Not fabricated — reported.
+- **Pre-existing, unrelated:** `strip_tenant_header` in
+  `tests/parity/parity_runner.py` matches only the one-line `*Tenant:*` header
+  and misses the current two-line `*Tenant:*` / `*Branch:*` form, so the
+  existing parity suite likely compares bodies still carrying `*Branch:*`.
+- 3 pre-existing suite failures (`test_environment`, `test_error_analysis`,
+  `test_workflow_info_tools`) are environment-dependent and untouched here.
+- **Not yet landed:** `src/data/read_router.py` (Task 2), adapter routing and the
+  intra-set merge (Task 7.3), cross-backend error normalization (Task 4). Query
+  behaviour for every tenant is unchanged by this commit.
+
+### Verification
+- Full suite: `python3.12 -m pytest tests/unit tests/properties -q` -> 1613
+  passed, 3 pre-existing failures, 0 collection errors.
+- pycodestyle clean on all new files.
+- No file under `mcp_server_python/scripts/` modified (R12.2).
+- Nothing creates, deletes, or writes a Physical_Collection (R12.5).
+
 ## [Unreleased] - AWS User-Provisioning Drift Remediation (Aug 12, 2026)
 
 ### Summary

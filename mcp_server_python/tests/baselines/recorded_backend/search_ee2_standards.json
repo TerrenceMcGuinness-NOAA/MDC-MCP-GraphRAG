@@ -1,0 +1,29 @@
+{
+  "scenario_id": "search_ee2_standards",
+  "module": "ee2_compliance",
+  "tool": "search_ee2_standards",
+  "tenant_scoped": true,
+  "args": {
+    "query": "error handling err_chk",
+    "category": null,
+    "max_results": 5,
+    "include_examples": true
+  },
+  "env": {
+    "DB_BACKEND": "aws",
+    "MCP_EMBEDDING_PROFILE": "titan1024"
+  },
+  "vector": {
+    "query": [
+      {
+        "id": "ee2-1",
+        "document": "Production scripts must call err_chk after each command and err_exit on failure; set -eu and set -e are NOT required.",
+        "metadata": {
+          "category": "error_handling",
+          "example": "err_chk\nexport err=$?; err_chk"
+        },
+        "score": 0.88
+      }
+    ]
+  }
+}

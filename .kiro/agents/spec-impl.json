@@ -1,0 +1,14 @@
+{
+  "name": "spec-impl",
+  "description": "Spec task implementer. Filesystem + shell + code only. No AWS tool, no subagent fan-out, no web, no MCP.",
+  "prompt": null,
+  "mcpServers": {},
+  "tools": ["read", "write", "grep", "glob", "shell", "code"],
+  "allowedTools": ["read", "write", "grep", "glob", "shell", "code"],
+  "toolAliases": {},
+  "resources": [],
+  "hooks": {},
+  "toolsSettings": {},
+  "includeMcpJson": false,
+  "model": null
+}

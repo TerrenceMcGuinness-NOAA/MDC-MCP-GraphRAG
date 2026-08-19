@@ -1,0 +1,26 @@
+{
+  "scenario_id": "get_operational_guidance",
+  "module": "operational",
+  "tool": "get_operational_guidance",
+  "tenant_scoped": true,
+  "args": {
+    "operation": "forecast",
+    "platform": "hera",
+    "urgency": "routine"
+  },
+  "env": {
+    "DB_BACKEND": "aws",
+    "MCP_EMBEDDING_PROFILE": "titan1024"
+  },
+  "vector": {
+    "query": [
+      {
+        "id": "op-1",
+        "content": "Submit the forecast job through Rocoto on Hera after loading the production module set; verify the run directory before submission.",
+        "metadata": {
+          "source": "docs/operations/hera_forecast.md"
+        }
+      }
+    ]
+  }
+}
