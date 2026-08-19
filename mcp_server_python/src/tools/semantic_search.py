@@ -473,7 +473,7 @@ async def _tool_search_documentation(
         # active tenant becomes a clean Skip_Block. The multi-collection
         # branch is intentionally untouched — multi_collection_query
         # swallows per-collection 404s and returns [], which still renders
-        # as "No results found for: ..." (Property 4 / R3.5).
+        # as "No results found for: ..." (Property 3 / R3.5).
         if collection and _is_missing_index_exc(exc):
             return _missing_index_skip(
                 tool="search_documentation",
@@ -891,7 +891,7 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
         "",
     ]
     # Show the active scoping only for non-default tenants — the default
-    # gw block stays byte-equivalent to the pre-fix output (Property 4).
+    # gw block stays byte-equivalent to the pre-fix output (Property 3).
     if prefix:
         lines.append(f"- **Tenant prefix:** {prefix}")
     lines.append(f"- **Collections:** {len(indices)}")

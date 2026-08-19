@@ -271,7 +271,8 @@ class OpenSearchAdapter:
         """Apply tenant.index_prefix to a logical collection name.
 
         Returns ``f"{tenant.index_prefix}{collection}"``; empty prefix
-        yields passthrough (R3.3).
+        yields passthrough (Property 3 -- Empty-prefix passthrough,
+        ``.kiro/specs/omd-tenants-1-foundation/design.md``).
         """
         if not tenant.index_prefix:
             return collection

@@ -519,6 +519,7 @@ async def _tool_get_code_context(
                 max_results=15,
                 hops=depth,
                 collection=CODE_COLLECTION,
+                tenant=_tenant(),
             )
         except Exception as exc:  # pragma: no cover - defensive
             log.warning("GraphGuidedRetrieval failed for %r: %s", symbol, exc)

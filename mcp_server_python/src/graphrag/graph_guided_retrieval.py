@@ -132,6 +132,7 @@ class GraphGuidedRetrieval:
         max_semantic_hits: int = 5,
         similarity_threshold: float = 0.1,
         extra_semantic_keys: Iterable[str] | None = None,
+        tenant: Any = None,
     ) -> GGSRRetrievalResult:
         """Retrieve graph neighbourhood + semantic context for ``entity``.
 
@@ -147,6 +148,13 @@ class GraphGuidedRetrieval:
             Propagated to :pymeth:`GGSRTraversal.budget_aware_neighborhood`.
         max_results
             Max scored neighbours kept after budget trimming.
+        tenant
+            The active Tenant (or ``None`` for the unprefixed default),
+            forwarded to the semantic enrichment query
+            (shared-scope-query-routing R1.5, R2.5). Without it the
+            vector read resolves as the Default_Tenant regardless of
+            which tenant is actually active — tenancy would be bypassed
+            rather than merely degraded.
         hops
             ``1`` or ``2``.
         collection
@@ -181,6 +189,7 @@ class GraphGuidedRetrieval:
             max_semantic_hits,
             similarity_threshold,
             extra_semantic_keys,
+            tenant,
         )
 
         ggsr_results, (semantic_hits, semantic_meta) = await asyncio.gather(
@@ -237,8 +246,18 @@ class GraphGuidedRetrieval:
         k: int,
         similarity_threshold: float,
         extra_keys: Iterable[str] | None,
+        tenant: Any = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        """Run the vector query, swallowing failures into metadata flags."""
+        """Run the vector query, swallowing failures into metadata flags.
+
+        Parameters
+        ----------
+        tenant
+            Forwarded verbatim to ``vector_db.query(..., tenant=tenant)``
+            (shared-scope-query-routing R1.5, R2.5). Defaults to ``None``
+            so existing callers that do not pass a tenant keep today's
+            unprefixed-default behaviour exactly.
+        """
         if self._vector_db is None:
             return [], {"semantic_error": "vector_db_unavailable"}
 
@@ -263,6 +282,7 @@ class GraphGuidedRetrieval:
                 k=k,
                 similarity_threshold=similarity_threshold,
                 include_graph=False,
+                tenant=tenant,
             )
             # Defensive: adapters should already return list[dict] but
             # coerce None → [] so callers never see a surprise.
