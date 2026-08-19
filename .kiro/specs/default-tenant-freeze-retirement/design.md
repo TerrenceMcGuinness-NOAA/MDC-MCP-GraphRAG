@@ -1257,7 +1257,15 @@ connect-raising socket guard and a write-raising filesystem guard
 *For any* subset of the corpus's referenced tool names, `build_tool_map` returns
 a mapping whose keys include every name in that subset, and each value is the
 identical coroutine object the owning module registered under that
-`@mcp.tool(name=...)` value. *For any* Tenant_Scoped_Case, the tenant active in
+`@mcp.tool(name=...)` value.
+
+Identity holds **within a single registration pass**, and the distinction is not
+pedantic: each module's `register` builds fresh closures on every call, so
+registering a second time and comparing across passes would fail against perfectly
+correct code. The invariant to test is that the shim introduces no wrapper around
+what the module handed it — assert `_ToolShim.tool` returns the exact object it
+received, for both registration idioms, and the map's contents follow, since the
+shim's decorator is the only thing that populates it. *For any* Tenant_Scoped_Case, the tenant active in
 the tenancy ContextVar during the invoked closure's execution is the case's
 `tenant_id`.
 
