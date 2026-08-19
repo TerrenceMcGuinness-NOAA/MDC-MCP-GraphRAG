@@ -23,8 +23,51 @@ from src.data.embedding_provider import (
 )
 from src.data.embedding_registry import EmbeddingModelRegistry, ModelProfile
 from src.data.protocols import VectorDBProtocol
+from src.data.vector_errors import CollectionNotProvisionedError
+
+# Guarded import: ``chromadb.errors`` content varies by release.
+# ``pyproject.toml`` pins ``chromadb==1.3.4`` but this interpreter has
+# 1.5.8 installed; verified against 1.5.8, ``NotFoundError`` is present
+# but ``InvalidCollectionException`` is not (the nearest relatives are
+# ``InvalidArgumentError`` and ``InvalidDimensionException``). Names are
+# therefore discovered via ``getattr`` rather than imported directly, so
+# this module tolerates either release shape (shared-scope-query-routing
+# Task 4.2).
+try:
+    import chromadb.errors as _chroma_errors
+except ImportError:  # pragma: no cover - chromadb always ships errors today
+    _chroma_errors = None  # type: ignore[assignment]
+
+_CHROMA_NOT_FOUND_TYPES: tuple[type[BaseException], ...] = tuple(
+    exc_type
+    for exc_type in (
+        getattr(_chroma_errors, "NotFoundError", None),
+        getattr(_chroma_errors, "InvalidCollectionException", None),
+    )
+    if exc_type is not None
+)
+
+#: Case-insensitive substring fallback for client releases/wrappers whose
+#: exception type does not match ``_CHROMA_NOT_FOUND_TYPES``.
+_CHROMA_NOT_FOUND_TOKENS: tuple[str, ...] = (
+    "does not exist",
+    "collection not found",
+)
 
 log = logging.getLogger(__name__)
+
+
+def _is_missing_collection_exc(exc: BaseException) -> bool:
+    """Return True iff ``exc`` signals a ChromaDB collection is absent.
+
+    Mirrors the two-form approach ``src.tools._common._is_missing_index_exc``
+    already uses for ``opensearchpy``: a structured exception-type match
+    first, then a case-insensitive substring fallback on the message text.
+    """
+    if _CHROMA_NOT_FOUND_TYPES and isinstance(exc, _CHROMA_NOT_FOUND_TYPES):
+        return True
+    text = str(exc).lower()
+    return any(token in text for token in _CHROMA_NOT_FOUND_TOKENS)
 
 
 class ChromaDBAdapter(VectorDBProtocol):
@@ -144,6 +187,22 @@ class ChromaDBAdapter(VectorDBProtocol):
             )
         except Exception as exc:
             self._metrics["queries_failed"] += 1
+            # Classify BEFORE the catch-all wrap below (shared-scope-
+            # query-routing R4.3, R4.6). A collection-absence signal is
+            # raised as CollectionNotProvisionedError so the tool layer's
+            # widened _is_missing_index_exc can render a Skip_Block
+            # instead of the generic error text. Any other failure
+            # (connection, auth, embedding) falls through unchanged so
+            # its existing message and type stay distinguishable.
+            if _is_missing_collection_exc(exc):
+                log.info(
+                    "[INFO] ChromaDB collection not provisioned: %r", index
+                )
+                raise CollectionNotProvisionedError(
+                    index,
+                    logical=collection,
+                    tenant_id=getattr(tenant, "tenant_id", None),
+                ) from exc
             log.error("[ERROR] ChromaDB query failed on collection=%r: %s", index, exc)
             raise ValueError(f"ChromaDB query failed on index={index!r}: {exc}") from exc
 

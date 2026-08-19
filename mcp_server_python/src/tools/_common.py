@@ -2,15 +2,20 @@
 
 Small, dependency-light utilities imported by multiple tool modules.
 Currently hosts the missing-index detection + skip-rendering helpers
-introduced by the ``graceful-missing-index-handling`` spec, plus a tiny
-tenant-id accessor.
+introduced by the ``graceful-missing-index-handling`` spec (widened by
+``shared-scope-query-routing`` Task 4.3 to also accept the backend-
+normalized ``CollectionNotProvisionedError``), plus a tiny tenant-id
+accessor.
 
-These helpers are intentionally pure and free of any data-layer import
-at module load so the unit tests do not require the AWS SDK.
+These helpers are intentionally pure and free of any data-layer
+*adapter* import at module load so the unit tests do not require the AWS
+SDK. ``src.data.vector_errors`` is safe to import here because it is
+itself dependency-light (stdlib only, no adapters, no network).
 """
 
 from __future__ import annotations
 
+from src.data.vector_errors import CollectionNotProvisionedError
 from src.tenancy.resolver import get_current_tenant_or_none
 
 __all__ = [
@@ -21,9 +26,19 @@ __all__ = [
 
 
 def _is_missing_index_exc(exc: BaseException) -> bool:
-    """Return True iff ``exc`` is an OpenSearch ``index_not_found_exception``.
+    """Return True iff ``exc`` signals a missing/unprovisioned collection.
 
-    Detects two equivalent forms:
+    Widened (shared-scope-query-routing R4.3, R4.6, R6.2) to accept the
+    backend-normalized :class:`~src.data.vector_errors.
+    CollectionNotProvisionedError` that both Vector_Adapters now raise on
+    collection absence, in addition to the pre-existing OpenSearch-specific
+    detection below. Widening rather than replacing keeps the four existing
+    call sites (``semantic_search._tool_search_documentation``,
+    ``graph_rag._tool_search_architecture``,
+    ``graph_rag._tool_find_similar_code``,
+    ``operational._tool_get_operational_guidance``) working unchanged.
+
+    Detects two equivalent forms for the OpenSearch case:
 
     * The structured opensearchpy ``NotFoundError`` whose
       ``info['error']['type']`` is ``index_not_found_exception``.
@@ -36,6 +51,9 @@ def _is_missing_index_exc(exc: BaseException) -> bool:
     the helper works in environments that do not pull the AWS SDK
     (Requirement 1.3).
     """
+    if isinstance(exc, CollectionNotProvisionedError):
+        return True
+
     try:
         from opensearchpy.exceptions import NotFoundError  # type: ignore
     except ImportError:  # pragma: no cover - dev/test path without the SDK

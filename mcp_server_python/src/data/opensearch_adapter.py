@@ -47,6 +47,7 @@ from src.data.embedding_provider import (
     create_provider,
 )
 from src.data.embedding_registry import EmbeddingModelRegistry, ModelProfile
+from src.data.vector_errors import CollectionNotProvisionedError
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +71,33 @@ RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 MAX_RETRIES: int = 3
 INITIAL_BACKOFF_S: float = 1.0
 BACKOFF_MULTIPLIER: float = 2.0
+
+
+def _is_missing_index_exc(exc: BaseException) -> bool:
+    """Return True iff ``exc`` is an OpenSearch ``index_not_found_exception``.
+
+    Reused verbatim from ``src.tools._common._is_missing_index_exc`` so no
+    behaviour shifts for the paths that already call that helper
+    (shared-scope-query-routing design, "Cross-backend normalization").
+    Detects two equivalent forms: the structured ``opensearchpy``
+    ``NotFoundError`` whose ``info['error']['type']`` is
+    ``index_not_found_exception``, or the literal token in ``str(exc)``.
+    """
+    try:
+        from opensearchpy.exceptions import NotFoundError  # type: ignore
+    except ImportError:  # pragma: no cover - dev/test path without the SDK
+        NotFoundError = None  # type: ignore[assignment]
+
+    if NotFoundError is not None and isinstance(exc, NotFoundError):
+        info = getattr(exc, "info", None) or {}
+        err = info.get("error") if isinstance(info, dict) else None
+        if (
+            isinstance(err, dict)
+            and err.get("type") == "index_not_found_exception"
+        ):
+            return True
+
+    return "index_not_found_exception" in str(exc)
 
 
 # ── adapter ─────────────────────────────────────────────────────────────
@@ -226,7 +254,27 @@ class OpenSearchAdapter:
         body = self._build_hybrid_query(query_text, embedding, k, where)
 
         started = time.perf_counter()
-        response = await self._search_with_retry(index=index, body=body)
+        try:
+            response = await self._search_with_retry(index=index, body=body)
+        except Exception as exc:
+            # Classify collection absence BEFORE the caller sees the
+            # generic OpenSearchQueryError (shared-scope-query-routing
+            # R4.3, R4.6). Reuses the existing index_not_found_exception
+            # detection verbatim so no behaviour shifts for the paths
+            # that call src.tools._common._is_missing_index_exc today.
+            # Any other failure (connection, auth, embedding, non-404
+            # transport error) keeps its existing OpenSearchQueryError
+            # shape and is never presented as unprovisioned.
+            if _is_missing_index_exc(exc):
+                log.info(
+                    "[INFO] OpenSearch index not provisioned: %r", index
+                )
+                raise CollectionNotProvisionedError(
+                    index,
+                    logical=collection,
+                    tenant_id=getattr(tenant, "tenant_id", None),
+                ) from exc
+            raise
         self._metrics["queries_executed"] += 1
         self._metrics["last_query_ms"] = round(
             (time.perf_counter() - started) * 1000, 2
