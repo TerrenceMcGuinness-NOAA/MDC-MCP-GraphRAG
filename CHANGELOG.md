@@ -1,5 +1,67 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: harness complete (steps 11-12) (Aug 19, 2026)
+
+### Summary
+Task 12's remainder and Task 14. **The step harness is now complete** — all 14 tasks
+are implemented, struck, or recorded as operator-gated. Suite 1784 passing, zero
+skips, same 4 pre-existing failures. What remains is entirely operator work: the
+gated runtime deploy and the three live-invocation entries. Staged for human review
+(no push, git policy 08).
+
+### Added
+- **P7, write-read round trip (Task 12.2).** 150 examples over every manifest
+  source, every catalog tenant, and every profile including `profile=None` with
+  `MCP_EMBEDDING_PROFILE` unset. **This establishes that no re-ingestion is
+  required** — every collection the write path created is reachable by the read path
+  for the tenant that owns it. P7 is also precisely the property that would have
+  caught the step 6 profile-default defect, which was found by hand because P7 did
+  not exist yet.
+- **No-writes sweep (Task 12.3).** Every path this spec introduced, against an
+  adapter double that raises on `upsert_document`, `get_or_create_collection`, any
+  index creation, and any delete. Includes an absent set member, which is the case
+  that matters: it must be reported unprovisioned, never created to make a read
+  succeed. `get_or_create_collection` puts that failure one keystroke away.
+- **Verification_Record** at
+  `docs/reports/2026-08-19-shared-scope-query-routing-verification.md` — 410 lines,
+  ASCII-only. All three live invocations marked BLOCKED with their criteria UNMET,
+  and it states outright that no live result was fabricated or inferred. Carries the
+  R13.8 field schema unfilled so the operator has a form to complete, the R13.9
+  substitution analysis distinguishing what the substitutes demonstrate (routing
+  algebra on the COTS adapter) from what they do not (that COTS is reachable and
+  populated), the spec amendments, the deviations, and the follow-ups.
+
+### Fixed
+- **Pinned-line brittleness fully removed.** Step 11 replaced `lines[475]`/
+  `lines[893]` with content markers as instructed, but the instruction said "only
+  the two positional lookups change", so `lines[179]`/`lines[204]` for the correct
+  R3.3/R3.7 merge citations survived — re-arming on `opensearch_adapter.py` the
+  exact trap the repair existed to remove, and which had already cost step 10 a
+  byte-for-byte line-preservation constraint plus an avoided `import math`. Both now
+  resolve by content.
+- **A property that could never assert.**
+  `test_p7_shared_sources_reach_every_tenant` used `pytest.skip()` inside `@given`,
+  which aborts the whole test on the first non-matching example — so a tenant-scoped
+  draw ended the run having asserted nothing and reported SKIPPED. Now `assume()`.
+  No coverage was lost while broken (the main P7 test already covered shared sources
+  under every tenant), but a permanently-skipped property reads as a gap to anyone
+  auditing later.
+
+### Notes
+- **Marker ambiguity caught by the one-match helper, worth recording.** The obvious
+  anchor "shared content precedes branch-local content" appears twice in
+  `opensearch_adapter.py` — in the step-4 bullet wrapping onto the citation line, and
+  in the score-bucketing comment step 8 added. The helper rejected it rather than
+  silently taking the first hit. Anchored on `"R3.3, R3.7"` instead, unique to the
+  line the original index pinned.
+- **Remaining work is operator-only:** the gated `update-agent-runtime` deploy
+  carrying the full payload (`requireMMDSV2`, `requireServiceS3Endpoint`) on a new
+  ECR tag so the prior image stays a rollback target, then filling the three live
+  rows from a post-deploy session.
+- **Config-level mitigation needs no code change or redeploy:** setting
+  `MCP_COLLECTION_SCOPE_JSON` to a document classifying all five collections as
+  `tenant` with an empty `hybrid_domains` reproduces pre-change routing exactly.
+
 ## [Unreleased] - shared-scope-query-routing: reporting convergence (step 10) (Aug 19, 2026)
 
 ### Summary
