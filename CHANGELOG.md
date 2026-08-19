@@ -1,5 +1,57 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: Collection_Condition probe (step 7) (Aug 19, 2026)
+
+### Summary
+Task 7.1 + 7.2. Additive — `query()` routing is deliberately untouched, so no
+read addresses a different collection than before and every non-default tenant is
+still blind to shared content. Task 7.3 (step 8) performs the substitution.
+Staged for human review (no push, git policy 08).
+
+### Added
+- **`collection_condition()` on both adapters (Task 7.2).** Three-way
+  classification taking the free answers first: `UNPROVISIONED` from the
+  `CollectionNotProvisionedError` Task 4 normalized, `PROVISIONED_POPULATED`
+  implied whenever a member returned a hit. Only the zero-hits-and-no-raise case
+  is probed — the sole state where empty and populated are indistinguishable from
+  the read — backed by the existing non-raising `count_documents`.
+  `UNPROVISIONED` is never cached at any TTL: a collection can be provisioned at
+  any moment, and a stale absence would make a freshly populated tenant look
+  permanently empty. Positive conditions cache 300 s via
+  `MCP_COLLECTION_CONDITION_TTL_S`. Kill switch
+  `MCP_COLLECTION_CONDITION_PROBE=0`. Never raises, never mutates (R12.5).
+- 32 tests in `tests/unit/test_collection_condition.py` plus 5 extending the mock
+  tests, swept over both backends via the existing `adapters()` fixture. Suite
+  1719 passing.
+- `prompts/.../step8-task07_3-07_8-atomic-routing.md` — Task 7.3-7.8 at
+  opus/xhigh, registered in `run-step.sh`.
+
+### Changed
+- **`VectorDBProtocol.query` declares `tenant: Any = None` (Task 7.1)**,
+  documenting a latent drift rather than creating a parameter: both adapters
+  already accepted it and every tool already passed `_tenant()`.
+  `physical_collection` added to `VECTOR_RESULT_KEYS`; `collection_condition`
+  declared as a protocol member. `multi_collection_query`, `sample_metadata`,
+  `count_documents`, and `health_check` unchanged.
+- `physical_collection` is a **new** key. `collection` is deliberately not
+  repurposed — `semantic_search.py:528` renders it, so re-pointing it would move
+  default-tenant bytes and violate R6.2.
+
+### Notes
+- **The default-tenant probe cost is accepted, not hidden.** R6.8 requires the
+  condition logged even for `gw`, so the probe fires there on zero-hit reads.
+  Response bytes are unchanged (a log line is not rendered output) and backend
+  calls rise by at most one O(1) metadata count per collection per TTL window. No
+  `gw` special case was added to dodge it, because that would make the two tenant
+  paths diverge exactly where step 8 must reason about both.
+- E501 count across the five modified files went **31 -> 30**. No line authored by
+  the step exceeds 79 characters; the remaining findings are pre-existing in the
+  adapters.
+- **Sequencing gap, by design:** widening `VECTOR_RESULT_KEYS` makes the
+  protocol's "guaranteed to contain" wording aspirational until 7.3 stamps
+  `physical_collection` onto real hits. 7.1 declares the shape, 7.3 populates it.
+  Nothing fails today, so the gap is invisible until step 8.
+
 ## [Unreleased] - shared-scope-query-routing: Read_Router (step 6) (Aug 19, 2026)
 
 ### Summary
