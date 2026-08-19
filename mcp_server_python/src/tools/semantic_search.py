@@ -875,8 +875,8 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     tenant = _tenant()
     prefix = tenant.index_prefix if tenant else ""
     others = _other_index_prefixes(tenant)
-    indices, detail, total_docs = _filter_indices_by_tenant(
-        health, prefix=prefix, others=others
+    indices, detail, total_docs = _default_scope_indices(
+        health, others=others
     )
     # Healthy when the store is up AND either it has documents OR the tenant
     # simply owns no applicable collections yet (a fresh tenant is healthy, not
@@ -893,7 +893,14 @@ async def _render_vector_status_block(vector_db: Any) -> list[str]:
     # Show the active scoping only for non-default tenants — the default
     # gw block stays byte-equivalent to the pre-fix output (Property 3).
     if prefix:
-        lines.append(f"- **Tenant prefix:** {prefix}")
+        # Non-default tenant: the Read_Router owns the collection set
+        # (shared-scope-query-routing Task 10.1). Names come from
+        # tenant_collection_set(...); health_check is used only as a count
+        # source for those names, never as the name source. That inversion
+        # is what structurally keeps a bookkeeping index like
+        # mdc-content-sha-registry out of a prefixed tenant's listing --
+        # the name-shape result computed above is discarded here.
+        return _render_scoped_vector_status(lines, health, tenant)
     lines.append(f"- **Collections:** {len(indices)}")
 
     if isinstance(detail, dict) and detail:
@@ -937,29 +944,31 @@ def _other_index_prefixes(tenant: Any) -> tuple[str, ...]:
     )
 
 
-def _index_in_tenant_scope(
-    name: str, prefix: str, others: tuple[str, ...]
-) -> bool:
-    """True if index ``name`` belongs to the active tenant's scope.
-
-    * Non-default tenant (``prefix`` non-empty): ``name`` starts with it.
-    * Default tenant (``prefix`` empty): ``name`` starts with NO other
-      tenant's prefix (i.e. it is a base/unprefixed index).
-    """
-    if prefix:
-        return name.startswith(prefix)
-    return not any(name.startswith(p) for p in others)
-
-
-def _filter_indices_by_tenant(
-    health: dict[str, Any], *, prefix: str, others: tuple[str, ...]
+def _default_scope_indices(
+    health: dict[str, Any], *, others: tuple[str, ...]
 ) -> tuple[list[str], dict[str, int], int]:
-    """Filter a ``health_check(deep=True)`` payload to the active tenant.
+    """Default-tenant (empty-prefix) collection filter (byte-equivalent).
 
-    Returns ``(index_names, index_detail, total_documents)`` where the
-    total is recomputed from the filtered subset (R2.4), never the global
-    ``total_documents`` field.
+    Reproduces the pre-change empty-prefix behaviour of the removed
+    ``_filter_indices_by_tenant`` for the DEFAULT tenant only: keep every
+    collection the backend enumerates that does not carry another tenant's
+    Index_Prefix, and recompute the total from that filtered subset. This
+    deliberately preserves the pre-existing ``mdc-content-sha-registry``
+    over-count in the ``gw`` total (shared-scope-query-routing R6.3): the
+    default block must stay byte-equivalent, so scope-labelling and
+    re-totalling are applied only on the non-default path, which routes
+    through :func:`_render_scoped_vector_status`.
+
+    A name-shape prefix test survives ONLY here, on the default path where
+    it is correct (Property 3, Empty-prefix passthrough). Non-default
+    tenants never reach it -- their collection set comes from
+    :func:`src.data.read_router.tenant_collection_set`, whose label-aware
+    resolution can express "the unprefixed shared collection belongs to a
+    prefixed tenant too", which a name-shape test cannot.
     """
+    def _in_scope(name: str) -> bool:
+        return not any(name.startswith(p) for p in others)
+
     detail_raw = (
         health.get("indices_detail")
         or health.get("collections_detail")
@@ -967,32 +976,98 @@ def _filter_indices_by_tenant(
     )
     if isinstance(detail_raw, dict) and detail_raw:
         detail = {
-            n: int(c)
-            for n, c in detail_raw.items()
-            if _index_in_tenant_scope(n, prefix, others)
+            n: int(c) for n, c in detail_raw.items() if _in_scope(n)
         }
         return list(detail.keys()), detail, sum(detail.values())
 
     raw = health.get("indices") or health.get("collections") or []
     if isinstance(raw, dict):
-        detail = {
-            n: int(c)
-            for n, c in raw.items()
-            if _index_in_tenant_scope(n, prefix, others)
-        }
+        detail = {n: int(c) for n, c in raw.items() if _in_scope(n)}
         return list(detail.keys()), detail, sum(detail.values())
 
-    names = [
-        n
-        for n in raw
-        if isinstance(n, str) and _index_in_tenant_scope(n, prefix, others)
-    ]
+    names = [n for n in raw if isinstance(n, str) and _in_scope(n)]
     # No per-index counts available — fall back to the reported total
     # only when nothing was filtered out (so a scoped view never inflates).
     total = int(health.get("total_documents") or 0)
     if len(names) != len(raw):
         total = 0
     return names, {}, total
+
+
+def _health_count_map(health: dict[str, Any]) -> dict[str, int]:
+    """Return a ``physical_name -> document_count`` map from a health payload.
+
+    Used only as a *count source* for the names the Read_Router supplies
+    on the non-default status path (shared-scope-query-routing Task 10.1).
+    A name absent from this map is reported as ``unprovisioned``; a name
+    present with a count of zero is reported as ``0 documents`` -- the two
+    are rendered distinguishably (R9.5, R9.6).
+    """
+    detail_raw = (
+        health.get("indices_detail")
+        or health.get("collections_detail")
+        or {}
+    )
+    if isinstance(detail_raw, dict) and detail_raw:
+        return {n: int(c) for n, c in detail_raw.items()}
+    raw = health.get("indices") or health.get("collections") or []
+    if isinstance(raw, dict):
+        return {n: int(c) for n, c in raw.items()}
+    return {}
+
+
+def _render_scoped_vector_status(
+    lines: list[str], health: dict[str, Any], tenant: Any
+) -> list[str]:
+    """Append the non-default-tenant vector block (Task 10.1, R9.1-R9.8).
+
+    Names come from :func:`src.data.read_router.tenant_collection_set`, so
+    every listed collection is a member of the active Tenant's
+    Resolved_Collection_Sets and no collection carrying another Tenant's
+    Index_Prefix -- nor any bookkeeping index -- can appear (R9.4, R9.7).
+    Each listed collection is labelled with the single Collection_Scope the
+    Scope_Authority reports for the logical collection it resolved from,
+    both members a Hybrid_Domain contributes carrying that same value
+    (R9.2). The document total is the arithmetic sum over the listed
+    collections, an unprovisioned collection counting zero (R9.3), rather
+    than a backend aggregate that spans collections outside the set. One or
+    more absent collections render as ``unprovisioned`` and do not turn the
+    report into an error (R9.6, R9.8).
+    """
+    from src.data.read_router import tenant_collection_set
+
+    tcs = tenant_collection_set(tenant)
+    count_map = _health_count_map(health)
+
+    lines.append(f"- **Tenant prefix:** {tenant.index_prefix}")
+    lines.append(f"- **Collections:** {len(tcs.targets)}")
+
+    total_docs = 0
+    if tcs.targets:
+        lines.append("- **Collections Detail:**")
+        for target in tcs.targets:
+            if target.physical in count_map:
+                count = count_map[target.physical]
+                total_docs += count
+                lines.append(
+                    f"  - {target.physical} ({target.scope}): "
+                    f"{count} documents"
+                )
+            else:
+                lines.append(
+                    f"  - {target.physical} ({target.scope}): unprovisioned"
+                )
+
+    status_ok = (
+        health.get("status") == "healthy"
+        and (total_docs > 0 or len(tcs.targets) == 0)
+    )
+    lines.append(f"- **Total Documents:** {total_docs}")
+    lines.append(
+        f"- **Status:** {'[OK] Healthy' if status_ok else '[ERROR] Unhealthy'}"
+    )
+    lines.append("")
+    return lines
 
 
 async def _whole_graph_node_count(graph_db: Any) -> int | None:
@@ -1860,7 +1935,17 @@ async def _tool_check_knowledge_integrity(
     if data is None:
         return _error_text(_DEGRADED_DATA_MSG)
 
-    sample_size = max(1, int(sample_size))
+    # R10.8: clamp sample_size to [1, 1000]. The value is stated in the
+    # report only when it was out of range (below), so the default-tenant
+    # report stays byte-equivalent for an in-range sample_size (R6.3).
+    requested_sample_size = int(sample_size)
+    sample_size = min(1000, max(1, requested_sample_size))
+    clamped = sample_size != requested_sample_size
+
+    tenant = _tenant()
+    prefix = (
+        getattr(tenant, "index_prefix", "") if tenant is not None else ""
+    )
     checks: list[_Check] = []
 
     checks.append(
@@ -1873,6 +1958,21 @@ async def _tool_check_knowledge_integrity(
         )
     )
     checks.extend(await _check_coverage_gap(data, repo_base=repo_base))
+
+    # R10.3 / R10.8: for a non-default tenant, name each union member with
+    # the number of records sampled from it, and state the clamped
+    # sample_size when it was out of range. Gated on a non-empty prefix so
+    # the default gw report stays byte-equivalent (R6.3).
+    if prefix and getattr(data, "vector_db", None) is not None:
+        checks.append(
+            await _check_sampled_collections(
+                data,
+                tenant=tenant,
+                sample_size=sample_size,
+                clamped=clamped,
+                requested=requested_sample_size,
+            )
+        )
 
     all_passed = all(c.passed for c in checks)
     lines = [
@@ -1896,7 +1996,7 @@ async def _check_path_consistency(
     data: Any, *, sample_size: int
 ) -> _Check:
     """Sample vector metadata and count file paths with a bad prefix."""
-    sampler = _build_vector_sampler(data.vector_db)
+    sampler = _build_vector_sampler(data.vector_db, _tenant())
     if sampler is None:
         return _Check(
             "Path Consistency",
@@ -1928,6 +2028,49 @@ async def _check_path_consistency(
         "Path Consistency",
         False,
         f"[WARN] {bad}/{total} randomly sampled docs have checkout-specific prefix",
+    )
+
+
+async def _check_sampled_collections(
+    data: Any,
+    *,
+    tenant: Any,
+    sample_size: int,
+    clamped: bool,
+    requested: int,
+) -> _Check:
+    """Name each union member with the number of records sampled from it.
+
+    shared-scope-query-routing R10.3 (and R10.8's clamp statement). Only
+    invoked for a non-default tenant, so the default gw report stays
+    byte-equivalent (R6.3). Informational: always ``passed=True``. The
+    detail cell is ASCII and pipe-free so it renders cleanly in the report
+    table.
+    """
+    from src.data.read_router import tenant_collection_set
+
+    members = list(tenant_collection_set(tenant).physical_names)
+    counts: dict[str, int] = {}
+    vector_db = getattr(data, "vector_db", None)
+    if vector_db is not None and hasattr(vector_db, "sample_metadata"):
+        await _allocate_scoped_sample(
+            vector_db, members, sample_size, counts_out=counts
+        )
+    else:
+        for name in members:
+            counts[name] = 0
+
+    per_member = ", ".join(f"{name}={counts.get(name, 0)}" for name in members)
+    clamp_note = ""
+    if clamped:
+        clamp_note = (
+            f"sample_size clamped to {sample_size} "
+            f"(requested {requested}); "
+        )
+    return _Check(
+        "Sampled Collections",
+        True,
+        f"[OK] {clamp_note}sampled per collection: {per_member}",
     )
 
 
@@ -1973,7 +2116,7 @@ async def _check_orphaned_graph_nodes(data: Any) -> _Check:
 async def _check_stale_embeddings(
     data: Any, *, sample_size: int, repo_base: Path
 ) -> _Check:
-    sampler = _build_vector_sampler(data.vector_db)
+    sampler = _build_vector_sampler(data.vector_db, _tenant())
     if sampler is None:
         return _Check(
             "Stale Embeddings",
@@ -2201,17 +2344,115 @@ def _count_source_files(dirs: list[Path], globs: tuple[str, ...]) -> int:
     return count
 
 
-def _build_vector_sampler(vector_db: Any):
+def _meta_key(meta: dict[str, Any]) -> str:
+    """Return a stable de-duplication key for one metadata record.
+
+    A JSON dump with sorted keys canonicalises the dict so two
+    byte-identical records (the shape a stubbed adapter returns for every
+    collection) collapse to one. Any non-serialisable value falls back to
+    ``repr``.
+    """
+    try:
+        return json.dumps(meta, sort_keys=True, default=str)
+    except Exception:  # pragma: no cover - defensive
+        return repr(meta)
+
+
+async def _allocate_scoped_sample(
+    vector_db: Any,
+    members: list[str],
+    sample_size: int,
+    counts_out: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
+    """Draw at most ``sample_size`` metadata records from ``members`` only.
+
+    shared-scope-query-routing Task 11.1 (R10.1, R10.2, R10.6, R10.7). Each
+    member is named explicitly to ``sample_metadata``; no foreign-prefixed
+    or non-member collection is touched. A single member's contribution is
+    capped at ``ceil(sample_size / member_count)`` for as long as another
+    member still holds unsampled records, allocated round-robin in the
+    fixed ``members`` order so repeated invocations are identical. An absent
+    or empty member contributes zero and the allocation still completes over
+    the remaining members. Records are de-duplicated by
+    :func:`_meta_key`, which also makes the allocation byte-equivalent when
+    a stubbed adapter returns the same list for every member.
+
+    When ``counts_out`` is supplied it is populated with the per-member
+    record count (R10.3).
+    """
+    if counts_out is None:
+        counts_out = {}
+    members = list(members)
+    for name in members:
+        counts_out[name] = 0
+    if not members or sample_size <= 0:
+        return []
+
+    fetched: dict[str, list[dict[str, Any]]] = {}
+    for name in members:
+        try:
+            recs = await vector_db.sample_metadata(
+                collection=name, n=sample_size
+            )
+        except Exception:
+            recs = []
+        fetched[name] = list(recs or [])
+
+    cap = -(-sample_size // len(members))  # ceil division, no math import
+    collected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    ptr = {name: 0 for name in members}
+    progress = True
+    while len(collected) < sample_size and progress:
+        progress = False
+        for name in members:
+            if len(collected) >= sample_size:
+                break
+            others_have = any(
+                ptr[o] < len(fetched[o]) for o in members if o != name
+            )
+            if counts_out[name] >= cap and others_have:
+                continue
+            while ptr[name] < len(fetched[name]):
+                meta = fetched[name][ptr[name]]
+                ptr[name] += 1
+                key = _meta_key(meta)
+                if key in seen:
+                    continue
+                seen.add(key)
+                collected.append(meta)
+                counts_out[name] += 1
+                progress = True
+                break
+    return collected
+
+
+def _build_vector_sampler(vector_db: Any, tenant: Any = None):
     """Return an async callable ``(n) -> list[metadata]`` or ``None``.
+
+    shared-scope-query-routing Task 11.1 scopes integrity sampling to the
+    active tenant's Read_Router union, replacing the pre-change
+    ``sample_metadata(collection=None)`` call that sampled an unscoped
+    mixture of every tenant's data.
 
     Adapter compatibility:
 
-    * Adapters/mocks with a ``sample_metadata`` method (ChromaDB adapter →
-      ``sample_metadata(collection=None, n=...)``; test doubles →
-      ``sample_metadata(n=...)``) → used directly (called with keyword ``n``
-      so both signatures work).
-    * Production ``OpenSearchAdapter`` → falls back to a scroll-based
-      sampler when possible.
+    * Adapters/mocks with a ``sample_metadata`` method:
+      - **Default tenant** (empty ``index_prefix``): a single global
+        ``sample_metadata(n=...)`` call. This is byte-equivalent to the
+        pre-change behaviour (R6.3) and stays compatible with the minimal
+        ``sample_metadata(n)`` doubles direct-call tests use. The
+        default-tenant preservation invariant takes precedence over R10's
+        union-sampling here, per the standing default-preservation rule.
+      - **Non-default tenant**: an allocator that iterates the members of
+        :func:`src.data.read_router.tenant_collection_set` and names each
+        collection explicitly, drawing at most ``n`` records only from the
+        union (R10.1, R10.2), capping any single member's contribution at
+        ``ceil(n / member_count)`` while another member still holds
+        unsampled records (R10.6), in a member order identical across
+        repeated invocations.
+    * Production ``OpenSearchAdapter`` without ``sample_metadata`` → falls
+      back to a scroll-based sampler when possible.
 
     Returning ``None`` means the tool should skip the check.
     """
@@ -2219,9 +2460,21 @@ def _build_vector_sampler(vector_db: Any):
         return None
 
     if hasattr(vector_db, "sample_metadata"):
-        async def _adapter_sampler(n: int) -> list[dict[str, Any]]:
-            return list(await vector_db.sample_metadata(n=n))
-        return _adapter_sampler
+        prefix = (
+            getattr(tenant, "index_prefix", "") if tenant is not None else ""
+        )
+        if not prefix:
+            async def _adapter_sampler(n: int) -> list[dict[str, Any]]:
+                return list(await vector_db.sample_metadata(n=n))
+            return _adapter_sampler
+
+        from src.data.read_router import tenant_collection_set
+
+        members = list(tenant_collection_set(tenant).physical_names)
+
+        async def _scoped_sampler(n: int) -> list[dict[str, Any]]:
+            return await _allocate_scoped_sample(vector_db, members, n)
+        return _scoped_sampler
 
     raw_client = getattr(vector_db, "_raw_client", None)
     if not callable(raw_client):

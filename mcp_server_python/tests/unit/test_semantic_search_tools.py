@@ -690,8 +690,9 @@ async def test_check_knowledge_integrity_uses_custom_sample_size(
 
 
 class _FakeStatusTenant:
-    def __init__(self, index_prefix: str) -> None:
+    def __init__(self, index_prefix: str, tenant_id: str = "t") -> None:
         self.index_prefix = index_prefix
+        self.tenant_id = tenant_id
 
 
 def _mixed_health() -> dict[str, Any]:
@@ -728,46 +729,65 @@ def _collection_rows(lines: list[str]) -> list[str]:
     return out
 
 
-# ── _filter_indices_by_tenant / _index_in_tenant_scope (unit) ──────────
+# ── _default_scope_indices + router-scoped listing (unit) ─────────────
+# shared-scope-query-routing Task 10.2 removed _filter_indices_by_tenant
+# and _index_in_tenant_scope: a name-shape prefix test cannot distinguish a
+# shared collection from another tenant's, so it cannot express "the
+# unprefixed shared collection belongs to gw_v17 too". The default path
+# keeps a name-shape filter (correct there, byte-equivalent); the
+# non-default path routes through tenant_collection_set instead.
 
 
-def test_filter_indices_nondefault_keeps_only_prefixed() -> None:
-    names, detail, total = semantic_search._filter_indices_by_tenant(
-        _mixed_health(), prefix="gw_v17_", others=()
-    )
-    assert set(names) == {
-        "gw_v17_mdc-code-titan1024",
-        "gw_v17_mdc-workflow-docs-titan1024",
-    }
-    assert total == 33
-    assert detail["gw_v17_mdc-code-titan1024"] == 11
-
-
-def test_filter_indices_default_excludes_other_prefixes() -> None:
-    names, detail, total = semantic_search._filter_indices_by_tenant(
-        _mixed_health(), prefix="", others=("gw_v17_",)
+def test_default_scope_indices_excludes_other_prefixes() -> None:
+    names, detail, total = semantic_search._default_scope_indices(
+        _mixed_health(), others=("gw_v17_",)
     )
     assert set(names) == {
         "mdc-code-context-titan1024",
         "mdc-workflow-docs-titan1024",
     }
     assert total == 300
+    assert "gw_v17_mdc-code-titan1024" not in names
 
 
-def test_index_in_tenant_scope_rules() -> None:
-    assert semantic_search._index_in_tenant_scope(
-        "gw_v17_mdc-code-titan1024", "gw_v17_", ()
+def test_default_scope_indices_preserves_bookkeeping_overcount() -> None:
+    """R6.3: the default gw total keeps the pre-existing bookkeeping-index
+    over-count. A name-shape default filter does not exclude it, and the
+    default block must stay byte-equivalent -- a follow-up spec converges
+    the two paths."""
+    health = {
+        "status": "healthy",
+        "indices_detail": {
+            "mdc-code-context-titan1024": 100,
+            "mdc-content-sha-registry": 5,
+        },
+    }
+    names, _detail, total = semantic_search._default_scope_indices(
+        health, others=("gw_v17_",)
     )
-    assert not semantic_search._index_in_tenant_scope(
-        "mdc-code-context-titan1024", "gw_v17_", ()
+    assert "mdc-content-sha-registry" in names
+    assert total == 105
+
+
+def test_tenant_collection_set_nondefault_excludes_foreign_prefix() -> None:
+    """Re-expressed intent of the removed non-default name-shape filter: a
+    prefixed tenant's router-derived collection set carries only its own
+    prefix or the unprefixed shared collections, never another tenant's,
+    and reaches BOTH its own prefixed content and the shared corpora."""
+    from src.config.tenants import Tenant
+    from src.data.read_router import tenant_collection_set
+
+    tenant = Tenant(
+        tenant_id="gw_v17", repo_ref="R", branch="b",
+        index_prefix="gw_v17_", label_prefix="GW_V17_",
+        workflow_subdir="dev-v17", lifecycle="staging",
     )
-    # default tenant excludes other-prefixed indices
-    assert semantic_search._index_in_tenant_scope(
-        "mdc-code-context-titan1024", "", ("gw_v17_",)
-    )
-    assert not semantic_search._index_in_tenant_scope(
-        "gw_v17_mdc-code-titan1024", "", ("gw_v17_",)
-    )
+    tcs = tenant_collection_set(tenant, profile="titan1024")
+    for name in tcs.physical_names:
+        # own prefix, or an unprefixed shared collection (never gw_sfs_ etc.)
+        assert name.startswith("gw_v17_") or not name.startswith("gw_")
+    assert any(n.startswith("gw_v17_") for n in tcs.physical_names)
+    assert any(not n.startswith("gw_v17_") for n in tcs.physical_names)
 
 
 # ── _render_vector_status_block scoping ────────────────────────────────
@@ -794,72 +814,89 @@ async def test_vector_status_block_gw_lists_only_base_indices(
     assert "- **Total Documents:** 300" in lines
 
 
-async def test_vector_status_block_v17_lists_only_prefixed_indices(
+async def test_vector_status_block_v17_lists_router_resolved_collections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        semantic_search, "_tenant", lambda: _FakeStatusTenant("gw_v17_")
+    """Non-default tenant: the block lists exactly the Read_Router's
+    resolved collection set, scope-labelled, with counts from health and an
+    absent member marked ``unprovisioned`` (Task 10.1, R9.1-R9.6)."""
+    from src.config.tenants import Tenant
+    from src.data.read_router import tenant_collection_set
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    tenant = Tenant(
+        tenant_id="gw_v17", repo_ref="R", branch="b",
+        index_prefix="gw_v17_", label_prefix="GW_V17_",
+        workflow_subdir="dev-v17", lifecycle="staging",
     )
-    monkeypatch.setattr(
-        semantic_search, "_other_index_prefixes", lambda t: ()
-    )
+    monkeypatch.setattr(semantic_search, "_tenant", lambda: tenant)
+
+    tcs = tenant_collection_set(tenant, profile="titan1024")
+    members = list(tcs.physical_names)
+    # Provision every member but the last, so both the count-rendering and
+    # the unprovisioned-rendering paths are exercised.
+    detail = {name: (i + 1) * 10 for i, name in enumerate(members[:-1])}
+    health = {
+        "status": "healthy",
+        "indices": list(detail.keys()),
+        "indices_detail": detail,
+        "total_documents": sum(detail.values()),
+    }
     lines = await semantic_search._render_vector_status_block(
-        _FakeStatusVectorDB(_mixed_health())
+        _FakeStatusVectorDB(health)
+    )
+    text = "\n".join(lines)
+
+    # Tenant-prefix header present for a non-default tenant.
+    assert any(ln == "- **Tenant prefix:** gw_v17_" for ln in lines)
+    # Six members for five logical collections (hybrid contributes two).
+    assert "- **Collections:** 6" in text
+    # Every router member is listed and scope-labelled.
+    for target in tcs.targets:
+        assert f"{target.physical} ({target.scope})" in text
+    # The last member is unprovisioned and rendered distinctly from empty.
+    assert (
+        f"{members[-1]} ({tcs.targets[-1].scope}): unprovisioned" in text
+    )
+    # Total is the arithmetic sum over provisioned members only (R9.3).
+    assert f"- **Total Documents:** {sum(detail.values())}" in text
+    # No bookkeeping / foreign-prefixed index can leak into the listing.
+    assert "mdc-content-sha-registry" not in text
+
+
+async def test_vector_status_block_v17_reaches_shared_and_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fix (Task 10.1): a prefixed tenant's status lists BOTH its own
+    prefixed collections AND the unprefixed shared collections, so shared
+    content stops reading as invisible to a non-default tenant."""
+    from src.config.tenants import Tenant
+    from src.data.read_router import tenant_collection_set
+
+    monkeypatch.setenv("MCP_EMBEDDING_PROFILE", "titan1024")
+    tenant = Tenant(
+        tenant_id="gw_v17", repo_ref="R", branch="b",
+        index_prefix="gw_v17_", label_prefix="GW_V17_",
+        workflow_subdir="dev-v17", lifecycle="staging",
+    )
+    monkeypatch.setattr(semantic_search, "_tenant", lambda: tenant)
+
+    tcs = tenant_collection_set(tenant, profile="titan1024")
+    detail = {name: 7 for name in tcs.physical_names}
+    health = {
+        "status": "healthy",
+        "indices": list(detail.keys()),
+        "indices_detail": detail,
+        "total_documents": sum(detail.values()),
+    }
+    lines = await semantic_search._render_vector_status_block(
+        _FakeStatusVectorDB(health)
     )
     rows = _collection_rows(lines)
-    assert set(rows) == {
-        "gw_v17_mdc-code-titan1024",
-        "gw_v17_mdc-workflow-docs-titan1024",
-    }
-    assert any("- **Tenant prefix:** gw_v17_" == ln for ln in lines)
-    assert "- **Total Documents:** 33" in lines
-
-
-async def test_bug2_exploration_status_block_tenant_scoping(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Bug-condition exploration (Bug 2).
-
-    On the UNFIXED code ``_render_vector_status_block`` ignores the active
-    tenant and renders the same full index set regardless of tenant, so
-    the gw and gw_v17 collection lists are identical. On the FIXED code
-    the lists are prefix-scoped and therefore disjoint.
-
-    This test asserts the lists differ (and are correctly scoped), which
-    fails on the unfixed code and passes on the fixed code. Both
-    directions were demonstrated before commit (see CHANGELOG [8.36.2]).
-    """
-    health = _mixed_health()
-
-    monkeypatch.setattr(semantic_search, "_tenant", lambda: _FakeStatusTenant(""))
-    monkeypatch.setattr(
-        semantic_search, "_other_index_prefixes", lambda t: ("gw_v17_",)
-    )
-    gw_rows = set(
-        _collection_rows(
-            await semantic_search._render_vector_status_block(
-                _FakeStatusVectorDB(health)
-            )
-        )
-    )
-
-    monkeypatch.setattr(
-        semantic_search, "_tenant", lambda: _FakeStatusTenant("gw_v17_")
-    )
-    monkeypatch.setattr(
-        semantic_search, "_other_index_prefixes", lambda t: ()
-    )
-    v17_rows = set(
-        _collection_rows(
-            await semantic_search._render_vector_status_block(
-                _FakeStatusVectorDB(health)
-            )
-        )
-    )
-
-    assert gw_rows != v17_rows
-    assert gw_rows.isdisjoint(v17_rows)
-    assert all(r.startswith("gw_v17_") for r in v17_rows)
+    # Own prefixed collections are present ...
+    assert any(r.startswith("gw_v17_") for r in rows)
+    # ... and so are the unprefixed shared corpora (the blind spot closed).
+    assert any(not r.startswith("gw_v17_") for r in rows)
 
 
 # ── graceful-missing-index-handling: search_documentation ──────────────
