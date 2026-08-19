@@ -1,5 +1,88 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: Read_Router (step 6) (Aug 19, 2026)
+
+### Summary
+Task 2 of `.kiro/specs/shared-scope-query-routing/` — the resolver that maps
+(Logical_Collection, Tenant, Embedding_Profile) to physical collection names.
+**Nothing calls it yet**; Task 7.3 wires the adapters in, so query behaviour is
+still unchanged and non-default tenants are still blind to shared collections.
+Staged for human review (no push, git policy 08).
+
+### Added
+- **`src/data/read_router.py` — the Read_Router (Task 2).**
+  `resolve_read_targets(collection, tenant=None, *, profile=None)` and
+  `tenant_collection_set(...)`, plus `ResolvedTarget`,
+  `ResolvedCollectionSet`, `TenantCollectionSet`, `CollectionCondition`
+  (`StrEnum`), and `RoutingDiagnostic`. Resolves the physical name via
+  `resolve_index` **first** and prefixes its result, never the logical
+  identifier — the ordering `opensearch-tenant-resolution-fix` established.
+  `targets` is an ordered tuple because R3.1 needs the unprefixed member first
+  and R3.7's tie-break reads position. Takes `Tenant` explicitly and never reads
+  the tenancy ContextVar, which is what makes P9 purity and the Hypothesis suite
+  possible. Handles the R1.5 tenant-fallback, R2.8 unmapped-profile, and R7.5
+  routing-misconfiguration paths, each with one log-channel diagnostic.
+  `RoutingDiagnostic.render()` enforces R7.6 itself: ASCII encode check,
+  1000-char cap with truncation marker, and a field whitelist that structurally
+  cannot carry query text or document content.
+- 45 tests across `tests/unit/test_read_router.py`,
+  `tests/properties/test_scope_routing.py` (P1 at 200 examples, P2, P3, P5, P6,
+  P9), and `tests/properties/test_scope_fixture_meta.py`. Suite 1682 passing.
+- `prompts/.../step7-task07_1_7_2-condition-probe.md` — Task 7.1+7.2, registered
+  in `run-step.sh`.
+
+### Fixed
+- **Read/write profile-default disagreement, found in review of step 6.** The
+  router initially pinned `_DEFAULT_PROFILE = "titan1024"`, reasoning that
+  because the router is backend-blind (P3) it cannot consult `DB_BACKEND` for a
+  per-backend default, so one deterministic literal was the only option. The
+  premise is right and the conclusion is wrong: `titan1024` is not a neutral
+  literal, it is `resolve_index`'s default precisely because that function is an
+  *OpenSearch* name translator. Adopting it made the router silently AWS-biased.
+  Measured with `MCP_EMBEDDING_PROFILE` unset, the write side resolved `mpnet768`
+  while the read side resolved `titan1024`, so a COTS read addressed
+  `mdc-code-context-titan1024` for content written to
+  `mdc-code-context-mpnet768` — Property 7 (write-read round trip) failing on the
+  no-env path.
+
+  `_resolve_profile` now delegates to
+  `collection_namer.active_embedding_profile()`, which already owns the identical
+  `explicit -> MCP_EMBEDDING_PROFILE -> default` chain the router had duplicated,
+  and `_DEFAULT_PROFILE` defers to `DEFAULT_EMBEDDING_PROFILE`. One precedence
+  rule shared by read and write, so they cannot drift. `collection_namer` imports
+  only `os` and `typing`, so P9 purity is unaffected, and it is a read of
+  `src/data/`, so R12.2 holds.
+
+  P2 was never the constraint that forced `titan1024`: it is stated over an
+  explicit profile `p`, and the router always passes its resolved profile to
+  `resolve_index` explicitly. The test that encoded the bad reasoning
+  (`test_profile_default_matches_resolve_index_default`, asserting
+  `rcs.profile == "titan1024"` against `resolve_index(c)` with no profile) is now
+  `test_profile_default_matches_write_side_default`, comparing against
+  `resolve_index(c, rcs.profile)`, plus a second test generalising the round-trip
+  guard across all five domains.
+
+  Latent rather than live: both deployed form factors set the variable
+  (`scripts/run_mcp_stdio.sh` exports `mpnet768` on COTS, the AgentCore runtime
+  carries `titan1024`), so this governed only embedded and test callers — which
+  is exactly where a silent cross-backend mismatch goes unnoticed. Task 12.2's
+  P7 would have caught it; P7 is not landed yet.
+
+### Notes
+- Verified resolution shapes, `MCP_EMBEDDING_PROFILE=titan1024`, tenant `gw_v17`:
+  hybrid docs -> `('mdc-workflow-docs-titan1024',
+  'gw_v17_mdc-workflow-docs-titan1024')` (two members, unprefixed first);
+  shared EE2 -> `('mdc-ee2-standards-titan1024',)`; tenant code ->
+  `('gw_v17_mdc-code-context-titan1024',)`. The prefix-order bug shape
+  (`gw_v17_code-with-context-v8-0-0`) does not occur.
+- **P1's literal phrasing is degenerate for the Default_Tenant** and the step
+  reported it rather than papering over it. "A member carries `T.index_prefix`
+  iff scope is tenant" cannot hold for an empty prefix, since every string
+  vacuously carries one. Implemented as
+  `prefixed = (scope == "tenant" and bool(index_prefix))`, with P2 governing the
+  collapse case. requirements.md should be amended to match; not done here to
+  keep this commit to code.
+
 ## [Unreleased] - shared-scope-query-routing: cross-backend normalization + write-path freeze (steps 4-5) (Aug 19, 2026)
 
 ### Summary
