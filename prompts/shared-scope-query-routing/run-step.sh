@@ -30,13 +30,14 @@ step_spec() {
     6) echo "step6-task02-read-router.md|claude-opus-4.8|xhigh" ;;
     7) echo "step7-task07_1_7_2-condition-probe.md|claude-sonnet-5|high" ;;
     8) echo "step8-task07_3-07_8-atomic-routing.md|claude-opus-4.8|xhigh" ;;
+    9) echo "step9-task08-readpath-corrections.md|claude-sonnet-5|high" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "step 0  Task 2.4  property generators + adapters fixture   [DONE]"
-  for n in 1 2 3 4 5 6 7 8; do
+  for n in 1 2 3 4 5 6 7 8 9; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf 'step %s  %-46s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
@@ -56,12 +57,16 @@ if [ "${1:-}" = "--list" ]; then
   echo "Step 8 is the step where the bug stops existing, and the only one"
   echo "that cannot be partially landed or retried against a fresh"
   echo "baseline. Opus/xhigh. Review its diff before anything else runs."
+  echo
+  echo "Step 9 (Task 8) closes what the substitution left behind: GGSR"
+  echo "forwarding tenant= (without it, enriched reads bypass tenancy"
+  echo "entirely) and three mis-cited preservation invariants."
   exit 0
 fi
 
 N="${1:-}"
 DRY="${2:-}"
-spec="$(step_spec "${N}")" || { echo "usage: $0 {1..8|--list} [--dry]"; exit 2; }
+spec="$(step_spec "${N}")" || { echo "usage: $0 {1..9|--list} [--dry]"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1

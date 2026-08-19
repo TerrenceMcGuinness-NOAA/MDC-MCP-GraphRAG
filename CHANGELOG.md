@@ -1,5 +1,73 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: THE FIX — shared scope reachable (step 8) (Aug 19, 2026)
+
+### Summary
+Task 7.3-7.8, atomic. **This is where the Phase 79 bug stops existing.** Both
+Vector_Adapters now route `query()` through `resolve_read_targets`, so the
+Read_Router is the only component applying an `index_prefix` on the read path.
+Shared collections are reachable under prefixed tenants, the Hybrid_Domain fans
+out to both members and merges, `gw` output is byte-equivalent, and the
+`branch_isolation` probe asserts shared-visibility-is-correct instead of forbidding
+it. Staged for human review (no push, git policy 08).
+
+### Fixed
+- **Non-default tenants can reach shared knowledge (Task 7.3).** Previously both
+  adapters prefixed every collection unconditionally, so a `gw_v17` read of shared
+  documentation addressed `gw_v17_mdc-workflow-docs-titan1024`, which does not
+  exist; `multi_collection_query` swallowed the 404 and the tool returned zero
+  results with no indication why. `gw_v17`, `gw_sfs`, `gw_jedi_gfs`, and
+  `gw_gefs_v12` were blind to ~22.5K shared docs, 34 EE2 standards, and 2,113
+  community summaries. All four now resolve shared collections unprefixed.
+- **The Isolation_Probe asserted the opposite of the invariant (Task 7.6).**
+  Assertion 4 classified leakage with a `"/develop/"` `metadata.source` substring
+  match — forbidden by R8.4 — and treated develop-sourced content under `gw_v17`
+  as a violation, which is precisely the behaviour this spec establishes as
+  correct. Origin now derives from the attached `physical_collection`. Adds R8.2,
+  R8.3, R8.6. The two graph-side assertions are byte-identical, pinned by a test.
+
+### Added
+- Inner fan-out and merge per the design's seven steps: concurrent reads with
+  identical arguments asking each member for `k` (not `k/n`); triage where absence
+  contributes zero hits and only a fully absent set raises once;
+  `physical_collection` provenance per hit; ordering by
+  `(-score, member_index, str(id))`; SHA-256 dedup over whitespace-normalized
+  content keeping the shared copy; cap at `k`; one diagnostic plus per-member
+  condition records.
+- R7.7 zero-hit annotation via a shared `_zero_hit_scope_note` helper across the
+  four tool modules, gated on a non-empty `index_prefix`.
+- P10 in `tests/properties/test_scope_merge.py`, plus call-site contract and
+  zero-hit-note suites and a rewritten probe suite. Suite 1743 passing.
+- `prompts/.../step9-task08-readpath-corrections.md` — Task 8, registered in
+  `run-step.sh`.
+
+### Notes
+- **Single-member sets take a pure identity path** — stamp provenance, no re-sort,
+  no dedup — because R3.3-R3.8 are scoped to multi-member sets. That is what keeps
+  `gw` byte-equivalent, and it holds by construction rather than via an
+  `if tenant is default` branch.
+- **Cross-member scores are deliberately left incomparable.** BM25 depends on
+  index-local corpus statistics and the `[0,1]` clamp flattens everything above
+  1.0. Normalization or RRF would be the principled fix, but either would have to
+  apply to the outer cross-collection merge to be coherent, which moves `gw`
+  ordering and violates R6.2. Resulting semantics, documented in code:
+  score-bucketed order with shared content preceding branch-local within a bucket.
+  Follow-up spec: `hybrid-domain-score-fusion`.
+- **7.8 held.** `test_default_tenant_byte_equivalence.py` passes 28/28 and no
+  baseline or mask was touched. The one-shot Task 6 capture was not spent
+  defensively.
+- **`resolve_tenant_index` is now orphaned** on both adapters — called from nowhere
+  in `src/`. `_render_vector_status_block` was expected to call it but derives its
+  own prefix independently, which is the query-path/status-path divergence Tasks 10
+  and 11 close. Both definitions should be deleted once the status path routes
+  through `tenant_collection_set`; left in place deliberately, as two dead public
+  methods a future caller could reach for.
+- Two adjacent test files were updated rather than left as attributable
+  regressions: the probe stub fed two vector responses where the realigned probe
+  makes three, and an adapter test asserted the searched index came from a
+  monkeypatched resolver the router no longer consults. Both encoded pre-change
+  contracts that 7.3 and 7.6 change by design.
+
 ## [Unreleased] - shared-scope-query-routing: Collection_Condition probe (step 7) (Aug 19, 2026)
 
 ### Summary
