@@ -1,10 +1,38 @@
 # Phase 80: Retiring the Default-Tenant Byte-Equivalence Freeze
 
-**Status**: DESIGN
+**Status**: DESIGN (revised 2026-08-19 after investigation)
 **Created**: 2026-08-19
 **Session**: phase80_default_tenant_freeze_retirement
 **Severity**: MEDIUM — three improvements blocked; one of them preserves a
 number that is known to be wrong
+
+## REVISION NOTE — the post-check does not cover the code in question
+
+The first draft of this phase asserted that the post-deploy instrument "already
+exists and is stronger than a bespoke check would be", and scoped Step 1 as
+*confirming* its coverage. **Investigation showed that is wrong**, and the
+correction is material enough to change this phase's size and its
+spec-vs-phase-doc disposition.
+
+Three confirmed facts:
+
+1. `run_benchmark_nightly.sh` line 54 sets
+   `BENCHMARK_CMD="${MCP_BENCHMARK_CMD:-node ${NODE_DIR}/scripts/run_benchmark.js}"`
+   — the **Node** harness, dated 2026-03-19, predating the Python port.
+2. `mcp_server_python/scripts/` contains only the `.sh` wrapper. **There is no
+   Python benchmark harness.**
+3. `run_benchmark.js` contains **zero** occurrences of `tenant`. It has no tenant
+   concept, consistent with Phase 79's note that the Node server "does not use
+   tenant prefixing at query time".
+
+Phase 79 rewrote `mcp_server_python`'s read path — both Vector_Adapters, the
+Read_Router, four tool modules, the status/health/integrity reporters. **The
+nightly benchmark exercises none of it and cannot express a tenant-scoped query
+even in principle.**
+
+So the post-check for this code path does not exist. Step 1 is **construction**,
+not confirmation, and Caveat 1 is not a sequencing note — it is this phase's
+central blocker.
 
 ## Problem Statement
 
@@ -86,21 +114,63 @@ proportionate gate.
 
 ## Proposed resolution
 
-### Step 1 — wire the post-check first
+### Step 1 — build the Python benchmark harness
 
 **This step must land before either relaxation.** See Caveat 1.
 
-The instrument already exists and is stronger than a bespoke check would be.
-`mcp_server_python/scripts/run_benchmark_nightly.sh` (Phase 71) runs the RAG
-benchmark, normalises each run into `quality_metrics.jsonl`, and **emits a
-fail-loud structured ERROR when any category's score drops more than a threshold
-below its trailing N-day median.** `get_quality_metrics(compare=true)` reads it
-and reports regression against the prior snapshot.
+The good news from the investigation: the expensive parts already exist and are
+server-agnostic. Only the driver is missing.
 
-Work here is to make that harness the named acceptance evidence for a
-default-tenant output change: confirm it covers the `gw` default path for each
-affected tool category, record the pre-change snapshot as the reference, and
-document the threshold that constitutes a regression.
+**Reusable as-is, no changes needed:**
+
+- **The corpus.** `mcp_server_node/test/benchmark/ground_truth.json` —
+  60 queries across the 6 categories, exercising 13 distinct tools. Each case is
+  `{id, question, tool, tool_args, expected_results, expected_min_results,
+  category, notes}`. Scoring is **substring matching** of `expected_results`
+  against the response text. Nothing in that shape is Node-specific: the tool
+  names are identical on both servers, and `tool_args` is an open dict, so
+  adding `"tenant_id": "gw_v17"` to a case is all a tenant-scoped case requires.
+- **Persistence, rotation, and alerting.** The nightly wrapper normalises a run
+  into one `quality_metrics.jsonl` line with a nested `categories` dict, rotates
+  snapshots, and emits a fail-loud structured ERROR when any category's `mrr`,
+  `precision_at_k`, or `coverage` drops more than the threshold below its
+  trailing-median. `get_quality_metrics(compare=true)` reads it.
+- **The override seam.** `MCP_BENCHMARK_CMD` was built precisely so the
+  append/rotate/regression logic is testable without live databases. A Python
+  harness slots in behind it with **no change to the wrapper.**
+
+**What must be built:** `mcp_server_python/scripts/run_benchmark.py`, mirroring
+the Node harness's architecture. `run_benchmark.js` uses "a lightweight shim:
+collects registered tool handlers" — import the tool modules, capture what they
+register, call the handlers. Do the same in Python.
+
+The registration shape makes this straightforward and settles the one real design
+question. Each Python tool is a closure registered under FastMCP:
+
+```python
+@mcp.tool(...)
+async def search_documentation(query, ..., tenant_id: str | None = None) -> str:
+    return await run_tenant_scoped(
+        tenant_id, catalog,
+        lambda: _tool_search_documentation(data, query=query, ...),
+    )
+```
+
+**Capture the registered closures via an `mcp.tool` shim; do not call `_tool_*`
+internals directly.** The closure is where `tenant_id` enters and where
+`run_tenant_scoped` binds the tenancy ContextVar — exactly the plumbing Phase 79
+built and exactly what a consumer reaches. Calling `_tool_*` directly would
+bypass it and the harness would be blind to the class of defect it exists to
+catch.
+
+One simplification over Node: Python tools return `str` directly, so the
+`extractResultTexts` step collapses to identity. Node has to unwrap
+`{content: [{type: 'text', text}]}`.
+
+**Scope the harness to both dimensions from the start.** It must run the `gw`
+default path (what R6.2/R6.3 freeze) and at least one prefixed tenant (what the
+three follow-ups change). A `gw`-only harness would gate the relaxation while
+remaining blind to the tenant-scoped routing the follow-ups touch.
 
 ### Step 2 — relax R6.3 to structural equivalence
 
@@ -138,12 +208,20 @@ Unblocks score fusion.
 These are the conditions under which this path is safe. Each is a real failure
 mode, not a formality.
 
-1. **Relaxing before the post-check runs leaves no gate at all, and that window
-   is open today.** The AgentCore deploy is operator-gated and all three
-   live-invocation entries in Phase 79's Verification_Record are BLOCKED — no
-   AWS credentials in the implementation environment by design. So "test in
-   post" currently evaluates to "do not test." Step 1 is a hard prerequisite,
-   not a courtesy.
+1. **There is no post-check for this code path today, so "test in post"
+   currently evaluates to "do not test."** Two independent reasons, and both
+   must be cleared:
+   - **No harness.** The nightly benchmark drives the Node server and has no
+     tenant concept (see the Revision Note). Nothing today would detect a
+     Python read-path regression.
+   - **No live access.** The AgentCore deploy is operator-gated and all three
+     live-invocation entries in Phase 79's Verification_Record are BLOCKED —
+     no AWS credentials in the implementation environment, by design.
+
+   Relaxing either criterion before Step 1 lands leaves **no gate in either
+   position**: byte-equivalence retired, benchmark not yet covering the code.
+   That is strictly worse than the status quo, which at least has a working
+   28-test guard. Step 1 is a hard prerequisite.
 
 2. **"Structural equivalence" must be defined in the spec, or it degrades to
    "anything goes."** The three bullets in Step 2 are the definition and belong
@@ -174,7 +252,16 @@ mode, not a formality.
    next high-surface refactor should reach for them. Deleting them because this
    freeze was costly would discard the thing that made Phase 79 safe.
 
-7. **Order the three follow-ups deliberately.** Because of Caveat 5 they
+7. **Two different regression thresholds exist, and this phase must pick one.**
+   `ground_truth.json` `metrics_config` declares
+   `regression_threshold_pct: 5` and `critical_threshold_pct: 15`. The nightly
+   wrapper defaults `MCP_BENCHMARK_REGRESSION_PCT=10` over a 7-run median. Those
+   are three numbers across two files. Exit criterion 2 requires the threshold
+   "stated as a number" — it cannot be satisfied by pointing at a config that
+   disagrees with its consumer. Reconcile, and record which value governs a
+   default-tenant output change.
+
+8. **Order the three follow-ups deliberately.** Because of Caveat 5 they
    serialize. Recommended order: registry over-count first (smallest, R6.3
    only, immediately visible as a correctness fix), then sampler scoping (R6.3,
    restores Property 8), then score fusion last (R6.2, largest, needs the
@@ -182,21 +269,33 @@ mode, not a formality.
 
 ## Path to resolution — checkable exit criteria
 
-1. `run_benchmark_nightly.sh` confirmed to cover the `gw` default path for every
-   affected tool category, with the covering categories named.
-2. A pre-change benchmark snapshot recorded and cited as the reference, with the
-   regression threshold stated as a number.
-3. Consumer audit complete: every parser of rendered response text identified,
-   or the absence of any recorded as a finding.
-4. R6.3 superseded by a structural-equivalence criterion carrying the three
+Ordered by dependency. 1-4 are Step 1 and gate everything after them.
+
+1. `mcp_server_python/scripts/run_benchmark.py` exists, drives the Python tool
+   closures through an `mcp.tool` capture shim (**not** `_tool_*` internals),
+   reuses `ground_truth.json` unmodified, and emits the result shape
+   `run_benchmark_nightly.sh` already normalises. Verified end-to-end by running
+   the wrapper with `MCP_BENCHMARK_CMD` pointed at it.
+2. The harness runs **both** the `gw` default path and at least one prefixed
+   tenant, the latter via tenant-scoped cases added to the corpus through
+   `tool_args`.
+3. Python-harness scores shown comparable to the Node-harness history on the
+   shared corpus, **or** the changeover explicitly starts a fresh median window
+   with that decision recorded (see Scope reassessment).
+4. The three-way threshold disagreement reconciled (Caveat 7), and the governing
+   number for a default-tenant output change recorded, with a pre-change snapshot
+   captured from the Python harness and cited as the reference revision.
+5. Consumer audit complete: every parser of rendered response text identified, or
+   the absence of any recorded as a finding.
+6. R6.3 superseded by a structural-equivalence criterion carrying the three
    bullets from Step 2 verbatim.
-5. R6.2 superseded by a paired structural-plus-benchmark criterion.
-6. Phase 79's `requirements.md` R10.5 and `design.md` Property 8 restored to
+7. R6.2 superseded by a paired structural-plus-benchmark criterion.
+8. Phase 79's `requirements.md` R10.5 and `design.md` Property 8 restored to
    their unrestricted form, with the amendment notes updated to point here.
-7. `tests/baselines/` retained, with its README stating it is a tool for
+9. `tests/baselines/` retained, with its README stating it is a tool for
    high-surface refactors rather than a standing gate.
-8. The three follow-ups sequenced per Caveat 7, each citing this phase as the
-   authority for changing `gw` output.
+10. The three follow-ups sequenced per Caveat 8, each citing this phase as the
+    authority for changing `gw` output.
 
 ## Affected files
 
@@ -206,15 +305,51 @@ mode, not a formality.
 | `.kiro/specs/shared-scope-query-routing/design.md` | restore Property 8; record supersession |
 | `mcp_server_python/tests/unit/test_default_tenant_byte_equivalence.py` | re-express as structural |
 | `mcp_server_python/tests/baselines/README.md` | state tool-not-rule status |
-| `mcp_server_python/scripts/run_benchmark_nightly.sh` | confirm `gw` category coverage; no change expected |
+| `mcp_server_python/scripts/run_benchmark.py` | **NEW** — the missing Python harness (Step 1) |
+| `mcp_server_node/test/benchmark/ground_truth.json` | add tenant-scoped cases via `tool_args`; existing 60 unchanged |
+| `mcp_server_python/scripts/run_benchmark_nightly.sh` | no change — `MCP_BENCHMARK_CMD` is the seam; reconcile threshold default |
 
 ## Dependencies
 
-- Phase 71 (`nightly-rag-benchmark-harness`) — supplies the post-check. Must be
-  running and producing `quality_metrics.jsonl` entries before Step 2.
+- Phase 71 (`nightly-rag-benchmark-harness`) — supplies the corpus, the scoring
+  contract, the persistence/rotation logic, the regression alerting, and the
+  `MCP_BENCHMARK_CMD` seam. It does **not** supply a harness that drives the
+  Python server; that is this phase's Step 1. Phase 71's wrapper needs no change.
 - Phase 79 (`shared-scope-query-routing`) — must be deployed and its three live
   Verification_Record entries filled, so the freeze is retired against a known-
   good deployed state rather than an unverified one.
+
+## Scope reassessment (post-investigation)
+
+The first draft judged this phase thin on code — one 199-line test file
+re-expressed, plus doc amendments — and therefore suitable to run as a phase doc
+without a Kiro spec. **The Revision Note changes that judgement.**
+
+| | First draft | After investigation |
+|---|---|---|
+| Step 1 | confirm existing coverage | **build a new harness** |
+| New production/script code | none | `run_benchmark.py` + corpus additions |
+| Unknowns | consumer audit only | harness design, tenant corpus design, threshold reconciliation, consumer audit |
+| Disposition | phase doc sufficient | **spec-sized** |
+
+The harness is the deciding factor. It is a new script with a real design
+question already settled here (capture registered closures, not `_tool_*`
+internals), a second design question still open (which tenant-scoped cases the
+corpus needs to make the follow-ups gateable), and a correctness obligation: it
+must produce scores comparable to the Node harness's history, or the trailing
+median it is compared against is meaningless across the changeover.
+
+That last point deserves emphasis, because it is easy to miss. `quality_metrics.jsonl`
+holds Node-harness runs. If the Python harness scores the same corpus
+differently — different tool defaults, different `k` handling, different text
+extraction — then the first Python run looks like a step change against a
+7-run Node median and trips the regression alarm for a reason that has nothing to
+do with quality. Either the two must be shown comparable, or the changeover must
+start a fresh window and say so.
+
+**Recommendation: promote to a Kiro spec** (`default-tenant-freeze-retirement`),
+requirements-first. This phase doc remains the point of record for the reasoning
+and the caveats; the spec carries the harness's acceptance criteria and tasks.
 
 ## Notes
 
