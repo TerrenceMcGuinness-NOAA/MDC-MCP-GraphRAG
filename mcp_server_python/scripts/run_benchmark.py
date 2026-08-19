@@ -21,23 +21,35 @@ Differs from the Node harness in three ways, all recorded in the design:
    so it stays comparable with the Node-harness history already in the
    Quality_Metrics_Log.
 
-Scope note (Task 1.3)
----------------------
-This module currently lands the data model and the pure scoring
-arithmetic only -- ``BenchmarkCase``, ``CaseResult``, ``ScopeMetrics``,
-``Corpus``, ``load_corpus``, ``score_case``, and ``aggregate``. Closure
-collection (``build_tool_map``), the invocation orchestration
-(``run_benchmark``), and the CLI (``main``) are added by later tasks
-(3.1, 3.2, 3.3) and are deliberately absent here.
+Scope note (Tasks 1.3, 3.1, 3.2)
+--------------------------------
+This module lands the data model and the pure scoring arithmetic
+(Task 1.3 -- ``BenchmarkCase``, ``CaseResult``, ``ScopeMetrics``,
+``Corpus``, ``load_corpus``, ``score_case``, ``aggregate``), the closure
+collection through a ``FastMCP`` stand-in (Task 3.1 -- ``_ToolShim``,
+``build_tool_map``), and the invocation orchestration plus the emitted
+Benchmark_Run_Record (Task 3.2 -- ``run_benchmark``, ``BenchmarkRun``).
+The CLI (``main``) is added by Task 3.3 and is deliberately absent here.
 """
 
 from __future__ import annotations
 
+import asyncio
+import importlib
 import json
 import math
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+import os
+import shutil
+import tempfile
+import time
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+from src.config.environment import load_config
+from src.tenancy.runtime import get_catalog
 
 # ---------------------------------------------------------------------------
 # Corpus vocabulary
@@ -90,6 +102,74 @@ _REQUIRED_CASE_FIELDS: tuple[str, ...] = (
     "category",
     "notes",
 )
+
+#: Which tool module registers each tool the corpus reaches, confirmed by
+#: reading the ``@mcp.tool`` decorator sites. ``build_tool_map`` derives the
+#: set of modules to register from the tool names the *selected* cases use,
+#: mapping each name to its owner here -- so nothing is hardcoded beyond this
+#: observed ownership. ``utility`` is listed for completeness (its tools are
+#: not reached by the current corpus) so a future case naming one registers
+#: cleanly rather than recording a spurious missing-tool error.
+_MODULE_TOOLS: dict[str, tuple[str, ...]] = {
+    "code_analysis": (
+        "analyze_code_structure",
+        "find_dependencies",
+        "find_callers_callees",
+        "trace_full_execution_chain",
+    ),
+    "semantic_search": (
+        "search_documentation",
+        "explain_with_context",
+        "get_knowledge_base_status",
+        "check_knowledge_integrity",
+    ),
+    "graph_rag": (
+        "search_architecture",
+        "get_code_context",
+        "trace_data_flow",
+    ),
+    "ee2_compliance": (
+        "search_ee2_standards",
+    ),
+    "operational": (
+        "get_operational_guidance",
+        "list_job_scripts",
+        "get_job_details",
+    ),
+    "utility": (
+        "get_server_info",
+        "mcp_health_check",
+        "get_health_trend",
+        "get_quality_metrics",
+    ),
+}
+
+#: Reverse of :data:`_MODULE_TOOLS`: a tool name to its owning module.
+_TOOL_TO_MODULE: dict[str, str] = {
+    tool: module
+    for module, tools in _MODULE_TOOLS.items()
+    for tool in tools
+}
+
+#: Modules whose ``register`` accepts a ``catalog`` keyword. Mirrors
+#: ``mcp_server._TENANT_SCOPED_MODULES`` exactly, so the harness threads the
+#: catalog the same way the served runtime does. ``catalog=None`` would make
+#: every Tenant_Scoped_Case fail as if the router were broken (Decision 5), so
+#: this must not drift from the server's list.
+_TENANT_SCOPED_MODULES: frozenset[str] = frozenset(
+    {
+        "semantic_search",
+        "code_analysis",
+        "graph_rag",
+        "operational",
+        "ee2_compliance",
+        "workflow_info",
+    }
+)
+
+#: The ``version`` field the harness stamps on every Benchmark_Run_Record.
+#: Matches the Node harness's ``'1.0.0'`` so the two records share the field.
+HARNESS_VERSION: str = "1.0.0"
 
 
 class CorpusError(Exception):
@@ -464,4 +544,668 @@ def load_corpus(path: str) -> Corpus:
         metrics_config=dict(metrics_config),
         cases=cases,
         origins=origins,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Registration_Shim and closure collection (Task 3.1)
+# ---------------------------------------------------------------------------
+
+
+class _ToolShim:
+    """Stand-in for a ``FastMCP`` server that collects tool closures.
+
+    Each tool module's ``register(mcp, data, ...)`` defines its tools as
+    inner ``async def`` functions and hands each to ``@mcp.tool(...)``.
+    Passing an instance of this shim as ``mcp`` lets the module register
+    normally while :attr:`tools` keeps the very function object it
+    handed over, keyed by its registered name.
+
+    The function is returned **unchanged** from the decorator: the module
+    keeps its own reference to it and altering it would change the
+    behaviour the harness exists to observe.
+    """
+
+    def __init__(self) -> None:
+        self.tools: dict[str, Callable[..., Awaitable[str]]] = {}
+
+    def tool(self, *args: Any, **kwargs: Any) -> Any:
+        """Record a tool closure, handling both decorator idioms.
+
+        Two forms appear in the tree and both are handled:
+
+        * ``@mcp.tool(name="...")`` -- a decorator *factory*. ``tool`` is
+          called first with the arguments and must return the actual
+          decorator. The registered name is ``kwargs["name"]`` when given.
+        * ``@mcp.tool`` with no parentheses -- ``tool`` receives the
+          function directly as the sole positional argument.
+          ``error_analysis`` uses ``@mcp.tool()`` today and a future
+          module could drop the parentheses entirely, so the bare form is
+          supported defensively.
+
+        In both cases the registered name falls back to the function's own
+        ``__name__`` when no ``name=`` is supplied.
+        """
+        # Bare-callable form: @mcp.tool with no parentheses.
+        if len(args) == 1 and callable(args[0]) and not kwargs:
+            fn = args[0]
+            self.tools[getattr(fn, "__name__", repr(fn))] = fn
+            return fn
+
+        def _decorate(fn: Callable[..., Awaitable[str]]) -> Callable[
+            ..., Awaitable[str]
+        ]:
+            name = kwargs.get("name") or getattr(fn, "__name__")
+            self.tools[name] = fn
+            return fn
+
+        return _decorate
+
+    async def list_tools(self, *args: Any, **kwargs: Any) -> list[Any]:
+        """Return an empty tool list.
+
+        ``utility.register`` reads the server for a tool-listing call
+        *inside* one of its own closures (``get_server_info``), not at
+        registration time. Exposing this async method lets that path
+        degrade cleanly to an empty list if a future corpus case ever
+        names ``get_server_info``.
+        """
+        return []
+
+
+def _register_kwargs(
+    module: str, catalog: Any, state_dir: str
+) -> dict[str, Any]:
+    """Build the module-specific ``register`` keyword arguments.
+
+    Mirrors ``mcp_server`` where it matters: tenant-scoped modules get the
+    real ``catalog`` (so tenant resolution works rather than raising), and
+    the two modules that would otherwise write session/health state to the
+    repository are pinned to a scratch directory instead.
+    """
+    kwargs: dict[str, Any] = {}
+    if module in _TENANT_SCOPED_MODULES:
+        kwargs["catalog"] = catalog
+    if module == "graph_rag":
+        # Pin the session manager to the scratch dir so registration does
+        # not create session state under SDD_STATE_DIR in the repository.
+        from src.sdd.session_manager import SessionManager
+
+        kwargs["session_manager"] = SessionManager(state_dir)
+    elif module == "utility":
+        kwargs["state_dir"] = state_dir
+    return kwargs
+
+
+def build_tool_map(
+    data: Any,
+    catalog: Any,
+    *,
+    tool_names: "Sequence[str] | set[str]",
+    state_dir: str,
+) -> dict[str, Callable[..., Awaitable[str]]]:
+    """Collect the Tool_Closures the selected cases need, keyed by name.
+
+    The set of modules to register is derived from ``tool_names`` -- the
+    tool values the selected cases use -- mapped through
+    :data:`_TOOL_TO_MODULE`. Only the owning modules of those tools are
+    registered; a tool name with no known owner is skipped, so the case
+    that names it records a missing-tool error rather than aborting the
+    run.
+
+    Each closure closes over ``data`` and ``catalog`` at registration
+    time. ``catalog`` must be the real catalog: with ``None`` every
+    Tenant_Scoped_Case would raise inside the tenancy-scoping helper and
+    the run would look exactly like a tenant routing bug (Decision 5).
+
+    Parameters
+    ----------
+    data
+        The data-access facade threaded into every module's ``register``.
+    catalog
+        The resolved tenant catalog, threaded into tenant-scoped modules.
+    tool_names
+        The tool names the selected cases use. Their owning modules are
+        the ones registered.
+    state_dir
+        A scratch directory for ``graph_rag`` / ``utility`` state, so no
+        session or health file is written into the repository (R3.6).
+
+    Returns
+    -------
+    dict
+        Mapping of registered tool name to the exact coroutine function
+        the owning module registered.
+    """
+    required_modules: list[str] = []
+    seen: set[str] = set()
+    for name in tool_names:
+        module = _TOOL_TO_MODULE.get(name)
+        if module is None or module in seen:
+            continue
+        seen.add(module)
+        required_modules.append(module)
+
+    tool_map: dict[str, Callable[..., Awaitable[str]]] = {}
+    for module in required_modules:
+        shim = _ToolShim()
+        mod = importlib.import_module(f"src.tools.{module}")
+        mod.register(
+            shim, data, **_register_kwargs(module, catalog, state_dir)
+        )
+        tool_map.update(shim.tools)
+    return tool_map
+
+
+# ---------------------------------------------------------------------------
+# Invocation record (Task 3.2)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BenchmarkRun:
+    """The outcome of one scored run.
+
+    Attributes
+    ----------
+    record
+        The Benchmark_Run_Record dict written to the results directory.
+    results
+        The per-case :class:`CaseResult` values, in corpus order.
+    results_path
+        Absolute path of the written Benchmark_Run_Record.
+    all_errored
+        ``True`` when at least one case ran and every case recorded an
+        ``error``. The CLI (Task 3.3) turns this into exit status 1 while
+        still having written the record, so a wholly unreachable backend
+        is a visible zero-coverage line in the history rather than a hole
+        in it (R3.4).
+    """
+
+    record: Mapping[str, Any]
+    results: tuple[CaseResult, ...]
+    results_path: str
+    all_errored: bool
+
+
+def _select_cases(
+    corpus: Corpus, category: str | None
+) -> list[BenchmarkCase]:
+    """Return the cases to execute, filtered by ``category`` when given.
+
+    An unknown ``category`` yields an empty selection; distinguishing an
+    unknown category (exit 1) from a valid-but-empty one (a zero-coverage
+    record, exit 0) is the CLI's concern (Task 3.3), not this function's.
+    """
+    if category is None:
+        return list(corpus.cases)
+    return [c for c in corpus.cases if c.category == category]
+
+
+def _corpus_k(corpus: Corpus) -> int:
+    """Return the ``k`` from the corpus ``metrics_config`` (default 5)."""
+    try:
+        return int(corpus.metrics_config.get("k", 5))
+    except (TypeError, ValueError):
+        return 5
+
+
+def _elapsed_ms(start: float) -> int:
+    """Milliseconds since ``start`` (a ``time.perf_counter`` value)."""
+    return _js_round((time.perf_counter() - start) * 1000)
+
+
+def _error_result(
+    case: BenchmarkCase, error: str, latency_ms: int
+) -> CaseResult:
+    """Build the zero-shaped :class:`CaseResult` for a case that failed.
+
+    A failed case still produces exactly one entry -- with the zero shape,
+    a real elapsed time, and an ``error`` -- so the aggregation
+    denominator is never silently shrunk. A run that dropped a failing
+    case would compute every average over a smaller set and report a
+    *better* score for a *worse* system, the one failure a quality gate
+    cannot have.
+    """
+    return CaseResult(
+        id=case.id,
+        precision=0.0,
+        recall=0.0,
+        mrr=0.0,
+        covered=False,
+        matched_results=[],
+        expected_results=list(case.expected_results),
+        latency_ms=latency_ms,
+        tenant_id=(
+            case.tool_args.get("tenant_id") if case.tenant_scoped else None
+        ),
+        tenant_scoped=case.tenant_scoped,
+        error=error,
+    )
+
+
+async def _invoke_case(
+    tool_map: Mapping[str, Callable[..., Awaitable[str]]],
+    case: BenchmarkCase,
+    k: int,
+) -> CaseResult:
+    """Invoke one case's Tool_Closure and score the result.
+
+    The case's ``tool_args`` -- ``tenant_id`` included for a
+    Tenant_Scoped_Case -- are passed to the closure as keyword arguments,
+    so the tool's own tenancy-scoping wrapper binds the tenancy ContextVar
+    and the attribution header is applied exactly as a consumer's call
+    does. The Tool_Internal is never called directly and the ContextVar is
+    never set here; doing either would skip the binding this harness exists
+    to exercise.
+
+    Both failure paths -- an absent closure and a raising closure --
+    converge on the zero-shaped :class:`CaseResult` so the run continues.
+    ``Exception`` is caught rather than ``BaseException`` so ``Ctrl-C``
+    still stops a long run. A non-``str`` return is treated as a failure
+    naming the observed type: no current tool does this, but a future one
+    that did would otherwise score zero with no explanation.
+    """
+    start = time.perf_counter()
+    closure = tool_map.get(case.tool)
+    if closure is None:
+        return _error_result(
+            case,
+            f"no closure registered for tool {case.tool!r}",
+            _elapsed_ms(start),
+        )
+    try:
+        response = await closure(**dict(case.tool_args))
+    except Exception as exc:  # noqa: BLE001 - a failed case is recorded
+        return _error_result(case, str(exc), _elapsed_ms(start))
+    latency_ms = _elapsed_ms(start)
+    if not isinstance(response, str):
+        return _error_result(
+            case,
+            f"tool returned {type(response).__name__}, expected str",
+            latency_ms,
+        )
+    # A Python Tool_Closure returns a single response text -- no content
+    # list to unwrap (R1.5).
+    return replace(score_case(case, response, k), latency_ms=latency_ms)
+
+
+def _scope_dict(metrics: ScopeMetrics) -> dict[str, Any]:
+    """Render one scope's :class:`ScopeMetrics` as the record's dict."""
+    return {
+        "precision_at_k": metrics.precision_at_k,
+        "recall_at_k": metrics.recall_at_k,
+        "mrr": metrics.mrr,
+        "coverage": metrics.coverage,
+        "latency_p50_ms": metrics.latency_p50_ms,
+        "latency_p95_ms": metrics.latency_p95_ms,
+    }
+
+
+def _case_dict(result: CaseResult) -> dict[str, Any]:
+    """Render one :class:`CaseResult` as a ``queries[]`` entry.
+
+    Carries the Node record's per-case fields plus ``covered`` (asserted
+    by Property 10 on the failure paths) and the per-case ``tenant_id`` so
+    the Default_Tenant / Prefixed_Tenant partition is reconstructible from
+    the record alone. ``error`` is present only when the case failed.
+    """
+    entry: dict[str, Any] = {
+        "id": result.id,
+        "precision": result.precision,
+        "recall": result.recall,
+        "mrr": result.mrr,
+        "covered": result.covered,
+        "latency_ms": result.latency_ms,
+        "matched_results": list(result.matched_results),
+        "expected_results": list(result.expected_results),
+        "tenant_id": result.tenant_id,
+    }
+    if result.error is not None:
+        entry["error"] = result.error
+    return entry
+
+
+# Friendly metric labels for the regression messages, matching the Node
+# harness's ``friendlyNames`` map.
+_FRIENDLY_METRIC: dict[str, str] = {
+    "precision_at_k": "P@K",
+    "recall_at_k": "R@K",
+    "mrr": "MRR",
+    "coverage": "Coverage",
+}
+
+
+def _detect_regressions(
+    overall: Mapping[str, Any],
+    categories: Mapping[str, Mapping[str, Any]],
+    previous: Mapping[str, Any] | None,
+    config: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Port of the Node harness ``detectRegressions``.
+
+    Populated for shape parity with the Node record, using the corpus
+    ``metrics_config`` thresholds -- the Node harness's own single-run
+    basis. The Nightly_Wrapper owns the trailing-median verdict; this
+    object does not feed it.
+    """
+    if not previous:
+        return {"compared_to": None, "warnings": [], "errors": []}
+
+    warn_pct = config.get("regression_threshold_pct", 5) / 100
+    error_pct = config.get("critical_threshold_pct", 15) / 100
+    min_cov_pct = config.get("minimum_coverage_pct", 80)
+    min_cov = min_cov_pct / 100
+    warnings: list[str] = []
+    errors: list[str] = []
+
+    prev_categories = previous.get("categories") or {}
+    scopes: list[tuple[str, Mapping[str, Any], Mapping[str, Any]]] = [
+        ("Overall", overall, previous.get("overall") or {}),
+    ]
+    for cat, cur in categories.items():
+        if cat in prev_categories:
+            scopes.append((cat, cur, prev_categories[cat]))
+
+    for label, cur, prev in scopes:
+        for metric_key in ("precision_at_k", "recall_at_k", "mrr", "coverage"):
+            cur_v = cur.get(metric_key, 0) or 0
+            prev_v = prev.get(metric_key, 0) or 0
+            if prev_v == 0:
+                continue
+            drop = (prev_v - cur_v) / prev_v
+            if drop > error_pct:
+                errors.append(
+                    f"{label} {_FRIENDLY_METRIC[metric_key]} dropped "
+                    f"{drop * 100:.0f}% ({prev_v:.2f} -> {cur_v:.2f})"
+                )
+            elif drop > warn_pct:
+                warnings.append(
+                    f"{label} {_FRIENDLY_METRIC[metric_key]} dropped "
+                    f"{drop * 100:.0f}% ({prev_v:.2f} -> {cur_v:.2f})"
+                )
+        cur_cov = cur.get("coverage", 0) or 0
+        if cur_cov < min_cov:
+            errors.append(
+                f"{label} Coverage {cur_cov * 100:.0f}% below minimum "
+                f"{min_cov_pct}%"
+            )
+
+    return {
+        "compared_to": previous.get("timestamp"),
+        "warnings": warnings,
+        "errors": errors,
+    }
+
+
+def _utc_timestamp() -> str:
+    """Return an ISO-8601 UTC timestamp with milliseconds and a ``Z``.
+
+    Matches the Node harness's ``new Date().toISOString()`` shape
+    (``YYYY-MM-DDTHH:MM:SS.mmmZ``) so a Quality_Metrics_Log line's
+    timestamp reads the same regardless of which harness wrote it.
+    """
+    now = datetime.now(timezone.utc)
+    millis = now.microsecond // 1000
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{millis:03d}Z"
+
+
+def _harness_id(config: Any) -> str:
+    """Build the compound harness identifier for the record.
+
+    ``runtime:script:backend:profile``. Backend and embedding profile are
+    what a comparison window must never mix, so recording them in the
+    provenance field is the cheap way to make a mixed history detectable
+    later (Decision 6).
+    """
+    return (
+        f"python:run_benchmark.py:{config.db_backend}:"
+        f"{config.embedding_profile}"
+    )
+
+
+def _by_category(
+    results: Sequence[CaseResult], cat_by_id: Mapping[str, str]
+) -> dict[str, dict[str, Any]]:
+    """Aggregate ``results`` into a per-category metric dict.
+
+    Keyed by the six Benchmark_Category names in corpus order; a category
+    with no result aggregates to zeros, matching the Node harness's
+    iterate-all-categories behaviour.
+    """
+    return {
+        name: _scope_dict(
+            aggregate([r for r in results if cat_by_id.get(r.id) == name])
+        )
+        for name in CATEGORY_NAMES
+    }
+
+
+def _resolve_results_dir(results_dir: str | os.PathLike[str] | None) -> str:
+    """Resolve the Benchmark_Run_Record output directory.
+
+    Precedence: an explicit ``results_dir`` argument, then a non-empty
+    ``MCP_BENCHMARK_RESULTS_DIR`` environment variable, then a directory
+    under ``mcp_server_python`` that is deliberately **separate** from the
+    Node harness's results folder. The Nightly_Wrapper defaults its
+    results directory to the Node folder and picks up the freshest
+    ``*.json`` there, so sharing it would let the wrapper normalise a
+    stale Node record into the log as though it were a Python run -- a
+    silent failure, which is why the default diverges rather than being
+    shared.
+    """
+    if results_dir:
+        return str(results_dir)
+    env = os.environ.get("MCP_BENCHMARK_RESULTS_DIR")
+    if env:
+        return env
+    return str(
+        Path(__file__).resolve().parent.parent
+        / "test"
+        / "benchmark"
+        / "results"
+    )
+
+
+def _load_previous_result(results_dir: str) -> dict[str, Any] | None:
+    """Return the freshest prior Benchmark_Run_Record in ``results_dir``.
+
+    Returns ``None`` when the directory is absent or holds no readable
+    ``*.json``. Called before the current record is written, so it never
+    reads the run in progress.
+    """
+    path = Path(results_dir)
+    if not path.is_dir():
+        return None
+    files = sorted(p for p in path.glob("*.json"))
+    if not files:
+        return None
+    try:
+        with open(files[-1], encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_record(record: Mapping[str, Any], results_dir: str) -> str:
+    """Write ``record`` as a JSON file and return its path.
+
+    The filename derives from the record timestamp the same way the Node
+    harness's ``saveResults`` does: colons become dashes and the
+    fractional-second-plus-``Z`` suffix is dropped. The output directory
+    is the only place the harness writes (R3.6).
+    """
+    path = Path(results_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    stem = str(record["timestamp"]).replace(":", "-").rsplit(".", 1)[0]
+    filepath = path / f"{stem}.json"
+    with open(filepath, "w", encoding="utf-8") as handle:
+        json.dump(record, handle, indent=2)
+    return str(filepath)
+
+
+def _build_record(
+    corpus: Corpus,
+    config: Any,
+    results: Sequence[CaseResult],
+    cat_by_id: Mapping[str, str],
+    previous: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Assemble the Benchmark_Run_Record from the scored cases.
+
+    ``overall`` and ``categories`` are computed from **Default_Tenant
+    cases only** (R2.9), so the ``categories`` object stays comparable
+    with the Node-harness lines already in the Quality_Metrics_Log and a
+    deliberately-zero Tenant_Scoped_Case cannot move the number the
+    benchmark gate reads. ``tenant_overall`` and ``tenant_categories`` are
+    additive and carry the Prefixed_Tenant scores separately (R2.8).
+    """
+    default_results = [r for r in results if not r.tenant_scoped]
+    tenant_results = [r for r in results if r.tenant_scoped]
+
+    overall = _scope_dict(aggregate(default_results))
+    categories = _by_category(default_results, cat_by_id)
+    tenant_overall = _scope_dict(aggregate(tenant_results))
+    tenant_categories = _by_category(tenant_results, cat_by_id)
+
+    regression = _detect_regressions(
+        overall, categories, previous, corpus.metrics_config
+    )
+
+    return {
+        "timestamp": _utc_timestamp(),
+        "version": HARNESS_VERSION,
+        "harness": _harness_id(config),
+        "corpus_version": corpus.version,
+        "total_queries": len(results),
+        "overall": overall,
+        "categories": categories,
+        "tenant_overall": tenant_overall,
+        "tenant_categories": tenant_categories,
+        "queries": [_case_dict(r) for r in results],
+        "regression": regression,
+    }
+
+
+async def _run_benchmark_async(
+    corpus: Corpus,
+    *,
+    data: Any,
+    catalog: Any,
+    category: str | None,
+    results_dir: str | os.PathLike[str] | None,
+) -> BenchmarkRun:
+    """Async core of :func:`run_benchmark` (see that function's docstring)."""
+    config = load_config()
+    if catalog is None:
+        # A catalog load failure is fatal here rather than degraded: a
+        # benchmark that silently cannot express a tenant is worse than
+        # one that did not run (Decision 5). The exception propagates for
+        # the CLI to turn into exit 1.
+        catalog = get_catalog()
+
+    selected = _select_cases(corpus, category)
+    k = _corpus_k(corpus)
+    cat_by_id = {c.id: c.category for c in selected}
+    tool_names = {c.tool for c in selected}
+    state_dir = tempfile.mkdtemp(prefix="mcp_benchmark_state_")
+    owns_data = data is None
+    try:
+        if owns_data:
+            # Build the real facade the same way the server does. Only
+            # reached when no facade was injected, so an injected run never
+            # even imports the adapter chain -- zero backend traffic is
+            # structural, not a matter of stub fidelity (R3.2).
+            from src.data.backend_selector import create_data_access
+
+            data = await create_data_access(config)
+        tool_map = build_tool_map(
+            data, catalog, tool_names=tool_names, state_dir=state_dir
+        )
+        results = [await _invoke_case(tool_map, case, k) for case in selected]
+    finally:
+        if owns_data and data is not None:
+            try:
+                await data.close()
+            except Exception:  # noqa: BLE001 - best-effort cleanup
+                pass
+        shutil.rmtree(state_dir, ignore_errors=True)
+
+    resolved_dir = _resolve_results_dir(results_dir)
+    previous = _load_previous_result(resolved_dir)
+    record = _build_record(corpus, config, results, cat_by_id, previous)
+    results_path = _write_record(record, resolved_dir)
+    all_errored = bool(results) and all(r.error is not None for r in results)
+    return BenchmarkRun(
+        record=record,
+        results=tuple(results),
+        results_path=results_path,
+        all_errored=all_errored,
+    )
+
+
+def run_benchmark(
+    corpus: Corpus,
+    *,
+    data: Any = None,
+    catalog: Any = None,
+    category: str | None = None,
+    results_dir: str | os.PathLike[str] | None = None,
+) -> BenchmarkRun:
+    """Score the corpus by invoking Tool_Closures and write the record.
+
+    Two ways to get the data-access facade, and the difference is
+    structural. With ``data=None`` the real facade is built the same way
+    the server does -- ``load_config`` then ``create_data_access`` -- so
+    the harness sees the backend the served runtime sees. With ``data``
+    supplied it is used verbatim and ``create_data_access`` is never
+    reached, which is what guarantees an injected layer issues no backend
+    traffic: the code that opens a socket is not entered (R3.1, R3.2). No
+    backend-selection environment variable is read here; being
+    backend-agnostic comes from taking no backend argument.
+
+    Every selected case produces exactly one entry. A case that could not
+    run records zeros, a real elapsed time, and an ``error``, and the run
+    continues -- the denominator is never shrunk. The overall and
+    per-category figures come from Default_Tenant cases only;
+    Tenant_Scoped_Case scores ride in their own two objects (R2.8, R2.9).
+
+    Parameters
+    ----------
+    corpus
+        A loaded :class:`Corpus`.
+    data
+        Optional injected data-access facade. When ``None`` a real facade
+        is built from the environment.
+    catalog
+        Optional tenant catalog. When ``None`` it is resolved via
+        :func:`src.tenancy.runtime.get_catalog`; a load failure is fatal.
+    category
+        Optional Benchmark_Category name; when given, only that category's
+        cases run.
+    results_dir
+        Optional output directory override. See
+        :func:`_resolve_results_dir` for the precedence.
+
+    Returns
+    -------
+    BenchmarkRun
+        The written record, the per-case results, the record path, and the
+        all-errored flag the CLI uses to decide its exit status.
+
+    Notes
+    -----
+    Synchronous by design: it drives its own event loop internally so the
+    property tests and the CLI can call it without managing one. It must
+    not be called from inside a running event loop.
+    """
+    return asyncio.run(
+        _run_benchmark_async(
+            corpus,
+            data=data,
+            catalog=catalog,
+            category=category,
+            results_dir=results_dir,
+        )
     )
