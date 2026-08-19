@@ -874,7 +874,7 @@ Standing constraints for every task below:
       state the value used in the report.
     - _Requirements: 10.1, 10.2, 10.3, 10.6, 10.7, 10.8_
 
-  - [ ] 11.2 Scope the coverage-gap ingested-document count
+  - [-] 11.2 Scope the coverage-gap ingested-document count -- STRUCK, no target
     - Modify
       `mcp_server_python/src/tools/semantic_search.py::_check_coverage_gap`.
     - Compute the ingested-document count as the sum of per-collection document
@@ -883,7 +883,17 @@ Standing constraints for every task below:
     - Preserve the existing per-language check structure from
       `fortran-coverage-gap-path-fix`; `tests/unit/test_coverage_gap_multilang.py`
       must keep passing.
-    - _Requirements: 10.4_
+    - **STRUCK 2026-08-19: this sub-task has no target in the current code.**
+      `fortran-coverage-gap-path-fix` already replaced `_check_coverage_gap`'s
+      vector ingested-document count with an on-disk-source vs
+      `<Language>*`-labelled-graph-node comparison (tenant-scoped, with a
+      graph-only fallback when the filesystem is not mounted). There is no vector
+      document count left to re-scope. Manufacturing one would break
+      `tests/unit/test_coverage_gap_multilang.py` and contradict this sub-task's
+      own instruction to preserve that per-language structure. `_check_coverage_gap`
+      is left unchanged. R10.4 is satisfied by the existing tenant-scoped graph
+      comparison rather than by a change here.
+    - _Requirements: 10.4 (satisfied by existing code; see strike note)_
 
   - [ ] 11.3 Unit-test the integrity scoping edge cases
     - Extend `mcp_server_python/tests/unit/test_kb_status_and_sampler.py`.

@@ -32,13 +32,15 @@ step_spec() {
     8) echo "step8-task07_3-07_8-atomic-routing.md|claude-opus-4.8|xhigh" ;;
     9) echo "step9-task08-readpath-corrections.md|claude-sonnet-5|high" ;;
    10) echo "step10-task10_11-reporting-convergence.md|claude-opus-4.8|xhigh" ;;
+   11) echo "step11-task12-write-read-boundary.md|claude-sonnet-5|high" ;;
+   12) echo "step12-task14-verification-record.md|claude-sonnet-5|high" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "step 0  Task 2.4  property generators + adapters fixture   [DONE]"
-  for n in 1 2 3 4 5 6 7 8 9 10; do
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf 'step %s  %-46s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
@@ -67,12 +69,17 @@ if [ "${1:-}" = "--list" ]; then
   echo "DEPENDENCY order, not numeric: 10.1-10.4, then 11.1-11.3, then"
   echo "10.5 last. P8 (10.5) asserts three reporters agree and its"
   echo "Integrity half cannot be written before 11.1 and 11.2 exist."
+  echo
+  echo "Step 12 is the LAST step in this harness. Task 14 is operator-"
+  echo "gated: with no AWS creds and no deploy, all three live-invocation"
+  echo "entries are expected BLOCKED. That is the correct outcome, not a"
+  echo "failure. Everything after step 12 is operator work."
   exit 0
 fi
 
 N="${1:-}"
 DRY="${2:-}"
-spec="$(step_spec "${N}")" || { echo "usage: $0 {1..10|--list} [--dry]"; exit 2; }
+spec="$(step_spec "${N}")" || { echo "usage: $0 {1..12|--list} [--dry]"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1

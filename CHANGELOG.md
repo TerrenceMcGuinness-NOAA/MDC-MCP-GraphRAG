@@ -1,5 +1,63 @@
 # MCP Server Changelog
 
+## [Unreleased] - shared-scope-query-routing: reporting convergence (step 10) (Aug 19, 2026)
+
+### Summary
+Tasks 10 and 11. The three reporting paths — status, health, integrity — now agree
+with the query path via `tenant_collection_set()`. Suite 1767 passing;
+byte-equivalence still 28/28. Staged for human review (no push, git policy 08).
+
+### Fixed
+- **Status block rebuilt on the router (10.1).** Names come from
+  `tenant_collection_set`, `health_check` serves only as a count source for those
+  names. That inversion structurally excludes bookkeeping indices like
+  `mdc-content-sha-registry` from a prefixed tenant's listing.
+- **The predicate that caused the blind spot is gone (10.2).**
+  `_index_in_tenant_scope`'s prefix test could not distinguish a shared collection
+  from another tenant's, so it structurally could not express "the unprefixed shared
+  collection belongs to `gw_v17` too". Deleted along with
+  `_filter_indices_by_tenant`; their tests re-expressed against the router.
+- **`_vector_health` index count scoped (10.3)** — the manifestation the
+  requirements never named. `indexCount` is now the cardinality of
+  `tenant_collection_set`, degraded only when the absent collection is the
+  unprefixed member of a `shared` logical collection, so a tenant that has not
+  ingested its own code stays healthy.
+- **Integrity sampler scoped for prefixed tenants (11.1).** It called
+  `sample_metadata(collection=None)` — no scoping at all, so findings described an
+  unscoped mixture of every tenant's data.
+
+### Changed — spec amendments after implementation
+- **`design.md` Property 8 narrowed** to tenants with a non-empty `index_prefix`.
+  R6.3 byte-equivalence and 11.1's per-member draw-count reporting cannot both hold
+  for the Default_Tenant. Resolved toward preservation per the standing rule.
+- **`requirements.md` R10.5 amended** for the same conflict. **Consequence recorded
+  rather than left implicit: `gw` integrity findings remain unscoped.**
+- **`tasks.md` 11.2 struck** — no target. `fortran-coverage-gap-path-fix` had
+  already replaced `_check_coverage_gap`'s vector document count with an
+  on-disk-source vs graph-node comparison.
+
+### Notes
+- **`resolve_tenant_index` retained, and the instruction to delete it was wrong.**
+  The step 10 prompt called it dead code and gated removal on a grep. The grep found
+  `tests/properties/test_tenancy.py:608` —
+  `assert resolve_tenant_index(collection, tenant) == collection` — which is
+  `omd-tenants-1-foundation`'s Property 3 itself, plus P1 at 584-585. Uncalled by
+  production, but the subject of another spec's property. The gate is what caught
+  this.
+- **The `gw` status total still over-counts** `mdc-content-sha-registry`, preserved
+  deliberately for byte-equivalence.
+- 10.4 needed no production change; the `SkipProbe` pass/skip/fail wiring already
+  existed, so only tests were added.
+- **Four follow-ups now deferred, and three share one cause:** score fusion across
+  the merge layers, the `gw` registry over-count, and Default_Tenant sampler
+  scoping are all blocked by the same byte-equivalence freeze.
+  `DEFAULT_SEMANTIC_COLLECTION`'s profile pinning is independent. The freeze was
+  correct here — it is what made a refactor this size safe — but it now concentrates
+  debt in one place, and three specs would each re-litigate it. One spec should
+  retire it under a quality-benchmark gate.
+- `prompts/.../step11-task12-write-read-boundary.md` and
+  `step12-task14-verification-record.md` — the last two harness steps, registered.
+
 ## [Unreleased] - shared-scope-query-routing: GGSR tenancy + citations (step 9) (Aug 19, 2026)
 
 ### Summary

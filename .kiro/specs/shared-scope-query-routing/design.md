@@ -1367,11 +1367,33 @@ and `src.data.read_router.resolve_read_targets`
 
 ### Property 8: Reporting agreement
 
-*For any* Tenant `T` and *any* Embedding_Profile `p`, the set of physical
-collections the Status_Reporter lists, the set the Integrity_Checker samples,
-and the set the Health_Reporter enumerates are each equal to
-`tenant_collection_set(T, profile=p)`, which is itself the union of
-`resolve_read_targets(c, T, profile=p)` over the five Logical_Collections.
+*For any* Tenant `T` **whose `index_prefix` is non-empty** and *any*
+Embedding_Profile `p`, the set of physical collections the Status_Reporter lists,
+the set the Integrity_Checker samples, and the set the Health_Reporter enumerates
+are each equal to `tenant_collection_set(T, profile=p)`, which is itself the union
+of `resolve_read_targets(c, T, profile=p)` over the five Logical_Collections.
+
+**Amended 2026-08-19, after Task 10/11 implementation.** This property was
+originally stated over *any* tenant. That is not achievable alongside R6.3, and the
+conflict is structural rather than incidental: R6.3 requires the no-`tenant_id`
+integrity response to stay byte-equivalent, while Task 11.1 requires the report to
+name each union member with the number of records drawn from it. Per-member
+reporting necessarily changes the rendered output, so the two requirements cannot
+both hold for the Default_Tenant.
+
+Resolved toward preservation, consistent with the standing rule and with how every
+other tension in this spec was settled: the Default_Tenant retains the legacy
+unscoped `sample_metadata(collection=None)` call and its legacy status and health
+rendering.
+
+**The consequence, stated plainly rather than left implicit: `gw` integrity
+findings remain unscoped, describing a mixture across every tenant's data.** That is
+a real remaining gap — a different one from the shared-scope read blind spot this
+spec closes, and one the byte-equivalence freeze is what defers. It belongs to the
+default-tenant convergence follow-up alongside the `mdc-content-sha-registry`
+over-count in the `gw` status total and cross-member score fusion. All three are
+blocked on the same freeze and should retire it together, gated on a
+quality-benchmark comparison.
 
 **Functions under test:**
 `src.tools.semantic_search._render_vector_status_block`,

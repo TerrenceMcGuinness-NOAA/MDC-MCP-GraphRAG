@@ -740,9 +740,28 @@ describe that tenant rather than an unscoped mixture of all five.
    member of the active Tenant's Resolved_Collection_Sets, counting both the
    `shared` and the `tenant` members.
 5. WHEN the Integrity_Checker runs without a `tenant_id` argument, THE
-   Integrity_Checker SHALL draw its sample from, and report findings for, the
-   union of the Default_Tenant's Resolved_Collection_Sets across all five
-   Logical_Collections.
+   Integrity_Checker SHALL preserve its existing unscoped sampling behaviour.
+
+   **Amended 2026-08-19, after Task 10/11 implementation.** As originally written
+   this criterion required the no-`tenant_id` sample to be drawn from the union of
+   the Default_Tenant's Resolved_Collection_Sets across all five
+   Logical_Collections. That is not achievable alongside Requirement 6.3. The
+   conflict is structural: 6.3 requires the no-`tenant_id` Integrity_Checker
+   response to remain byte-equivalent, while criterion 3 above requires the report
+   to name each union member with the number of records drawn from it. Per-member
+   reporting necessarily moves the rendered bytes, so both cannot hold for the
+   Default_Tenant.
+
+   Resolved toward preservation, per the standing rule and consistent with every
+   other tension settled in this spec. The Default_Tenant retains the legacy
+   unscoped `sample_metadata(collection=None)` call.
+
+   **Consequence, recorded rather than left implicit: `gw` integrity findings
+   remain unscoped, describing a mixture across every tenant's data.** Criteria 1-4
+   and 6-8 apply as written to any Tenant whose `index_prefix` is non-empty. The
+   Default_Tenant case belongs to the default-tenant convergence follow-up, which
+   must retire the byte-equivalence freeze deliberately and under a
+   quality-benchmark gate. See the amendment note on Property 8 in `design.md`.
 6. WHEN the union of the active Tenant's Resolved_Collection_Sets contains more
    than one Physical_Collection, THE Integrity_Checker SHALL limit any single
    member's contribution to `ceil(sample_size / member_count)` records for as
