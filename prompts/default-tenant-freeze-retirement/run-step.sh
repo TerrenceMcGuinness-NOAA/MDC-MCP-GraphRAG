@@ -32,13 +32,14 @@ step_spec() {
     2) echo "step2-task02-tenant-cases.md|claude-sonnet-5|high" ;;
     3) echo "step3-task03_1_3_2-shim-and-run.md|claude-opus-4.8|xhigh" ;;
     4) echo "step4-task03_3-03_6-cli-and-tests.md|claude-sonnet-5|high" ;;
+    5) echo "step5-task04-wrapper-integration.md|claude-sonnet-5|high" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "Authored and dispatchable:"
-  for n in 1 2 3 4; do
+  for n in 1 2 3 4 5; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf '  step %s  %-44s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
@@ -47,7 +48,6 @@ if [ "${1:-}" = "--list" ]; then
   echo "findings from the step before it -- the same way the Phase 79 harness"
   echo "was built):"
   cat <<'PLAN'
-  step 5   Task 4       wrapper threshold comment + integration/log-history
   step 6   Task 6.1-6.2 structural.py + P1/P2/P3
   step 7   Task 6.3-6.4 ATOMIC R6.3 supersession + README status
   step 8   Task 8.1-8.2 addressing.py + P13
@@ -58,6 +58,11 @@ PLAN
   echo "Step 1 contains a ONE-SHOT sub-task. Task 1.2 records the corpus"
   echo "categories digest BEFORE step 2 adds tenant_categories. Recorded after,"
   echo "it certifies the post-change bytes and Property 8 becomes a tautology."
+  echo
+  echo "Step 5 is small: the wrapper default is ALREADY 10, so the threshold"
+  echo "change is comment text only. Its value is the log-history tests --"
+  echo "in particular that a two-line log reports ok while evaluating no"
+  echo "metric at all, which reads as a passing gate and is not one."
   echo
   echo "Step 4 closes out the harness: the command line plus the tests for"
   echo "everything steps 1-3 built. Its token check needs the boundary-"
@@ -84,8 +89,8 @@ fi
 N="${1:-}"
 DRY="${2:-}"
 spec="$(step_spec "${N}")" || {
-  echo "usage: $0 {1..4|--list} [--dry]"
-  echo "(steps 5-10 are planned but not yet authored; see --list)"; exit 2; }
+  echo "usage: $0 {1..5|--list} [--dry]"
+  echo "(steps 6-10 are planned but not yet authored; see --list)"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1
