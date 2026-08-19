@@ -119,9 +119,36 @@ against the recorded baselines:
 | Reporter | Physical_Collection + count | Check_Verdict |
 |---|---|---|
 | Status (default) | `  - mdc-jjobs-titan1024: 751 documents` | `- **Status:** [OK] Healthy` (twice: vector, graph) |
+| *(amended)* | | the two lines collapse under one key — see below |
 | Status (prefixed) | `  - gw_v17_mdc-jjobs-titan1024 (tenant): 92 documents` or `... (tenant): unprovisioned` | same |
 | Integrity | none | `\| Path Consistency \| [OK] \| ... \|` table rows |
 | Health | none | `[OK] **Vector Database**: healthy` |
+
+**Amended 2026-08-19, after Task 6.1/6.2 implementation.** This finding said to
+key the two `- **Status:**` lines by their enclosing section heading so vector and
+graph stay distinguishable. **That is not achievable alongside R9.2.** The two
+lines are byte-identical in the real capture (lines 16 and 37 of the recorded
+status baseline), so no intrinsic key separates them, and the heading is destroyed
+by two of the perturbations R9.2 insensitivity is tested with: line permutation
+detaches a line from its heading, and heading rewriting changes the heading text
+itself. Any heading-derived key therefore fails Property 2.
+
+The two lines collapse under a single `Status` key. What that costs is the
+vector-versus-graph attribution; what it must not cost is detection, and the first
+implementation did lose detection. Collapsing by plain assignment is
+last-write-wins, so a vector `FAIL` followed by a graph `PASS` yielded `PASS` and
+the regression disappeared — while a graph-only failure was caught purely because
+that line comes second in the render. An order-dependent gate is not a gate.
+
+The collapse therefore keeps the **most severe** verdict, `FAIL` over `SKIP` over
+`PASS`. `SKIP` outranking `PASS` rests on the same argument as the
+`[SKIP]`-in-details-cell override: a check that quietly stopped running must not
+read as one that passed. A parameterised regression test pins all three failure
+directions and both no-op directions.
+
+Recovering the attribution would need the health render to make its two status
+lines distinguishable in their own text, which is a change under `src/` and out of
+scope for a feature that changes no runtime behaviour.
 
 The graph block emits `  - CALLS: 1020000` and `  - FortranSubroutine: 29605`,
 which share the collection-line shape but lack the ` documents` /
