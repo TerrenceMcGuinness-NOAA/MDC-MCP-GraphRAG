@@ -47,9 +47,44 @@ from src.data.embedding_provider import (
     create_provider,
 )
 from src.data.embedding_registry import EmbeddingModelRegistry, ModelProfile
+from src.data.read_router import CollectionCondition
 from src.data.vector_errors import CollectionNotProvisionedError
 
 log = logging.getLogger(__name__)
+
+#: Default TTL, in seconds, for a cached *positive* Collection_Condition
+#: (``PROVISIONED_EMPTY`` or ``PROVISIONED_POPULATED``). Overridable via
+#: ``MCP_COLLECTION_CONDITION_TTL_S`` (shared-scope-query-routing Task
+#: 7.2, design "Cross-backend normalization" point 3). ``UNPROVISIONED``
+#: is never cached regardless of this setting -- see
+#: :pymeth:`OpenSearchAdapter.collection_condition`.
+_COLLECTION_CONDITION_TTL_S_DEFAULT: float = 300.0
+
+#: Env var controlling the Collection_Condition probe kill switch
+#: (Task 7.2, design point 4). Default enabled; set to ``"0"`` to treat
+#: any non-raising member as ``PROVISIONED_POPULATED`` without issuing
+#: the ambiguous-case ``count_documents`` probe.
+_COLLECTION_CONDITION_PROBE_ENV: str = "MCP_COLLECTION_CONDITION_PROBE"
+
+
+def _collection_condition_probe_enabled() -> bool:
+    """Return whether the Collection_Condition probe is enabled (Task 7.2).
+
+    Read fresh on every call (not cached) so a test can flip the env var
+    between invocations without needing to reconstruct the adapter.
+    """
+    return os.getenv(_COLLECTION_CONDITION_PROBE_ENV, "1") != "0"
+
+
+def _collection_condition_ttl_s() -> float:
+    """Return the active Collection_Condition cache TTL, in seconds."""
+    raw = os.getenv("MCP_COLLECTION_CONDITION_TTL_S")
+    if raw is None:
+        return _COLLECTION_CONDITION_TTL_S_DEFAULT
+    try:
+        return float(raw)
+    except ValueError:
+        return _COLLECTION_CONDITION_TTL_S_DEFAULT
 
 
 class OpenSearchQueryError(RuntimeError):
@@ -186,6 +221,12 @@ class OpenSearchAdapter:
             "queries_failed": 0,
             "last_query_ms": None,
         }
+        # Collection_Condition cache (Task 7.2): physical name ->
+        # (condition, cached_at_monotonic). UNPROVISIONED is never
+        # stored here -- see collection_condition().
+        self._condition_cache: dict[
+            str, tuple[CollectionCondition, float]
+        ] = {}
 
     # ── VectorDBProtocol ────────────────────────────────────────────────
 
@@ -439,6 +480,88 @@ class OpenSearchAdapter:
                 return int(resp.get("count", 0) or 0)
             except Exception:
                 return 0
+
+        return await asyncio.to_thread(_do)
+
+    async def collection_condition(
+        self, physical_collection: str
+    ) -> CollectionCondition:
+        """Classify one physical OpenSearch index (shared-scope-query-
+        routing Task 7.2, R7.3, R7.4, R7.8).
+
+        Takes the free answers first and probes only the ambiguous case:
+
+        * ``UNPROVISIONED`` -- the index does not exist. Detected via the
+          same :func:`_is_missing_index_exc` signal the query path uses,
+          so this classifier and ``query()`` agree on what "absent"
+          means. **Never cached**: a collection can be provisioned at
+          any moment, and a stale absence is far more damaging than a
+          stale count (design "Cross-backend normalization" point 3).
+        * ``PROVISIONED_EMPTY`` / ``PROVISIONED_POPULATED`` -- the index
+          exists; disambiguated by the document count. Cached per
+          physical name for :func:`_collection_condition_ttl_s` seconds.
+
+        The kill switch ``MCP_COLLECTION_CONDITION_PROBE=0`` skips the
+        existence/count probe entirely and reports
+        ``PROVISIONED_POPULATED`` for any index reachable without
+        raising, logging that the probe is disabled.
+
+        Never raises. Issues no mutating call -- only ``count`` (a
+        metadata read), already used elsewhere in this adapter without
+        creating, deleting, or writing anything (Requirement 12.5).
+        """
+        if not _collection_condition_probe_enabled():
+            log.info(
+                "[INFO] collection_condition probe disabled "
+                "(MCP_COLLECTION_CONDITION_PROBE=0); reporting "
+                "provisioned-populated for %r without a probe",
+                physical_collection,
+            )
+            return CollectionCondition.PROVISIONED_POPULATED
+
+        cached = self._condition_cache.get(physical_collection)
+        if cached is not None:
+            condition, cached_at = cached
+            if (time.monotonic() - cached_at) < _collection_condition_ttl_s():
+                return condition
+
+        if not self._connected:
+            await self.connect()
+
+        def _count_or_absent() -> int | None:
+            """Return the document count, or ``None`` if the index is absent.
+
+            ``None`` distinguishes UNPROVISIONED from a genuine zero
+            count. Any failure -- absence-signalled or otherwise -- is
+            treated as absent here: this method's contract is "never
+            raises", and a transport error offers no meaningful third
+            outcome to report through a two-state count/absent result.
+            """
+            raw = self._raw_client()
+            try:
+                resp = raw.count(index=physical_collection)
+            except Exception:
+                return None
+            try:
+                return int(resp.get("count", 0) or 0)
+            except Exception:
+                return 0
+
+        count = await asyncio.to_thread(_count_or_absent)
+        if count is None:
+            # Deliberately not cached (see docstring).
+            return CollectionCondition.UNPROVISIONED
+
+        condition = (
+            CollectionCondition.PROVISIONED_POPULATED
+            if count > 0
+            else CollectionCondition.PROVISIONED_EMPTY
+        )
+        self._condition_cache[physical_collection] = (
+            condition,
+            time.monotonic(),
+        )
+        return condition
 
         return await asyncio.to_thread(_do)
 
