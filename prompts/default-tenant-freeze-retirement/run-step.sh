@@ -54,8 +54,7 @@ if [ "${1:-}" = "--list" ]; then
   echo "findings from the step before it -- the same way the Phase 79 harness"
   echo "was built):"
   cat <<'PLAN'
-  step 10  Task 10.1+10.2  no-runtime-change gate + Retirement_Record
-  step 11  Task 10.3+10.4  document assertions + suite-as-set -- FINAL
+  (none -- all 11 steps are authored)
 PLAN
   echo
   echo "Step 1 contains a ONE-SHOT sub-task. Task 1.2 records the corpus"
