@@ -110,13 +110,13 @@ Named here rather than written as tasks that cannot pass:
 
 ## Tasks
 
-- [ ] 1. Scoring core, shared generators, and the pre-change corpus digest
+- [x] 1. Scoring core, shared generators, and the pre-change corpus digest
   - Stage 1 foundations. Nothing here touches the corpus, the wrapper, or any
     freeze criterion, so all 28 byte-equivalence tests stay in force throughout.
   - **1.2 must complete before 2.1.** Ordering trap: a digest recorded after
     `tenant_categories` lands pins the post-change state and proves nothing.
 
-  - [ ] 1.1 Add the five shared Hypothesis generators to the properties conftest
+  - [x] 1.1 Add the five shared Hypothesis generators to the properties conftest
     - Modify `mcp_server_python/tests/properties/conftest.py`, extending the
       existing Phase 79 set (`logical_collections`, `tenants`,
       `prefixed_tenants`, `profiles`, `adapters`) rather than duplicating it.
@@ -140,7 +140,7 @@ Named here rather than written as tasks that cannot pass:
     - This task lands in wave 0. Its consumers are 1.4, 3.4, 3.5, 6.2, and 8.2.
     - _Requirements: 4.6, 9.1, 9.2, 9.5_
 
-  - [ ] 1.2 Record the pre-change corpus `categories` digest
+  - [x] 1.2 Record the pre-change corpus `categories` digest
     - New file
       `mcp_server_python/tests/baselines/expected/corpus_categories_digest.json`
       holding the canonical-JSON digest of the Ground_Truth_Corpus `categories`
@@ -158,7 +158,7 @@ Named here rather than written as tasks that cannot pass:
       distinct tool names, corpus `version` `1.0.0`.
     - _Requirements: 2.2_
 
-  - [ ] 1.3 Create the harness module with the corpus loader and the scoring core
+  - [x] 1.3 Create the harness module with the corpus loader and the scoring core
     - New file `mcp_server_python/scripts/run_benchmark.py`. This sub-task lands
       the data model and the pure arithmetic only -- no closures, no invocation,
       no CLI.
@@ -196,7 +196,7 @@ Named here rather than written as tasks that cannot pass:
       gate on it; a docstring line recording that it is documentary is enough.
     - _Requirements: 1.1, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
 
-  - [ ] 1.4 Property tests for metric bounds and the mrr/coverage identity
+  - [x] 1.4 Property tests for metric bounds and the mrr/coverage identity
     - New file `mcp_server_python/tests/properties/test_benchmark_scoring.py`.
     - **Property 5: Metric bounds, including the empty expectation.** Over
       `case_shapes()`: every reported `precision_at_k`, `recall_at_k`, `mrr`, and
@@ -215,7 +215,7 @@ Named here rather than written as tasks that cannot pass:
       `# Feature: default-tenant-freeze-retirement, Property 5: ...`
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 5.2_
 
-  - [ ] 1.5 Model-based formula parity against the committed metrics log
+  - [x] 1.5 Model-based formula parity against the committed metrics log
     - New file `mcp_server_python/tests/unit/test_benchmark_node_parity.py`,
       marker `unit`.
     - **Property 7: Formula parity with the incumbent harness.** For every
@@ -241,7 +241,7 @@ Named here rather than written as tasks that cannot pass:
       cannot reach the corner that breaks a naive implementation.
     - _Requirements: 5.1, 5.2_
 
-  - [ ]* 1.6 Generator meta-test for the weighted corners
+  - [x]* 1.6 Generator meta-test for the weighted corners
     - New file
       `mcp_server_python/tests/properties/test_benchmark_fixture_meta.py`.
     - Assert `case_shapes()` actually reaches `expected_length` of 0, 1, exactly
@@ -254,10 +254,10 @@ Named here rather than written as tasks that cannot pass:
       same way.
     - _Requirements: 4.6_
 
-- [ ] 2. Corpus extension with tenant-scoped cases
+- [x] 2. Corpus extension with tenant-scoped cases
   - Requires 1.2 to have recorded the digest first.
 
-  - [ ] 2.1 Add the `tenant_categories` sibling container and bump the corpus version
+  - [x] 2.1 Add the `tenant_categories` sibling container and bump the corpus version
     - Modify `mcp_server_node/test/benchmark/ground_truth.json`: add one sibling
       top-level key `tenant_categories`, keyed by the same six Benchmark_Category
       names, and move `version` to `1.1.0`.
@@ -302,7 +302,7 @@ Named here rather than written as tasks that cannot pass:
       regresses to prefix-everything.
     - _Requirements: 2.1, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 2.2 Corpus invariance, coverage, and anchoring guard assertions
+  - [x] 2.2 Corpus invariance, coverage, and anchoring guard assertions
     - New file `mcp_server_python/tests/unit/test_benchmark_corpus.py`.
     - **Property 8: Corpus invariance under tenant-scoped extension.** Every
       `categories` case matches its pinned expectation field-by-field; the
@@ -333,11 +333,11 @@ Named here rather than written as tasks that cannot pass:
       corpus assertions rather than under `tests/properties/`.
     - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6_
 
-- [ ] 3. Harness closure collection, invocation, and emitted record
+- [x] 3. Harness closure collection, invocation, and emitted record
   - Writes `scripts/run_benchmark.py` in three ordered passes (3.1, 3.2, 3.3),
     each in its own wave.
 
-  - [ ] 3.1 Registration_Shim, `build_tool_map`, and the real catalog
+  - [x] 3.1 Registration_Shim, `build_tool_map`, and the real catalog
     - Modify `mcp_server_python/scripts/run_benchmark.py`.
     - `_ToolShim` stands in for a `FastMCP` server: `tool(*args, **kwargs)`
       returns a decorator that records the closure under `kwargs["name"]` or
@@ -379,7 +379,7 @@ Named here rather than written as tasks that cannot pass:
       -- the corpus's cases do not reach the manifest path.
     - _Requirements: 1.2, 1.3, 1.4_
 
-  - [ ] 3.2 `run_benchmark` orchestration, per-case accounting, and the record
+  - [x] 3.2 `run_benchmark` orchestration, per-case accounting, and the record
     - Modify `mcp_server_python/scripts/run_benchmark.py`.
     - `run_benchmark(corpus, *, data=None, catalog=None, category=None, results_dir=None) -> BenchmarkRun`.
     - **Facade seam (R3.1/R3.2).** With `data=None`, build via
@@ -432,7 +432,7 @@ Named here rather than written as tasks that cannot pass:
     - Write no file anywhere else (R3.6).
     - _Requirements: 1.5, 1.6, 2.7, 2.8, 2.9, 3.1, 3.2, 3.3, 3.5, 3.6, 4.8, 4.9, 4.10_
 
-  - [ ] 3.3 CLI surface and exit statuses
+  - [x] 3.3 CLI surface and exit statuses
     - Modify `mcp_server_python/scripts/run_benchmark.py`: add
       `main(argv=None) -> int`.
     - `--dry-run`: validate the corpus, print the per-category case plan and the
@@ -457,7 +457,7 @@ Named here rather than written as tasks that cannot pass:
     - All console output ASCII with `[OK]` / `[WARN]` / `[ERROR]` prefixes.
     - _Requirements: 1.7, 1.8, 1.9, 1.10_
 
-  - [ ] 3.4 Property tests for determinism, partition, accounting, and artefact shape
+  - [x] 3.4 Property tests for determinism, partition, accounting, and artefact shape
     - Modify `mcp_server_python/tests/properties/test_benchmark_scoring.py`.
     - **Property 4: Scoring determinism.** Two successive `run_benchmark`
       invocations over a fixed corpus selection and a fixed injected facade
@@ -489,7 +489,7 @@ Named here rather than written as tasks that cannot pass:
       line.
     - _Requirements: 1.6, 1.8, 1.10, 2.8, 2.9, 3.1, 3.2, 3.3, 3.4, 4.7, 4.8, 4.9, 4.10_
 
-  - [ ] 3.5 Hermeticity and closure-binding property tests
+  - [x] 3.5 Hermeticity and closure-binding property tests
     - New file
       `mcp_server_python/tests/properties/test_benchmark_hermetic.py`.
     - **Property 11: Hermeticity of the injected path.** Under a
@@ -522,7 +522,7 @@ Named here rather than written as tasks that cannot pass:
       disagree are disagreeing about rendering, not about data.
     - _Requirements: 1.2, 1.3, 1.4, 2.7, 3.2, 3.6_
 
-  - [ ] 3.6 Unit tests for the corpus, selection, and failure tables
+  - [x] 3.6 Unit tests for the corpus, selection, and failure tables
     - New file `mcp_server_python/tests/unit/test_benchmark_harness.py`.
     - Cover the design's Error Handling tables with fixed inputs: corpus absent;
       corpus not valid JSON (message names path, line, column); `categories`
@@ -541,9 +541,9 @@ Named here rather than written as tasks that cannot pass:
     - Runs with no AWS credential and no reachable server (R3.7).
     - _Requirements: 1.6, 1.7, 1.9, 3.3, 3.4, 3.7_
 
-- [ ] 4. Threshold reconciliation and nightly wrapper integration
+- [x] 4. Threshold reconciliation and nightly wrapper integration
 
-  - [ ] 4.1 Align the wrapper's regression default with the Governing_Threshold
+  - [x] 4.1 Align the wrapper's regression default with the Governing_Threshold
     - Modify `mcp_server_python/scripts/run_benchmark_nightly.sh`.
     - The Governing_Threshold is **10 percent, relative, per Benchmark_Category
       and for `overall`, against the median of the trailing 7 log lines, with a
@@ -564,7 +564,7 @@ Named here rather than written as tasks that cannot pass:
       to its pre-change form -- 4.2 asserts that.
     - _Requirements: 6.3, 7.2, 7.3_
 
-  - [ ] 4.2 Wrapper integration and log-history tests
+  - [x] 4.2 Wrapper integration and log-history tests
     - New file
       `mcp_server_python/tests/unit/test_benchmark_wrapper_integration.py`.
     - **R7.4/R7.5 hermetically, with no new production code.** `get_quality_metrics`
@@ -600,7 +600,7 @@ Named here rather than written as tasks that cannot pass:
       recorded pre-change form and assert equality.
     - _Requirements: 5.5, 7.1, 7.3, 7.4, 7.5_
 
-- [ ] 5. Checkpoint - stage 1 complete, the replacement gate exists
+- [x] 5. Checkpoint - stage 1 complete, the replacement gate exists
   - Ensure all tests pass, ask the user if questions arise.
   - The Benchmark_Harness exists, drives Python Tool_Closures through the tenancy
     ContextVar, scores by formulas proven identical to the incumbent's over 1,260
@@ -611,7 +611,7 @@ Named here rather than written as tasks that cannot pass:
     R15.4, and `pycodestyle` is clean on every file added so far.
   - Confirm `git diff --stat mcp_server_python/src/` is empty.
 
-- [ ] 6. Stage 2 - Structural_Equivalence replaces the reporting freeze
+- [x] 6. Stage 2 - Structural_Equivalence replaces the reporting freeze
   - **6.3 is ONE atomic change and must not be split.** R8.2 requires the R6.3
     supersession and its replacement check land together, so no revision exists in
     which the reporting freeze is relaxed and Structural_Equivalence is absent.
@@ -619,7 +619,7 @@ Named here rather than written as tasks that cannot pass:
     nothing consumes yet, so Byte_Equivalence is still fully in force at those
     revisions.
 
-  - [ ] 6.1 Build the Structural_Equivalence evaluator
+  - [x] 6.1 Build the Structural_Equivalence evaluator
     - New file `mcp_server_python/tests/baselines/structural.py`.
     - **Placement is deliberate.** R15.3 permits this in `src/`, but no `src/`
       module needs it (it has exactly one caller, a test), putting it in `src/`
@@ -680,7 +680,7 @@ Named here rather than written as tasks that cannot pass:
       baseline format exists and the two cannot drift.
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6_
 
-  - [ ] 6.2 Property tests for the relation
+  - [x] 6.2 Property tests for the relation
     - New file
       `mcp_server_python/tests/properties/test_structural_equivalence.py`.
     - **Property 1: Structural_Equivalence is an equivalence relation.**
@@ -714,7 +714,7 @@ Named here rather than written as tasks that cannot pass:
       table row across its header) are individually low-probability.
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 13.6_
 
-  - [ ] 6.3 ATOMIC - supersede the reporting freeze and swap in the structural check
+  - [x] 6.3 ATOMIC - supersede the reporting freeze and swap in the structural check
     - **ONE change. Do not split.** Every bullet below lands together. R8.2 forbids
       a revision in which the R6.3 relaxation is present and the structural check
       is not.
@@ -757,7 +757,7 @@ Named here rather than written as tasks that cannot pass:
       staging was violated -- that is exactly what R8.6 makes checkable.
     - _Requirements: 8.2, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 13.4_
 
-  - [ ] 6.4 Record the capture mechanism's status and the re-record affordance
+  - [x] 6.4 Record the capture mechanism's status and the re-record affordance
     - Modify `mcp_server_python/tests/baselines/README.md`:
       - State that the Baseline_Capture_Mechanism is an **instrument available to
         a high-surface refactor rather than a standing gate**, naming this feature
@@ -784,7 +784,7 @@ Named here rather than written as tasks that cannot pass:
       still present (R13.1).
     - _Requirements: 10.7, 13.1, 13.2, 13.3, 13.6_
 
-- [ ] 7. Checkpoint - stage 2 complete, reporters gated structurally
+- [x] 7. Checkpoint - stage 2 complete, reporters gated structurally
   - Ensure all tests pass, ask the user if questions arise.
   - The three reporters are now gated by Structural_Equivalence, so the registry
     over-count can be corrected and `gw` integrity findings can be scoped. Query
@@ -801,7 +801,7 @@ Named here rather than written as tasks that cannot pass:
     `tests/unit/test_default_tenant_byte_equivalence.py`, in different sections,
     and 6.3 comes first.
 
-  - [ ] 8.1 Build the addressed-set and provenance checks
+  - [x] 8.1 Build the addressed-set and provenance checks
     - New files `mcp_server_python/tests/baselines/addressing.py` and
       `mcp_server_python/tests/baselines/expected/addressed_sets.json`.
     - **This check cannot read the render, and that is why it is not a parser.**
