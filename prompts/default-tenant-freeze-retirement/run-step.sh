@@ -37,13 +37,14 @@ step_spec() {
     7) echo "step7-task06_3_6_4-atomic-reporting.md|claude-opus-4.8|xhigh" ;;
     8) echo "step8-task08_1_8_2-addressing.md|claude-sonnet-5|high" ;;
     9) echo "step9-task08_3-atomic-query.md|claude-opus-4.8|xhigh" ;;
+   10) echo "step10-task10_1_10_2-record.md|claude-opus-4.8|xhigh" ;;
     *) return 1 ;;
   esac
 }
 
 if [ "${1:-}" = "--list" ]; then
   echo "Authored and dispatchable:"
-  for n in 1 2 3 4 5 6 7 8 9; do
+  for n in 1 2 3 4 5 6 7 8 9 10; do
     IFS='|' read -r f m e <<< "$(step_spec "$n")"
     printf '  step %s  %-44s %s / %s\n' "$n" "${f}" "$m" "$e"
   done
@@ -52,7 +53,8 @@ if [ "${1:-}" = "--list" ]; then
   echo "findings from the step before it -- the same way the Phase 79 harness"
   echo "was built):"
   cat <<'PLAN'
-  step 10  Task 10      no-runtime-change gate, Retirement_Record, doc asserts
+  step 10  Task 10.1+10.2  no-runtime-change gate + Retirement_Record
+  step 11  Task 10.3+10.4  document assertions + suite-as-set (unauthored)
 PLAN
   echo
   echo "Step 1 contains a ONE-SHOT sub-task. Task 1.2 records the corpus"
@@ -117,8 +119,8 @@ fi
 N="${1:-}"
 DRY="${2:-}"
 spec="$(step_spec "${N}")" || {
-  echo "usage: $0 {1..9|--list} [--dry]"
-  echo "(step 10 is planned but not yet authored; see --list)"; exit 2; }
+  echo "usage: $0 {1..10|--list} [--dry]"
+  echo "(step 11 = tasks 10.3 + 10.4, not yet authored; see --list)"; exit 2; }
 IFS='|' read -r PROMPT MODEL EFFORT <<< "${spec}"
 
 cd "${REPO}" || exit 1
