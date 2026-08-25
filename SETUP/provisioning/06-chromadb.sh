@@ -18,9 +18,12 @@ USER_OWNERSHIP=$(get_ownership "${USER_NAME}")
 CHROMADB_DATA="${DATA_ROOT}/chromadb"
 CHROMADB_CONTAINER="chromadb"
 
-# Ensure data directory exists
+# Ensure data directory exists with correct SELinux labels for container access
 mkdir -p "${CHROMADB_DATA}"
 chown -R "${USER_OWNERSHIP}" "${CHROMADB_DATA}"
+if command_exists chcon; then
+    chcon -R -t container_file_t "${CHROMADB_DATA}" 2>/dev/null || true
+fi
 
 # Check if container already exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${CHROMADB_CONTAINER}$"; then
