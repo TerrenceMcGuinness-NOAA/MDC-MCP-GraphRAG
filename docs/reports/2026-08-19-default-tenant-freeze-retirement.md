@@ -343,22 +343,141 @@ therefore a calibration run. The operator records, for each of the eight
 Tenant_Scoped_Cases, whether it scored 0 on that run, and distinguishes an
 expected zero from a miscalibration.
 
-| Case id | Tool | First-live-run score (operator fills) | Expected zero? |
-|---|---|---|---|
-| cs_t01 | analyze_code_structure | (pending live run) | no |
-| ss_t01 | search_documentation | (pending live run) | no |
-| ar_t01 | search_architecture | (pending live run) | yes -- pending Gap J |
-| ee_t01 | search_ee2_standards | (pending live run) | no |
-| op_t01 | get_job_details | (pending live run) | no |
-| kb_t01 | get_knowledge_base_status | (pending live run) | no |
-| ki_t01 | check_knowledge_integrity | (pending live run) | no |
-| cl_t01 | trace_full_execution_chain | (pending live run) | no |
+**FILLED 2026-08-26 from the first live run.** Record
+/tmp/bench_py/2026-08-26T21-08-10.json, harness stamp
+python:run_benchmark.py:aws:titan1024, corpus 1.1.0, 68 cases, AgentCore runtime
+version 39 / image python-tenants-v14. **This run is NOT a valid baseline for the
+Median_Window** -- see 8.1 for why.
 
-The one expected zero is ar_t01: gw_v17_mdc-community-summaries-titan1024 holds
-zero documents while Gap J is open, so search_architecture returns an
-[INFO] Skip_Block and the case scores 0 by design. It flips to non-zero when the
-community-summaries pipeline runs. Any other case scoring 0 on the first live run
-is a miscalibration -- a corpus expected-value bug to fix, not a routing defect.
+| Case id | Tool | covered | precision | mrr | latency | Predicted zero? | Actual |
+|---|---|---|---|---|---|---|---|
+| cs_t01 | analyze_code_structure | no | 0.00 | 0.00 | 30,065 ms | no | **ZERO -- graph timeout** |
+| ss_t01 | search_documentation | yes | 0.75 | 1.00 | 30,606 ms | no | non-zero, as predicted |
+| ar_t01 | search_architecture | yes | 0.25 | 1.00 | 214 ms | **yes** | **NON-ZERO -- prediction wrong, see 8.2** |
+| ee_t01 | search_ee2_standards | yes | 1.00 | 1.00 | 161 ms | no | non-zero, as predicted |
+| op_t01 | get_job_details | no | 0.00 | 0.00 | 30,065 ms | no | **ZERO -- graph timeout** |
+| kb_t01 | get_knowledge_base_status | yes | 1.00 | 1.00 | 150,749 ms | no | non-zero, as predicted |
+| ki_t01 | check_knowledge_integrity | yes | 1.00 | 1.00 | 121,215 ms | no | non-zero, as predicted |
+| cl_t01 | trace_full_execution_chain | no | 0.00 | 0.00 | 60,021 ms | no | **ZERO -- graph timeout** |
+
+Three cases scored zero and the predicted zero was not among them. All three
+zeros -- cs_t01, op_t01, cl_t01 -- are graph-infrastructure artifacts, not
+miscalibrations: each has a latency that is an exact multiple of the 30-second
+client read timeout (30,065 ms and 60,021 ms), and each returned 0 of its
+expected results because the graph query never completed. No corpus
+expected-value is implicated. They are not to be "fixed" in the corpus.
+
+### 8.1 Why this run must not seed the Median_Window
+
+Nineteen of the 68 cases came back uncovered, and the failure shape is uniform:
+eleven at 30,037-30,073 ms (one timeout), three at 60,021-60,040 ms (two
+timeouts), and five at 6.5-15.7 s failing with Neptune HTTP 400. Not one of the
+nineteen returned a wrong answer -- every one returned no answer. Seeding the
+Median_Window with a run whose graph plane was non-functional would set a
+depressed median that a later healthy run could not regress against, defeating
+the gate in the direction that matters.
+
+The vector plane, by contrast, measured cleanly and is worth recording as the
+first real signal from the Python harness: ee2_compliance coverage 1.00 /
+precision 0.955 at 156 ms p50, semantic_search coverage 1.00 / precision 0.905,
+architecture coverage 0.70 at 189 ms p50. Overall coverage 0.7333, overall
+precision 0.5989, latency p50 17,005 ms and p95 60,040 ms -- both latency figures
+are graph-timeout artifacts, not retrieval cost.
+
+### 8.2 The predicted zero was wrong, and the reason matters
+
+Section 8 predicted ar_t01 would score zero because
+gw_v17_mdc-community-summaries-titan1024 holds zero documents while Gap J is
+open. That prediction contradicts this feature's own scope model, and the live run
+exposed it. community-summaries is classified **shared** and is **not** a
+Hybrid_Domain, so under gw_v17 the Read_Router addresses only the unprefixed
+mdc-community-summaries-titan1024 -- which holds 2,113 documents. The prefixed
+index is never addressed at all. It was therefore deleted on 2026-08-26 as
+unreachable, after confirming across titan1024, mpnet768, and nova1024 that no
+profile addresses it.
+
+So ar_t01 does not skip. It retrieves successfully in 214 ms, with mrr 1.0 and
+coverage 1.0, and scores precision 0.25 -- three of its four expected results do
+not match, because the summaries it retrieved describe the **gw** graph, not
+v17's.
+
+This changes what Gap J costs. The gap is not "v17 gets no architecture answers";
+it is "v17 gets gw's architecture answers, presented as v17's, at full
+confidence." A visible Skip_Block would have been the safer failure. A silently
+wrong-codebase answer is worse, and it is the shape a shared classification
+necessarily produces for a graph-derived collection. Whether community-summaries
+should be shared at all is now a live design question, not a pipeline-scheduling
+question: giving v17 its own summaries requires reclassifying the collection as
+tenant or hybrid, which is a scope-model change, not merely running Leiden.
+
+### 8.3 Three infrastructure findings the run surfaced (not this feature's, recorded here because the gate depends on them)
+
+**APOC functions are called against Neptune, which has none.** Four call sites
+use apoc.convert.toList and apoc.text.join:
+src/tools/semantic_search.py:760, src/tools/graph_rag.py:478, and
+src/graphrag/ggsr_traversal.py:356 and :374. APOC is a Neo4j server plugin;
+Neptune has no plugin mechanism, so every one of these returns
+400 Unknown function: 'toList'. This is pre-existing -- the APOC reference counts
+are identical at the Phase 80 base c5b2ea7, at the branch merge-base 48a3d987,
+and at HEAD -- and traces to commit 0dac1e0 (Phases 60/61). It is the direct
+cause of the five cs_* failures and of the GGSR enrichment failures logged
+throughout the run. Note that ggsr_traversal.py's own docstring describes this
+cypher as "a Neptune-compatible port", which it is not.
+
+Both plain replacements were verified against live Neptune and execute without
+error: toLower(n.name) CONTAINS toLower($x) at 0.53 s and
+toLower(toString(n.name)) CONTAINS toLower($x) at 0.13 s. Fixing this requires
+editing files under mcp_server_python/src/, which Requirement 15 criterion 3 of
+this feature forbids and tests/unit/test_no_runtime_change.py enforces over the
+range c5b2ea7..HEAD. It is therefore a separate change, correctly owned by
+whichever branch addresses the pre-existing defect, not smuggled into this one.
+
+**The Neptune adapter reports a read timeout as unreachability.** The error text
+is "Neptune unreachable at <endpoint> ... Read timed out. (read timeout=30)".
+Neptune was verifiably reachable throughout: raw HTTPS to the same endpoint
+answered in 0.06-0.30 s during the same window, the cluster reported available
+(engine 1.4.6.0, single db.r5.large), and after the run a trivial RETURN 1 through
+the same adapter returned in 0.14 s. Diagnosing this cost real time in this
+session and will cost the next reader the same. The message should distinguish
+connect failure from read timeout.
+
+**What actually caused the timeouts is not yet identified, and two plausible
+explanations were tested and rejected.** Harness concurrency was rejected: the
+runner is sequential (results = [await _invoke_case(...) for case in selected]).
+Query shape was rejected: the unlabelled GGSR pattern
+MATCH (n)-[r]-(hop1) with a CONTAINS predicate returns 100 rows in 0.36 s
+against the idle graph. What is established is that during the run a trivial
+RETURN 1 issued from a **separate process** timed out at 30 s, which can only be
+server-side contention on the single db.r5.large; and that the cl_* cases at
+60-90 s are consistent with several sequential 30-second timeouts inside one
+case, so a single case fans out into multiple graph queries. Identifying the
+specific query requires Neptune CloudWatch metrics captured during a run, or
+per-query timing instrumentation in the harness. No third hypothesis is offered
+here without that evidence.
+
+### 8.4 A structural gap between where the benchmark writes and where the tool reads
+
+get_quality_metrics reads /app/sdd_framework/execution_state/quality_metrics.jsonl
+-- a path inside the runtime container. The Benchmark_Harness and the
+Nightly_Wrapper are not in the deployed image at all: it contains only
+pyproject.toml, sdd_framework/, and src/, so mcp_server_python/scripts/ ships
+nowhere near the runtime. The EFS access point mounts at /mnt/workflow, not /app.
+Nothing can write that path in the AgentCore deployment, and the tool
+consequently reports "No benchmark results found" no matter how many runs
+complete on the operator host.
+
+This bears directly on section 2.3's changeover plan: the Median_Window lives in
+a file the runtime cannot see and the harness cannot reach. Resolving it -- most
+plausibly by relocating the Quality_Metrics_Log to an EFS path both sides can
+address -- is a precondition for the benchmark gate meaning anything in this
+deployment. Recorded here rather than left for the third night of an unarmed
+gate.
+
+Any case scoring 0 on a future live run, once the graph plane is functional, is a
+miscalibration -- a corpus expected-value bug to fix, not a routing defect. That
+test is not yet available: the three zeros above are infrastructure, and the
+calibration question they were meant to answer remains open for cs_t01, op_t01,
+and cl_t01 until a run completes with the graph reachable.
 
 The mitigation that makes this safe: Requirement 2 criterion 9 computes the
 categories object -- the object Requirement 11 criterion 3 gates a Default_Tenant
