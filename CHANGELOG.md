@@ -1,5 +1,134 @@
 # MCP Server Changelog
 
+## [Unreleased] - default-tenant-freeze-retirement: both freezes retired (SDD Phase 80) (Aug 19, 2026)
+
+### Summary
+Phase 80 retires the Default_Tenant byte-equivalence freeze that Phase 79 leaned on,
+and replaces it with checks that permit intended change while still catching the
+regressions the freeze was protecting against. The three reporting paths are now gated
+by **structural comparison** — same collection set, same per-collection count, same
+per-check verdict, with wording and layout free to change. The four query tools are
+gated by a **paired** check: the addressed set of physical collections must be
+unchanged and every hit must carry provenance, alongside the nightly benchmark
+comparison. The capture machinery is retained as an instrument rather than a standing
+rule. Ran as an 11-step sequential harness; suite **1916 passing, 4 pre-existing
+failures, zero skips**; nothing under `mcp_server_python/src/` changed. Staged for
+human review (no push ahead of the operator, git policy 08).
+
+### Added
+- **Python benchmark harness** (`mcp_server_python/scripts/run_benchmark.py`, 1,417
+  lines). Scoring core, corpus loader, tool-map builder, per-case scoring and
+  aggregation, CLI with exit codes. Score formulas verified equal to the Node
+  harness's by Property 7 over **1,260 per-case rows and 147 aggregate scopes**. A
+  `_js_round` half-up helper reconciles Python's banker's rounding with
+  `Math.round` — `round(0.5) == 0` in Python versus `1` in JS.
+- **Eight tenant-scoped benchmark cases** for `gw_v17` in a **sibling
+  `tenant_categories` container** in `mcp_server_node/test/benchmark/ground_truth.json`
+  (v1.1.0). Deliberately not added to `categories`: doing so would shift the Node
+  per-category count 10 → 11, move the shared median, and feed `tenant_id` to
+  tenant-blind handlers. The `categories` digest `b4a87889ef2b4ab0` is unchanged.
+- **Structural comparison** (`tests/baselines/structural.py`) — `Verdict`,
+  `StructuralView`, `parse_structural`, `compare_structural`.
+- **Addressed-set and provenance check** (`tests/baselines/addressing.py`) —
+  `addressed_set` routes through `resolve_read_targets` and imports collection
+  constants from the tool modules rather than restating strings;
+  `check_hit_provenance` returns findings for a caller to assert.
+- **Retirement_Record** at
+  `docs/reports/2026-08-19-default-tenant-freeze-retirement.md` — 383 lines,
+  ASCII-only. Threshold reconciliation, score-comparability findings, gate
+  continuity, the Consumer_Audit, follow-up sequencing, baseline provenance,
+  rollback, and a deliberately empty calibration section.
+- **Test modules**: benchmark scoring / Node parity / fixture meta / hermeticity /
+  harness / wrapper integration / corpus, structural equivalence, addressed sets,
+  capture-mechanism retention, no-runtime-change, and freeze-retirement records.
+
+### Changed — spec amendments landed atomically with their replacements
+- **Phase 79 R6 criterion 3 superseded** (reporting freeze) in the same commit as the
+  structural comparison (`9d638d3`), carrying the three Requirement 9 conditions as
+  its own text.
+- **Phase 79 R6 criterion 2 superseded** (query-result freeze) in the same commit as
+  both replacements (`b623644`), naming them as **jointly necessary** and stating
+  outright that passing the benchmark while failing the structural check is failing
+  the gate — so two checks cannot be read as two chances to pass.
+- **Phase 79 R10.5 restored** to its union-scoped form and **design.md Property 8**
+  restored to "any Tenant", both of which the freeze had forced to narrow.
+- `tests/baselines/README.md` records the capture machinery as an instrument, not a
+  gate, retaining the Phase 79 Reference_Revision.
+
+### Fixed
+- **A masking hole in the structural comparison, found during review.** Collapsing
+  status lines to a single `"Status"` key was last-write-wins, so a vector-only
+  failure could be masked by a later passing line. Now resolved by severity
+  precedence, FAIL > SKIP > PASS.
+- **`assert_hit_provenance` renamed to `check_hit_provenance`.** It returns findings
+  rather than raising, and the `assert_` prefix invites a bare call whose result is
+  discarded — a trap the author fell into while writing the caller.
+- **The write-path freeze walk scoped to its actual subject.** Requirement 12.2
+  governs "ingestion scripts and helper modules those scripts import"; the walk was
+  also covering `run_benchmark.py` and `run_benchmark_nightly.sh`, which are neither,
+  and would have asserted a freeze R12.2 never imposed.
+
+### Notes
+- **Three thresholds over two comparison bases, kept distinct.** The Governing
+  Threshold is **10 percent relative against a trailing 7-run median with a strict
+  `<`**. The corpus values (`regression_threshold_pct` 5, `critical_threshold_pct` 15,
+  both against the *previous single run*) **remain in force for the Node harness's own
+  check and exit code**. 5 was rejected because it makes single-flip tripwires of four
+  of six categories against a log in which 4 of 21 runs are backend outages; 15
+  because it behaves identically at coverage 1.0 while loosening `overall` from six
+  flips to nine.
+- **The Gated_Metric triple has rank two.** `mrr` equals `coverage` by construction in
+  both harnesses, so the check evaluates `{coverage, precision_at_k}`. A reviewer
+  counting three independent signals would overestimate the gate.
+- **A deliberate reduction, recorded rather than left to be found.** Neither
+  replacement gates the rendered bytes of query-tool output, so a formatting-only
+  change — relabelled field, changed separator, reordered hit metadata — now passes
+  both halves. The physical collection a read addressed is not recoverable from the
+  rendered text at all, which is why the structural half is an
+  addressed-set-plus-provenance relation rather than a text comparison. The
+  Consumer_Audit bounds this by enumerating the six in-repo files that parse that
+  output; out-of-repo consumers cannot be enumerated from this repository and that is
+  recorded as a bounded finding, not a completed audit.
+- **Score comparability was not demonstrated.** The formulas agree; comparability
+  itself depends on store content and there is no live backend here. The
+  Median_Window therefore restarts from zero via a one-time operator archive, and
+  **the gate is blind for the first two Python runs and reports `status: ok` on the
+  second** while the per-metric guard still evaluates nothing. It arms on the third.
+- **Two independent scope tables, and nothing verifies they agree.** Reads use
+  `_BUILTIN_SCOPES` in `src/data/collection_scope.py`; writes use a hardcoded `scope`
+  literal per ingester via `resolve_collection_name`. They agree today for all five
+  logical collections, and a prefixed *shared* index is unrepresentable by
+  construction, so no embeddings are stranded. But `check_scope_consistency()` exists
+  and no ingester calls it. Related: the hybrid docs member
+  `gw_v17_mdc-workflow-docs-titan1024` is **read-reachable but write-orphaned** —
+  Phase 68 (`5d2abf4`) switched docs writes to unprefixed, so re-running the docs
+  ingester cannot refresh it. Phase 79's read router did not create this; it made the
+  stranded data readable, which is what surfaced it.
+- **Four pre-existing failures are out of scope and are not to be fixed here**
+  (R15.4): `test_environment.py::test_known_modules_covers_nine_tool_modules`,
+  `test_error_analysis.py::test_extract_ci_error_signal_tool`,
+  `test_workflow_info_tools.py::test_resolve_workflow_root_default_when_envs_empty`,
+  `test_tenancy.py::TestP6WorkflowRootContainment::test_workflow_root_is_contained`.
+  R15.4 reads "failures only among" these, which is a **subset** relation — a
+  three-failure run is compliant. P6 is Hypothesis-driven and reproduces here only
+  because its counterexample is cached in the local example database.
+- **Remaining work is operator-only:** the median-window archive before the first
+  Python log line; the calibration run that fills the Retirement_Record's empty
+  section (distinguishing `ar_t01`'s expected zero, pending Gap J, from a
+  miscalibration); the gated `update-agent-runtime` deploy carrying `requireMMDSV2`
+  and `requireServiceS3Endpoint` on a new ECR tag; and Phase 79's three
+  live-invocation rows, still BLOCKED with a hermetic test named for each.
+- **Rollback** for either atomic unit is `git revert` of that one commit, which
+  restores the corresponding byte-equivalence criterion and its tests together. The
+  Phase 79 configuration-level rollback (`MCP_COLLECTION_SCOPE_JSON` classifying all
+  five collections as `tenant` with an empty hybrid list) remains available with no
+  code change and no redeploy.
+- **Merge with history intact.** The evidence for the two atomic units — that each
+  supersession landed together with its replacement — is recoverable from the commit
+  graph. A squash-merge collapses Phase 80 into one commit and that evidence is lost;
+  the test degrades to its working-tree contract by design, so nothing breaks, but the
+  sequencing claim becomes unverifiable.
+
 ## [Unreleased] - shared-scope-query-routing: harness complete (steps 11-12) (Aug 19, 2026)
 
 ### Summary
