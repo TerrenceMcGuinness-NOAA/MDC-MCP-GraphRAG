@@ -16,6 +16,17 @@ range ``c5b2ea7..HEAD`` as well as the working tree -- together they say
 what the requirement means. Either one alone is a weaker claim than R15.3
 makes.
 
+**Amended 2026-08-26 -- one named exception.** R15.3 now admits exactly
+three ``src/`` files, the ones that carried Neo4j-APOC calls Amazon
+Neptune cannot execute (see :data:`_APOC_REMEDIATION_FILES` for the full
+reasoning). Both halves above became set comparisons against that
+allowlist rather than emptiness checks, so any *other* ``src/`` file in
+the diff still fails. A third assertion was added in the same change:
+that no ``apoc.`` call survives anywhere under ``src/`` -- the allowlist
+permits the edit, and that assertion pins that the edit achieved its
+purpose rather than merely touching the files. The exception is recorded
+in the requirement itself, not only here.
+
 R15.1 / R15.2 -- src imports no harness, harness registers no served tool
 -------------------------------------------------------------------------
 Both are close to *vacuously true by construction*. The Benchmark_Harness
@@ -83,6 +94,36 @@ _BASE_REVISION = "c5b2ea7"
 
 #: The ``src/``-relative path (as git reports it) that must show no change.
 _SRC_PATHSPEC = "mcp_server_python/src/"
+
+#: The ONLY ``src/`` files this feature is permitted to modify, and the reason.
+#:
+#: Requirement 15 criterion 3 was amended on 2026-08-26 to admit one named
+#: exception: the removal of four Neo4j-APOC call sites that cannot execute
+#: against Amazon Neptune. ``apoc.convert.toList`` and ``apoc.text.join`` are
+#: functions of the APOC *server plugin*; Neptune has no plugin mechanism and
+#: no APOC, so every query carrying them returned
+#: ``400 Unknown function: 'toList'`` -- a deterministic failure on the
+#: platform this server actually runs on. The predicate is now
+#: ``toLower(toString(n.name)) CONTAINS toLower($x)``, verified against live
+#: Neptune before the edit.
+#:
+#: The defect is *pre-existing* (identical APOC reference counts at the Phase
+#: 80 base ``c5b2ea7``, at the branch merge-base ``48a3d987``, and at HEAD;
+#: introduced by ``0dac1e0``, Phases 60/61). It is admitted here rather than
+#: deferred because the first live benchmark run showed it is the direct cause
+#: of five zero-scoring cases and of every GGSR enrichment failure, so the
+#: replacement gate this feature exists to build cannot be calibrated while it
+#: stands.
+#:
+#: This is an allowlist of exactly three paths, not a widening of the
+#: assertion: any *other* ``src/`` file appearing in the diff still fails.
+#: Keeping it a named set is the whole point -- a blanket exemption would
+#: retire the gate instead of recording an exception to it.
+_APOC_REMEDIATION_FILES = frozenset({
+    "mcp_server_python/src/tools/semantic_search.py",
+    "mcp_server_python/src/tools/graph_rag.py",
+    "mcp_server_python/src/graphrag/ggsr_traversal.py",
+})
 
 #: The Benchmark_Harness module basename. R15.1 forbids any ``src/`` module
 #: importing it; the harness lives under ``scripts/``, not ``src/``.
@@ -358,6 +399,55 @@ def _src_py_files() -> list[Path]:
     ]
 
 
+def _apoc_call_lines(source: str) -> list[int]:
+    """Return line numbers of string literals containing an APOC *call*.
+
+    A plain ``"apoc." in text`` scan over the file is wrong, and was caught
+    being wrong by this module's own first run: the docstring in
+    ``ggsr_traversal.py`` that *explains why APOC was removed* names
+    ``apoc.text.join`` and ``apoc.convert.toList`` in prose, and a
+    substring scan flags that as a surviving call. Documenting a removal
+    must not read as the thing being removed.
+
+    So the scan is AST-based and looks only at string constants that are
+    **not** docstrings -- a query lives in a non-docstring literal, while
+    an explanation of a query lives in a docstring. Docstring nodes are
+    identified by their exact object identity, taken from
+    :func:`ast.get_docstring` over the module and every class and function
+    in it, which avoids guessing from position.
+    """
+    tree = ast.parse(source)
+
+    docstring_nodes: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(
+            node,
+            (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+        ):
+            body = getattr(node, "body", None)
+            if not body:
+                continue
+            first = body[0]
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
+                docstring_nodes.add(id(first.value))
+
+    lines: list[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Constant):
+            continue
+        if not isinstance(node.value, str):
+            continue
+        if id(node) in docstring_nodes:
+            continue
+        if "apoc." in node.value:
+            lines.append(node.lineno)
+    return sorted(set(lines))
+
+
 def _imports_harness(source: str) -> bool:
     """Return True if ``source`` imports the Benchmark_Harness module."""
     tree = ast.parse(source)
@@ -398,27 +488,59 @@ class TestSrcTreeUnchanged:
             f"Phase 80 base revision {_BASE_REVISION} did not resolve"
         )
 
-    def test_src_has_no_uncommitted_change(self):
-        """R15.3, working-tree half: nothing under ``src/`` is uncommitted."""
-        out = _run_git("diff", "--stat", "--", _SRC_PATHSPEC)
-        assert out.strip() == "", (
-            "mcp_server_python/src/ has uncommitted changes; this feature "
-            "changes no runtime behaviour (R15.3):\n" + out
+    def test_src_has_no_unexpected_uncommitted_change(self):
+        """R15.3, working-tree half: only the APOC-remediation files differ.
+
+        Uses ``--name-only`` rather than ``--stat`` so the comparison is a
+        set of paths, not formatted text. Any ``src/`` file outside
+        :data:`_APOC_REMEDIATION_FILES` still fails.
+        """
+        out = _run_git("diff", "--name-only", "--", _SRC_PATHSPEC)
+        changed = {line for line in out.splitlines() if line.strip()}
+        unexpected = sorted(changed - _APOC_REMEDIATION_FILES)
+        assert not unexpected, (
+            "mcp_server_python/src/ has uncommitted changes outside the "
+            "named APOC-remediation allowlist; this feature changes no other "
+            "runtime behaviour (R15.3 as amended 2026-08-26): "
+            + ", ".join(unexpected)
         )
 
     def test_src_unchanged_across_the_phase_range(self):
-        """R15.3, range half: ``c5b2ea7..HEAD`` touches no ``src/`` file.
+        """R15.3, range half: ``c5b2ea7..HEAD`` touches only the allowlist.
 
         The working-tree check alone proves only that ``src/`` is not
-        *uncommitted*; this proves the whole phase changed nothing there,
-        which is the statement R15.3 actually makes.
+        *uncommitted*; this proves the whole phase changed nothing there
+        beyond the named exception, which is the statement R15.3 makes as
+        amended.
         """
         out = _run_git(
-            "diff", "--stat", _BASE_REVISION, "HEAD", "--", _SRC_PATHSPEC
+            "diff", "--name-only", _BASE_REVISION, "HEAD", "--", _SRC_PATHSPEC
         )
-        assert out.strip() == "", (
+        changed = {line for line in out.splitlines() if line.strip()}
+        unexpected = sorted(changed - _APOC_REMEDIATION_FILES)
+        assert not unexpected, (
             "the committed range c5b2ea7..HEAD modifies mcp_server_python/"
-            "src/; this feature changes no runtime behaviour (R15.3):\n" + out
+            "src/ outside the named APOC-remediation allowlist (R15.3 as "
+            "amended 2026-08-26): " + ", ".join(unexpected)
+        )
+
+    def test_no_apoc_call_survives_under_src(self):
+        """The APOC remediation is complete: no ``apoc.`` call under ``src/``.
+
+        The allowlist above permits three files to change; this asserts the
+        change actually achieved its purpose. Without it the allowlist would
+        permit an edit that left an APOC call in place, which is the failure
+        mode the exception exists to remove -- an ``apoc.*`` call is a
+        deterministic ``400`` against Neptune, not a latent risk.
+        """
+        offenders: list[str] = []
+        for path in _src_py_files():
+            for lineno in _apoc_call_lines(path.read_text(encoding="utf-8")):
+                offenders.append(f"{path.relative_to(_REPO_ROOT)}:{lineno}")
+        assert not offenders, (
+            "an APOC call survives under src/; Amazon Neptune has no APOC "
+            "plugin, so each of these is a deterministic 400 Unknown "
+            "function: " + ", ".join(offenders)
         )
 
 

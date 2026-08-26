@@ -475,7 +475,7 @@ async def _tool_get_code_context(
                 )
             else:
                 cypher = (
-                    "MATCH (n) WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($name)"
+                    "MATCH (n) WHERE toLower(toString(n.name)) CONTAINS toLower($name)"
                     f"{_scope_and('n')} "
                     "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
                 )

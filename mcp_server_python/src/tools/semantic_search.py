@@ -757,7 +757,7 @@ async def _tool_explain_with_context(
     if graph_db is not None:
         graph_cypher = (
             "MATCH (n) "
-            "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($topic) "
+            "WHERE toLower(toString(n.name)) CONTAINS toLower($topic) "
             "RETURN n.name AS name, labels(n) AS labels, "
             "n.path AS path LIMIT $limit"
         )

@@ -639,6 +639,42 @@ risk follows from it.
    limited to the modules that evaluate the Structural_Equivalence relation and
    the structural check of Requirement 11 criterion 2, and this feature SHALL
    modify no rendering path.
+
+   **Amended 2026-08-26 -- one named exception, admitted after the first live
+   run.** This criterion now additionally permits modification of exactly three
+   files, for the sole purpose of removing four Neo4j-APOC call sites:
+   `src/tools/semantic_search.py`, `src/tools/graph_rag.py`, and
+   `src/graphrag/ggsr_traversal.py`. No other `src/` file may change, and the
+   no-rendering-path clause above is unaffected -- the edit replaces a `WHERE`
+   predicate, touching no rendered output.
+
+   Reason. `apoc.convert.toList` and `apoc.text.join` are functions of the APOC
+   *server plugin*, which is a Neo4j add-on. Amazon Neptune has no plugin
+   mechanism and no APOC, so every query carrying them returned
+   `400 Unknown function: 'toList'` against the platform this server actually
+   runs on. The predicate becomes `toLower(toString(n.name)) CONTAINS
+   toLower($x)`, verified against live Neptune at 0.04s before the edit;
+   `toString` is a built-in and preserves the multi-valued tolerance APOC was
+   providing, since a scalar stringifies to itself and a list to its bracketed
+   rendering, either of which the `CONTAINS` test still matches.
+
+   Why admitted here rather than deferred. The defect is pre-existing, with
+   identical APOC reference counts at this feature's base revision `c5b2ea7`, at
+   the branch merge-base `48a3d987`, and at HEAD, introduced by `0dac1e0`
+   (SDD Phases 60/61). Deferring it to its own change was the initial
+   recommendation. The first live benchmark run overrode that: the APOC failure
+   is the direct cause of five zero-scoring Default_Tenant cases and of every
+   GGSR enrichment failure in the run, so the replacement gate this feature
+   exists to build cannot be calibrated while it stands. A gate that cannot be
+   calibrated is not a gate, and Requirement 8 criterion 4 makes the working
+   benchmark a precondition of the retirement rather than a follow-on to it.
+
+   Enforcement. `tests/unit/test_no_runtime_change.py` compares the changed
+   `src/` path set against a three-entry allowlist rather than asserting
+   emptiness, so any other `src/` file still fails, and it additionally asserts
+   that no `apoc.` call survives anywhere under `src/` -- the allowlist permits
+   the edit, and that assertion pins that the edit achieved its purpose instead
+   of merely touching the files.
 4. WHEN the automated test suite runs after this feature, THE test suite SHALL
    report failures only among
    `test_environment.py::test_known_modules_covers_nine_tool_modules`,
@@ -650,6 +686,32 @@ risk follows from it.
    `parity` pytest markers.
 6. THE Python files this feature adds or modifies SHALL produce no `pycodestyle`
    finding.
+
+   **Amended 2026-08-26 -- narrowed for the three APOC-remediation files only.**
+   For the three files criterion 3 admits as a named exception
+   (`src/tools/semantic_search.py`, `src/tools/graph_rag.py`,
+   `src/graphrag/ggsr_traversal.py`), the standard is that this feature
+   introduces **no new** `pycodestyle` finding, not that the files become
+   finding-free. Every file this feature *adds*, and every other file it
+   modifies, remains held to the original zero-finding standard.
+
+   Reason: a direct conflict between this criterion and criterion 3 as amended.
+   These three files carried `pycodestyle` findings before this feature — eight
+   in total, on lines unrelated to the APOC predicates — and criterion 3's
+   amendment permits editing them "for the sole purpose of removing four
+   Neo4j-APOC call sites". Making them finding-free would require editing
+   unrelated lines, which exceeds that stated purpose; leaving them non-compliant
+   would violate this criterion as originally written. Narrowing this criterion
+   resolves the conflict in the direction that keeps the diff scoped to the
+   defect being fixed.
+
+   Recorded because it is a reduction: the six surviving findings
+   (`semantic_search.py:1142`; `graph_rag.py:469`, `:710`, `:715`, `:717`,
+   `:718`) are pre-existing and are not repaired by this feature. The APOC edit
+   did reduce the count from eight to six, because the two APOC predicates were
+   themselves over-length lines (124 and 140 characters) and the replacement is
+   shorter — so the net movement is an improvement, but it is incidental rather
+   than an attempt at compliance.
 7. THE Retirement_Record SHALL state that the Phase 79 configuration-level
    rollback, setting `MCP_COLLECTION_SCOPE_JSON` to a document classifying all
    five Logical_Collections as `tenant` with an empty hybrid-domain list,
