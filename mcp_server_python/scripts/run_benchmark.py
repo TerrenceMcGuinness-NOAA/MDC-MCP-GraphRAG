@@ -832,6 +832,180 @@ async def _invoke_case(
     return replace(score_case(case, response, k), latency_ms=latency_ms)
 
 
+# ---------------------------------------------------------------------------
+# Per-graph-query timing instrument
+# ---------------------------------------------------------------------------
+#
+# Why this exists. The first live run (2026-08-26) produced 19 uncovered
+# cases whose latencies were exact multiples of the 30-second client read
+# timeout, and a trivial ``RETURN 1`` issued from a *separate process*
+# during that run also timed out -- so the contention was server-side on a
+# single db.r5.large. Two hypotheses were tested against live Neptune and
+# both were wrong: harness concurrency (the case loop is sequential) and
+# query shape (the unlabelled GGSR pattern returns 100 rows in 0.36s when
+# the graph is idle). Per-case latency cannot distinguish "one slow query"
+# from "twelve fast ones", and one case fans out into several graph
+# queries, so the case timer already present is the wrong resolution for
+# this question.
+#
+# This instrument wraps the graph adapter's ``query`` from the harness side
+# rather than editing the adapter, which keeps it under ``scripts/`` and
+# outside the R15.3 allowlist. It records one sample per graph query --
+# case id, elapsed ms, outcome, and a normalised cypher fingerprint -- and
+# aggregates by fingerprint so the report names the shape responsible
+# rather than leaving a reader to infer it.
+
+
+@dataclass(frozen=True)
+class _GraphQuerySample:
+    """One observed graph query: which case issued it, and how it went."""
+
+    case_id: str
+    elapsed_ms: int
+    ok: bool
+    shape: str
+    error: str | None = None
+
+
+def _cypher_shape(cypher: Any, *, width: int = 110) -> str:
+    """Return a stable one-line fingerprint for a cypher string.
+
+    Collapses all whitespace so the same logical query issued with
+    different indentation aggregates to one shape, and truncates to
+    ``width`` so the grouping key stays readable in a report. Parameters
+    are already out of the string (both adapters pass them separately), so
+    no redaction is needed -- but a non-string input is coerced rather
+    than raising, because this instrument must never be the thing that
+    breaks a run.
+    """
+    text = " ".join(str(cypher).split())
+    return text[:width]
+
+
+class _GraphQueryTimer:
+    """Wrap a graph adapter's ``query`` to record per-query latency.
+
+    Install before the case loop and uninstall in a ``finally``. Set
+    :attr:`current_case` before each case so every sample is attributable.
+    The wrapper re-raises whatever the adapter raised: it observes, and
+    changes nothing the harness is measuring.
+    """
+
+    def __init__(self, graph_db: Any) -> None:
+        self._graph = graph_db
+        self._original: Any = None
+        self.samples: list[_GraphQuerySample] = []
+        self.current_case: str = "<setup>"
+
+    def install(self) -> bool:
+        """Wrap ``query``; return False when there is nothing to wrap.
+
+        A ``None`` graph handle is the normal degraded case (no
+        ``NEPTUNE_ENDPOINT``), not an error -- the run proceeds with an
+        empty sample list and the report says so.
+        """
+        if self._graph is None or not hasattr(self._graph, "query"):
+            return False
+        original = self._graph.query
+        self._original = original
+        timer = self
+
+        async def _timed(*args: Any, **kwargs: Any) -> Any:
+            start = time.perf_counter()
+            shape = _cypher_shape(args[0] if args else kwargs.get("query", ""))
+            try:
+                out = await original(*args, **kwargs)
+            except Exception as exc:  # noqa: BLE001 - observed, then re-raised
+                timer.samples.append(
+                    _GraphQuerySample(
+                        case_id=timer.current_case,
+                        elapsed_ms=_elapsed_ms(start),
+                        ok=False,
+                        shape=shape,
+                        error=str(exc)[:180],
+                    )
+                )
+                raise
+            timer.samples.append(
+                _GraphQuerySample(
+                    case_id=timer.current_case,
+                    elapsed_ms=_elapsed_ms(start),
+                    ok=True,
+                    shape=shape,
+                )
+            )
+            return out
+
+        self._graph.query = _timed  # type: ignore[method-assign]
+        return True
+
+    def uninstall(self) -> None:
+        """Restore the adapter's own ``query``. Idempotent."""
+        if self._original is not None:
+            self._graph.query = self._original  # type: ignore[method-assign]
+            self._original = None
+
+
+def _graph_query_block(
+    samples: Sequence[_GraphQuerySample], *, installed: bool
+) -> dict[str, Any]:
+    """Summarise graph-query samples for the Benchmark_Run_Record.
+
+    Reports the totals, the latency distribution, the slowest individual
+    queries with their issuing case, and -- the part that answers the
+    contention question -- an aggregation by cypher fingerprint ordered by
+    total time spent, so the shape consuming the most graph time is named
+    rather than inferred.
+    """
+    if not installed:
+        return {
+            "instrumented": False,
+            "reason": "no graph adapter to wrap (graph_db is None)",
+        }
+    if not samples:
+        return {"instrumented": True, "total_queries": 0}
+
+    times = sorted(s.elapsed_ms for s in samples)
+    failed = [s for s in samples if not s.ok]
+
+    by_shape: dict[str, dict[str, Any]] = {}
+    for s in samples:
+        row = by_shape.setdefault(
+            s.shape,
+            {"shape": s.shape, "count": 0, "failed": 0,
+             "total_ms": 0, "max_ms": 0},
+        )
+        row["count"] += 1
+        row["total_ms"] += s.elapsed_ms
+        row["max_ms"] = max(row["max_ms"], s.elapsed_ms)
+        if not s.ok:
+            row["failed"] += 1
+
+    ranked = sorted(by_shape.values(), key=lambda r: -r["total_ms"])
+    slowest = sorted(samples, key=lambda s: -s.elapsed_ms)[:15]
+
+    return {
+        "instrumented": True,
+        "total_queries": len(samples),
+        "failed_queries": len(failed),
+        "latency_p50_ms": _percentile(times, 50),
+        "latency_p95_ms": _percentile(times, 95),
+        "latency_max_ms": times[-1],
+        "total_graph_ms": sum(times),
+        "by_shape": ranked[:20],
+        "slowest": [
+            {
+                "case_id": s.case_id,
+                "elapsed_ms": s.elapsed_ms,
+                "ok": s.ok,
+                "shape": s.shape,
+                "error": s.error,
+            }
+            for s in slowest
+        ],
+    }
+
+
 def _scope_dict(metrics: ScopeMetrics) -> dict[str, Any]:
     """Render one scope's :class:`ScopeMetrics` as the record's dict."""
     return {
@@ -1125,7 +1299,22 @@ async def _run_benchmark_async(
         tool_map = build_tool_map(
             data, catalog, tool_names=tool_names, state_dir=state_dir
         )
-        results = [await _invoke_case(tool_map, case, k) for case in selected]
+        # Per-query timing. Installed around the case loop and always
+        # uninstalled, so a run that raises does not leave a wrapped
+        # adapter behind. current_case is set before each case so every
+        # sample is attributable to the case that issued it.
+        timer = _GraphQueryTimer(getattr(data, "graph_db", None))
+        timer_installed = timer.install()
+        try:
+            results = []
+            for case in selected:
+                timer.current_case = case.id
+                results.append(await _invoke_case(tool_map, case, k))
+        finally:
+            timer.uninstall()
+        graph_queries = _graph_query_block(
+            timer.samples, installed=timer_installed
+        )
     finally:
         if owns_data and data is not None:
             try:
@@ -1136,7 +1325,14 @@ async def _run_benchmark_async(
 
     resolved_dir = _resolve_results_dir(results_dir)
     previous = _load_previous_result(resolved_dir)
-    record = _build_record(corpus, config, results, cat_by_id, previous)
+    record = dict(
+        _build_record(corpus, config, results, cat_by_id, previous)
+    )
+    # Diagnostic, not a Gated_Metric. Added after _build_record so the
+    # gated shape (overall / categories / tenant_* / regression) is
+    # untouched: the Nightly_Wrapper normalises those keys and must not
+    # see a new one it would have to reason about.
+    record["graph_queries"] = graph_queries
     results_path = _write_record(record, resolved_dir)
     all_errored = bool(results) and all(r.error is not None for r in results)
     return BenchmarkRun(
@@ -1403,6 +1599,35 @@ def main(argv: list[str] | None = None) -> int:
         f"{run.record.get('total_queries', 0)} case(s), "
         f"coverage={overall.get('coverage', 0)}",
     )
+
+    # Graph-query diagnostic. Printed rather than left in the JSON because
+    # the question it answers -- which cypher shape consumes the graph
+    # budget -- is the one a reader has after a slow run, and making them
+    # open the record to find it is how a diagnostic goes unread.
+    gq = run.record.get("graph_queries") or {}
+    if gq.get("instrumented") and gq.get("total_queries"):
+        _print_ascii(
+            sys.stdout,
+            f"[OK] graph queries: {gq['total_queries']} issued, "
+            f"{gq.get('failed_queries', 0)} failed, "
+            f"p50={gq.get('latency_p50_ms', 0)}ms "
+            f"p95={gq.get('latency_p95_ms', 0)}ms "
+            f"max={gq.get('latency_max_ms', 0)}ms, "
+            f"total={gq.get('total_graph_ms', 0)}ms",
+        )
+        for row in (gq.get("by_shape") or [])[:5]:
+            _print_ascii(
+                sys.stdout,
+                f"[OK]   {row['total_ms']:>8}ms total  "
+                f"n={row['count']:<4} max={row['max_ms']:>6}ms  "
+                f"failed={row['failed']:<3} {row['shape'][:78]}",
+            )
+    elif gq and not gq.get("instrumented"):
+        _print_ascii(
+            sys.stdout,
+            f"[OK] graph queries: not instrumented ({gq.get('reason', '')})",
+        )
+
     if run.all_errored:
         _print_ascii(
             sys.stderr,
