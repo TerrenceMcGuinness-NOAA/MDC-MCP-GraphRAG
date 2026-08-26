@@ -25,15 +25,39 @@ override transport replaces both scope tables wholesale (design.md,
 "Configuration surface for scope and hybridity"). This is useful on a
 runtime whose redeploy is gated, as the AgentCore runtime is here.
 
-**Three live invocations required by Requirement 13 are BLOCKED, and that
-is the expected state of this session, not a defect.** This session has
-no AWS credentials, no MCP tools, and the AgentCore runtime has not been
-redeployed with the code under test. Section 2 below records exactly
-which requirement criteria are unmet as a result, names the blocking
-condition for each, and names the test that covers the same
-(Logical_Collection, Tenant, Embedding_Profile) triple in the live
-invocation's place. No live result is fabricated or inferred from a unit
-test result presented as if it were one.
+**Three live invocations required by Requirement 13 were BLOCKED when this
+record was first written, and that was the expected state of that session,
+not a defect.** That session had no AWS credentials, no MCP tools, and the
+AgentCore runtime had not been redeployed with the code under test.
+Section 2 records exactly which requirement criteria were unmet as a
+result, names the blocking condition for each, and names the test that
+covers the same (Logical_Collection, Tenant, Embedding_Profile) triple in
+the live invocation's place. No live result is fabricated or inferred from
+a unit test result presented as if it were one.
+
+**AMENDED 2026-08-26: two of the three are now VERIFIED against live
+infrastructure.** The runtime was redeployed (version 38 -> 39, image tag
+`python-tenants-v14`) from branch `update_shared_scoping` at revision
+3fcc725, and rows 2.1 and 2.2 were filled from real invocations against it.
+Row 2.3 remains BLOCKED and is expected to stay so on this host: it targets
+the COTS/ChromaDB container deployment, which is a different platform. The
+original blocked text of each row is preserved above its filled values so
+the record still shows what was and was not known when. Section 3's
+substitution analyses are retained as written and marked with their
+resolution, rather than deleted -- what a substitute did and did not
+demonstrate remains the reason the live run was worth doing.
+
+**One deployment prerequisite was discovered while doing this and is
+recorded because it is not obvious.** The runtime carried no
+`MCP_EMBEDDING_PROFILE` variable, and `DEFAULT_EMBEDDING_PROFILE` in
+`src/data/collection_namer.py` is `"mpnet768"`. Deploying the Read_Router
+without pinning the profile would therefore have resolved gw_v17's
+tenant-scoped collections to `gw_v17_mdc-code-context-mpnet768` and
+`gw_v17_mdc-jjobs-mpnet768`, neither of which exists -- the refactor would
+have reported unprovisioned and read as a regression on arrival. The deploy
+added `MCP_EMBEDDING_PROFILE=titan1024` as a seventh environment variable.
+This is configuration, not code, and it is a precondition for any runtime
+serving titan1024 data.
 
 ## 1. Test-suite entries (executed, evidence-backed)
 
@@ -142,35 +166,79 @@ inferred, or fabricated in this session.
 
 | Field | Value |
 |---|---|
-| UTC timestamp | NOT RECORDED -- pending live invocation |
+| UTC timestamp | 2026-08-26T20:24:49Z (agentcore invocation at 2026-08-26T20:20Z; the corroborating direct read below is the timestamped one) |
 | DB_BACKEND | aws |
 | Form_Factor | agentcore |
-| Embedding_Profile | titan1024 |
+| Embedding_Profile | titan1024 (from the `MCP_EMBEDDING_PROFILE` variable added by the 2026-08-26 deploy) |
 | Tool name | search_ee2_standards |
-| Complete argument list | query=<operator to fill>, tenant_id="gw_v17" (plus any other tool arguments used) |
-| Resolved tenant attribution header | NOT RECORDED -- pending live invocation |
-| Physical_Collection(s) named in Routing_Diagnostic, with Collection_Scope | NOT RECORDED -- expected: mdc-ee2-standards-titan1024 (shared) |
-| Returned hit count | NOT RECORDED -- expected: >= 1 |
-| At least one returned hit identifier | NOT RECORDED |
+| Complete argument list | query="err_chk err_exit error handling requirements", tenant_id="gw_v17", max_results=3 |
+| Resolved tenant attribution header | `*Tenant: gw_v17*` / `*Branch: dev/gfs.v17*` |
+| Physical_Collection(s) named in Routing_Diagnostic, with Collection_Scope | mdc-ee2-standards-titan1024 (shared, unprefixed, condition=provisioned-populated at 34 documents). Exactly one member -- ee2-standards-v5-0-0-enhanced is `shared` and NOT a Hybrid_Domain, so no prefixed member is addressed. |
+| Returned hit count | 3 via the agentcore tool invocation (max_results=3); 5 via the corroborating direct read at k=5 |
+| At least one returned hit identifier | `standards_7`, plus `standards_27`, `standards_17`, `standards_8`, `standards_28`. Every one carries `physical_collection='mdc-ee2-standards-titan1024'`. |
 
-**Status: BLOCKED.** See 3.1 for the substitution analysis.
+**Status: VERIFIED 2026-08-26.** Requirement 13.4 is MET.
+
+Two evidence sources are recorded here and are deliberately not conflated.
+The **live agentcore invocation** through the redeployed runtime returned the
+attribution header and three real EE2 standards (the `err_chk` / `err_exit`
+production-utility text, `cpreq`, `cpfs`, and the ex-script error-checking
+example). That is the invocation Requirement 13.4 asks for. It does **not**
+render document identifiers, so the **hit identifiers and per-hit
+`physical_collection` values above come from a direct in-process read of the
+same logical collection, at the same revision, against the same OpenSearch
+index**, which does expose them. The two agree on collection, scope, and
+content; only the identifier field required the second source.
+
+Why this row matters beyond satisfying a criterion: before this change
+gw_v17 addressed only `gw_v17_mdc-ee2-standards-titan1024`, which held 0
+documents, so this query returned nothing. The shared-scope fallthrough is
+what makes it answerable. That empty prefixed index was deleted on
+2026-08-26 after confirming the router does not address it under any of the
+three profiles.
 
 ### 2.2 Row 2 -- search_documentation, tenant_id=gw_v17, aws/agentcore/titan1024
 
 | Field | Value |
 |---|---|
-| UTC timestamp | NOT RECORDED -- pending live invocation |
+| UTC timestamp | 2026-08-26T20:24:49Z (agentcore invocation at 2026-08-26T20:23Z) |
 | DB_BACKEND | aws |
 | Form_Factor | agentcore |
 | Embedding_Profile | titan1024 |
 | Tool name | search_documentation |
-| Complete argument list | query=<operator to fill>, tenant_id="gw_v17" (plus any other tool arguments used) |
-| Resolved tenant attribution header | NOT RECORDED -- pending live invocation |
-| Physical_Collection(s) named in Routing_Diagnostic, with Collection_Scope | NOT RECORDED -- expected: mdc-workflow-docs-titan1024 (shared, unprefixed member of the Hybrid_Domain) AND gw_v17_mdc-workflow-docs-titan1024 (shared, prefixed member of the Hybrid_Domain) |
-| Returned hit count | NOT RECORDED -- expected: >= 1 hit naming each of the two collections above, read from the hit's attached physical_collection field |
-| At least one returned hit identifier | NOT RECORDED (need at least one identifier per originating physical_collection) |
+| Complete argument list | query="coupled model ocean ice configuration", tenant_id="gw_v17", max_results=4, include_graph=false |
+| Resolved tenant attribution header | `*Tenant: gw_v17*` / `*Branch: dev/gfs.v17*` |
+| Physical_Collection(s) named in Routing_Diagnostic, with Collection_Scope | mdc-workflow-docs-titan1024 (shared, unprefixed member of the Hybrid_Domain, first in the ordered set, 35,980 documents) AND gw_v17_mdc-workflow-docs-titan1024 (shared logical scope, prefixed member of the Hybrid_Domain, second, 28,459 documents). Both provisioned-populated. |
+| Returned hit count | 4 via the agentcore tool invocation, rendered as "Found 4 results (multi-collection search)"; 5 via the corroborating direct read at k=5, split 3 / 2 across the two members |
+| At least one returned hit identifier | **Per originating member, as the criterion requires.** From mdc-workflow-docs-titan1024: `0ac74b25165882d7`, `11b726f3a82754ba`, `doc_a8b2fedbc2a2`. From gw_v17_mdc-workflow-docs-titan1024: `doc_262a1fdd1fa5`, `doc_8dfa8e52e501`. Each hit's `physical_collection` field names its originating member. |
 
-**Status: BLOCKED.** See 3.2 for the substitution analysis.
+**Status: VERIFIED 2026-08-26.** Requirement 13.5 is MET, including the
+"both Hybrid_Domain members" clause.
+
+The two members are distinguishable in the rendered output by their
+**Source** field, which is the strongest available evidence at the tool
+layer: hits from the shared member cite external documentation sources
+(`mom6`, `cice` -- URL-crawled ReadTheDocs content), while hits from the
+prefixed member cite absolute repo-local paths under the v17 worktree,
+specifically
+`.../supported_repos/dev-v17/sorc/ufs_model.fd/doc/UsersGuide/source/InputsOutputs.rst`
+and
+`.../supported_repos/dev-v17/sorc/ufs_model.fd/CICE-interface/CICE/doc/source/intro/about.rst`.
+Those two documents are v17 coupled-model documentation that does not exist
+on the `develop` baseline, which is the concrete demonstration that the
+Hybrid_Domain is doing work no single collection could.
+
+**Recorded limitation, because it constrains what this row can prove from
+the rendered text alone.** The rendered `**Collection:**` field carries the
+**logical** collection name (`global-workflow-docs-v8-0-0`) for hits from
+both members, so which physical member produced a hit is NOT recoverable
+from the rendered response. That is why the per-member identifiers above are
+taken from the hit objects' `physical_collection` field via a direct
+in-process read rather than parsed out of the tool's text. The same property
+is the reason `default-tenant-freeze-retirement` defines its query-tool gate
+as an addressed-set-plus-provenance relation instead of a text comparison.
+The two `doc_...` identifiers appear in **both** the agentcore rendering and
+the direct read, which cross-validates the two paths against each other.
 
 ### 2.3 Row 3 -- one Requirement-2.6-listed tool, prefixed tenant, cots/container/mpnet768
 
@@ -201,7 +269,16 @@ equivalent to a live run anywhere in this section: each entry states what
 the substitute test does demonstrate and, separately and explicitly, what
 it does not.
 
-### 3.1 Requirement 13.4 (search_ee2_standards, gw_v17, aws/agentcore/titan1024) -- UNMET
+### 3.1 Requirement 13.4 (search_ee2_standards, gw_v17, aws/agentcore/titan1024) -- RESOLVED 2026-08-26, was UNMET
+
+**RESOLUTION.** Row 2.1 is now filled from a live invocation and the
+criterion is MET. The analysis below is retained as written, because the
+gap between what the substitute demonstrated and what it did not is
+exactly what the live run closed -- and the live run confirmed the "does
+NOT demonstrate" list item by item: mdc-ee2-standards-titan1024 is
+populated (34 documents), the deployed runtime does run this Read_Router
+(version 39, `python-tenants-v14`), the attribution header does render
+correctly end to end, and the call does return real standards.
 
 **Blocking condition.** This session has no AWS credentials and no MCP
 tool access, and the AgentCore Runtime has not been redeployed with the
@@ -232,7 +309,14 @@ live search_ee2_standards call against that runtime returns a real
 standard. Those are infrastructure and deployment facts this session
 cannot observe.
 
-### 3.2 Requirement 13.5 (search_documentation, gw_v17, aws/agentcore/titan1024, both Hybrid_Domain members) -- UNMET
+### 3.2 Requirement 13.5 (search_documentation, gw_v17, aws/agentcore/titan1024, both Hybrid_Domain members) -- RESOLVED 2026-08-26, was UNMET
+
+**RESOLUTION.** Row 2.2 is now filled and the criterion is MET. Retained
+for the same reason as 3.1. The live run confirmed both items this
+substitute could not reach: the two indices are populated at the document
+counts the requirements predicted (35,980 and 28,459 -- unchanged since
+that baseline was taken), and a live call does return hits from both,
+3 / 2 across the members.
 
 **Blocking condition.** Same as 3.1 -- no AWS credentials, no MCP tools,
 runtime not yet redeployed with this revision.
@@ -396,6 +480,68 @@ comparison gate, rather than three specs each re-opening the question.
 Item 4 is independent of the freeze -- it is a layering violation
 (a physical name substituted for a logical one) that happens to be
 latent rather than live today, and can be fixed on its own schedule.
+
+## 6a. The deploy that unblocked rows 2.1 and 2.2 (2026-08-26)
+
+Recorded so the rows above are reproducible and reversible.
+
+| Field | Value |
+|---|---|
+| Runtime | mdc_mcp_rag_server_python-v5K2F8BGrN (us-east-1) |
+| Version | 38 -> 39 |
+| Image | 903050880929.dkr.ecr.us-east-1.amazonaws.com/mdc-mcp-rag:python-tenants-v14 |
+| Image digest | sha256:af3dc7526b88191300f07b6d06474c7eae0085eac8db4d0043d5697d0a433146 |
+| Built from | branch update_shared_scoping at 3fcc725, native aarch64, --platform linux/arm64 |
+| Rollback target | python-tenants-v13 (version 38), preserved in ECR |
+| Status after update | READY |
+
+**Payload fields carried, verified field-by-field against the pre-update
+capture.** roleArn, protocolConfiguration, lifecycleConfiguration,
+metadataConfiguration (`requireMMDSV2: true`), networkConfiguration
+(including `requireServiceS3Endpoint: true`), and filesystemConfigurations
+(EFS access point fsap-03e641f056b341f29 at /mnt/workflow) were all
+compared before and after and are unchanged. These are easy to drop from an
+`update-agent-runtime` call, and dropping the filesystem configuration in
+particular would silently remove /mnt/workflow and with it every tenant
+worktree.
+
+**Environment variables 6 -> 7.** The only change is the addition of
+`MCP_EMBEDDING_PROFILE=titan1024`, for the reason given in the amendment
+note at the top of this record.
+
+**Post-deploy observations beyond rows 2.1 and 2.2.**
+
+- `get_knowledge_base_status(tenant_id="gw_v17")` went from 3 collections /
+  81,213 documents to **6 collections / 119,340 documents**, now
+  scope-labelled and including the shared members gw_v17 genuinely reads.
+  This is Requirement 10's reporting convergence observed live: the listing
+  is built from `tenant_collection_set` rather than the deleted prefix scan,
+  which is why shared collections can appear at all.
+- The Default_Tenant listing is unchanged: 16 collections / 268,100
+  documents, still including `mdc-content-sha-registry` and all three
+  embedding profiles. That asymmetry is the deliberate Requirement 6.3
+  preservation, and the registry over-count is follow-up item 2 in section 6.
+- `mcp_health_check` reports HEALTHY 4/4 with all five catalog tenants'
+  `workflow_root` reachable under /mnt/workflow, which independently
+  confirms the EFS configuration survived the update.
+
+**One cosmetic finding, not a defect.** The status listing labels
+`gw_v17_mdc-workflow-docs-titan1024` as `(shared)`. That is correct --
+Collection_Scope is a property of the Logical_Collection, and the prefixed
+index is the branch-local member of a `shared` Hybrid_Domain -- but it reads
+oddly beside a tenant-prefixed name and may invite a bug report.
+
+**Two indices deleted 2026-08-26, after the scope change made them
+unreachable.** `gw_v17_mdc-ee2-standards-titan1024` and
+`gw_v17_mdc-community-summaries-titan1024`, both 0 documents. Both logical
+collections are `shared` and neither is a Hybrid_Domain, so the router
+addresses only the unprefixed member for every tenant at every profile --
+confirmed across titan1024, mpnet768, and nova1024 before deleting. Their
+mappings were captured first. The empty `*-nova1024` indices were
+deliberately left in place: they are correctly named and mapped for an
+unused profile, and the Read_Router distinguishes provisioned-empty from
+unprovisioned, so a present-but-empty index is better signal than an absent
+one.
 
 ## 7. Runtime rollback note (informational, not a substitute for the deploy)
 
