@@ -675,6 +675,50 @@ risk follows from it.
    that no `apoc.` call survives anywhere under `src/` -- the allowlist permits
    the edit, and that assertion pins that the edit achieved its purpose instead
    of merely touching the files.
+
+   **Second amendment 2026-08-26 -- the graph-enrichment predicate in
+   `src/tools/semantic_search.py`.** The permitted purpose for that one file is
+   widened from the APOC removal alone to additionally include the neighbour-count
+   predicate in `_enrich_with_graph_counts`. No new file is admitted; the
+   allowlist is unchanged at three entries.
+
+   Reason, measured rather than asserted. The predicate was
+   `MATCH (n)-[r]-(m) WHERE n.name = $name OR n.path = $name OR n.filepath =
+   $name`. Against live Neptune that form costs **28.57s** per invocation; the
+   same count via `UNION ALL` of three single-property equalities costs **0.06s**,
+   and a single branch **0.03s** -- a ~475x difference returning the identical
+   answer. A disjunction across three different properties of an unlabelled node
+   cannot be served from an index, so Neptune evaluated it against every node and
+   expanded relationships from each.
+
+   Why this is in scope for a freeze-retirement feature rather than deferred. The
+   2026-08-26 benchmark run issued this shape 72 times, every one timed out at the
+   30s client read timeout, and it consumed 2,175,214ms -- half the run's entire
+   graph time. `_enrich_with_graph_counts` fans these out with
+   `asyncio.gather` over up to 20 keys, so one `search_documentation` call with
+   `include_graph=True` was enough to occupy the single `db.r5.large` long enough
+   that unrelated queries -- including a trivial `RETURN 1` issued from a separate
+   process -- also timed out. As with the APOC defect, the replacement gate this
+   feature exists to build cannot be calibrated while this stands, because the
+   graph half of every affected Benchmark_Category scores zero for infrastructure
+   reasons rather than retrieval reasons.
+
+   Also in scope for that same function, and recorded because it establishes a
+   convention: the fan-out is now bounded by a module-level
+   `_GRAPH_ENRICH_CONCURRENCY` semaphore. The comment previously claimed to "cap
+   concurrent queries ... so we don't flood Neptune" while `gather` over
+   `keys[:20]` issued all twenty at once -- the claim was false. With the
+   predicate at 0.06s the fan-out is no longer harmful by itself; the bound is
+   kept so the comment is true and so a future slow predicate cannot silently
+   reproduce the same outage.
+
+   Sequencing note, recorded rather than glossed. The spec-first check fired on
+   this edit and was correct to: the code change was written before this
+   amendment existed, and the amendment naming it was authored in response. The
+   check also surfaced a genuine defect in the same edit -- a module constant
+   referenced but never defined, which imports cleanly and raises `NameError`
+   only when the function runs. The edit was completed only after this amendment
+   was written.
 4. WHEN the automated test suite runs after this feature, THE test suite SHALL
    report failures only among
    `test_environment.py::test_known_modules_covers_nine_tool_modules`,
