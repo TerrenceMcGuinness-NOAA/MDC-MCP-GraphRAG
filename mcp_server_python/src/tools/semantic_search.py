@@ -147,6 +147,24 @@ DETAIL_LEVEL_LIMITS: dict[str, int] = {
 #: Default sample size for ``check_knowledge_integrity``.
 DEFAULT_INTEGRITY_SAMPLE_SIZE: int = 50
 
+#: Maximum concurrent graph queries issued by ``_enrich_with_graph_counts``.
+#:
+#: Graph enrichment is best-effort decoration on a vector result: it fans one
+#: neighbour-count query out per distinct hit path, and a failure yields a
+#: count of zero rather than an error. That makes it exactly the wrong thing
+#: to let saturate the graph, because the cost is paid even when the result is
+#: discarded.
+#:
+#: The prior code issued all twenty at once via ``asyncio.gather`` while
+#: commenting that it capped concurrency to avoid flooding Neptune. On
+#: 2026-08-26, with each query costing 28.57s against a single db.r5.large,
+#: that fan-out was sufficient to make unrelated queries -- including a
+#: trivial ``RETURN 1`` from a separate process -- time out. Four is chosen to
+#: stay well inside the instance's concurrent-query capacity while keeping
+#: enrichment latency close to a single query's, now that the predicate itself
+#: costs 0.06s.
+_GRAPH_ENRICH_CONCURRENCY: int = 4
+
 #: Prefixes that indicate a checkout-specific (bad) file path. See
 #: Phase 43 path-consistency check.
 BAD_PATH_PREFIXES: tuple[str, ...] = ("/home/", "/scratch/", "/mcp_rag_eib/")
@@ -570,23 +588,61 @@ async def _enrich_with_graph_counts(
     if not keys:
         return {}
 
+    # One branch per candidate property, UNION ALL'd, rather than a single
+    # three-way disjunction on an unlabelled node.
+    #
+    # The previous form was
+    #   MATCH (n)-[r]-(m)
+    #   WHERE n.name = $name OR n.path = $name OR n.filepath = $name
+    # and it cost 28.57s per invocation against live Neptune, where each
+    # branch of this form costs 0.03s and the whole UNION 0.06s -- a ~475x
+    # difference returning the identical count. A disjunction across three
+    # different properties of an unlabelled node cannot be satisfied from
+    # an index, so Neptune evaluated the predicate against every node and
+    # then expanded relationships from each. Split into single-property
+    # equalities, every branch is an indexable lookup.
+    #
+    # This was not a latent inefficiency. The 2026-08-26 benchmark run
+    # issued this shape 72 times, every one of them timed out at the 30s
+    # client read timeout, and it accounted for 2,175,214ms -- half the
+    # run's entire graph time. Because the calls below are concurrent, a
+    # single search_documentation with include_graph=True was enough to
+    # occupy the instance long enough that unrelated queries, including a
+    # trivial RETURN 1 from another process, also timed out.
     cypher = (
-        "MATCH (n)-[r]-(m) "
-        "WHERE n.name = $name OR n.path = $name OR n.filepath = $name "
+        "MATCH (n)-[r]-(m) WHERE n.name = $name "
+        "RETURN count(r) AS count "
+        "UNION ALL "
+        "MATCH (n)-[r]-(m) WHERE n.path = $name "
+        "RETURN count(r) AS count "
+        "UNION ALL "
+        "MATCH (n)-[r]-(m) WHERE n.filepath = $name "
         "RETURN count(r) AS count"
     )
 
+    # Bound the fan-out. The previous comment here claimed to "cap
+    # concurrent queries ... so we don't flood Neptune", but gather() over
+    # keys[:20] issues all twenty at once -- that is the flood, not a cap.
+    # With the query at 0.06s the fan-out is no longer harmful on its own;
+    # the semaphore is kept so the claim the comment makes is actually true,
+    # and so a future slow predicate cannot silently reproduce the outage.
+    semaphore = asyncio.Semaphore(_GRAPH_ENRICH_CONCURRENCY)
+
     async def _count(name: str) -> tuple[str, int]:
         try:
-            rows = await graph_db.query(cypher, {"name": name}, tenant=tenant)
+            async with semaphore:
+                rows = await graph_db.query(
+                    cypher, {"name": name}, tenant=tenant
+                )
             if rows and isinstance(rows, list):
-                return name, int(rows[0].get("count") or 0)
+                # UNION ALL returns one row per branch; the neighbour count
+                # is their sum. At most one branch matches a given node, so
+                # this equals the single count the disjunction produced.
+                return name, sum(int(r.get("count") or 0) for r in rows)
         except Exception as exc:  # pragma: no cover - defensive
             log.debug("graph enrichment for %r failed: %s", name, exc)
         return name, 0
 
-    # Cap concurrent queries at a reasonable number so we don't flood
-    # Neptune when a search returns 20 results.
     results = await asyncio.gather(*[_count(n) for n in keys[:20]])
     return {name: count for name, count in results if count > 0}
 
