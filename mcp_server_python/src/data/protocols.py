@@ -21,9 +21,25 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from src.data.read_router import CollectionCondition
+
 # Keys every search result is guaranteed to contain
 # (see :pyclass:`src.data.opensearch_adapter.OpenSearchAdapter._format_hits`).
-VECTOR_RESULT_KEYS: frozenset[str] = frozenset({"id", "content", "metadata", "score"})
+#
+# ``physical_collection`` (shared-scope-query-routing Task 7.1, R3.5) is a
+# NEW key, not yet populated by either adapter -- Task 7.3 (the next,
+# atomic step) is what stamps it onto every returned hit. It is declared
+# here now so the protocol documents the target shape. It is deliberately
+# a *separate* key from the pre-existing ``collection``: ``collection``
+# carries the *logical* collection name and is rendered verbatim by
+# ``semantic_search._format_search_hit``
+# (``source_line += f" | **Collection:** {collection_name}"``), so
+# repurposing it would move default-tenant (``gw``) response bytes and
+# violate the R6.2 byte-equivalence invariant. ``physical_collection``
+# will carry the *physical* name of the member that produced the hit.
+VECTOR_RESULT_KEYS: frozenset[str] = frozenset(
+    {"id", "content", "metadata", "score", "physical_collection"}
+)
 
 
 @runtime_checkable
@@ -51,6 +67,7 @@ class VectorDBProtocol(Protocol):
         similarity_threshold: float = 0.0,
         where: dict[str, Any] | None = None,
         include_graph: bool = True,
+        tenant: Any = None,
     ) -> list[dict[str, Any]]:
         """Execute hybrid BM25 + k-NN search against a single collection.
 
@@ -73,12 +90,28 @@ class VectorDBProtocol(Protocol):
             When ``True`` and a graph adapter is also available, the
             tool layer may enrich each hit with graph context. The
             vector adapter itself never performs graph lookups.
+        tenant
+            The active :class:`~src.config.tenants.Tenant`, or ``None``
+            for the unprefixed Default_Tenant. Documents existing
+            reality rather than introducing new behaviour
+            (shared-scope-query-routing Task 7.1): both
+            :class:`~src.data.chromadb_adapter.ChromaDBAdapter` and
+            :class:`~src.data.opensearch_adapter.OpenSearchAdapter`
+            already accept this keyword and every tool call site already
+            passes it via ``_tenant()``. Declaring it here closes a
+            latent drift between the protocol and its implementations,
+            it does not create a parameter.
 
         Returns
         -------
         list[dict]
             Each dict has at minimum the keys in
-            :data:`VECTOR_RESULT_KEYS`.
+            :data:`VECTOR_RESULT_KEYS`, including ``physical_collection``
+            -- the physical collection name that produced the hit, drawn
+            from the Resolved_Collection_Set the read addressed. This key
+            is additive; the pre-existing ``collection``, ``id``,
+            ``content``, ``metadata``, and ``score`` keys are unchanged
+            in name and meaning.
         """
         ...
 
@@ -124,6 +157,37 @@ class VectorDBProtocol(Protocol):
         missing collection (never raises). Used by
         ``check_knowledge_integrity``'s Path-Consistency and Stale-Embeddings
         sub-checks (cots-backend-observability-parity R2, R6).
+        """
+        ...
+
+    async def collection_condition(
+        self, physical_collection: str
+    ) -> CollectionCondition:
+        """Classify one physical collection's Collection_Condition (R7.8).
+
+        shared-scope-query-routing Task 7.2. Returns
+        :attr:`CollectionCondition.UNPROVISIONED`,
+        :attr:`CollectionCondition.PROVISIONED_EMPTY`, or
+        :attr:`CollectionCondition.PROVISIONED_POPULATED` for
+        ``physical_collection`` -- already a resolved physical name, not
+        a Logical_Collection. Backed by the existing non-raising
+        :pymeth:`count_documents`; never issues a mutating call and
+        never raises (Requirement 12.5).
+
+        Parameters
+        ----------
+        physical_collection
+            The concrete OpenSearch index or ChromaDB collection name to
+            classify, e.g. ``"gw_v17_mdc-ee2-standards-titan1024"``.
+
+        Returns
+        -------
+        CollectionCondition
+            The three-way classification. ``PROVISIONED_POPULATED`` is
+            returned for a collection holding one or more documents even
+            when the *triggering read* matched none of them -- this
+            method answers "does this collection hold anything", not
+            "did the query match".
         """
         ...
 

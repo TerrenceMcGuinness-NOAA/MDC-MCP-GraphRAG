@@ -12,20 +12,31 @@ Vector_Adapters' `query()`, `semantic_search._filter_indices_by_tenant`,
 ChromaDB and OpenSearch classify absence identically.
 
 The plan follows the design's "Migration and rollout" ordering, decomposed into
-units that can each be completed and confirmed with a test run. Three
-sequencing constraints from that section are hard and are called out in the task
-text where they bind:
+units that can each be completed and confirmed with a test run. Four
+sequencing constraints are hard and are called out in the task text where they
+bind. The first three come from the design's rollout section; the fourth was
+found while preparing the first parallel execution round.
 
 1. **Task 6 (baseline captures) must complete before Task 7.** The captures have
    to be recorded from the parent revision. Once the adapters route through the
    Read_Router there is no valid pre-change baseline and R6.5 becomes
    unverifiable.
-2. **Task 7's sub-tasks 7.3, 7.5, and 7.6 land together.** Design steps 4, 5,
+2. **Task 6 must not run concurrently with Task 4.** Task 6 records rendered
+   tool output; Task 4 modifies `_common.py` (widening `_is_missing_index_exc`,
+   which decides whether a tool renders a Skip_Block or an error) and both
+   adapters. Interleaving them can capture a baseline from a partially mutated
+   tree, and because Task 6 is one-shot the corruption is unrecoverable and
+   would first surface at 7.8 as an unattributable difference. All of Task 6
+   precedes 4.2, 4.3, and 4.4. Task 4.1 creates a new file nothing imports yet
+   and is harmless early.
+3. **Task 2.4 precedes Tasks 3.2 and 4.4.** Both consume the `adapters()`
+   fixture and generators that 2.4 creates in `tests/properties/conftest.py`.
+4. **Task 7's sub-tasks 7.3, 7.5, and 7.6 land together.** Design steps 4, 5,
    and 8. Shipping 7.3 alone turns a passing `branch_isolation` assertion into a
    failing one for the correct reason, because assertion 4 currently treats
    develop-sourced content under `gw_v17` as an isolation violation. No
    intermediate state between 7.3 and 7.6 is shippable.
-3. **The AgentCore runtime deploy is a gated operator step and is not a task
+5. **The AgentCore runtime deploy is a gated operator step and is not a task
    here.** Task 14's live-invocation entries depend on it.
 
 Tasks 1-4, 8, 10, 11, and 12 are each independently shippable and independently
@@ -234,6 +245,12 @@ Standing constraints for every task below:
 
   - [ ] 2.4 Create the shared property generators and the cross-adapter fixture
     - New file `mcp_server_python/tests/properties/conftest.py`.
+    - **Runs in wave 0, ahead of Task 1**, even though it is numbered under Task
+      2. It is test infrastructure with no production dependency —
+      `PRODUCTION_INDICES_BY_PROFILE`, `src/config/tenants.yaml`, and both
+      adapter classes already exist, and the fixture does not reference the
+      Read_Router. Tasks 3.2 and 4.4 both consume what it defines, so it is
+      pulled forward to unblock them.
     - `logical_collections()` — the five keys of `PRODUCTION_INDICES_BY_PROFILE`.
     - `tenants()` — every tenant in `src/config/tenants.yaml` (`gw`, `gw_sfs`,
       `gw_jedi_gfs`, `gw_v17`, `gw_gefs_v12`).
@@ -338,6 +355,13 @@ Standing constraints for every task below:
 - [ ] 4. Cross-backend missing-collection normalization
   - Design step 3. Independently shippable and valuable on its own: it makes a
     COTS missing-collection read render a Skip_Block instead of `[ERROR]`.
+  - **Sub-tasks 4.2, 4.3, and 4.4 must not begin until Task 6 has recorded its
+    baselines.** They modify `_common.py` and both adapters;
+    `_is_missing_index_exc` decides whether a tool renders a Skip_Block or an
+    error, so it sits on a rendering path. Running them while Task 6 captures
+    pre-change output yields a baseline from a partially mutated tree, and Task
+    6 is one-shot. 4.1 only creates a new file that nothing imports yet and may
+    run in wave 0.
 
   - [ ] 4.1 Create `src/data/vector_errors.py`
     - New file `mcp_server_python/src/data/vector_errors.py`.
@@ -394,7 +418,10 @@ Standing constraints for every task below:
     - _Requirements: 4.3, 4.6, 6.2_
 
   - [ ] 4.4 Add the cross-backend Skip_Block identity test
-    - New tests using the `adapters()` fixture from Task 2.4.
+    - New tests using the `adapters()` fixture from Task 2.4. **2.4 is a
+      prerequisite** and runs in wave 0; do not duplicate the fixture locally if
+      it is missing, stop and report instead.
+    - Also requires Task 6 complete, per the Task 4 parent note.
     - `_missing_index_skip` in `src/tools/_common.py` is already the single
       renderer and its text is already backend-independent — it interpolates only
       `tool`, `collection`, and `tenant_id`. **Do not change its text.** Assert
@@ -414,6 +441,10 @@ Standing constraints for every task below:
     changed. Confirm `pycodestyle` is clean on the four new modules.
 
 - [ ] 6. Baseline captures for default-tenant byte-equivalence
+  - **This task must also not run concurrently with Task 4.** Task 4.2/4.3
+    modify `_common.py` and both adapters, all on a rendering path. Because this
+    task is one-shot, a baseline captured mid-mutation is unrecoverable and the
+    damage surfaces only at 7.8. Task 6 occupies waves 0-2; 4.2 starts at wave 3.
   - **This task must complete before Task 7.** R6.5 requires comparison against a
     capture recorded from the revision immediately preceding the routing change.
     Once the adapters route through the Read_Router there is no valid pre-change
@@ -805,8 +836,10 @@ Standing constraints for every task below:
       three outputs. Run against both adapters through `adapters()`.
     - Marked `@pytest.mark.property`, `max_examples >= 100`, tagged
       `# Feature: shared-scope-query-routing, Property 8: Reporting agreement`.
-    - The Integrity_Checker half of this property depends on Task 11; assert it
-      against the router-driven sampler once 11.1 lands.
+    - The Integrity_Checker half of this property depends on Task 11. **11.1 is
+      a scheduling prerequisite**, not just a caveat: 10.5 runs in wave 15,
+      after 11.1 (wave 13) and 11.2 (wave 14), so the property can assert
+      against the router-driven sampler rather than deferring part of itself.
     - _Requirements: 1.4, 9.1, 9.7, 10.1, 11.1, 13.7_
 
 - [ ] 11. Integrity checking through the Read_Router
@@ -841,7 +874,7 @@ Standing constraints for every task below:
       state the value used in the report.
     - _Requirements: 10.1, 10.2, 10.3, 10.6, 10.7, 10.8_
 
-  - [ ] 11.2 Scope the coverage-gap ingested-document count
+  - [-] 11.2 Scope the coverage-gap ingested-document count -- STRUCK, no target
     - Modify
       `mcp_server_python/src/tools/semantic_search.py::_check_coverage_gap`.
     - Compute the ingested-document count as the sum of per-collection document
@@ -850,7 +883,17 @@ Standing constraints for every task below:
     - Preserve the existing per-language check structure from
       `fortran-coverage-gap-path-fix`; `tests/unit/test_coverage_gap_multilang.py`
       must keep passing.
-    - _Requirements: 10.4_
+    - **STRUCK 2026-08-19: this sub-task has no target in the current code.**
+      `fortran-coverage-gap-path-fix` already replaced `_check_coverage_gap`'s
+      vector ingested-document count with an on-disk-source vs
+      `<Language>*`-labelled-graph-node comparison (tenant-scoped, with a
+      graph-only fallback when the filesystem is not mounted). There is no vector
+      document count left to re-scope. Manufacturing one would break
+      `tests/unit/test_coverage_gap_multilang.py` and contradict this sub-task's
+      own instruction to preserve that per-language structure. `_check_coverage_gap`
+      is left unchanged. R10.4 is satisfied by the existing tenant-scoped graph
+      comparison rather than by a change here.
+    - _Requirements: 10.4 (satisfied by existing code; see strike note)_
 
   - [ ] 11.3 Unit-test the integrity scoping edge cases
     - Extend `mcp_server_python/tests/unit/test_kb_status_and_sampler.py`.
@@ -987,9 +1030,15 @@ Standing constraints for every task below:
   deliverables, so they are not skippable for a faster path. Only 2.5 (the
   fixture meta-test) is marked `*` — the design frames it as a guard against
   future drift rather than as a criterion.
-- The three hard sequencing constraints: Task 6 before Task 7; 7.3, 7.5, and 7.6
-  land together with no shippable intermediate state; the gated operator deploy
+- The hard sequencing constraints: Task 2.4 before 3.2 and 4.4; all of Task 6
+  before 4.2/4.3/4.4 and before Task 7; 7.3, 7.5, and 7.6 land together with no
+  shippable intermediate state; 11.1 before 10.5; the gated operator deploy
   blocks Task 14's live entries.
+- The wave assignment was corrected after the initial plan: 2.4 moved from wave 4
+  to wave 0 (its consumers 3.2 and 4.4 were scheduled ahead of it), 4.2 moved
+  from wave 1 to wave 3 (it mutated a rendering path while Task 6 was capturing
+  baselines), and 10.5 moved from wave 13 to wave 15 (it shared a wave with the
+  11.1 it depends on).
 - Independently shippable and independently valuable: Tasks 1, 2, 3, 4, 8, 10,
   11, and 12. Task 4 fixes COTS missing-collection rendering on its own.
 - Rollback for the atomic unit is `git revert` of the 7.3/7.5/7.6 commit. No data
@@ -1008,12 +1057,14 @@ Standing constraints for every task below:
 
 ```mermaid
 graph TD
+  T24["2.4 conftest generators<br/>+ adapters fixture<br/>wave 0"]
   T1["1. Scope_Authority<br/>(shippable)"]
   T2["2. Read_Router<br/>(shippable)"]
   T3["3. Catalog transport<br/>(shippable)"]
-  T4["4. Error normalization<br/>(shippable, standalone fix)"]
+  T4A["4.1 vector_errors.py<br/>(new file, no importers)"]
+  T4B["4.2-4.4 adapters +<br/>widened classifier<br/>(rendering path)"]
+  T6["6. Baseline captures<br/>ONE-SHOT"]
   T5{{"5. Checkpoint"}}
-  T6["6. Baseline captures<br/>MUST precede Task 7"]
   T7A["7.1-7.2 Protocol +<br/>collection_condition"]
   T7B["7.3 Adapter routing<br/>+ inner merge"]
   T7C["7.5 Zero-hit annotation"]
@@ -1021,27 +1072,34 @@ graph TD
   T7E["7.4 P10 / 7.7 audit /<br/>7.8 byte-equivalence"]
   T8["8. GGSR tenant +<br/>R6.4 citations"]
   T9{{"9. Checkpoint"}}
-  T10["10. Status + health<br/>(shippable)"]
+  T10["10.1-10.4 Status + health<br/>(shippable)"]
+  T105["10.5 P8 reporting<br/>agreement"]
   T11["11. Integrity<br/>(shippable)"]
   T12["12. Write-path boundary<br/>(shippable)"]
   T13{{"13. Final checkpoint"}}
   DEPLOY(["Gated operator step:<br/>AgentCore runtime deploy<br/>NOT a task"])
   T14["14. Verification_Record"]
 
+  T24 -->|"3.2 needs the generators"| T3
+  T24 -->|"4.4 needs adapters()"| T4B
   T1 --> T2
   T3 --> T2
+  T4A --> T4B
+  T6 -->|"stable tree: 4.2/4.3 sit<br/>on a rendering path"| T4B
+
   T1 --> T5
   T2 --> T5
-  T4 --> T5
-  T5 --> T6
+  T4B --> T5
+  T6 --> T5
 
   subgraph ATOMIC["Tasks 7.3 + 7.5 + 7.6 - ONE deployable unit, no intermediate state"]
     T7B --> T7C
     T7B --> T7D
   end
 
+  T5 --> T7A
   T2 --> T7A
-  T4 --> T7A
+  T4B --> T7A
   T7A --> T7B
   T6 -->|"pre-change baseline<br/>recorded from parent revision"| T7B
   T7C --> T7E
@@ -1053,13 +1111,17 @@ graph TD
   T9 --> T10
   T9 --> T11
   T2 --> T12
+  T10 --> T105
+  T11 -->|"11.1 router-driven sampler<br/>before P8 asserts on it"| T105
   T10 --> T13
+  T105 --> T13
   T11 --> T13
   T12 --> T13
   T13 --> DEPLOY
   DEPLOY -->|"R13.4-R13.6 live entries<br/>blocked until deployed"| T14
 
   style T6 fill:#fff3cd,stroke:#b8860b,stroke-width:2px
+  style T24 fill:#e2e3e5,stroke:#41464b,stroke-width:1px
   style ATOMIC fill:#f8d7da,stroke:#c0392b,stroke-width:2px
   style DEPLOY fill:#d1ecf1,stroke:#0c5460,stroke-width:2px,stroke-dasharray: 5 5
 ```
@@ -1072,22 +1134,22 @@ by wave separation — `src/tools/semantic_search.py` is written by 7.5, 8.2, 10
 ```json
 {
   "waves": [
-    { "id": 0, "tasks": ["1.1", "3.1", "4.1", "6.1", "12.1"] },
-    { "id": 1, "tasks": ["1.2", "2.1", "4.2", "6.2"] },
-    { "id": 2, "tasks": ["1.3", "2.2", "4.3", "6.3"] },
-    { "id": 3, "tasks": ["1.4", "2.3", "4.4"] },
-    { "id": 4, "tasks": ["2.4", "12.2"] },
-    { "id": 5, "tasks": ["2.5", "2.6", "3.2", "7.1"] },
-    { "id": 6, "tasks": ["2.7", "7.2"] },
-    { "id": 7, "tasks": ["7.3"] },
-    { "id": 8, "tasks": ["7.4", "7.5", "7.6", "12.3"] },
-    { "id": 9, "tasks": ["7.7", "7.8", "8.1"] },
+    { "id": 0,  "tasks": ["1.1", "2.4", "3.1", "4.1", "6.1", "12.1"] },
+    { "id": 1,  "tasks": ["1.2", "2.1", "6.2"] },
+    { "id": 2,  "tasks": ["1.3", "2.2", "6.3"] },
+    { "id": 3,  "tasks": ["1.4", "2.3", "4.2"] },
+    { "id": 4,  "tasks": ["2.6", "4.3", "12.2"] },
+    { "id": 5,  "tasks": ["2.5", "2.7", "3.2", "4.4", "7.1"] },
+    { "id": 6,  "tasks": ["7.2"] },
+    { "id": 7,  "tasks": ["7.3"] },
+    { "id": 8,  "tasks": ["7.4", "7.5", "7.6", "12.3"] },
+    { "id": 9,  "tasks": ["7.7", "7.8", "8.1"] },
     { "id": 10, "tasks": ["8.2", "10.3"] },
     { "id": 11, "tasks": ["10.1"] },
     { "id": 12, "tasks": ["10.2", "10.4"] },
-    { "id": 13, "tasks": ["10.5", "11.1"] },
+    { "id": 13, "tasks": ["11.1"] },
     { "id": 14, "tasks": ["11.2"] },
-    { "id": 15, "tasks": ["11.3"] },
+    { "id": 15, "tasks": ["10.5", "11.3"] },
     { "id": 16, "tasks": ["14.1"] },
     { "id": 17, "tasks": ["14.2"] }
   ]

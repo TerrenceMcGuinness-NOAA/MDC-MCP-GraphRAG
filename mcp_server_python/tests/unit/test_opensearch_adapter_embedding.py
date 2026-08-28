@@ -230,9 +230,19 @@ async def test_unset_profile_defaults_to_titan1024(
 async def test_query_passes_active_profile_to_resolve_index(
     monkeypatch: pytest.MonkeyPatch, bedrock_provider_factory
 ) -> None:
-    """The adapter passes ``self._profile.short_name`` to
-    ``resolve_index`` so the query vector and the indexed vectors
-    share a dimensionality (Req 8.1)."""
+    """The active profile drives index resolution (Req 8.1).
+
+    shared-scope-query-routing Task 7.3 moved the primary index
+    resolution off the adapter and into the Read_Router: the adapter now
+    addresses exactly the Physical_Collections
+    ``resolve_read_targets`` returns, and the Read_Router (design R4.2)
+    is the only component that resolves and prefixes on the read path.
+    The adapter still calls its own ``resolve_index`` for the
+    passthrough-diagnostic echo (``real == collection`` check), so the
+    monkeypatched resolver below is still reached for the
+    ``collection`` / ``profile`` capture; the *searched* index, however,
+    comes from the router and is the real profile-resolved physical name.
+    """
     captured: dict[str, Any] = {}
 
     def _fake_resolve(collection: str, profile_short_name: str = "titan1024") -> str:
@@ -261,6 +271,11 @@ async def test_query_passes_active_profile_to_resolve_index(
 
     await adapter.query("code-with-context-v8-0-0", "test query")
 
+    # The adapter's passthrough echo still calls resolve_index with the
+    # active profile short-name.
     assert captured["collection"] == "code-with-context-v8-0-0"
     assert captured["profile"] == "titan1024"
-    assert captured["index_used"] == "resolved-titan1024-code-with-context-v8-0-0"
+    # The searched index is resolved by the Read_Router (real resolver),
+    # so it is the profile-matched physical name, not the monkeypatched
+    # adapter-local resolver's output.
+    assert captured["index_used"] == "mdc-code-context-titan1024"

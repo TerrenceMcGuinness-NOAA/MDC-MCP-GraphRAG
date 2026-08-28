@@ -1367,11 +1367,27 @@ and `src.data.read_router.resolve_read_targets`
 
 ### Property 8: Reporting agreement
 
-*For any* Tenant `T` and *any* Embedding_Profile `p`, the set of physical
-collections the Status_Reporter lists, the set the Integrity_Checker samples,
-and the set the Health_Reporter enumerates are each equal to
-`tenant_collection_set(T, profile=p)`, which is itself the union of
-`resolve_read_targets(c, T, profile=p)` over the five Logical_Collections.
+*For any* Tenant `T` and *any*
+Embedding_Profile `p`, the set of physical collections the Status_Reporter lists,
+the set the Integrity_Checker samples, and the set the Health_Reporter enumerates
+are each equal to `tenant_collection_set(T, profile=p)`, which is itself the union
+of `resolve_read_targets(c, T, profile=p)` over the five Logical_Collections.
+
+**Resolved 2026-08-19 by `default-tenant-freeze-retirement` (SDD Phase 80).** This
+property was narrowed to tenants whose `index_prefix` is non-empty because R6.3
+required the no-`tenant_id` integrity response to stay byte-equivalent, while
+Task 11.1 requires the report to name each union member with the number of records
+drawn from it -- and per-member reporting necessarily changes the rendered output,
+so the two could not both hold for the Default_Tenant.
+`default-tenant-freeze-retirement` supersedes R6.3 with Structural_Equivalence,
+which is insensitive to that reporting text, so the obstacle is gone and the
+property is restored to *any* Tenant, the Default_Tenant included. Scoping the
+Default_Tenant integrity sampler is the second entry of that feature's
+Follow_Up_Sequence; the `mdc-content-sha-registry` over-count in the `gw` status
+total is the first, and cross-member score fusion is the third. All three cite
+`sdd_framework/workflows/phase80_default_tenant_freeze_retirement.md` as the
+authority for changing Default_Tenant output and run one after another, each
+re-recording the structural baseline in the same change.
 
 **Functions under test:**
 `src.tools.semantic_search._render_vector_status_block`,

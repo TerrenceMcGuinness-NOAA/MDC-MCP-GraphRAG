@@ -73,6 +73,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from src.tenancy.resolver import get_current_tenant_or_none
+from src.tools._common import _zero_hit_scope_note
 
 log = logging.getLogger(__name__)
 
@@ -905,6 +906,13 @@ async def _tool_search_ee2_standards(
 
     if not results:
         lines.append(f'No EE2 standards found matching: "{query}"')
+        lines.extend(
+            await _zero_hit_scope_note(
+                getattr(data, "vector_db", None),
+                tenant=_tenant(),
+                collections=EE2_COLLECTION,
+            )
+        )
         return "\n".join(lines) + "\n"
 
     for idx, result in enumerate(results, start=1):

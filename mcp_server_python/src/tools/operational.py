@@ -53,6 +53,7 @@ from src.tools._common import (
     _is_missing_index_exc,
     _missing_index_skip,
     _tenant_id_or_none,
+    _zero_hit_scope_note,
 )
 
 log = logging.getLogger(__name__)
@@ -422,6 +423,13 @@ async def _tool_get_operational_guidance(
         lines.append("4. Monitor job execution logs")
         lines.append("5. Follow platform-specific submission procedures")
         lines.append("")
+        lines.extend(
+            await _zero_hit_scope_note(
+                getattr(data, "vector_db", None),
+                tenant=_tenant(),
+                collections=WORKFLOW_DOCS_COLLECTION,
+            )
+        )
 
     lines.append("## Platform-Specific Notes")
     lines.append("")
@@ -562,6 +570,13 @@ async def _tool_explain_workflow_component(
         lines.append(
             f'*No documentation or graph hits found for `{component}`. '
             "Check the component name and try again.*"
+        )
+        lines.extend(
+            await _zero_hit_scope_note(
+                getattr(data, "vector_db", None),
+                tenant=_tenant(),
+                collections=WORKFLOW_DOCS_COLLECTION,
+            )
         )
 
     return "\n".join(lines).rstrip() + "\n"

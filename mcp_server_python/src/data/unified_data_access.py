@@ -36,6 +36,36 @@ from src.data.protocols import GraphDBProtocol, VectorDBProtocol
 log = logging.getLogger(__name__)
 
 
+def _active_vector_tenant() -> Any:
+    """Return the active tenant (or ``None`` for the unprefixed default).
+
+    Read from the tenancy ContextVar at health-check time so the vector
+    enumeration is scoped to the caller's tenant. Best-effort: never raises;
+    a resolution failure yields ``None`` (the default-tenant path).
+    """
+    try:
+        from src.tenancy.resolver import get_current_tenant_or_none
+
+        ctx = get_current_tenant_or_none()
+        return ctx.tenant if ctx else None
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
+def _present_physical_names(raw: dict[str, Any]) -> set[str]:
+    """Collect the physical collection names a health payload enumerates."""
+    names: set[str] = set()
+    detail = raw.get("indices_detail") or raw.get("collections_detail")
+    if isinstance(detail, dict):
+        names.update(str(n) for n in detail.keys())
+    listing = raw.get("indices") or raw.get("collections") or []
+    if isinstance(listing, dict):
+        names.update(str(n) for n in listing.keys())
+    elif isinstance(listing, list):
+        names.update(str(n) for n in listing if isinstance(n, str))
+    return names
+
+
 class UnifiedDataAccess:
     """Composite of a vector adapter + a graph adapter.
 
@@ -196,6 +226,21 @@ class UnifiedDataAccess:
         index_count = len(
             raw.get("indices") or raw.get("collections") or []
         )
+        tenant = _active_vector_tenant()
+        prefix = getattr(tenant, "index_prefix", "") if tenant else ""
+        if prefix:
+            # Non-default tenant: enumerate the Read_Router's collection set
+            # (shared-scope-query-routing R11.1-R11.6). indexCount is the
+            # cardinality of that set -- it includes the unprefixed member of
+            # every shared collection and excludes every foreign-prefixed
+            # collection. The vector component is reported degraded ONLY when
+            # a shared *unprefixed* member is absent (R11.6): a tenant that
+            # simply has not ingested its own code is not unhealthy, which
+            # preserves rag-data-plane-gap-closure R6.2 (a fresh tenant is
+            # healthy).
+            return self._scoped_vector_health(raw, tenant)
+
+        # Default tenant: legacy gating, byte-equivalent (R6.3).
         # If the adapter doesn't enumerate indices in its health
         # response, fall back to "configured" which means the probe
         # round-tripped (so ``ok`` should still be True).
@@ -219,6 +264,57 @@ class UnifiedDataAccess:
             "totalDocuments": raw.get("total_documents", 0),
             "latency_ms": raw.get("latency_ms"),
             "reason": reason,
+        }
+
+    def _scoped_vector_health(
+        self, raw: dict[str, Any], tenant: Any
+    ) -> dict[str, Any]:
+        """Enumerate a non-default tenant's collection set for health.
+
+        shared-scope-query-routing R11.1-R11.6. ``indexCount`` is the
+        cardinality of ``tenant_collection_set(tenant)``; each enumerated
+        collection is named with its Collection_Scope (R11.5); the component
+        is degraded only when a shared *unprefixed* member is absent (R11.6).
+        """
+        from src.data.read_router import tenant_collection_set
+
+        present = _present_physical_names(raw)
+        tcs = tenant_collection_set(tenant)
+        collections: list[dict[str, Any]] = []
+        shared_unprefixed_absent = False
+        for target in tcs.targets:
+            is_present = target.physical in present
+            if not is_present and target.scope == "shared" and (
+                not target.prefixed
+            ):
+                shared_unprefixed_absent = True
+            collections.append(
+                {
+                    "name": target.physical,
+                    "scope": str(target.scope),
+                    "prefixed": target.prefixed,
+                    "condition": (
+                        "provisioned" if is_present else "unprovisioned"
+                    ),
+                }
+            )
+        index_count = len(tcs.targets)
+        status = raw.get("status", "unknown")
+        ok = status == "healthy" and not shared_unprefixed_absent
+        if ok:
+            reason = None
+        elif status == "healthy":
+            reason = "a shared collection is unprovisioned for this tenant"
+        else:
+            reason = raw.get("reason") or raw.get("error") or "unhealthy"
+        return {
+            "ok": ok,
+            "status": status,
+            "indexCount": index_count,
+            "totalDocuments": raw.get("total_documents", 0),
+            "latency_ms": raw.get("latency_ms"),
+            "reason": reason,
+            "collections": collections,
         }
 
     async def _graph_health(self) -> dict[str, Any]:

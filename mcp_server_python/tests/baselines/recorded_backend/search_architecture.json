@@ -1,0 +1,28 @@
+{
+  "scenario_id": "search_architecture",
+  "module": "graph_rag",
+  "tool": "search_architecture",
+  "tenant_scoped": true,
+  "args": {
+    "query": "atmospheric forecast subsystem",
+    "max_results": 5
+  },
+  "env": {
+    "DB_BACKEND": "aws",
+    "MCP_EMBEDDING_PROFILE": "titan1024"
+  },
+  "vector": {
+    "query": [
+      {
+        "id": "comm-42",
+        "content": "The atmospheric forecast subsystem couples the FV3 dynamical core with physics parameterisations and writes restart files.",
+        "metadata": {
+          "communityId": 42,
+          "nodeCount": 128,
+          "dominantType": "FortranSubroutine"
+        },
+        "score": 0.83
+      }
+    ]
+  }
+}

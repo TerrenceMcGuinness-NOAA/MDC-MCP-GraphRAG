@@ -673,15 +673,29 @@ class TestProbeSkipSemantics:
         }))
         monkeypatch.setenv("MCP_TENANT_CATALOG_PATH", str(catalog_yaml))
 
-        # Stub data layer
+        # Stub data layer (shared-scope-query-routing Task 7.6: the probe
+        # now derives origin from the attached physical_collection, not a
+        # metadata.source substring). Vector reads, in probe order:
+        # docs@gw_v17, docs@gw, ee2@gw_v17.
         data = MagicMock()
         data.graph_db.query = AsyncMock(side_effect=[
             [{"name": "JGDAS_ATMOS_ANALYSIS_WDQMS"}],  # assertion 1: v17 has it
             [],  # assertion 2: gw doesn't
         ])
         data.vector_db.query = AsyncMock(side_effect=[
-            [{"metadata": {"source": "/mnt/workflow/develop/docs/mpas.md"}}],  # assertion 3: gw has MPAS
-            [],  # assertion 4: v17 has no develop-sourced MPAS
+            # docs under gw_v17: shared half + branch-local half (R8.6).
+            [
+                {"physical_collection": "mdc-workflow-docs-titan1024",
+                 "metadata": {}},
+                {"physical_collection": "gw_v17_mdc-workflow-docs-titan1024",
+                 "metadata": {}},
+            ],
+            # docs under gw: unprefixed only (R8.2, Default_Tenant).
+            [{"physical_collection": "mdc-workflow-docs-titan1024",
+              "metadata": {}}],
+            # ee2 under gw_v17: shared standards reachable (R8.3).
+            [{"physical_collection": "mdc-ee2-standards-titan1024",
+              "metadata": {}}],
         ])
 
         result = await _smoke_branch_isolation(data, None)

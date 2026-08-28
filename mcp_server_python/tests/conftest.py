@@ -34,13 +34,20 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from src.data.read_router import CollectionCondition  # noqa: E402
+
 
 # ── sample data ─────────────────────────────────────────────────────────
 
 
 #: Canonical OpenSearch-shaped hits used by tool-layer tests. Keys match
-#: :data:`src.data.protocols.VECTOR_RESULT_KEYS` so any tool that consumes
-#: ``VectorDBProtocol.query`` can accept them unchanged.
+#: :data:`src.data.protocols.VECTOR_RESULT_KEYS` so any tool that
+#: consumes ``VectorDBProtocol.query`` can accept them unchanged.
+#: ``physical_collection`` (shared-scope-query-routing Task 7.1) is a
+#: new, additive key -- it does not replace or alias
+#: ``metadata.collection``, which is the pre-existing *logical*
+#: collection name rendered by
+#: ``semantic_search._format_search_hit``.
 SAMPLE_VECTOR_HITS: list[dict[str, Any]] = [
     {
         "id": "doc-001",
@@ -51,6 +58,7 @@ SAMPLE_VECTOR_HITS: list[dict[str, Any]] = [
             "language": "shell",
         },
         "score": 0.92,
+        "physical_collection": "mdc-jjobs-mpnet768",
     },
     {
         "id": "doc-002",
@@ -61,6 +69,7 @@ SAMPLE_VECTOR_HITS: list[dict[str, Any]] = [
             "language": "python",
         },
         "score": 0.81,
+        "physical_collection": "mdc-code-context-mpnet768",
     },
     {
         "id": "doc-003",
@@ -71,6 +80,7 @@ SAMPLE_VECTOR_HITS: list[dict[str, Any]] = [
             "language": "markdown",
         },
         "score": 0.74,
+        "physical_collection": "mdc-workflow-docs-mpnet768",
     },
 ]
 
@@ -123,6 +133,13 @@ class MockVectorDB:
     * ``health`` — overrides the dict returned by :pymeth:`health_check`.
     * ``raise_on_query`` — a ``BaseException`` instance; if set, every
       :pymeth:`query` call will raise it (for testing error-path code).
+    * ``condition_overrides`` — maps a physical collection name to the
+      :class:`~src.data.read_router.CollectionCondition` to return for it
+      from :pymeth:`collection_condition`. A name absent from this map
+      falls back to the same "is it in ``collections``, does it have
+      hits" logic :pymeth:`count_documents` uses, so a caller need not
+      seed every physical name explicitly (shared-scope-query-routing
+      Task 7.1).
     * ``call_log`` — every ``(method, args)`` tuple is appended so tests
       can assert the adapter was reached with the expected inputs.
     """
@@ -140,6 +157,9 @@ class MockVectorDB:
     health: dict[str, Any] | None = None
     raise_on_query: BaseException | None = None
     connected: bool = False
+    condition_overrides: dict[str, CollectionCondition] = field(
+        default_factory=dict
+    )
     call_log: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = field(
         default_factory=list
     )
@@ -207,6 +227,30 @@ class MockVectorDB:
         """
         self.call_log.append(("count_documents", (collection,), {}))
         return len(self.hits) if collection in self.collections else 0
+
+    async def collection_condition(
+        self, physical_collection: str
+    ) -> CollectionCondition:
+        """shared-scope-query-routing Task 7.1 contract method.
+
+        Returns ``condition_overrides[physical_collection]`` when seeded;
+        otherwise falls back to :pymeth:`count_documents`-equivalent
+        logic: ``UNPROVISIONED`` when ``physical_collection`` is not in
+        ``collections``, ``PROVISIONED_EMPTY`` when it is present but
+        ``hits`` is empty, and ``PROVISIONED_POPULATED`` otherwise. Never
+        raises and issues no mutating call, matching both real adapters'
+        contract.
+        """
+        self.call_log.append(
+            ("collection_condition", (physical_collection,), {})
+        )
+        if physical_collection in self.condition_overrides:
+            return self.condition_overrides[physical_collection]
+        if physical_collection not in self.collections:
+            return CollectionCondition.UNPROVISIONED
+        if not self.hits:
+            return CollectionCondition.PROVISIONED_EMPTY
+        return CollectionCondition.PROVISIONED_POPULATED
 
     async def sample_metadata(
         self,

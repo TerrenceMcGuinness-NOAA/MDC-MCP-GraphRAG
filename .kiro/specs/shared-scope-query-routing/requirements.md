@@ -526,6 +526,47 @@ refactor carries no regression risk for the default path.
    the same result limit in the range 1 to 1000, the same Backend, the same
    Embedding_Profile, and the same store content, including the tenant
    attribution header lines.
+
+   **Superseded 2026-08-19 by `default-tenant-freeze-retirement` (SDD Phase
+   80).** Byte-equivalence is retired for the Query_Tools and replaced by two
+   checks that are jointly necessary in place of it -- a structural check and a
+   benchmark comparison. `default-tenant-freeze-retirement` is the authority
+   for changing Default_Tenant Query_Tool output.
+
+   Structural check: a Query_Tool invoked without a `tenant_id` addresses the
+   same set of Physical_Collections as it addressed before the proposed change,
+   and every hit it returns carries a non-empty `physical_collection` value.
+
+   Benchmark comparison: no Gated_Metric of any Benchmark_Category, and no
+   Gated_Metric of the `overall` object, drops below its trailing
+   Median_Window median by more than the Governing_Threshold.
+
+   The benchmark comparison measures retrieval quality, not correctness, and the
+   structural check above is required in addition to, rather than in place of,
+   the benchmark comparison. A proposed change that passes the benchmark
+   comparison and fails the structural check is failing the gate. The two are
+   not interchangeable and that is why they are paired: the structural check
+   catches a dropped collection that a quality score cannot see -- the surviving
+   member of a two-member Resolved_Collection_Set still answers the corpus
+   queries, so coverage may not move while the tool sees half of what it should
+   -- and the benchmark comparison catches degraded retrieval that a structural
+   check cannot, since the right collections can be addressed and still return
+   worse hits. The physical collection a read addressed is not recoverable from
+   the rendered response text at all, so the structural check is defined as an
+   addressed-set-plus-provenance relation rather than a text comparison. It is
+   enforced by `mcp_server_python/tests/baselines/addressing.py` and
+   `mcp_server_python/tests/unit/test_default_tenant_byte_equivalence.py`; the
+   benchmark comparison is produced by
+   `mcp_server_python/scripts/run_benchmark.py` and evaluated by the nightly
+   Regression_Check. The reporting freeze of criterion 3 is retired separately,
+   also by this feature.
+
+   One consequence, recorded rather than left to be found: neither replacement
+   gates the rendered bytes of Query_Tool output, so a pure formatting change --
+   relabelling a field, changing a separator, reordering hit metadata -- now
+   passes both. That is a deliberate reduction in what is gated; the
+   Consumer_Audit named by `default-tenant-freeze-retirement` Requirement 12 is
+   what makes it tolerable by enumerating the code that parses Query_Tool output.
 3. WHEN the Status_Reporter, the Integrity_Checker, or the Health_Reporter runs
    without a `tenant_id` argument, THE invoked component SHALL render a complete
    response byte-equivalent to the response that component renders before this
@@ -533,6 +574,28 @@ refactor carries no regression risk for the default path.
    in preference to the scope-labelling and totalling behaviour that
    Requirements 9, 10, and 11 require for a Tenant whose Index_Prefix is
    non-empty.
+
+   **Superseded 2026-08-19 by `default-tenant-freeze-retirement` (SDD Phase
+   80).** Byte-equivalence is retired for the Status_Reporter, the
+   Integrity_Checker, and the Health_Reporter and replaced by Structural
+   Equivalence. Under the superseding relation, a no-`tenant_id` render of any
+   of the three reporters is equivalent to the pre-change render when, and only
+   when, all three of the following hold: the set of Physical_Collection names
+   each response lists is equal; the document count each response reports for
+   each listed Physical_Collection is equal; and the pass, fail, or skip verdict
+   each response reports for each named check is equal. Wording, line order,
+   label text, field captions, and whitespace are free to change. This retires
+   the "in preference to" ranking above, so the `mdc-content-sha-registry`
+   over-count in the `gw` status total can be corrected and the Default_Tenant
+   integrity sample can be scoped; `default-tenant-freeze-retirement` is the
+   authority for changing Default_Tenant reporter output. The relation is
+   defined and enforced by
+   `mcp_server_python/tests/baselines/structural.py` and
+   `mcp_server_python/tests/unit/test_default_tenant_byte_equivalence.py`. This
+   supersession of criterion 3 does not itself touch the query-result freeze of
+   criterion 2; criterion 2 is superseded separately by the same feature (see
+   the criterion 2 note above), which pairs an addressed-set-plus-provenance
+   structural check with a benchmark comparison.
 4. THE code comments and docstrings in `src/tools/semantic_search.py` and
    `src/data/opensearch_adapter.py` that cite the default-preservation invariant
    SHALL cite Property 3 (Empty-prefix passthrough) of
@@ -740,9 +803,24 @@ describe that tenant rather than an unscoped mixture of all five.
    member of the active Tenant's Resolved_Collection_Sets, counting both the
    `shared` and the `tenant` members.
 5. WHEN the Integrity_Checker runs without a `tenant_id` argument, THE
-   Integrity_Checker SHALL draw its sample from, and report findings for, the
-   union of the Default_Tenant's Resolved_Collection_Sets across all five
-   Logical_Collections.
+   Integrity_Checker SHALL draw its sample from the union of the
+   Default_Tenant's Resolved_Collection_Sets across all five
+   Logical_Collections, identically to criterion 1 and to every Tenant.
+
+   **Resolved 2026-08-19 by `default-tenant-freeze-retirement` (SDD Phase 80).**
+   The earlier amendment (Task 10/11 implementation) narrowed this criterion to
+   preserve the legacy unscoped `sample_metadata(collection=None)` call for the
+   Default_Tenant, because Requirement 6 criterion 3 required the no-`tenant_id`
+   integrity response to remain byte-equivalent and the per-member reporting
+   criterion 3 requires necessarily moves the rendered bytes, so both could not
+   hold for the Default_Tenant. `default-tenant-freeze-retirement` removes that
+   obstacle: it supersedes Requirement 6 criterion 3 with Structural_Equivalence,
+   which is insensitive to per-member reporting text. The criterion is therefore
+   restored to its original union-scoped form and applies to every Tenant, the
+   Default_Tenant included. Actually scoping the Default_Tenant sampler is the
+   second entry of that feature's Follow_Up_Sequence, performed under the
+   quality-benchmark gate that feature builds; this restatement records the
+   requirement, and that follow-up satisfies it in the code.
 6. WHEN the union of the active Tenant's Resolved_Collection_Sets contains more
    than one Physical_Collection, THE Integrity_Checker SHALL limit any single
    member's contribution to `ceil(sample_size / member_count)` records for as
