@@ -336,6 +336,19 @@ class GGSRTraversal:
         The cypher here is a Neptune-compatible port of the Node.js
         ``oneHopNeighborhood`` / ``twoHopNeighborhood`` queries: no
         regex operators, ``toLower($baseName) CONTAINS`` for matching.
+
+        The name predicate is ``toLower(toString(n.name)) CONTAINS
+        toLower($baseName)``. It previously wrapped ``n.name`` in
+        ``apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)],
+        ' ')`` to tolerate a multi-valued ``name`` property. APOC is a
+        **Neo4j server plugin**; Amazon Neptune has no plugin mechanism
+        and no APOC, so that predicate returned
+        ``400 Unknown function: 'toList'`` on every invocation against
+        Neptune -- this docstring claimed Neptune compatibility while the
+        query could not run there at all. ``toString`` is a built-in and
+        keeps the multi-valued tolerance: a scalar stringifies to itself
+        and a list to its bracketed rendering, either of which the
+        ``CONTAINS`` substring test still matches.
         """
         limit = max(1, int(limit))
         base_name = entity
@@ -353,7 +366,7 @@ class GGSRTraversal:
         if hops == 1:
             cypher = (
                 "MATCH (n)-[r]-(hop1) "
-                "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($baseName) "
+                "WHERE toLower(toString(n.name)) CONTAINS toLower($baseName) "
                 f"{scope_n}{scope_hop1} "
                 "RETURN n.name AS source, "
                 "type(r) AS relationship, "
@@ -371,7 +384,7 @@ class GGSRTraversal:
         scope_hop2 = f" AND {pred_hop2}" if pred_hop2 else ""
         cypher = (
             "MATCH (n)-[r1]-(hop1) "
-            "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($baseName) "
+            "WHERE toLower(toString(n.name)) CONTAINS toLower($baseName) "
             f"{scope_n}{scope_hop1} "
             "OPTIONAL MATCH (hop1)-[r2]-(hop2) "
             f"WHERE hop2 <> n{scope_hop2} "

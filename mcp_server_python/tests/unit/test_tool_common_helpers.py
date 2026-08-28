@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.data.vector_errors import CollectionNotProvisionedError
 from src.tools._common import (
     _is_missing_index_exc,
     _missing_index_skip,
@@ -74,6 +75,30 @@ def test_detect_generic_transport_error_false() -> None:
 
 def test_detect_base_exception_false() -> None:
     assert _is_missing_index_exc(BaseException("nothing relevant")) is False
+
+
+def test_detect_collection_not_provisioned_error_true() -> None:
+    """Widened matrix entry (shared-scope-query-routing R4.3, R4.6, R6.2).
+
+    The backend-normalized CollectionNotProvisionedError -- raised by
+    BOTH ChromaDBAdapter and OpenSearchAdapter on collection absence --
+    must be recognised directly, independent of either client library's
+    exception taxonomy. This is additive: every pre-existing assertion
+    in this matrix (structured NotFoundError, string-fallback token,
+    other-error-type-false, generic-transport-error-false) is unchanged
+    above.
+    """
+    exc = CollectionNotProvisionedError(
+        "gw_v17_mdc-ee2-standards-titan1024",
+        logical="ee2-standards-v5-0-0-enhanced",
+        tenant_id="gw_v17",
+    )
+    assert _is_missing_index_exc(exc) is True
+
+
+def test_detect_collection_not_provisioned_no_context_true() -> None:
+    """Classification does not depend on the optional context fields."""
+    assert _is_missing_index_exc(CollectionNotProvisionedError("x")) is True
 
 
 # ── _missing_index_skip (R2) ────────────────────────────────────────────

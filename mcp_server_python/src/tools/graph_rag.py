@@ -102,6 +102,7 @@ from src.tools._common import (
     _is_missing_index_exc,
     _missing_index_skip,
     _tenant_id_or_none,
+    _zero_hit_scope_note,
 )
 from src.tools._traversal_bounds import (
     DATA_FLOW_DEPTH,
@@ -474,7 +475,7 @@ async def _tool_get_code_context(
                 )
             else:
                 cypher = (
-                    "MATCH (n) WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($name)"
+                    "MATCH (n) WHERE toLower(toString(n.name)) CONTAINS toLower($name)"
                     f"{_scope_and('n')} "
                     "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
                 )
@@ -518,6 +519,7 @@ async def _tool_get_code_context(
                 max_results=15,
                 hops=depth,
                 collection=CODE_COLLECTION,
+                tenant=_tenant(),
             )
         except Exception as exc:  # pragma: no cover - defensive
             log.warning("GraphGuidedRetrieval failed for %r: %s", symbol, exc)
@@ -729,9 +731,21 @@ async def _tool_search_architecture(
     filtered = enriched[:max_results]
 
     if not filtered:
+        note = await _zero_hit_scope_note(
+            getattr(data, "vector_db", None),
+            tenant=_tenant(),
+            collections=COMMUNITY_COLLECTION,
+        )
         if is_testing:
-            return f'No architectural context found for: "{query}"\n'
-        return "No high-confidence architectural matches; try a more specific symbol or filename.\n"
+            body = f'No architectural context found for: "{query}"\n'
+        else:
+            body = (
+                "No high-confidence architectural matches; try a more "
+                "specific symbol or filename.\n"
+            )
+        if note:
+            body = body.rstrip("\n") + "\n" + "\n".join(note) + "\n"
+        return body
 
     lines: list[str] = [f'# Architecture Search: "{query}"', ""]
     lines.append(

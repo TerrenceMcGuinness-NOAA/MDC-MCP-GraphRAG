@@ -15,6 +15,7 @@ from src.data.protocols import (
     GraphDBProtocol,
     VectorDBProtocol,
 )
+from src.data.read_router import CollectionCondition
 from tests.conftest import (
     SAMPLE_GRAPH_ROWS,
     SAMPLE_VECTOR_HITS,
@@ -101,6 +102,44 @@ async def test_mock_vector_db_call_log_tracks_operations() -> None:
     await db.close()
     methods = [entry[0] for entry in db.call_log]
     assert methods == ["connect", "query", "close"]
+
+
+# ── collection_condition (shared-scope-query-routing Task 7.1) ────────
+
+
+async def test_mock_vector_db_collection_condition_unprovisioned() -> None:
+    db = MockVectorDB()
+    result = await db.collection_condition("not-a-known-collection")
+    assert result == CollectionCondition.UNPROVISIONED
+
+
+async def test_mock_vector_db_collection_condition_provisioned_populated():
+    db = MockVectorDB()
+    result = await db.collection_condition("mdc-code-context-mpnet768")
+    assert result == CollectionCondition.PROVISIONED_POPULATED
+
+
+async def test_mock_vector_db_collection_condition_provisioned_empty() -> None:
+    db = MockVectorDB(hits=[])
+    result = await db.collection_condition("mdc-code-context-mpnet768")
+    assert result == CollectionCondition.PROVISIONED_EMPTY
+
+
+async def test_mock_vector_db_collection_condition_override_wins() -> None:
+    db = MockVectorDB(
+        condition_overrides={
+            "not-a-known-collection": CollectionCondition.PROVISIONED_POPULATED
+        }
+    )
+    result = await db.collection_condition("not-a-known-collection")
+    assert result == CollectionCondition.PROVISIONED_POPULATED
+
+
+async def test_mock_vector_db_collection_condition_logs_call() -> None:
+    db = MockVectorDB()
+    await db.collection_condition("mdc-code-context-mpnet768")
+    methods = [entry[0] for entry in db.call_log]
+    assert methods == ["collection_condition"]
 
 
 # ── MockGraphDB behaviour ─────────────────────────────────────────────
