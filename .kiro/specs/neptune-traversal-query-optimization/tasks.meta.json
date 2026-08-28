@@ -1,0 +1,262 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add `BFS_ACTIVATION_THRESHOLD` and `BFS_FAN_OUT_LIMIT` constants": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787960996078
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961066964
+      }
+    ],
+    "1.2 Write unit tests for BFS constants and `_use_bfs` strategy selector": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787960998411
+      }
+    ],
+    "2.1 Create `resolve_anchor_ids` helper in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961000121
+      }
+    ],
+    "2.2 Apply UNION ALL to `trace_data_flow` outgoing query in `graph_rag.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961001798
+      }
+    ],
+    "2.3 Apply UNION ALL to `trace_data_flow` shortestPath anchor in `graph_rag.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961003543
+      }
+    ],
+    "2.4 Apply UNION ALL to `_one_hop_neighbors` anchor in `code_analysis.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961005253
+      }
+    ],
+    "2.5 Write unit tests for UNION ALL decomposition": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961007003
+      }
+    ],
+    "3. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961008602
+      }
+    ],
+    "4.1 Implement `BFSResult` dataclass in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961010367
+      }
+    ],
+    "4.2 Implement `_expand_one_hop` helper in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961012151
+      }
+    ],
+    "4.3 Implement `bfs_walk` main function in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961013928
+      }
+    ],
+    "4.4 Write unit tests for `bfs_walk` and `_expand_one_hop`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961015853
+      }
+    ],
+    "5.1 Integrate BFS Walker into `_cross_language_nodes` in `code_analysis.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961017682
+      }
+    ],
+    "5.2 Integrate BFS Walker into `trace_data_flow` in `graph_rag.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961019467
+      }
+    ],
+    "5.3 Integrate BFS Walker into `find_callers_callees` in `code_analysis.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961021267
+      }
+    ],
+    "5.4 Add timeout fallback chain (single-query → BFS → Degraded_Result)": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961022934
+      }
+    ],
+    "5.5 Write unit tests for strategy integration": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961024737
+      }
+    ],
+    "6. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961026527
+      }
+    ],
+    "7.1 Add scope predicate to BFS Walker expansion queries": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961028349
+      }
+    ],
+    "7.2 Add scope predicate to terminal node in single-query patterns": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961030088
+      }
+    ],
+    "7.3 Write unit tests for label-scope on expanded nodes": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961031794
+      }
+    ],
+    "8.1 Add BFS activation and completion logging": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961033529
+      }
+    ],
+    "8.2 Add `[optimized: BFS walker, N hops, M nodes]` response header": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961035482
+      }
+    ],
+    "8.3 Write unit tests for observability": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961037272
+      }
+    ],
+    "9. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961038899
+      }
+    ],
+    "10.1 Write property test for UNION ALL set equivalence": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961040695
+      }
+    ],
+    "10.2 Write property test for BFS subset guarantee": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961042509
+      }
+    ],
+    "10.3 Write property test for visited-set cycle prevention": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961044348
+      }
+    ],
+    "10.4 Write property test for early termination": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961046249
+      }
+    ],
+    "10.5 Write property test for strategy selection consistency": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961048048
+      }
+    ],
+    "10.6 Write property test for label scope on expanded nodes": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961049733
+      }
+    ],
+    "10.7 Write property test for timeout fallback chain": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961051358
+      }
+    ],
+    "10.8 Write property test for fan-out limit bounds": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961053059
+      }
+    ],
+    "11.1 Run failing benchmark cases and verify resolution": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961054842
+      }
+    ],
+    "11.2 Run full 68-case benchmark and verify coverage targets": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961056798
+      }
+    ],
+    "12. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961058422
+      }
+    ]
+  }
+}
