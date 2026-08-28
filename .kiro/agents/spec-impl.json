@@ -3,12 +3,42 @@
   "description": "Spec task implementer. Filesystem + shell + code only. No AWS tool, no subagent fan-out, no web, no MCP.",
   "prompt": null,
   "mcpServers": {},
-  "tools": ["read", "write", "grep", "glob", "shell", "code"],
-  "allowedTools": ["read", "write", "grep", "glob", "shell", "code"],
+  "tools": [
+    "code",
+    "glob",
+    "grep",
+    "read",
+    "shell",
+    "write"
+  ],
+  "allowedTools": [
+    "read",
+    "write",
+    "grep",
+    "glob",
+    "shell",
+    "code"
+  ],
   "toolAliases": {},
   "resources": [],
-  "hooks": {},
+  "hooks": [],
   "toolsSettings": {},
   "includeMcpJson": false,
-  "model": null
+  "model": null,
+  "permissions": {
+    "rules": [
+      {
+        "capability": "fs_read",
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "effect": "allow"
+      },
+      {
+        "capability": "shell",
+        "effect": "allow"
+      }
+    ]
+  }
 }
