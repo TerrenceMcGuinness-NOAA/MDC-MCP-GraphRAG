@@ -92,8 +92,59 @@ oversight)
   comment-only edit to the wrapper; the manifest is left as originally
   recorded (still carrying this file's old digest) rather than
   regenerated, since regenerating it now would also be a change this
-  task does not need to make for any other file.
-
+  task does not need to make for any other file.- ``scripts/neo4j_index_rebuild.py`` -- **excluded on the identical
+  rationale as ``run_benchmark.py`` above, added by
+  ``mpnet768-tenant-reingest-aug2026`` Task 3.** This file is Phase 81's
+  Neo4j schema-management utility invoked by the Ralph loop between
+  ingest stages. It is not an ingestion script (it drops and re-creates
+  indexes and constraints; no vector or graph *content* is written) and
+  it is not a helper module an ingestion script imports -- verified: no
+  ``ingest_*_v8.py`` module imports it. It triggers no re-ingestion,
+  touches no write-side collection naming, and does not modify graph
+  label prefixes; only index definitions round-trip. So it falls
+  outside Requirement 12.2's stated subject on the same precise reading
+  that excluded ``run_benchmark.py``.
+- ``scripts/reingest_validation.py`` -- **excluded on the identical
+  rationale as ``run_benchmark.py`` above, added by
+  ``mpnet768-tenant-reingest-aug2026`` Task 4.** This file is Phase 81's
+  codified Validation_Probe: a thin CLI that calls MCP tools over HTTP
+  JSON-RPC against the local gateway and records the responses under
+  ``.reingest_state/<version>/validation/<tenant>.json`` for the
+  Verification_Record. It is not an ingestion script (it is read-only
+  against the corpus; the only file it writes is a verification
+  payload) and it is not a helper module an ingestion script imports --
+  verified: no ``ingest_*_v8.py`` module imports it. It triggers no
+  re-ingestion and touches no write-side naming, so it falls outside
+  Requirement 12.2's stated subject on the same precise reading that
+  excluded ``run_benchmark.py``.
+- ``scripts/reingest_state.py`` -- **excluded on the identical rationale
+  as ``run_benchmark.py`` above, added by
+  ``mpnet768-tenant-reingest-aug2026`` Task 1.** This file is the
+  State_Manager for the Ralph loop: a durable-state CLI
+  (``init``/``next``/``start``/``done``/``fail``/``skip``/``report``/
+  ``is-complete``) that records which units of the Work_Matrix have run
+  and with what outcome. It is not an ingestion script (it launches
+  ingesters as subprocesses but performs no ingestion of its own; it
+  writes only ``.reingest_state/<version>/state.json`` and
+  ``PROGRESS.md``) and it is not a helper module an ingestion script
+  imports -- verified: no ``ingest_*_v8.py`` module imports it. It
+  triggers no re-ingestion beyond recording that an operator-invoked
+  one happened, and touches no write-side collection or graph-label
+  naming path. Recording its digest instead was considered and rejected
+  on the same reasoning ``run_benchmark.py`` above gives: the Ralph-loop
+  orchestration layer is authored across multiple tasks and a digest
+  pinned at any one of them would re-break at the next.
+- ``scripts/reingest_stages.yaml`` -- **excluded on the identical
+  rationale as ``run_benchmark.py`` above, added by
+  ``mpnet768-tenant-reingest-aug2026`` Task 2.** This file is the stage
+  catalog the State_Manager reads to build the Work_Matrix; it is data,
+  not code. It is not an ingestion script and it is not a helper module
+  an ingestion script imports -- verified: no ``ingest_*_v8.py`` module
+  reads it. Adding a stage, marking one shared-once, or splitting a
+  hybrid domain (Phase 81 Delta 2) changes the catalog but does not
+  change any write-side collection name or graph-label naming path.
+  It therefore falls outside Requirement 12.2's stated subject on the
+  same precise reading that excluded ``run_benchmark.py``.
 This task is pure verification scaffolding over the current tree. It is
 expected to pass immediately. If either assertion fails on first run,
 that is a real finding about the tree -- report it, do not adjust the
@@ -136,14 +187,20 @@ _EXCLUDED_DIR_NAMES = frozenset({"__pycache__", "ingestion_reports"})
 
 # Individual files under scripts/ excluded by relative path (relative to
 # _SCRIPTS_DIR). ``.ingest_watermark.json`` is generated runtime output;
-# ``run_benchmark.py`` and ``run_benchmark_nightly.sh`` are source that fall
-# outside Requirement 12.2's stated subject (ingestion scripts and their
-# imported helpers). See the module docstring -- the exclusions have
-# different justifications and should not be collapsed into one rationale.
+# ``run_benchmark.py``, ``run_benchmark_nightly.sh``, ``neo4j_index_rebuild.py``,
+# ``reingest_validation.py``, ``reingest_state.py``, and ``reingest_stages.yaml``
+# are source that fall outside Requirement 12.2's stated subject (ingestion
+# scripts and their imported helpers). See the module docstring -- the
+# exclusions have different justifications and should not be collapsed into
+# one rationale.
 _EXCLUDED_RELATIVE_FILES = frozenset({
     ".ingest_watermark.json",
     "run_benchmark.py",
     "run_benchmark_nightly.sh",
+    "neo4j_index_rebuild.py",
+    "reingest_validation.py",
+    "reingest_state.py",
+    "reingest_stages.yaml",
 })
 
 _EXCLUDED_SUFFIXES = (".pyc",)

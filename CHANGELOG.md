@@ -331,6 +331,83 @@ precedence. Not committed — staged for human review per git policy 08.
   selection consistency (R3.1, R5.1), label scope on expanded nodes (R4.1, R4.2),
   timeout fallback chain always yielding a renderable Degraded_Result rather than
   an unhandled exception (R3.3, R5.5), and per-hop fan-out bounds (R2.3).
+## [Unreleased] — Phase 81: mpnet768 full tenant-aware re-ingest (Aug 28, 2026)
+
+### Summary
+Phase 81 extends the `cots-reingest-ralph-loop` machinery with shared-once
+discipline, hybrid fan-out for mixed-scope domains, Neo4j index drop-and-rebuild,
+nine missing manifest sources, per-tenant Phase-79 read-path validation probes, and
+manifest writeback — enabling a full, resumable, v9-0-0 mpnet768 re-ingest across all
+five tenants on the COTS backend without touching the serving v8 generation.
+
+### Added
+- **`mcp_server_python/scripts/neo4j_index_rebuild.py`** — enumerate, drop, snapshot,
+  create, and restore Neo4j indexes and constraints. Parametrises labels by tenant
+  prefix from `tenants.yaml`. Requires `--i-mean-it Target_Version=v9-0-0`
+  confirmation token for destructive operations (Req 8.1). Supports `--dry-run`.
+- **`mcp_server_python/scripts/reingest_validation.py`** — codified Validation_Probe
+  CLI. Runs four MCP tool calls per tenant (search_documentation,
+  search_ee2_standards, search_architecture, get_code_context) via JSON-RPC against
+  the local gateway. Supports `--tenant` and `--global` modes. Writes payloads to
+  `.reingest_state/<ver>/validation/<tenant>.json`.
+- **`scripts/reingest_cutover.sh`** — human-gated cutover script. Checks
+  preconditions (is-complete, validation probes pass, rollback image present), backs
+  up manifest, rewrites collection fields to v9-0-0 names, restarts gateway, runs
+  post-cutover probes, writes cutover report with 7-day retention window. Supports
+  `--dry-run`.
+- **Nine missing sources** added to `reingest_stages.yaml`: `fortran-code-context`,
+  `shell-code-context`, `python-code-context`, `rocoto-config`, `expdir-configs`
+  (tenant-scope code_parse), `rocoto`, `cmeps`, `nceplibs-sfcio` (shared url_crawl),
+  and `global-workflow-rst` (hybrid on_disk_submodule).
+- **Shared-once stages** in the catalog: `ee2_standards`, `community_summaries`,
+  `ci_test_cases`, `workflow_docs_external`, `pdf_sources`, `neo4j_drop_indexes`,
+  `neo4j_rebuild_indexes` — each emits exactly one Work_Matrix unit regardless of
+  tenant count.
+- **Hybrid fan-out sub-stages**: `workflow_docs` split into `workflow_docs_external`
+  (shared, unprefixed) + `workflow_docs_local` (per-tenant, prefixed);
+  `code_with_context` split into `code_with_context_local` (per-tenant).
+- **`depends_on_all_tenants`** cross-tenant gating: `neo4j_rebuild_indexes` waits for
+  all five tenants' graph stages before becoming actionable.
+- **Manifest writeback** on `done` transitions: writes `ingest_status` block
+  (collection_version, actual_docs, ingested_at, sha, backend, embedding_profile)
+  back to `unified_manifest.json`.
+- **Verification_Record template** at
+  `docs/reports/2026-XX-XX-mpnet768-tenant-reingest-verification.md` — 46 acceptance
+  criteria rows, 28 verified via tests, 18 pending live-run evidence.
+- **Unit tests**: `test_reingest_state_scope_field.py` (21),
+  `test_reingest_stages_shared_once.py` (6),
+  `test_reingest_stages_hybrid_fan_out.py` (14),
+  `test_reingest_stages_dependency_closure.py` (11),
+  `test_neo4j_index_rebuild.py` (26), `test_reingest_validation.py` (33),
+  `test_ralph_prompt_snapshot.py` (31), `test_manifest_writeback.py` (29).
+- **Integration test**: `test_reingest_dry_run_walk.py` — full 67-unit Work_Matrix
+  walk verifying shared-once/tenant counts, dependency ordering, and scope fields.
+
+### Changed
+- **`reingest_stages.yaml`** bumped to schema_version 2: explicit `scope` and
+  `shared_once` fields on all stages, hybrid domains split into sub-stages.
+- **`reingest_state.py`** schema_version 1 → 2: additive fields (`scope`,
+  `shared_once`, `tenancy_precheck`, `validation_path`, `depends_on_all_tenants`),
+  migration function, scope-drift detection, `depends_on_all_tenants` gating in
+  `actionable()`, manifest writeback on `done`/`fail` transitions.
+- **`ralph_reingest_prompt.md`** extended with Shared_Once_Rule preamble,
+  Hybrid_Fan_Out preamble, step 3 tenancy precheck, step 5 Validation_Probe
+  invocation, step 4 neo4j and shared-once handling, dry-run threading.
+- **`ralph_reingest_loop.sh`** extended with `--dry-run`, `--target-version`, and
+  `--spec` CLI arguments; exports `REINGEST_DRY_RUN` env var.
+
+### Fixed
+- (No bug fixes in this phase — all changes are additive.)
+
+### Notes
+- **No v8 collections touched.** Requirement 1.2 protects the serving generation
+  through the entire run — cutover is a separate human-invoked step.
+- **No embedding model change.** mpnet768 (768-dim, local `all-mpnet-base-v2`)
+  throughout.
+- **No AWS/Neptune/OpenSearch touch.** COTS-only (ChromaDB + Neo4j on Rocky 9 host).
+- **Task 9.2 pending live run.** 18 verification rows require the Ralph loop to reach
+  `is-complete` — filled by the operator post-run.
+- Spec: `.kiro/specs/mpnet768-tenant-reingest-aug2026/`
 
 ## [Unreleased] - default-tenant-freeze-retirement: both freezes retired (SDD Phase 80) (Aug 19, 2026)
 

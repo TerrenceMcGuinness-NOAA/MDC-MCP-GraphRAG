@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ralph Loop for Kiro Specs</title>
+<style>
+  :root {
+    --kiro-bg: #0d1117;
+    --kiro-surface: #161b22;
+    --kiro-surface-2: #1c2128;
+    --kiro-border: #30363d;
+    --kiro-text: #e6edf3;
+    --kiro-text-muted: #8b949e;
+    --kiro-accent: #58a6ff;
+    --kiro-green: #3fb950;
+    --kiro-red: #f85149;
+    --kiro-yellow: #d29922;
+    --kiro-purple: #bc8cff;
+    --radius: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    background: var(--kiro-bg);
+    color: var(--kiro-text);
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.5;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--kiro-text);
+  }
+
+  h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--kiro-text-muted);
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--kiro-border);
+  }
+
+  .header .subtitle {
+    color: var(--kiro-text-muted);
+    font-size: 0.9rem;
+    margin-top: 4px;
+  }
+
+  /* Global Summary Pane */
+  .summary-pane {
+    background: var(--kiro-surface);
+    border: 1px solid var(--kiro-border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .stat-card {
+    background: var(--kiro-surface-2);
+    border: 1px solid var(--kiro-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--kiro-accent);
+  }
+
+  .stat-card .label {
+    font-size: 0.8rem;
+    color: var(--kiro-text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  .status-badge.red {
+    background: rgba(248, 81, 73, 0.15);
+    color: var(--kiro-red);
+    border: 1px solid rgba(248, 81, 73, 0.3);
+  }
+
+  .status-badge.green {
+    background: rgba(63, 185, 80, 0.15);
+    color: var(--kiro-green);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+  }
+
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .status-dot.red { background: var(--kiro-red); }
+  .status-dot.green { background: var(--kiro-green); }
+
+  .spec-name {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 1rem;
+    color: var(--kiro-purple);
+    background: var(--kiro-surface-2);
+    padding: 4px 12px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 12px;
+  }
+
+  .failed-tasks {
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(248, 81, 73, 0.08);
+    border: 1px solid rgba(248, 81, 73, 0.2);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    color: var(--kiro-red);
+  }
+
+  /* Main layout */
+  .main-layout {
+    display: flex;
+    gap: 24px;
+  }
+
+  .left-pane {
+    flex: 0 0 60%;
+    min-width: 0;
+  }
+
+  .right-pane {
+    flex: 0 0 38%;
+    min-width: 0;
+  }
+
+  @media (max-width: 900px) {
+    .main-layout { flex-direction: column; }
+    .left-pane, .right-pane { flex: 1 1 auto; }
+  }
+
+  /* Task Tree */
+  .task-tree {
+    background: var(--kiro-surface);
+    border: 1px solid var(--kiro-border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .tree-node {
+    margin-bottom: 4px;
+  }
+
+  .tree-toggle {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: background 0.15s;
+    user-select: none;
+    position: relative;
+  }
+
+  .tree-toggle:hover {
+    background: var(--kiro-surface-2);
+  }
+
+  .tree-toggle .chevron {
+    font-size: 0.7rem;
+    color: var(--kiro-text-muted);
+    transition: transform 0.2s;
+    width: 16px;
+    text-align: center;
+  }
+
+  .tree-toggle.expanded .chevron { transform: rotate(90deg); }
+  .tree-toggle.leaf .chevron { visibility: hidden; }
+
+  .tree-toggle .status-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .status-icon.done { background: rgba(63,185,80,0.2); color: var(--kiro-green); }
+  .status-icon.failed { background: rgba(248,81,73,0.2); color: var(--kiro-red); }
+  .status-icon.pending { background: rgba(139,148,158,0.2); color: var(--kiro-text-muted); }
+
+  .tree-toggle .task-label {
+    font-size: 0.85rem;
+    color: var(--kiro-text);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tree-children {
+    margin-left: 24px;
+    display: none;
+  }
+
+  .tree-children.visible { display: block; }
+
+  .tooltip {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    margin-left: 12px;
+    background: var(--kiro-surface-2);
+    border: 1px solid var(--kiro-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    min-width: 350px;
+    max-width: 450px;
+    z-index: 1000;
+    font-size: 0.8rem;
+    color: var(--kiro-text);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    line-height: 1.6;
+    white-space: normal;
+  }
+
+  .tree-toggle:hover .tooltip { display: block; }
+
+  .tooltip h4 {
+    color: var(--kiro-accent);
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+  }
+
+  .tooltip .section {
+    margin-bottom: 8px;
+  }
+
+  .tooltip .section-label {
+    color: var(--kiro-text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  /* Timing table */
+  .timing-pane {
+    background: var(--kiro-surface);
+    border: 1px solid var(--kiro-border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .timing-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  .timing-table th {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--kiro-border);
+    color: var(--kiro-text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .timing-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--kiro-border);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+  }
+
+  .timing-table tr:last-child td { border-bottom: none; }
+  .timing-table tr:hover td { background: var(--kiro-surface-2); }
+
+  .total-row td {
+    font-weight: 700;
+    color: var(--kiro-accent);
+    border-top: 2px solid var(--kiro-border);
+  }
+
+  /* Collapsibles */
+  details {
+    margin-top: 12px;
+  }
+
+  details summary {
+    cursor: pointer;
+    color: var(--kiro-text-muted);
+    font-size: 0.85rem;
+    padding: 8px 0;
+  }
+
+  details summary:hover { color: var(--kiro-accent); }
+
+  details .content {
+    background: var(--kiro-surface-2);
+    border: 1px solid var(--kiro-border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Ralph Loop for Kiro Specs</h1>
+  <div class="subtitle">Spec-driven implementation tracking and verification</div>
+</div>
+
+<!-- Global Summary -->
+<div class="summary-pane">
+  <div class="spec-name">mpnet768-tenant-reingest-aug2026</div>
+  <div style="margin-bottom: 16px;">
+    <span class="status-badge red">
+      <span class="status-dot red"></span>
+      Partial — 1 task blocked on external precondition
+    </span>
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat-card">
+      <div class="value">34 / 36</div>
+      <div class="label">Tasks Completed</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">2</div>
+      <div class="label">Tasks Failed/Blocked</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">49m 35s</div>
+      <div class="label">Total Elapsed</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">2026-08-28</div>
+      <div class="label">Date Range</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">15+</div>
+      <div class="label">Files Changed</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">4</div>
+      <div class="label">Corrections Logged</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">8</div>
+      <div class="label">Patterns Discovered</div>
+    </div>
+  </div>
+
+  <div class="failed-tasks">
+    <strong>Blocked tasks:</strong> Task 9 (9.2) — "Fill live-run rows after the loop reaches is-complete." External precondition: Ralph loop at 18/58 terminal (must reach is-complete). No validation files or loop.log exist yet.
+  </div>
+
+  <details>
+    <summary>▶ Corrections (4 entries)</summary>
+    <div class="content">❌ Asserting `scope == "global"` for global/shared stages
+✅ Assert `scope == "shared"` (Phase 81 replaced the "global" terminology)
+
+❌ Running v1→v2 migration then immediately checking scope drift
+✅ Skip drift detection after migration (migrated fields default to False)
+
+❌ Putting `--catalog`/`--dry-run` on the top-level parser with subparsers
+✅ Use `parents=[common]` on each subparser (argparse limitation)
+
+❌ UNRESOLVED: Task 9.2 cannot be completed — live Ralph loop at 18/58 terminal
+   External operational precondition, not a code defect.</div>
+  </details>
+
+  <details>
+    <summary>▶ Codebase Patterns (8 entries)</summary>
+    <div class="content">Project Structure & Modules:
+• Test files for scripts/*.py live in tests/unit/ with sys.path.insert
+• Fixtures use tmp_path + inline YAML strings written to temp files
+
+Data & State:
+• reingest_state.py uses atomic writes (temp file + os.replace)
+• State_File schema changes are additive — new fields get defaults
+• _build_matrix emits units by reading scope from stage catalog
+
+Testing:
+• Test helper _init() wraps rs.main(argv) with stringified paths
+• _store() creates a fresh StateStore to reload and verify changes
+• Tests confirm idempotency by mutating state, re-running init, verifying</div>
+  </details>
+</div>
+
+<!-- Main layout: Task Tree + Timing -->
+<div class="main-layout">
+  <div class="left-pane">
+    <div class="task-tree">
+      <h2>Task Tree</h2>
+      <div id="tree"></div>
+    </div>
+  </div>
+  <div class="right-pane">
+    <div class="timing-pane">
+      <h2>Timing</h2>
+      <table class="timing-table">
+        <thead>
+          <tr><th>Task</th><th>Start</th><th>End</th><th>Elapsed</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>20:39:27</td><td>20:44:08</td><td>4m 41s</td></tr>
+          <tr><td>2</td><td>20:45:25</td><td>20:51:16</td><td>5m 51s</td></tr>
+          <tr><td>3</td><td>20:51:56</td><td>20:56:04</td><td>4m 8s</td></tr>
+          <tr><td>4</td><td>20:57:11</td><td>21:03:43</td><td>6m 32s</td></tr>
+          <tr><td>5</td><td>21:04:39</td><td>21:08:03</td><td>3m 24s</td></tr>
+          <tr><td>6</td><td>21:08:35</td><td>21:14:21</td><td>5m 46s</td></tr>
+          <tr><td>7</td><td>21:15:02</td><td>21:19:28</td><td>4m 26s</td></tr>
+          <tr><td>8</td><td>21:20:05</td><td>21:25:54</td><td>5m 49s</td></tr>
+          <tr><td>9</td><td>21:26:53</td><td>21:31:17</td><td>4m 24s</td></tr>
+          <tr><td>10</td><td>21:31:53</td><td>21:35:00</td><td>3m 7s</td></tr>
+          <tr><td>9 (9.2)</td><td>21:35:36</td><td>21:37:03</td><td>1m 27s</td></tr>
+          <tr class="total-row"><td colspan="3">Total</td><td>49m 35s</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const tasks = [
+  {
+    id: "1", label: "State_File schema — additive scope fields", status: "done",
+    children: [
+      { id: "1.1", label: "Extend unit schema with scope, shared_once, tenancy_precheck, validation_path", status: "done" },
+      { id: "1.2", label: "Add catalog_scope_drift detection", status: "done" },
+      { id: "1.3", label: "Unit tests", status: "done" }
+    ],
+    progress: "Extended reingest_state.py with SCHEMA_VERSION=2, VALID_SCOPES constant. Added _migrate_state_v1_to_v2, _detect_scope_drift. 21 unit tests.\n\nFiles: reingest_state.py, test_reingest_state_scope_field.py (new), test_reingest_state.py\nTools: pytest"
+  },
+  {
+    id: "2", label: "Stage catalog — nine missing sources + shared-once + hybrid fan-out", status: "done",
+    children: [
+      { id: "2.1", label: "Add shared_once and scope fields to reingest_stages.yaml", status: "done" },
+      { id: "2.2", label: "Add neo4j_drop_indexes and neo4j_rebuild_indexes stages", status: "done" },
+      { id: "2.3", label: "Add five shared-once vector stages", status: "done" },
+      { id: "2.4", label: "Split hybrid domains into external/local sub-stages", status: "done" },
+      { id: "2.5", label: "Add depends_on_all_tenants support to Work_Matrix builder", status: "done" },
+      { id: "2.6", label: "Unit tests for extended catalog", status: "done" }
+    ],
+    progress: "Rewrote reingest_stages.yaml (schema v2). Added 7 shared-once stages, hybrid fan-out, depends_on_all_tenants gating. 31 unit tests across 3 new files.\n\nFiles: reingest_stages.yaml, reingest_state.py, test_reingest_state.py, test_reingest_stages_shared_once.py (new), test_reingest_stages_hybrid_fan_out.py (new), test_reingest_stages_dependency_closure.py (new)\nTools: pytest"
+  },
+  {
+    id: "3", label: "Neo4j index drop and rebuild", status: "done",
+    children: [
+      { id: "3.1", label: "Create neo4j_index_rebuild.py (list/drop/create/restore)", status: "done" },
+      { id: "3.2", label: "Unit tests", status: "done" }
+    ],
+    progress: "Created neo4j_index_rebuild.py (~590 lines) with 4 subcommands. Index_Rebuild_Set: 7 templates × 5 tenant prefixes = 35 concrete indexes. Confirmation token, atomic snapshot, --dry-run. 26 unit tests.\n\nFiles: neo4j_index_rebuild.py (new), test_neo4j_index_rebuild.py (new)\nTools: pytest"
+  },
+  {
+    id: "4", label: "Codified Validation_Probe", status: "done",
+    children: [
+      { id: "4.1", label: "Create reingest_validation.py (4 MCP probes per tenant)", status: "done" },
+      { id: "4.2", label: "Global (shared-once) probe variant", status: "done" },
+      { id: "4.3", label: "Unit tests", status: "done" }
+    ],
+    progress: "Created reingest_validation.py (~430 lines). Uses httpx for JSON-RPC 2.0 against local gateway. Per-tenant (4 probes) and global (2 probes) modes. Atomic file writes. 33 unit tests.\n\nFiles: reingest_validation.py (new), test_reingest_validation.py (new)\nTools: pytest"
+  },
+  {
+    id: "5", label: "Iteration_Prompt extension", status: "done",
+    children: [
+      { id: "5.1", label: "Extend ralph_reingest_prompt.md (Shared_Once_Rule, Hybrid_Fan_Out, tenancy precheck, validation probe)", status: "done" },
+      { id: "5.2", label: "Iteration_Prompt snapshot test", status: "done" }
+    ],
+    progress: "Extended prompt with 2 preamble sections (3 examples each), Step 3 tenancy precheck, Step 5 validation probe, dry-run section. 31 snapshot test assertions.\n\nFiles: ralph_reingest_prompt.md, test_ralph_prompt_snapshot.py (new)\nTools: pytest"
+  },
+  {
+    id: "6", label: "Manifest writeback", status: "done",
+    children: [
+      { id: "6.1", label: "Add _writeback_manifest_status to reingest_state.py", status: "done" },
+      { id: "6.2", label: "Unit tests", status: "done" }
+    ],
+    progress: "Added manifest writeback on done/fail transitions. Resolves source names from stage catalog args or static mapping. Writes ingest_status block atomically. 29 unit tests.\n\nFiles: reingest_state.py (+165 lines), test_manifest_writeback.py (new)\nTools: pytest"
+  },
+  {
+    id: "7", label: "Cutover script", status: "done",
+    children: [
+      { id: "7.1", label: "Create reingest_cutover.sh", status: "done" },
+      { id: "7.2", label: "Cutover dry-run flag", status: "done" }
+    ],
+    progress: "Created reingest_cutover.sh (~310 lines). Precondition checks, manifest rewrite via Python heredoc, gateway restart + health poll, post-cutover validation, rollback on failure, 7-day retention report. --dry-run mode.\n\nFiles: reingest_cutover.sh (new, executable)\nTools: bash -n syntax validation"
+  },
+  {
+    id: "8", label: "End-to-end dry-run of the extended Ralph loop", status: "done",
+    children: [
+      { id: "8.1", label: "Add --dry-run support to extended stages", status: "done" },
+      { id: "8.2", label: "Integration test (full 67-unit walk)", status: "done" }
+    ],
+    progress: "Extended prompt and loop driver with REINGEST_DRY_RUN=1 threading. Integration test walks full 67-unit Work_Matrix (next→start→done/skip). 11 assertions covering ordering, counts, gating.\n\nFiles: ralph_reingest_prompt.md, ralph_reingest_loop.sh, test_reingest_dry_run_walk.py (new)\nTools: pytest, bash -n"
+  },
+  {
+    id: "9", label: "Verification record", status: "failed",
+    children: [
+      { id: "9.1", label: "Author Verification_Record template (46 criteria rows)", status: "done" },
+      { id: "9.2", label: "Fill live-run rows after loop reaches is-complete", status: "failed" }
+    ],
+    progress: "9.1: Authored 156-line verification template with 28 VERIFIED + 18 PENDING LIVE RUN criteria.\n9.2: BLOCKED — Ralph loop at 18/58 terminal, no validation/ dir, no loop.log. External precondition not met.\n\nFiles: 2026-XX-XX-mpnet768-tenant-reingest-verification.md (new)\nTools: grep/wc, bash (file existence checks)"
+  },
+  {
+    id: "10", label: "CHANGELOG and Phase 81 SDD workflow doc", status: "done",
+    children: [
+      { id: "10.1", label: "Prepend [Unreleased] — Phase 81 entry to CHANGELOG.md", status: "done" },
+      { id: "10.2", label: "Author phase81_mpnet768_tenant_reingest.md", status: "done" }
+    ],
+    progress: "Prepended 72-line CHANGELOG entry. Authored 135-line Phase 81 workflow doc with run-book, exit criteria, and canonical spec pointer.\n\nFiles: CHANGELOG.md, phase81_mpnet768_tenant_reingest.md (new)\nTools: none"
+  }
+];
+
+function renderTree(container, nodes) {
+  nodes.forEach(node => {
+    const el = document.createElement('div');
+    el.className = 'tree-node';
+
+    const hasChildren = node.children && node.children.length > 0;
+    const toggle = document.createElement('div');
+    toggle.className = 'tree-toggle' + (hasChildren ? '' : ' leaf');
+
+    const chevron = document.createElement('span');
+    chevron.className = 'chevron';
+    chevron.textContent = hasChildren ? '▶' : '•';
+    toggle.appendChild(chevron);
+
+    const icon = document.createElement('span');
+    icon.className = 'status-icon ' + node.status;
+    icon.textContent = node.status === 'done' ? '✓' : node.status === 'failed' ? '✗' : '○';
+    toggle.appendChild(icon);
+
+    const label = document.createElement('span');
+    label.className = 'task-label';
+    label.textContent = node.id + '. ' + node.label;
+    toggle.appendChild(label);
+
+    if (node.progress) {
+      const tooltip = document.createElement('div');
+      tooltip.className = 'tooltip';
+      tooltip.innerHTML = '<h4>Task ' + node.id + '</h4>' +
+        '<div class="section"><span class="section-label">Details:</span><br>' +
+        node.progress.replace(/\n/g, '<br>') + '</div>';
+      toggle.appendChild(tooltip);
+    }
+
+    el.appendChild(toggle);
+
+    if (hasChildren) {
+      const childContainer = document.createElement('div');
+      childContainer.className = 'tree-children';
+      renderTree(childContainer, node.children);
+      el.appendChild(childContainer);
+
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isExpanded = toggle.classList.toggle('expanded');
+        childContainer.classList.toggle('visible', isExpanded);
+        chevron.textContent = isExpanded ? '▼' : '▶';
+      });
+    }
+
+    container.appendChild(el);
+  });
+}
+
+renderTree(document.getElementById('tree'), tasks);
+</script>
+</body>
+</html>
