@@ -1,5 +1,337 @@
 # MCP Server Changelog
 
+## [8.41.1] - neptune-traversal-query-optimization: Requirement 7 amendment — coverage targets deferred, benchmark results recorded (Aug 31, 2026)
+
+### Summary
+Documentation only; nothing under `mcp_server_python/src/` changed. The task 11.2
+full 68-case run (corpus v1.1.0 both sides) met Requirement 7's timeout and
+latency criteria with large margins and moved neither coverage number. Each
+uncovered case was verified against live Neptune and every remaining miss is a
+property of the corpus, the graph data, or the scorer — not of the query shape
+this feature changes. Requirement 7 is amended to keep 7.1 and 7.5 binding and to
+mark 7.2 / 7.3 / 7.4 explicitly deferred out of scope, with their original numbers
+preserved as the deferred targets and the verified causes recorded so a follow-up
+corpus/ingest spec inherits them. Not committed — staged for human review per git
+policy 08.
+
+### Changed
+- **`requirements.md` Requirement 7 retitled** "Benchmark Timeout and Latency
+  Improvement" (was "Benchmark Coverage Improvement") with an amendment note
+  dated 2026-08-31.
+  - **7.1 (timeouts <= 3) and 7.5 (graph P95 <= 10,000ms) stay binding.** Both
+    met: **0 timeouts** (baseline 9) and **1,482ms** graph P95 (baseline
+    17,190ms).
+  - **7.2 / 7.3 / 7.4 marked `*(DEFERRED - out of scope for this feature.)*`
+    in place, not deleted.** Numbering is unchanged so existing
+    `_Requirements:` cross-references stay valid, and the original targets
+    (cross_language 100%, code_structure >= 70%, overall >= 95%) are carried
+    verbatim as the deferred targets.
+  - **New `Deferred: Coverage Targets` subsection** naming the five verified
+    causes, each unreachable from the query layer under R5.2 (no output/API
+    change) and R5.4 (no re-ingestion): anchors absent from the graph
+    (`JGDAS_ATMOS_ANALYSIS`, `JGLOBAL_ARCHIVE` — only the `_WDQMS` / `_TARS` /
+    `_VRFY` variants exist); anchors resolving to the wrong node
+    (`exglobal_forecast` → a 0-inbound-edge `PythonModule`, the edges being on
+    `exglobal_forecast.sh`; likewise `bash_utils` / `bash_utils.sh`);
+    `INHERITS` edges that `find_callers_callees` does not traverse (`cs_004`,
+    `cs_008`) where widening the edge set would change output semantics; shell
+    *functions* the ingester does not model (`cs_009`); and the scorer artefact
+    below.
+  - **Scorer artefact recorded.** The scorer substring-matches the whole
+    response body including the echoed anchor name and the tool's own hint text,
+    so five `cross_language` cases (`cl_002`, `cl_006`, `cl_007`, `cl_009`,
+    `cl_010`) score covered on zero-node responses and `cl_006` earns
+    precision 1.00 partly by matching `gsi` out of the hint. This inflated the
+    2026-08-28 baseline's 90% as well, so baseline and deferred targets are
+    both stated against an over-count.
+  - **New `Observed Results (2026-08-31)` subsection** — before/after table
+    (graph max 30,027 -> 11,198ms; total graph time 599,137 -> 154,280ms;
+    overall latency P95 58,853 -> 18,400ms; graph queries 237 -> 379 with 0
+    failures; precision@k 0.7128 -> 0.7308; recall@k 0.7100 -> 0.7281;
+    tenant-scoped `gw_v17` P95 59,236 -> 5,840ms, 8/8) plus per-requirement
+    verdicts and the honest-versus-harness coverage split (`cross_language`
+    90.0% harness / 40.0% discounted; `code_structure` 50.0%; overall 90.0%
+    harness / at most 81.7% honest). Records:
+    `/tmp/bench_t11_2/results/2026-08-31T18-01-12.json`, baseline
+    `/tmp/benchmark_results/2026-08-28T21-05-19.json`.
+  - **Zero regressions** noted: covered/uncovered case set byte-identical to
+    baseline; `semantic_search`, `architecture`, `ee2_compliance`, `operational`
+    all 100%.
+- **Glossary gained four terms** used by the amendment, following the existing
+  `Underscore_Name` convention: `Corpus_Anchor_Accuracy`,
+  `Graph_Data_Granularity`, `Zero_Node_Response`, `Scorer_Coverage_Artefact`.
+- **`tasks.md` task 11.2 retitled and rewritten** to match: verify the timeout
+  count and graph P95, record coverage as *observed* rather than asserting the
+  three gates, and confirm the no-regression set. Its trace line narrows from
+  `7.1, 7.2, 7.3, 7.4, 7.5` to `7.1, 7.5`. Task 11.1 is left as landed.
+
+## [8.41.0] - neptune-traversal-query-optimization: UNION ALL on the two remaining OR anchors (tasks 2.6-2.7) (Aug 28, 2026)
+
+### Summary
+Follow-on to tasks 2.2-2.4. The task 11.1 live benchmark showed two OR-predicate
+anchor sites the earlier UNION ALL work did not cover, together accounting for
+~78% of graph time in the `cross_language` cases and blocking Requirement 1.5:
+the pre-flight degree probe (`anchor_degree`, ~11.25s per call, 78.8s of the
+run's 110s total graph time) and the cross-language hop-0 seed lookup
+(`_cross_language_seed_row`, 7.3s across 7 calls). Both are now index-seekable.
+Query-layer only: no tool API change, no ingestion / schema / tenant-logic change
+(R5.2, R5.3), and the degree probe's fail-safe semantics are preserved exactly.
+
+### Changed
+- **`anchor_degree` is now resolve-then-count** (`src/tools/_traversal_bounds.py`).
+  The probe used to carry `(a.name = $name OR a.path = $name)` inline — a
+  disjunction over two properties of an unlabelled node, which Neptune cannot
+  satisfy from an index. It now resolves the Anchor_Node's ids via
+  `resolve_anchor_ids` (UNION ALL of two single-property equalities) and counts
+  edges with `WHERE id(a) IN $ids`, the same seek shape `_expand_one_hop`
+  already uses.
+  - **Why not two `count(r)` branches.** `UNION ALL` does not deduplicate, so a
+    node whose `name` and `path` both equal `$name` (common for shell scripts
+    referenced either way) is counted by *both* branches and a summed probe
+    reports twice the real degree — enough to push a non-hub over the
+    Fan_Out_Threshold. Taking the maximum instead would under-report a genuine
+    two-node match. Resolving ids first makes the count set-correct by
+    construction (R1.3) rather than by a correction term.
+  - **Fail-safe preserved verbatim**: `0` when the anchor has no matching edges,
+    when it does not resolve at all, or when the probe returns no `deg` value;
+    `None` only when either query raises or times out (callers read `None` as a
+    hub, R1.5). The count query is issued even for an empty id set so the
+    unresolvable-anchor path stays identical rather than short-circuiting to a
+    lookalike value.
+- **`_cross_language_seed_row` decomposed** (`src/tools/code_analysis.py`). Two
+  `LIMIT 1` branches joined by `UNION ALL`, first row wins. Deduplication is
+  therefore trivial (a dual-match node appears in both branches, is read once),
+  and reading the `name` branch first makes the seed row deterministic where the
+  `OR` form left the choice to the planner. Errors still propagate — the BFS
+  fallback distinguishes a timed-out seed lookup from an empty one.
+- **`resolve_anchor_ids` gained two keyword-only parameters**
+  (`src/tools/_bfs_walker.py`), both defaulted so existing callers are unchanged:
+  - `var` (default `"n"`) — the node variable bound in both branches and in the
+    projection. `anchor_degree` passes `var="a"` so its callers'
+    `_scope_and("a")` fragment drops in without retargeting, and so a probe's
+    resolution (`RETURN id(a) AS nid`) stays distinguishable from a walk's
+    (`RETURN id(n) AS nid`) in a call log. Validated as a bare identifier before
+    interpolation; anything else falls back to `"n"`.
+  - `error_sink` — receives `"timeout"` / `"error"` when the query is lost,
+    following the `timeout_sink` convention of `_expand_one_hop`. It is the one
+    signal the return value cannot carry: a failed resolution and one that
+    matched nothing are both `[]`, which is right for the walker but would
+    silently become "degree 0" for the probe.
+- The `_traversal_bounds` → `_bfs_walker` import is **function-local inside
+  `anchor_degree`**. `_bfs_walker` imports this module's tunables at module
+  level, so a module-level import would close a cycle; keeping it local also
+  preserves `_traversal_bounds`' import-light contract (every tool module imports
+  it) instead of dragging `asyncio` / `re` into that graph. Relocating
+  `resolve_anchor_ids` was rejected — it is part of the walker's documented
+  surface (`__all__`), imported from there by tools and tests.
+
+### Tests
+- `tests/unit/test_traversal_bounds.py` — the probe's two-stage shape, `UNION ALL`
+  not `OR`, count by resolved ids, scope predicate on both resolution branches
+  *and* the count, tenant + timeout on both queries, unresolvable anchor → `0`
+  non-hub, and failure in *either* stage → `None` hub. Includes the
+  **double-count regression test**: a node returned by both branches is counted
+  once, so a degree of 60 is reported as 60 and stays a non-hub rather than
+  reading as 120.
+- `tests/unit/test_code_analysis_tools.py` — the seed lookup's `UNION ALL` shape,
+  per-branch `LIMIT 1`, branch symmetry, tenant scoping on both branches, timeout
+  pass-through, error propagation, and a **dual-match test** asserting one hop-0
+  seed row (a doubled seed would render the anchor twice at the head of the
+  chain), plus an end-to-end `trace_full_execution_chain` assertion.
+- `tests/unit/test_bfs_walker.py` — `var` renaming and its identifier validation,
+  `error_sink` on timeout / error, and the sink left untouched on a successful
+  resolution whether or not it matched.
+- `tests/unit/test_graph_rag_tools.py` — the `trace_data_flow` decomposition
+  assertions now scope to the `source`-anchored queries and additionally assert
+  the degree probe's own resolution is decomposed and scoped.
+- `tests/properties/test_bfs_walker_props.py` — Property 7's tool harness gained a
+  `degree_anchor` stage kind, so the probe's resolution is separately failable;
+  losing it produces the same unmeasurable-degree hub outcome as losing the
+  count, and the count is then never attempted.
+- Verified: **421 passing** across the four affected unit suites plus the two
+  traversal property suites; **2,155 passing** over `tests/unit` +
+  `tests/properties` with 5 pre-existing unrelated failures (`test_tenancy` P6
+  workflow-root containment, `test_environment` module count,
+  `test_error_analysis` taxonomy key, `test_workflow_info_tools` root naming, and
+  the `rag-data-plane-gap-closure` R15.3 working-tree guard, which fires on any
+  uncommitted `src/` change outside its APOC allowlist and was already failing
+  from this spec's in-flight tasks).
+
+## [8.40.1] - neptune-traversal-query-optimization: UNION ALL decomposition + BFS_Walker (tasks 1-10) (Aug 29, 2026)
+
+### Summary
+The bulk of the feature, recorded retroactively: it landed *before* `[8.41.0]`
+(which is the follow-on for the two OR anchors the task 11.1 benchmark then
+surfaced) and is numbered as its predecessor. Two complementary query-shape
+changes address the two root causes behind 9 graph-query timeouts in the
+`cross_language` and `code_structure` benchmark categories. **Root Cause A** — a
+multi-type variable-length pattern (`[:A|B|C*1..N]`) makes Neptune enumerate every
+type-interleaved path before applying the row limit, so cost grows
+combinatorially in the depth budget; it is replaced by an application-side
+breadth-first walk of `|edge_types| * depth` cheap single-hop seeks.
+**Root Cause B** — an anchor predicate disjoining two properties of an unlabelled
+node (`n.name = $name OR n.path = $name`) cannot be satisfied from an index, so
+every node is scanned; it is replaced by two single-property equality branches
+joined by `UNION ALL`. Query-layer only: no tool API change, no schema change, no
+re-ingestion, no tenant-logic change (R5.2, R5.3, R5.4), and every pre-existing
+guard (`is_hub` -> Degraded_Result, statement timeout, depth clamp) keeps
+precedence. Not committed — staged for human review per git policy 08.
+
+### Added
+- **`src/tools/_bfs_walker.py`** (new) — the BFS_Walker and the UNION ALL anchor
+  helper, exporting `BFSResult`, `bfs_walk`, `resolve_anchor_ids`,
+  `bfs_fallback_failed`, `bfs_optimized_header` and `insert_bfs_header`.
+  - `resolve_anchor_ids` — the UNION_ALL_Decomposition primitive: two
+    index-seekable `MATCH` branches (`name`, then `path`), the Label_Scope_
+    Predicate and Statement_Timeout carried on **both**, ids folded through a
+    `set` because `UNION ALL` does not deduplicate (R1.1, R1.3, R1.4).
+  - `_expand_one_hop` — one relationship type, one hop, an `id(a) IN $ids` seek
+    and a `LIMIT`: the simplest shape Neptune can plan, and the walker's error
+    boundary. A hop that fails or times out contributes no nodes instead of
+    aborting the walk, which is what keeps the result a subset of what the
+    original pattern would reach (R2.2, R2.3, R2.6, R2.7).
+  - `bfs_walk` — bounded four independent ways (depth, per-hop breadth via
+    `fan_out_limit`, total rows via `result_limit`, and overall wall clock via a
+    single `asyncio.wait_for`), with a visited-set carried across hops for cycle
+    prevention and early termination when a hop yields nothing new (R2.1, R2.4,
+    R2.5). Timeout mid-walk yields partial nodes plus `truncated=True`, never a
+    raise.
+  - `BFSResult` — frozen dataclass carrying `nodes` / `hops_expanded` /
+    `queries_issued` / `wall_clock_ms` / `truncated`. The Anchor_Node is
+    deliberately excluded: `hop` is 1-based and every caller already knows and
+    renders its own anchor, so re-fetching it would spend a query to recover a
+    value the request supplied.
+- **`BFS_ACTIVATION_THRESHOLD` / `BFS_FAN_OUT_LIMIT` / `_use_bfs`** in
+  `src/tools/_traversal_bounds.py` — env-overridable via
+  `MCP_BFS_ACTIVATION_THRESHOLD` (default 30) and `MCP_BFS_FAN_OUT_LIMIT`
+  (default 100), read through the module's existing `_int_env` so a
+  non-positive or unparseable value falls back to the conservative default rather
+  than disabling the bound (R6.1, R6.2, R6.3). `_use_bfs(degree,
+  requested_depth)` selects the walk when the degree reaches the threshold, when
+  the requested depth exceeds 3, or when the degree is unknown (fail-safe).
+- **`[optimized: BFS walker, N hops, M nodes, Xms]` response indicator** —
+  `bfs_optimized_header` formats it, `insert_bfs_header` places it on line 2
+  (after the markdown title, so a response still opens on its heading and
+  consumers keying off the leading `# ` keep working). Several walks behind one
+  response collapse into a single line: max hops, summed nodes, summed
+  milliseconds. Empty string when no walk ran, so the single-query path renders
+  byte-identically to its pre-feature output (R8.4, R5.1).
+- **Activation / completion logging** inside the walker, at `info`:
+  `[bfs-walker] ACTIVATED tool=... anchor=... degree=... threshold=...
+  direction=... max_depth=...` and `[bfs-walker] COMPLETED tool=... anchor=...
+  nodes=... queries=... hops=... wall_ms=...`. Emitted from the walker rather
+  than from each strategy selector so every activation is logged once in one
+  format — including the fallback-chain activations no selector decided. The
+  completion line is **unconditional**, zero-node walks included: that is the
+  walk which spent queries and wall clock for no rows, i.e. the cheapest evidence
+  the activation threshold is set too low. Neither line interpolates the tenant
+  object, the scope-predicate fragment, or any node payload (R8.1, R8.2, R8.3).
+
+### Changed
+- **Four OR anchor predicates decomposed to `UNION ALL`** (tasks 2.2-2.4):
+  `trace_data_flow`'s one-hop outgoing fan-out (`_outgoing_union_cypher`) and its
+  shortestPath seed (`_path_union_cypher`) in `src/tools/graph_rag.py`, and
+  `_one_hop_neighbors` in `src/tools/code_analysis.py`. Each keeps its scope
+  predicate and timeout on every branch and dedupes application-side after the
+  merge — `UNION ALL` returns a node matching on both `name` and `path` twice, so
+  without the fold the row would render twice.
+- **Strategy selection wired into four Traversal_Tools** (task 5), in the
+  design's guard order, which is deliberately *not* "BFS first": `is_hub` is
+  consulted before `_use_bfs`, so a true hub (100+ edges) goes straight to the
+  existing Degraded_Result and never attempts a walk whose 100-per-type fan-out
+  would still be expensive. The walk is reserved for the moderately-connected
+  band between `BFS_ACTIVATION_THRESHOLD` and `FAN_OUT_THRESHOLD`.
+  - `trace_data_flow` (`graph_rag.py`) — degree-selected on its one-hop fan-out;
+    the shortestPath section stays on its (UNION-ALL'd) single query.
+  - `find_callers_callees` (`code_analysis.py`) — one walk per direction, plus a
+    third for the `cross_language` section.
+  - `trace_full_execution_chain` (`code_analysis.py`, via
+    `_cross_language_nodes`) — its depth-5 Cross_Language_Edge_Set exceeds the
+    activation depth unconditionally, so this path is always walker-produced.
+  - `trace_execution_path` (`code_analysis.py`) — reaches the walker only through
+    the timeout fallback below; its selector-side path is unchanged.
+- **Fallback chain `single-query -> BFS -> Degraded_Result`** (task 5.4). Each
+  tool's single-query arm catches the statement timeout and retries the expansion
+  as a bounded walk before accepting a degraded answer; `bfs_fallback_failed`
+  decides. A walk that salvaged **nothing** falls through, `truncated` or not:
+  `resolve_anchor_ids` absorbs an anchor timeout into an empty id list, so "the
+  walk also timed out" and "the walk legitimately found nothing" are not
+  distinguishable in the return value — and the single query that got here *did*
+  time out, so the tool has no basis for asserting the neighborhood is empty.
+  Falling through preserves the `bounded-graph-traversal` [8.36.0] contract that a
+  timeout renders a timeout notice rather than a rendered "no callees found"
+  (R3.3, R5.5). A walk that salvaged *any* node is accepted and rendered under a
+  partial-view notice.
+- **Label_Scope_Predicate extended to expanded nodes** (task 7). `_expand_one_hop`
+  scopes the *target* node `b`, so a node belonging to another tenant is rejected
+  server-side before it enters the frontier rather than after (R4.1); the
+  single-query variable-length patterns likewise scope their terminal node
+  (`_outgoing_union_cypher`'s `target`, `_path_union_cypher`'s `dest`,
+  `_call_chain`'s `callee`, `_cross_language_nodes`' terminal `n`) (R4.2).
+  Consistency is structural, not duplicated: `_retarget_scope_pred` rewrites the
+  caller's own `_scope_and(...)` output by substituting its `labels(<var>)` call,
+  so the target fragment is byte-identical to `_scope_and("b")` (R4.4). Matching
+  on `labels(...)` rather than on a literal variable name matters because the
+  callers do not agree on an anchor variable (`n`, `a`, `source`, `start`) — a
+  name-specific rewrite would silently no-op on the others and emit a predicate
+  over a variable the pattern never binds, which `_expand_one_hop` would then
+  absorb as an empty hop.
+  - **Note on R4.3's wording.** The requirement says the predicate is omitted for
+    the default `gw` tenant. That does not describe what `tenant_label_predicate`
+    does, and the implementation follows the real behaviour: for `gw` in a
+    multi-tenant catalog the helper returns the *exclusion* form
+    (`size([... STARTS WITH '<other prefix>' ...]) = 0`), which admits every
+    unprefixed baseline node and rejects only another tenant's prefixed nodes, so
+    applying it to the expansion target cannot exclude `gw`'s own nodes — and
+    omitting it would let a `GW_V17_`-prefixed neighbour of a baseline anchor into
+    a `gw` walk. The fragment is genuinely empty only when no scoping is
+    expressible at all (no active tenant context, or no tenant in the catalog
+    declaring a prefix), and that is the case in which no predicate is emitted.
+
+### Tests
+- `tests/unit/test_traversal_bounds.py` — the two new constants' env-var override
+  parsing and the `_use_bfs` truth table (below threshold and depth <= 3 -> single
+  query; at or above threshold -> walk; depth > 3 regardless of degree -> walk;
+  unknown degree -> walk).
+- `tests/unit/test_bfs_walker.py` (new) — `resolve_anchor_ids`' `UNION ALL` shape,
+  set-equivalence and per-branch scoping/timeout; `bfs_walk` / `_expand_one_hop`
+  multi-hop discovery, linear query count, cycle prevention, early termination,
+  fan-out and result caps, direction handling, wall-clock truncation; the
+  Label_Scope_Predicate on expanded nodes including the R4.3 correction above;
+  and the observability log lines plus the R8.4 indicator.
+- `tests/unit/test_graph_rag_tools.py` / `test_code_analysis_tools.py` — the
+  decomposed anchors at each of the four sites, terminal-node scoping on the
+  single-query patterns, and the indicator present on a walker-produced response
+  and absent on a single-query one.
+- `tests/unit/test_graph_rag_tools.py` / `test_code_analysis_tools.py`, task 5.5
+  sections (20 tests) — the **tool-level strategy routing matrix** for the four
+  strategy-selecting sites. Where Property 5 covers the pure `_use_bfs` selector
+  and Property 7 the fallback chain's terminal shapes, these assert which query
+  shape actually reaches the graph per degree band, read off the emitted cypher
+  (the walker's per-type `id(a) IN $ids` / `RETURN DISTINCT id(b) AS nid` seek
+  versus the single query's `*1..N` pattern versus the one-hop Degraded_Result)
+  rather than by monkeypatching `bfs_walk`. Bands are derived from
+  `BFS_ACTIVATION_THRESHOLD` / `FAN_OUT_THRESHOLD` so an env override moves the
+  tests with the implementation; `FAN_OUT_THRESHOLD` itself is asserted to still
+  walk, since `is_hub` is a strict `>`. Covers: `trace_data_flow` (degree-only
+  routing, `max_depth` proven not to reach the one-hop selector, hub notice with
+  no walk attempted); `find_callers_callees` (one walk per direction — six
+  single-hop expansions for a three-type shell edge set — plus the depth-5
+  `cross_language` section walking while the callers/callees sections keep their
+  single queries in the same response); `trace_full_execution_chain` (walker at
+  every non-hub degree at the default depth 5, the `max_depth` 3 -> 4 pair
+  isolating the depth arm, hub degrading before any walk);
+  `trace_execution_path` (a BFS-band degree still keeping the single query, since
+  this site has no selector, then the fallback chain's links 2 and 3 per-tool —
+  timeout -> walk salvages and is labelled, timeout -> empty walk -> one-hop
+  Degraded_Result).
+- `tests/properties/test_bfs_walker_props.py` (new) — the design's eight
+  Hypothesis properties: UNION ALL set equivalence (R1.3), BFS subset guarantee
+  (R2.7), visited-set cycle prevention (R2.4), early termination (R2.5), strategy
+  selection consistency (R3.1, R5.1), label scope on expanded nodes (R4.1, R4.2),
+  timeout fallback chain always yielding a renderable Degraded_Result rather than
+  an unhandled exception (R3.3, R5.5), and per-hop fan-out bounds (R2.3).
+
 ## [Unreleased] - default-tenant-freeze-retirement: both freezes retired (SDD Phase 80) (Aug 19, 2026)
 
 ### Summary

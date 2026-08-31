@@ -75,12 +75,20 @@ from src.tenancy.resolver import (
     get_current_tenant_or_none,
     tenant_label_predicate,
 )
+from src.tools._bfs_walker import (
+    BFSResult,
+    bfs_fallback_failed,
+    bfs_walk,
+    insert_bfs_header,
+)
 from src.tools._traversal_bounds import (
+    BFS_FAN_OUT_LIMIT,
     CALL_CHAIN_DEPTH,
     FAN_OUT_THRESHOLD,
     FULL_CHAIN_DEPTH,
     RESULT_LIMIT,
     TIMEOUT_S,
+    _use_bfs,
     anchor_degree,
     degraded_notice,
     effective_depth,
@@ -673,12 +681,35 @@ async def _tool_trace_execution_path(
             "",
         ]
 
+        fallback = False
+        # Walks that produced part of this response, for the R8.4
+        # indicator. This tool has no strategy selector of its own, so the
+        # only entry it can ever collect is the timeout-fallback walk
+        # below; the list keeps the render call identical to the other
+        # three tools' rather than special-casing the single source.
+        bfs_walks: list[BFSResult] = []
         try:
             call_chain = await _call_chain(
                 data.graph_db, function_name, max_depth, entity_type
             )
         except Exception as exc:  # noqa: BLE001
-            if _is_timeout_error(exc):
+            if not _is_timeout_error(exc):
+                raise
+            # Fallback chain (R3.3, R5.5): the single variable-length
+            # pattern timed out, so retry the same expansion as a bounded
+            # BFS_Walker walk before accepting the one-hop
+            # Degraded_Result. Only if the walk salvages nothing does the
+            # tool fall through to the pre-5.4 behavior below.
+            log.info(
+                "[traversal-bounds] trace_execution_path fallback "
+                "anchor=%s guard=timeout strategy=bfs",
+                function_name,
+            )
+            walk = await _call_chain_bfs(
+                data.graph_db, function_name, max_depth, entity_type, degree
+            )
+            bfs_walks.append(walk)
+            if bfs_fallback_failed(walk.nodes):
                 neighbors = await _one_hop_neighbors(
                     data.graph_db, function_name, rel_set, "forward"
                 )
@@ -693,7 +724,12 @@ async def _tool_trace_execution_path(
                     _timeout_notice(function_name),
                     neighbors,
                 )
-            raise
+            call_chain = _bfs_callee_rows(walk)
+            fallback = True
+
+        if fallback:
+            lines.append(_fallback_notice(function_name))
+            lines.append("")
         if call_chain:
             lines.append(f"Traced {len(call_chain)} {calls_label}:")
             lines.append("")
@@ -744,6 +780,14 @@ async def _tool_trace_execution_path(
                     lines.extend(ctx)
             except Exception as exc:  # pragma: no cover - defensive
                 log.debug("GGSR weighted traversal failed: %s", exc)
+
+        # R8.4: a no-op unless the timeout-fallback walk above produced
+        # the call chain, so the ordinary single-query response is
+        # unchanged. The `## Callers` section is a separate single query
+        # either way and is deliberately not counted -- the indicator
+        # names the strategy behind the traversal, not every query the
+        # response made.
+        insert_bfs_header(lines, *bfs_walks)
 
         return "\n".join(lines).rstrip() + "\n"
     except Exception as exc:
@@ -818,11 +862,81 @@ async def _tool_find_callers_callees(
                 neighbors,
             )
 
+        # Non-hub anchor: the strategy selector picks how the two sections
+        # are expanded (R3.1, R3.2). The Hub_Node branch above already
+        # returned, so the ordering is hub -> BFS -> single-query, per the
+        # design's flow diagram: a node with 100+ edges never attempts a
+        # walk (the walker's per-type Fan_Out_Limit is 100 too, so it
+        # would still be expensive there), and a failed probe
+        # (``degree is None``) degrades via `is_hub` rather than walking
+        # (``_use_bfs(None, ...)`` would also be True, but the hub branch
+        # wins by running first). The walk is therefore reserved for the
+        # moderately-connected band between BFS_ACTIVATION_THRESHOLD and
+        # FAN_OUT_THRESHOLD, where the combinatorial risk is real but the
+        # decomposed cost is not.
+        bfs_truncated = False
+        fallback = False
+        # Walks that produced part of this response, for the R8.4
+        # indicator. This tool can contribute up to three: one per
+        # direction from `_callers_callees_bfs` (selector branch or
+        # timeout-fallback arm, never both -- the fallback runs only when
+        # the selector chose the single query), plus one from the
+        # `cross_language` section below. They collapse into a single
+        # aggregate header; see `bfs_optimized_header` for why.
+        bfs_walks: list[BFSResult] = []
         try:
-            callers = await _callers(data.graph_db, function_name, entity_type)
-            callees = await _call_chain(
-                data.graph_db, function_name, 1, entity_type
-            )
+            if _use_bfs(degree, _CALLERS_CALLEES_DEPTH):
+                callers, callees, bfs_truncated = await _callers_callees_bfs(
+                    data.graph_db,
+                    function_name,
+                    entity_type,
+                    degree,
+                    walk_sink=bfs_walks,
+                )
+            else:
+                # Existing single-query path, unchanged for low-degree
+                # anchors so their results stay byte-identical to the
+                # pre-optimization behavior (R3.1, R5.1).
+                #
+                # Its timeout is caught here rather than by the outer
+                # handler so the fallback chain (R3.3, R5.5) can retry it
+                # as a walk. The nesting is what keeps the chain from
+                # doubling back on itself: a timeout raised by the
+                # ``_use_bfs`` branch above -- or by the retry below,
+                # which runs inside this handler -- reaches only the outer
+                # handler, so BFS is attempted at most once per call.
+                try:
+                    callers = await _callers(
+                        data.graph_db, function_name, entity_type
+                    )
+                    callees = await _call_chain(
+                        data.graph_db, function_name, 1, entity_type
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    if not _is_timeout_error(exc):
+                        raise
+                    log.info(
+                        "[traversal-bounds] find_callers_callees fallback "
+                        "anchor=%s guard=timeout strategy=bfs",
+                        function_name,
+                    )
+                    (
+                        callers,
+                        callees,
+                        bfs_truncated,
+                    ) = await _callers_callees_bfs(
+                        data.graph_db,
+                        function_name,
+                        entity_type,
+                        degree,
+                        walk_sink=bfs_walks,
+                    )
+                    if bfs_fallback_failed(callers, callees):
+                        # Nothing salvaged: re-raise the original timeout
+                        # so the outer handler renders the same
+                        # Degraded_Result it did before 5.4.
+                        raise
+                    fallback = True
         except Exception as exc:  # noqa: BLE001
             if _is_timeout_error(exc):
                 neighbors = await _one_hop_neighbors(
@@ -851,6 +965,27 @@ async def _tool_find_callers_callees(
             lines.append("")
         elif entity_type == "shell":
             lines.append("*Showing shell script call tree (J-Jobs, ex-scripts, ush)*")
+            lines.append("")
+
+        if fallback:
+            # The walk got here as the fallback arm, so its notice
+            # supersedes the truncation one: it already says the results
+            # may be partial, and adds the reason (the single query timed
+            # out) that the truncation notice cannot express (R3.3).
+            lines.append(_fallback_notice(function_name))
+            lines.append("")
+        elif bfs_truncated:
+            # A truncated walk is a partial view of the anchor's
+            # neighborhood, never an exhausted one -- say so rather than
+            # letting the two lists (and the fan-in / fan-out counts the
+            # complexity section derives from their sizes) read as
+            # complete (R2.3, R2.7).
+            lines.append(
+                f"[INFO] The traversal from `{function_name}` hit a "
+                "traversal bound (per-hop fan-out limit, result cap, or "
+                "statement timeout); the callers and callees below are a "
+                "partial view."
+            )
             lines.append("")
 
         lines.append(f"## Callers ({len(callers)})")
@@ -894,8 +1029,28 @@ async def _tool_find_callers_callees(
             )
 
         if cross_language:
+            # This section is the tool's deep traversal: depth 5 over the
+            # six-type Cross_Language_Edge_Set -- exactly the
+            # Multi_Type_Expansion shape Root Cause A describes, so it is
+            # opted into the strategy selector too (R3.2).
+            #
+            # ``degree`` is deliberately *not* forwarded: it was measured
+            # over the call-chain edge set (`_call_rel_set`), not over the
+            # cross-language set this section expands, so it would
+            # understate the fan-out it is meant to describe. Left
+            # unprobed, `_use_bfs` reads it as unknown and selects the
+            # walk -- which is the same decision its depth arm reaches
+            # anyway, since 5 > 3. Both paths agree here, so no second
+            # probe is issued for the sake of a value that cannot change
+            # the outcome.
             cross_nodes = await _cross_language_nodes(
-                data.graph_db, function_name, 5, "forward"
+                data.graph_db,
+                function_name,
+                5,
+                "forward",
+                allow_bfs=True,
+                tool="find_callers_callees",
+                walk_sink=bfs_walks,
             )
             if cross_nodes:
                 lines.append("")
@@ -987,6 +1142,12 @@ async def _tool_find_callers_callees(
         except Exception as exc:  # pragma: no cover - defensive
             log.debug("GGSR context for find_callers_callees failed: %s", exc)
 
+        # R8.4: one aggregate indicator for however many of this tool's
+        # three possible walks actually ran. A no-op when the selector
+        # kept the single query and `cross_language` was off or stayed on
+        # its single-query branch, so those responses are unchanged.
+        insert_bfs_header(lines, *bfs_walks)
+
         return "\n".join(lines).rstrip() + "\n"
     except Exception as exc:
         log.warning("find_callers_callees failed: %s", exc)
@@ -1039,19 +1200,85 @@ async def _tool_trace_full_execution_chain(
                 neighbors,
             )
 
+        # Non-hub anchor: hand the measured degree to the strategy
+        # selector so `_cross_language_nodes` can pick the BFS_Walker
+        # over the single multi-type variable-length pattern (R3.1,
+        # R3.2). The Hub_Node branch above already returned, so the
+        # ordering is hub -> BFS -> single-query, per the design's flow
+        # diagram: a 100+ edge node never attempts a walk, and a failed
+        # probe (degree None) degrades via `is_hub` rather than walking.
         forward_nodes: list[dict[str, Any]] = []
         reverse_nodes: list[dict[str, Any]] = []
+        chain_depth, _chain_clamped = effective_depth(
+            max_depth, FULL_CHAIN_DEPTH
+        )
+        fallback = False
+        # Walks that produced part of this response, for the R8.4
+        # indicator. A ``direction="both"`` request runs two (one per
+        # direction) and aggregates them into one header line; see
+        # `bfs_optimized_header`.
+        bfs_walks: list[BFSResult] = []
         try:
             if direction in ("forward", "both"):
                 forward_nodes = await _cross_language_nodes(
-                    data.graph_db, start, max_depth, "forward"
+                    data.graph_db,
+                    start,
+                    max_depth,
+                    "forward",
+                    degree=degree,
+                    allow_bfs=True,
+                    walk_sink=bfs_walks,
                 )
             if direction in ("reverse", "both"):
                 reverse_nodes = await _cross_language_nodes(
-                    data.graph_db, start, max_depth, "reverse"
+                    data.graph_db,
+                    start,
+                    max_depth,
+                    "reverse",
+                    degree=degree,
+                    allow_bfs=True,
+                    walk_sink=bfs_walks,
                 )
         except Exception as exc:  # noqa: BLE001
-            if _is_timeout_error(exc):
+            if not _is_timeout_error(exc):
+                raise
+            # Fallback chain (R3.3, R5.5). The retry is offered only when
+            # the *single query* is what timed out, which is why the
+            # strategy decision is recomputed here rather than inferred
+            # from the exception: `_cross_language_nodes` makes the same
+            # `_use_bfs(degree, chain_depth)` call internally, so a `True`
+            # here means the walk already ran and the timeout came from
+            # inside it (its seed-node lookup -- `bfs_walk` itself absorbs
+            # hop failures). Retrying a walk that just timed out would
+            # only spend the budget twice, so those go straight to the
+            # Degraded_Result, exactly as the design specifies for hubs.
+            salvaged_forward: list[dict[str, Any]] | None = None
+            salvaged_reverse: list[dict[str, Any]] | None = None
+            if not _use_bfs(degree, chain_depth):
+                log.info(
+                    "[traversal-bounds] trace_full_execution_chain fallback "
+                    "anchor=%s guard=timeout strategy=bfs",
+                    start,
+                )
+                if direction in ("forward", "both"):
+                    salvaged_forward = await _cross_language_bfs_fallback(
+                        data.graph_db,
+                        start,
+                        max_depth,
+                        "forward",
+                        degree,
+                        walk_sink=bfs_walks,
+                    )
+                if direction in ("reverse", "both"):
+                    salvaged_reverse = await _cross_language_bfs_fallback(
+                        data.graph_db,
+                        start,
+                        max_depth,
+                        "reverse",
+                        degree,
+                        walk_sink=bfs_walks,
+                    )
+            if salvaged_forward is None and salvaged_reverse is None:
                 neighbors = []
                 if direction in ("forward", "both"):
                     neighbors += await _one_hop_neighbors(
@@ -1072,7 +1299,11 @@ async def _tool_trace_full_execution_chain(
                     _timeout_notice(start),
                     neighbors,
                 )
-            raise
+            # A ``direction="both"`` request can salvage one side only;
+            # render what came back rather than discarding both.
+            forward_nodes = salvaged_forward or []
+            reverse_nodes = salvaged_reverse or []
+            fallback = True
 
         if languages:
             keep = set(languages)
@@ -1081,6 +1312,16 @@ async def _tool_trace_full_execution_chain(
 
         all_nodes = forward_nodes + reverse_nodes
         lines: list[str] = [f"# Full Execution Chain: {start}", ""]
+        # R8.4: inserted here rather than at the return so it covers the
+        # "no execution chain found" early return below too -- a walk that
+        # ran and found nothing is still the walk that produced the
+        # response, and that is the case an operator correlating a thin
+        # response against the COMPLETED log line most wants labelled. A
+        # no-op when the selector kept the single query.
+        insert_bfs_header(lines, *bfs_walks)
+        if fallback:
+            lines.append(_fallback_notice(start))
+            lines.append("")
 
         if not all_nodes:
             lines.append(
@@ -1297,11 +1538,16 @@ async def _file_symbols(graph_db: Any, file_path: str) -> list[dict[str, Any]]:
     """Return function/class symbols defined by ``file_path``.
 
     Each row is ``{name, type: 'FUNCTION'|'CLASS', docstring, lineNumber}``.
+
+    Both ends of the one-hop expansion are tenant-scoped: the anchor
+    ``f`` and the expanded symbol ``s`` (R4.2, R4.4). Without the second
+    fragment a ``DEFINES`` edge that crosses a tenant boundary would
+    contribute the other tenant's symbol to this file's symbol list.
     """
     cypher = (
         "MATCH (f)-[:DEFINES|CONTAINS]->(s) "
         "WHERE (f.path CONTAINS $path OR f.name = $path)"
-        f"{_scope_and('f')} "
+        f"{_scope_and('f')}{_scope_and('s')} "
         "RETURN s.name AS name, labels(s) AS labels, "
         "s.docstring AS docstring, s.lineNumber AS lineNumber "
         "LIMIT 500"
@@ -1329,11 +1575,16 @@ async def _file_symbols(graph_db: Any, file_path: str) -> list[dict[str, Any]]:
 
 
 async def _file_imports(graph_db: Any, target: str) -> list[str]:
-    """Return module / file names that ``target`` imports."""
+    """Return module / file names that ``target`` imports.
+
+    Anchor ``f`` and expanded module ``m`` are both tenant-scoped, so an
+    import edge into another tenant's partition is filtered server-side
+    rather than listed as this file's dependency (R4.2, R4.4).
+    """
     cypher = (
         "MATCH (f)-[:IMPORTS|USES|SOURCES|INVOKES]->(m) "
         "WHERE (f.path CONTAINS $path OR f.name = $path)"
-        f"{_scope_and('f')} "
+        f"{_scope_and('f')}{_scope_and('m')} "
         "RETURN DISTINCT coalesce(m.name, m.path) AS moduleName LIMIT 200"
     )
     rows = await graph_db.query(cypher, {"path": target}, tenant=_tenant())
@@ -1341,11 +1592,16 @@ async def _file_imports(graph_db: Any, target: str) -> list[str]:
 
 
 async def _file_importers(graph_db: Any, target: str) -> list[str]:
-    """Return file paths that import ``target``."""
+    """Return file paths that import ``target``.
+
+    The expansion runs *against* the edge direction here — ``t`` is the
+    anchor and ``src`` is the discovered node — so ``src`` is the variable
+    that needs the terminal-node Label_Scope_Predicate (R4.2, R4.4).
+    """
     cypher = (
         "MATCH (src)-[:IMPORTS|USES|SOURCES|INVOKES]->(t) "
         "WHERE (t.path CONTAINS $path OR t.name = $path)"
-        f"{_scope_and('t')} "
+        f"{_scope_and('t')}{_scope_and('src')} "
         "RETURN DISTINCT coalesce(src.path, src.name) AS filePath LIMIT 200"
     )
     rows = await graph_db.query(cypher, {"path": target}, tenant=_tenant())
@@ -1353,7 +1609,17 @@ async def _file_importers(graph_db: Any, target: str) -> list[str]:
 
 
 async def _circular_dependencies(graph_db: Any) -> list[dict[str, Any]]:
-    """Return a bounded list of cycles in the IMPORTS graph."""
+    """Return a bounded list of cycles in the IMPORTS graph.
+
+    Terminal-node scoping (R4.2) needs no addition here: the pattern is a
+    cycle, so its terminal node *is* its anchor — the single ``a`` the
+    Label_Scope_Predicate already constrains. The intermediate nodes of
+    the cycle stay unscoped, which is not a gap either: a cycle whose
+    endpoint is tenant-scoped cannot leave and re-enter the tenant's
+    partition unless a cross-tenant ``IMPORTS`` edge pair exists, and the
+    predicate cannot be applied to path-interior variables in a
+    variable-length pattern anyway.
+    """
     cypher = (
         "MATCH p=(a)-[:IMPORTS*2..5]->(a) "
         f"WHERE {tenant_label_predicate('a') or 'true'} "
@@ -1390,13 +1656,21 @@ async def _call_chain(
     :data:`CALL_CHAIN_DEPTH` ceiling so the emitted pattern is always an
     explicit ``*1..N`` bound (R2.1, R2.4), and the query carries the
     :data:`TIMEOUT_S` statement-timeout backstop (R5.2).
+
+    Both the anchor ``f`` and the pattern's terminal ``callee`` carry the
+    Label_Scope_Predicate (R4.2, R4.4), matching what the BFS branch of
+    this tool does per-hop via ``label_scope_expanded``. Only the
+    endpoints can be scoped: a variable-length pattern exposes no
+    variable for its interior nodes, so a chain may still *pass through*
+    another tenant's node, but it cannot *terminate* on one and so cannot
+    contribute one to the rendered call chain.
     """
     depth, _clamped = effective_depth(max_depth, CALL_CHAIN_DEPTH)
     if entity_type == "shell":
         cypher = (
             "MATCH p=(f)-[:SOURCES|INVOKES|EXECUTES*1.." + str(depth) + "]->(callee) "
             "WHERE f.name = $name"
-            + _scope_and("f") + " "
+            + _scope_and("f") + _scope_and("callee") + " "
             "RETURN callee.name AS callee, callee.path AS file, "
             "length(p) AS depth LIMIT " + str(RESULT_LIMIT)
         )
@@ -1404,7 +1678,7 @@ async def _call_chain(
         cypher = (
             "MATCH p=(f)-[:CALLS*1.." + str(depth) + "]->(callee) "
             "WHERE f.name = $name"
-            + _scope_and("f") + " "
+            + _scope_and("f") + _scope_and("callee") + " "
             "RETURN callee.name AS callee, callee.filepath AS file, "
             "length(p) AS depth LIMIT " + str(RESULT_LIMIT)
         )
@@ -1417,12 +1691,17 @@ async def _call_chain(
 async def _callers(
     graph_db: Any, function_name: str, entity_type: str | None
 ) -> list[dict[str, Any]]:
-    """Return direct callers of ``function_name``."""
+    """Return direct callers of ``function_name``.
+
+    The expansion runs against the edge direction — ``f`` is the anchor,
+    ``caller`` is the discovered node — so ``caller`` is the variable that
+    takes the terminal-node Label_Scope_Predicate (R4.2, R4.4).
+    """
     if entity_type == "shell":
         cypher = (
             "MATCH (caller)-[:SOURCES|INVOKES|EXECUTES]->(f) "
             "WHERE f.name = $name"
-            + _scope_and("f") + " "
+            + _scope_and("f") + _scope_and("caller") + " "
             "RETURN DISTINCT caller.name AS name, caller.path AS file LIMIT "
             + str(RESULT_LIMIT)
         )
@@ -1430,7 +1709,7 @@ async def _callers(
         cypher = (
             "MATCH (caller)-[:CALLS]->(f) "
             "WHERE f.name = $name"
-            + _scope_and("f") + " "
+            + _scope_and("f") + _scope_and("caller") + " "
             "RETURN DISTINCT caller.name AS name, "
             "caller.filepath AS file LIMIT " + str(RESULT_LIMIT)
         )
@@ -1438,6 +1717,248 @@ async def _callers(
         cypher, {"name": function_name}, tenant=_tenant(), timeout=TIMEOUT_S
     )
     return [r for r in (rows or []) if r.get("name")]
+
+
+#: Depth the ``find_callers_callees`` caller / callee sections expand to.
+#: Both are *direct*-relationship sections by definition (``## Callers``
+#: lists what calls the anchor, ``## Callees`` what the anchor calls), so
+#: this is the ``requested_depth`` handed to
+#: :func:`~src.tools._traversal_bounds._use_bfs` — the depth > 3 arm of the
+#: strategy selector therefore never fires here, and only the anchor's
+#: measured degree selects the walk. The deep, variable-length part of
+#: this tool is the optional ``cross_language`` section, which routes
+#: through :func:`_cross_language_nodes` and its own FULL_CHAIN_DEPTH
+#: budget.
+_CALLERS_CALLEES_DEPTH: int = 1
+
+
+def _call_edge_types(entity_type: str | None) -> tuple[str, ...]:
+    """Split :func:`_call_rel_set` into the walker's per-type edge tuple.
+
+    The BFS_Walker expands one relationship type per query, so it takes a
+    sequence of plain identifiers (a pipe-joined string is refused by
+    ``_expand_one_hop``'s identifier check). Derived from
+    :func:`_call_rel_set` rather than restated, so the walk and the degree
+    probe that selected it can never drift onto different edge sets.
+    """
+    return tuple(_call_rel_set(entity_type).split("|"))
+
+
+def _bfs_call_nodes(result: BFSResult) -> list[tuple[str, Any, int]]:
+    """Fold walker nodes into deduplicated ``(name, file, hop)`` triples.
+
+    Shared by :func:`_bfs_caller_rows` and :func:`_bfs_callee_rows` so the
+    two sections agree on which nodes survive, and in what order, from the
+    same walk shape.
+
+    ``file`` comes from the node's ``path`` property because that is what
+    the walker projects (``b.name`` / ``b.path``). A node that carries its
+    location on ``filepath`` instead — the property the non-shell
+    single-query path reads — therefore renders without the file
+    annotation. That is a cosmetic difference on the BFS branch only: the
+    node itself is still listed, and the counts the complexity section
+    derives are unaffected.
+
+    The walker's visited-set already guarantees each *node id* appears at
+    most once, but two distinct nodes can share a ``(name, file)`` pair,
+    which the single-query path collapses server-side via ``RETURN
+    DISTINCT``. Folding on the same tuple here keeps the rendered list
+    free of duplicate lines on either strategy (R5.1), and the row cap is
+    re-applied across the merged set.
+    """
+    seen: set[tuple[str, str]] = set()
+    out: list[tuple[str, Any, int]] = []
+    for node in result.nodes:
+        name = node.get("name") or node.get("path")
+        if not name:
+            continue
+        file = node.get("path")
+        key = (str(name), str(file or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((str(name), file, int(node.get("hop") or 1)))
+        if len(out) >= RESULT_LIMIT:
+            break
+    return out
+
+
+def _bfs_caller_rows(result: BFSResult) -> list[dict[str, Any]]:
+    """Fold a reverse walk into the :func:`_callers` row shape (R5.1).
+
+    ``_callers`` returns ``{name, file}`` and the ``## Callers`` section
+    renders exactly those two columns (plus an optional ``lineNumber``
+    neither the shell single-query branch nor the walker projects), so a
+    caller cannot tell from the rendered list which strategy ran.
+    """
+    return [
+        {"name": name, "file": file}
+        for name, file, _hop in _bfs_call_nodes(result)
+    ]
+
+
+def _bfs_callee_rows(result: BFSResult) -> list[dict[str, Any]]:
+    """Fold a forward walk into the :func:`_call_chain` row shape (R5.1).
+
+    ``_call_chain`` returns ``{callee, file, depth}``. The walker's
+    ``hop`` is the same 1-based value ``length(p)`` yields for the
+    ``*1..1`` pattern this section issues, so the rendered ``(depth: N)``
+    annotation is unchanged.
+    """
+    return [
+        {"callee": name, "file": file, "depth": hop}
+        for name, file, hop in _bfs_call_nodes(result)
+    ]
+
+
+async def _call_chain_bfs(
+    graph_db: Any,
+    function_name: str,
+    max_depth: int,
+    entity_type: str | None,
+    degree: int | None = None,
+) -> BFSResult:
+    """Re-issue :func:`_call_chain`'s expansion as a BFS_Walker walk (R3.3).
+
+    The fallback arm for ``trace_execution_path``: the same anchor, the
+    same edge set (:func:`_call_edge_types`, derived from the
+    :func:`_call_rel_set` the degree probe used, so the walk cannot drift
+    onto a different edge set than the query it replaces) and the same
+    clamped Effective_Depth, expanded as bounded per-type single hops
+    instead of one variable-length pattern.
+
+    Why a walk is the right retry for *this* query, given
+    ``trace_execution_path`` has no strategy selector of its own: the
+    pattern it replaces is ``*1..CALL_CHAIN_DEPTH``, i.e. ``*1..4`` at
+    the ceiling, and for a shell entity it is a *three*-type expansion
+    (``SOURCES|INVOKES|EXECUTES*1..4``) -- precisely the
+    Multi_Type_Expansion shape of Root Cause A. Depth 4 also exceeds the
+    depth arm of :func:`~src.tools._traversal_bounds._use_bfs` (``> 3``),
+    so had this site been wired into the selector the selector would have
+    chosen the walk here anyway. And :func:`_bfs_callee_rows` already
+    folds a forward walk into ``_call_chain``'s exact ``{callee, file,
+    depth}`` row shape, so the retry needs no rendering of its own.
+
+    Tenant scoping matches the query it replaces: ``scope_pred`` is the
+    ``_scope_and`` fragment applied to the anchor, and
+    ``label_scope_expanded`` extends it to the expanded nodes, which is
+    the per-hop counterpart of the terminal-node predicate ``_call_chain``
+    carries (R4.1, R4.2, R4.4).
+
+    Returns the raw :class:`BFSResult` rather than rows so the caller can
+    consult :func:`bfs_fallback_failed` before committing to it.
+
+    ``degree`` is the caller's measured Node_Degree, forwarded only for the
+    walker's R8.1 activation log. It is measured over
+    :func:`_call_rel_set`, the same edge set :func:`_call_edge_types`
+    splits for the walk, so the logged degree describes this expansion.
+    """
+    depth, _clamped = effective_depth(max_depth, CALL_CHAIN_DEPTH)
+    scope_pred = _scope_and("n")
+    return await bfs_walk(
+        graph_db,
+        start_name=function_name,
+        direction="forward",
+        edge_types=_call_edge_types(entity_type),
+        max_depth=depth,
+        fan_out_limit=BFS_FAN_OUT_LIMIT,
+        result_limit=RESULT_LIMIT,
+        timeout_s=TIMEOUT_S,
+        scope_pred=scope_pred,
+        tenant=_tenant(),
+        label_scope_expanded=bool(scope_pred),
+        tool="trace_execution_path",
+        degree=degree,
+    )
+
+
+async def _callers_callees_bfs(
+    graph_db: Any,
+    function_name: str,
+    entity_type: str | None,
+    degree: int | None = None,
+    *,
+    walk_sink: list[BFSResult] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
+    """Resolve callers and callees with the BFS_Walker (R2.1, R3.2).
+
+    Two walks from the same anchor over the same edge set, differing only
+    in direction: ``"reverse"`` follows incoming edges (what calls the
+    anchor) for ``## Callers``, ``"forward"`` follows outgoing edges (what
+    the anchor calls) for ``## Callees``. Each replaces its single query
+    with ``|edge_types|`` bounded single-hop seeks per hop (R2.2), so the
+    shell edge set (``SOURCES|INVOKES|EXECUTES``) no longer interleaves
+    three types inside one variable-length pattern.
+
+    The two walks run sequentially, in the same order the single-query
+    path issues its two queries, so the worst-case wall clock is
+    unchanged — either strategy is two Statement_Timeout-bounded steps.
+
+    Tenant scoping is carried through: ``scope_pred`` is the same
+    ``_scope_and("n")`` fragment the single-query path applies to its
+    anchor, and ``label_scope_expanded`` turns it on for the *expanded*
+    nodes too, so a neighbor from another tenant is rejected before it
+    enters the frontier (R4.1, R4.4). The signal is ``bool(scope_pred)``:
+    scope the target exactly when a predicate exists to scope it with,
+    and emit no filter when none does (R4.3). Note that the default
+    ``gw`` tenant still yields a predicate here -- the *exclusion* form
+    (``... STARTS WITH '<other tenant>' ...]) = 0``), which admits every
+    unprefixed baseline node while keeping another tenant's prefixed
+    nodes out of a ``gw`` walk.
+
+    Returns
+    -------
+    tuple[list[dict], list[dict], bool]
+        The caller rows, the callee rows, and whether *either* walk was
+        cut short by a traversal bound — so the caller can say the two
+        lists are a partial view rather than an exhaustive one
+        (R2.3, R2.7).
+
+    Notes
+    -----
+    ``degree`` is the caller's measured Node_Degree, forwarded only for
+    the walker's R8.1 activation log; it is one measurement over
+    :func:`_call_rel_set` and is therefore reported on *both* walks, since
+    the probe counts the anchor's edges of those types in either
+    direction.
+
+    ``walk_sink``, when given, receives both :class:`BFSResult` objects so
+    the caller can render the R8.4 ``[optimized: ...]`` indicator from
+    their counters. It is an append-sink rather than a fourth tuple
+    element for two reasons: the existing three-element shape stays valid
+    for the two call sites that do not need the counters, and it mirrors
+    the ``timeout_sink`` convention :func:`~src.tools._bfs_walker.
+    _expand_one_hop` already uses for exactly this problem (recovering a
+    signal that the folded return value cannot carry). Both walks are
+    deposited even when one salvaged nothing -- a zero-node walk is still
+    a walk that ran, and its wall clock is time the caller paid.
+    """
+    scope_pred = _scope_and("n")
+    bounds: dict[str, Any] = {
+        "edge_types": _call_edge_types(entity_type),
+        "max_depth": _CALLERS_CALLEES_DEPTH,
+        "fan_out_limit": BFS_FAN_OUT_LIMIT,
+        "result_limit": RESULT_LIMIT,
+        "timeout_s": TIMEOUT_S,
+        "scope_pred": scope_pred,
+        "tenant": _tenant(),
+        "label_scope_expanded": bool(scope_pred),
+        "tool": "find_callers_callees",
+        "degree": degree,
+    }
+    caller_walk = await bfs_walk(
+        graph_db, start_name=function_name, direction="reverse", **bounds
+    )
+    callee_walk = await bfs_walk(
+        graph_db, start_name=function_name, direction="forward", **bounds
+    )
+    if walk_sink is not None:
+        walk_sink.extend((caller_walk, callee_walk))
+    return (
+        _bfs_caller_rows(caller_walk),
+        _bfs_callee_rows(callee_walk),
+        caller_walk.truncated or callee_walk.truncated,
+    )
 
 
 # ── bounded-traversal degree gate + Degraded_Result rendering ───────────
@@ -1456,18 +1977,35 @@ async def _one_hop_neighbors(
     timeout-bounded like the expansion it replaces (Property 5, R5.2).
     Swallows a statement-timeout (returns ``[]``) so a degraded render
     never raises (R4.4).
+
+    The Anchor_Predicate uses UNION_ALL_Decomposition (R1.1): the
+    anchor is matched by ``a.name`` on one branch and ``a.path`` on
+    another, joined by ``UNION ALL``, rather than the index-defeating
+    ``(a.name = $name OR a.path = $name)`` disjunction on an unlabelled
+    node. Each branch carries the tenant scope predicate and its own
+    ``LIMIT`` so the server-side bound is preserved (R1.2, R1.4); the
+    two row sets are then deduplicated and re-capped here, which is
+    set-equivalent to the ``OR`` form the ``DISTINCT`` used to give
+    (R1.3).
     """
     if direction == "reverse":
         match = f"MATCH (x)-[r:{rel_set}]->(a)"
     else:
         match = f"MATCH (a)-[r:{rel_set}]->(x)"
-    cypher = (
-        match
-        + " WHERE (a.name = $name OR a.path = $name)"
-        + _scope_and("a")
-        + " RETURN DISTINCT x.name AS name, "
+    # Both ends are scoped: the anchor ``a`` and the expanded neighbor
+    # ``x`` (R4.2, R4.4). ``x`` is the terminal node in both directions —
+    # only the pattern's arrow moves, not which variable is discovered —
+    # so one fragment covers forward and reverse alike.
+    scope = _scope_and("a") + _scope_and("x")
+    returning = (
+        " RETURN DISTINCT x.name AS name, "
         "coalesce(x.filepath, x.path) AS file "
         "LIMIT " + str(RESULT_LIMIT)
+    )
+    cypher = (
+        match + " WHERE a.name = $name" + scope + returning
+        + " UNION ALL "
+        + match + " WHERE a.path = $name" + scope + returning
     )
     try:
         rows = await graph_db.query(
@@ -1482,7 +2020,23 @@ async def _one_hop_neighbors(
             )
             return []
         raise
-    return [r for r in (rows or []) if r.get("name")]
+    # ``UNION ALL`` does not dedupe, so an anchor matched by both name
+    # and path contributes its neighbors twice: fold them back here and
+    # re-apply the row cap across the merged set (R1.3).
+    seen: set[tuple[str, str]] = set()
+    merged: list[dict[str, Any]] = []
+    for row in rows or []:
+        row_name = row.get("name")
+        if not row_name:
+            continue
+        key = (str(row_name), str(row.get("file") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(row)
+        if len(merged) >= RESULT_LIMIT:
+            break
+    return merged
 
 
 def _timeout_notice(anchor: str) -> str:
@@ -1491,6 +2045,26 @@ def _timeout_notice(anchor: str) -> str:
         f"[INFO] Traversal from `{anchor}` exceeded the {TIMEOUT_S:g}s "
         "statement timeout and was bounded. Showing the node's direct "
         "(one-hop) neighbors instead of the full expansion."
+    )
+
+
+def _fallback_notice(anchor: str) -> str:
+    """Notice rendered when a BFS_Walker fallback answered a timeout (R3.3).
+
+    The middle link of the fallback chain produced the rendered results,
+    so the response says so: the single-query expansion did *not*
+    complete, and the walk that replaced it carries its own bounds (a
+    per-hop Fan_Out_Limit and a result cap). Saying "may be a partial
+    view" once, unconditionally, is deliberate -- an untruncated walk is
+    still narrower than the pattern it stands in for, because the
+    Fan_Out_Limit applies per type per hop rather than to the path set as
+    a whole (R2.3, R2.7).
+    """
+    return (
+        f"[INFO] The full expansion from `{anchor}` exceeded the "
+        f"{TIMEOUT_S:g}s statement timeout, so it was retried as a bounded "
+        "step-by-step traversal. The results below come from that fallback "
+        "and may be a partial view."
     )
 
 
@@ -1564,11 +2138,249 @@ async def _detect_entity_type(
     return "function", labels
 
 
+async def _cross_language_seed_row(
+    graph_db: Any, start: str, direction: str
+) -> list[dict[str, Any]]:
+    """Return the hop-0 Anchor_Node row for a cross-language chain.
+
+    Shared by both traversal strategies in
+    :func:`_cross_language_nodes` so the rendered chain always opens on
+    the same seed entry regardless of which strategy expanded it (R5.1).
+    Returns ``[]`` when the anchor does not resolve.
+
+    The lookup is a UNION_ALL_Decomposition of the Anchor_Predicate
+    (R1.1, R1.3)::
+
+        MATCH (n) WHERE n.name = $name <scope>
+        RETURN n.name AS name, labels(n) AS labels LIMIT 1
+        UNION ALL
+        MATCH (n) WHERE n.path = $name <scope>
+        RETURN n.name AS name, labels(n) AS labels LIMIT 1
+
+    The former ``(n.name = $name OR n.path = $name)`` form is a
+    disjunction over two properties of an unlabelled node, which Neptune
+    cannot satisfy from an index and so evaluates against every node; the
+    2026-08-28 benchmark measured 7.3s across this helper's 7 calls. Each
+    branch is an indexable equality lookup instead.
+
+    Both branches keep their own ``LIMIT 1``, so the query returns at
+    most two rows and the pre-decomposition bound is preserved per
+    branch. The first row wins, which makes deduplication trivial (R1.3):
+    the ``OR`` form also returned one arbitrary matching node, and a node
+    matched on *both* properties appears in both branches but is read
+    once. Reading the ``name`` branch first is a deliberate tie-break --
+    a name match is the more canonical identification of an anchor the
+    caller named -- and it makes the seed row deterministic where the
+    ``OR`` form left it to the planner.
+
+    Errors are *not* absorbed here: the callers' contract is unchanged
+    (:func:`_cross_language_bfs_fallback` catches a timeout from this
+    query to decide between salvage and degradation, and the tool bodies
+    render an ``[ERROR]`` otherwise), so swallowing one would convert a
+    handled failure into a chain that silently lost its anchor.
+    """
+    seed_projection = (
+        "RETURN n.name AS name, labels(n) AS labels LIMIT 1"
+    )
+    scope = _scope_and("n")
+    seed_rows = await graph_db.query(
+        f"MATCH (n) WHERE n.name = $name{scope} "
+        f"{seed_projection} "
+        "UNION ALL "
+        f"MATCH (n) WHERE n.path = $name{scope} "
+        f"{seed_projection}",
+        {"name": start},
+        tenant=_tenant(),
+        timeout=TIMEOUT_S,
+    )
+    if not seed_rows:
+        return []
+    labels = list(seed_rows[0].get("labels") or [])
+    return [
+        {
+            "name": seed_rows[0].get("name") or start,
+            "label": labels[0] if labels else None,
+            "language": _label_to_language(labels),
+            "hop": 0,
+            "relType": None,
+            "direction": direction,
+        }
+    ]
+
+
+async def _cross_language_nodes_bfs(
+    graph_db: Any,
+    start: str,
+    depth: int,
+    direction: str,
+    *,
+    tool: str = "trace_full_execution_chain",
+    degree: int | None = None,
+    walk_sink: list[BFSResult] | None = None,
+) -> list[dict[str, Any]]:
+    """Expand ``start`` with the BFS_Walker instead of one big pattern.
+
+    The Per_Type_BFS strategy for the cross-language chain (R2.1, R3.2).
+    :func:`~src.tools._bfs_walker.bfs_walk` issues one bounded single-hop
+    query per relationship type per hop rather than a single
+    ``[:SOURCES|INVOKES|EXECUTES|CALLS|USES|DEFINES*1..N]`` pattern whose
+    cost grows combinatorially in ``depth``.
+
+    Rows are mapped into the *same* shape the single-query path returns
+    (``{name, label, language, hop, relType, direction}``), so
+    :func:`_format_chain_tree`, the ``languages`` filter, and the
+    statistics block in ``trace_full_execution_chain`` are unchanged
+    (R5.1, R5.2).
+
+    Tenant scoping is carried through: ``scope_pred`` is the same
+    ``_scope_and("n")`` fragment the single-query path applies to its
+    anchor, and ``label_scope_expanded`` turns it on for the *expanded*
+    nodes too, so a neighbor from another tenant is rejected before it
+    enters the frontier (R4.1, R4.4). The signal is ``bool(scope_pred)``:
+    scope the target exactly when a predicate exists to scope it with,
+    and emit no filter when none does (R4.3). Note that the default
+    ``gw`` tenant still yields a predicate here -- the *exclusion* form
+    (``... STARTS WITH '<other tenant>' ...]) = 0``), which admits every
+    unprefixed baseline node while keeping another tenant's prefixed
+    nodes out of a ``gw`` walk.
+
+    ``tool`` and ``degree`` feed the walker's R8.1 activation log only.
+    ``tool`` is a parameter rather than a constant because this helper is
+    reachable from two tools -- ``trace_full_execution_chain`` (its
+    default) and ``find_callers_callees``' cross-language section -- so
+    hardcoding either would mislabel the other's walks. ``degree``
+    defaults to ``None`` (logged as ``degree=unknown``) because the
+    cross-language edge set is not always probed; see
+    :func:`_cross_language_nodes`.
+
+    ``walk_sink``, when given, receives this walk's :class:`BFSResult` so
+    the calling tool can render the R8.4 ``[optimized: ...]`` indicator
+    from its counters. An append-sink rather than a widened return type
+    because the row list is this helper's contract with three call sites
+    (:func:`_cross_language_nodes`, :func:`_cross_language_bfs_fallback`,
+    and the latter's own hop-0 filter), and because it threads through the
+    nesting without each layer having to unpack and repack a tuple. It
+    follows the ``timeout_sink`` convention already established in
+    :func:`~src.tools._bfs_walker._expand_one_hop`. The walk is deposited
+    before the seed-row query runs, so a walk whose counters exist is
+    reported even if that query then raises.
+    """
+    scope_pred = _scope_and("n")
+    result = await bfs_walk(
+        graph_db,
+        start_name=start,
+        direction=direction,
+        edge_types=CROSS_LANGUAGE_EDGES,
+        max_depth=depth,
+        fan_out_limit=BFS_FAN_OUT_LIMIT,
+        result_limit=RESULT_LIMIT,
+        timeout_s=TIMEOUT_S,
+        scope_pred=scope_pred,
+        tenant=_tenant(),
+        label_scope_expanded=bool(scope_pred),
+        tool=tool,
+        degree=degree,
+    )
+    if walk_sink is not None:
+        walk_sink.append(result)
+
+    # The walker excludes the Anchor_Node (hop is 1-based), so the seed
+    # row is fetched separately exactly as the single-query path does.
+    out: list[dict[str, Any]] = await _cross_language_seed_row(
+        graph_db, start, direction
+    )
+    for node in result.nodes:
+        name = node.get("name") or node.get("path")
+        if not name:
+            continue
+        labels = list(node.get("labels") or [])
+        out.append(
+            {
+                "name": name,
+                "label": labels[0] if labels else None,
+                "language": _label_to_language(labels),
+                "hop": int(node.get("hop") or 1),
+                "relType": node.get("relType"),
+                "direction": direction,
+            }
+        )
+    return out
+
+
+async def _cross_language_bfs_fallback(
+    graph_db: Any,
+    start: str,
+    max_depth: int,
+    direction: str,
+    degree: int | None = None,
+    *,
+    walk_sink: list[BFSResult] | None = None,
+) -> list[dict[str, Any]] | None:
+    """Retry a timed-out cross-language expansion as a walk (R3.3).
+
+    The fallback arm for ``trace_full_execution_chain``: reuses
+    :func:`_cross_language_nodes_bfs` verbatim so the salvaged rows are
+    the same shape, in the same order, that the strategy selector's own
+    BFS branch would have produced for this anchor. Depth is re-clamped
+    here because the caller passes the request's raw ``max_depth``.
+
+    Returns ``None`` -- meaning "degrade" -- in two cases:
+
+    * The walk salvaged nothing (:func:`bfs_fallback_failed`). Only rows
+      the walk itself discovered count, so the hop-0 seed row is excluded
+      first: it is the Anchor_Node the caller already named, and letting
+      it stand in as salvage would turn every failed retry into a chain
+      of one node.
+    * The walk's own anchor lookup timed out. :func:`bfs_walk` absorbs
+      hop failures, but :func:`_cross_language_seed_row` is a separate
+      query issued outside it, so it can still raise -- and it must not
+      escape a fallback path as an ``[ERROR]`` when a Degraded_Result is
+      available (Property 7). Non-timeout errors still propagate.
+
+    ``walk_sink`` is forwarded to :func:`_cross_language_nodes_bfs` so the
+    R8.4 indicator reports fallback walks too -- a response the fallback
+    arm produced *was* produced by the BFS_Walker, and is exactly the case
+    a caller most needs distinguished from a single-query result. The sink
+    is filled by the walk itself, so it carries the counters even when
+    this function goes on to return ``None``; the caller only renders the
+    indicator on the branch where it actually uses the rows.
+    """
+    depth, _clamped = effective_depth(max_depth, FULL_CHAIN_DEPTH)
+    try:
+        rows = await _cross_language_nodes_bfs(
+            graph_db,
+            start,
+            depth,
+            direction,
+            degree=degree,
+            walk_sink=walk_sink,
+        )
+    except Exception as exc:  # noqa: BLE001 - fallback must not raise
+        if not _is_timeout_error(exc):
+            raise
+        log.info(
+            "[traversal-bounds] cross-language fallback walk timed out "
+            "anchor=%s direction=%s",
+            start,
+            direction,
+        )
+        return None
+    expanded = [r for r in rows if int(r.get("hop") or 0) > 0]
+    if bfs_fallback_failed(expanded):
+        return None
+    return rows
+
+
 async def _cross_language_nodes(
     graph_db: Any,
     start: str,
     max_depth: int,
     direction: str,
+    *,
+    degree: int | None = None,
+    allow_bfs: bool = False,
+    tool: str = "trace_full_execution_chain",
+    walk_sink: list[BFSResult] | None = None,
 ) -> list[dict[str, Any]]:
     """Expand ``start`` via the cross-language edge set.
 
@@ -1577,20 +2389,117 @@ async def _cross_language_nodes(
         {name, label, language, hop, relType, direction}
 
     Bridge edges (EXECUTES / INVOKES) are preserved so callers can
-    count them for statistics. The cypher issues a single variable-
-    length path lookup; for very deep traversals the ``LIMIT`` caps
-    the result set at 200 rows.
+    count them for statistics. The result set is capped at
+    :data:`~src.tools._traversal_bounds.RESULT_LIMIT` rows either way.
+
+    Tenant scoping: the single-query branch applies the
+    Label_Scope_Predicate to the pattern's *terminal* node ``n`` as well
+    as to the ``start`` anchor (R4.2, R4.4), which is the single-query
+    counterpart of the BFS branch's per-hop ``label_scope_expanded``.
+    Interior nodes of the variable-length pattern cannot be scoped (no
+    variable is bound to them), so a chain may pass through another
+    tenant's node without being able to terminate on one — the rendered
+    rows, which are all terminal nodes, stay inside the tenant.
+
+    ``direction="reverse"`` correctness (fixed in task 7.2): the reverse
+    pattern used to be written ``(n)<-[:...]-(start)``, which in
+    openCypher is the *same* traversal as the forward
+    ``(start)-[:...]->(n)`` — the arrow and the variable positions cancel
+    out. Reverse requests therefore returned forward results. It is now
+    ``(start)<-[:...]-(n)``, genuinely following the anchor's incoming
+    edges, which is what the BFS branch's reverse expansion
+    (``MATCH (b)-[:TYPE]->(a)``) has always done. This makes the two
+    strategies agree, restoring design Property 2 (a BFS result is a
+    subset of the single-query result) for the reverse case; it also
+    means reverse output differs from prior releases, because prior
+    releases were wrong. Reachable from ``trace_full_execution_chain``
+    with ``direction`` reverse/both at ``max_depth <= 3``, where the
+    strategy selector keeps the single query.
+
+    Two strategies produce those rows. By default (and for callers that
+    have not opted in) the historical single variable-length path lookup
+    is issued, unchanged. When ``allow_bfs`` is set the caller's measured
+    ``degree`` selects between them via
+    :func:`~src.tools._traversal_bounds._use_bfs`: a moderately connected
+    anchor (degree >= BFS_ACTIVATION_THRESHOLD) or a deep request
+    (Effective_Depth > 3) takes the decomposed BFS_Walker, while a
+    low-degree shallow request keeps the single query, which is faster on
+    small neighborhoods (R3.1, R3.2, R5.1).
+
+    Strategy order note: the Hub_Node check (:func:`is_hub`) happens in
+    the *caller*, before this function is reached, and short-circuits to
+    the one-hop Degraded_Result. That ordering is deliberate and follows
+    the design's flow diagram -- a node with 100+ edges gets no BFS
+    attempt, because the walker's per-type Fan_Out_Limit (also 100) would
+    still be expensive there. It also preserves the
+    ``bounded-graph-traversal`` [8.36.0] fail-safe: a probe that failed
+    yields ``degree is None``, which ``is_hub`` treats as a hub, so a
+    failed probe degrades rather than walking (``_use_bfs(None, ...)``
+    would also be ``True``, but the hub branch wins by running first).
+
+    Parameters
+    ----------
+    graph_db
+        The graph adapter (must accept ``tenant=`` and ``timeout=``).
+    start
+        The Anchor_Node's ``name`` or ``path``.
+    max_depth
+        Requested hops, clamped to
+        :data:`~src.tools._traversal_bounds.FULL_CHAIN_DEPTH`.
+    direction
+        ``"reverse"`` or ``"forward"``.
+    degree
+        The anchor's measured Node_Degree from :func:`anchor_degree`, or
+        ``None`` when unprobed / unmeasurable. Only consulted when
+        ``allow_bfs`` is set.
+    allow_bfs
+        ``True`` to let the strategy selector run. Callers that have not
+        run a degree probe over the cross-language edge set leave this
+        ``False`` and keep the single-query behavior verbatim.
+    tool
+        Name of the tool this expansion serves, forwarded to the walker's
+        R8.1 activation log so a walk is attributed to the tool the caller
+        is actually rendering. Two tools reach this helper --
+        ``trace_full_execution_chain`` (the default) and
+        ``find_callers_callees``' cross-language section -- so the name is
+        threaded down rather than assumed.
+    walk_sink
+        Optional list that receives the :class:`BFSResult` when (and only
+        when) the BFS branch is taken, so the calling tool can render the
+        R8.4 ``[optimized: ...]`` indicator. Left untouched on the
+        single-query branch -- that absence is precisely how the caller
+        knows to render no indicator, so the sink doubles as the strategy
+        signal and the tool needs no second copy of the ``_use_bfs``
+        decision.
     """
     depth, _clamped = effective_depth(max_depth, FULL_CHAIN_DEPTH)
+
+    if allow_bfs and _use_bfs(degree, depth):
+        return await _cross_language_nodes_bfs(
+            graph_db,
+            start,
+            depth,
+            direction,
+            tool=tool,
+            degree=degree,
+            walk_sink=walk_sink,
+        )
+
     edge_union = "|".join(CROSS_LANGUAGE_EDGES)
     if direction == "reverse":
-        pattern = f"MATCH p = (n)<-[:{edge_union}*1..{depth}]-(start)"
+        # Incoming edges: the discovered node ``n`` points *at* the
+        # anchor. Written anchor-first so the path's node/relationship
+        # ordering starts at ``start`` in both directions, which is what
+        # ``[rel IN relationships(p) | type(rel)][-1]`` below relies on to
+        # report the edge adjacent to ``n``.
+        pattern = f"MATCH p = (start)<-[:{edge_union}*1..{depth}]-(n)"
     else:
         pattern = f"MATCH p = (start)-[:{edge_union}*1..{depth}]->(n)"
     cypher = (
         pattern
         + " WHERE (start.name = $name OR start.path = $name)"
         + _scope_and("start")
+        + _scope_and("n")
         + " RETURN DISTINCT n.name AS name, n.path AS path, labels(n) AS labels, "
         "length(p) AS hop, "
         "[rel IN relationships(p) | type(rel)][-1] AS relType "
@@ -1600,28 +2509,10 @@ async def _cross_language_nodes(
         cypher, {"name": start}, tenant=_tenant(), timeout=TIMEOUT_S
     )
 
-    out: list[dict[str, Any]] = []
     # Always include the seed node at hop 0 when we have it.
-    seed_rows = await graph_db.query(
-        "MATCH (n) WHERE (n.name = $name OR n.path = $name)"
-        f"{_scope_and('n')} "
-        "RETURN n.name AS name, labels(n) AS labels LIMIT 1",
-        {"name": start},
-        tenant=_tenant(),
-        timeout=TIMEOUT_S,
+    out: list[dict[str, Any]] = await _cross_language_seed_row(
+        graph_db, start, direction
     )
-    if seed_rows:
-        labels = list(seed_rows[0].get("labels") or [])
-        out.append(
-            {
-                "name": seed_rows[0].get("name") or start,
-                "label": labels[0] if labels else None,
-                "language": _label_to_language(labels),
-                "hop": 0,
-                "relType": None,
-                "direction": direction,
-            }
-        )
 
     for row in rows or []:
         name = row.get("name") or row.get("path")

@@ -27,8 +27,13 @@ Path_Materialization from ever starting on a hub node such as
 ``JGLOBAL_FORECAST`` (500+ edges). The depth cap and timeout are
 defense-in-depth for moderately-connected nodes and unforeseen shapes.
 
-This module is import-light (only :mod:`os`, :mod:`logging`) so it can be
-imported by every tool module without pulling in adapters.
+This module is import-light at module scope (only :mod:`os`,
+:mod:`logging`) so it can be imported by every tool module without
+pulling in adapters. :func:`anchor_degree` imports
+:func:`src.tools._bfs_walker.resolve_anchor_ids` *inside the function* —
+``_bfs_walker`` imports this module's tunables, so a module-level import
+would be a cycle, and keeping it local also keeps the walker's
+``asyncio``/``re`` dependencies out of every tool's import graph.
 """
 
 from __future__ import annotations
@@ -97,6 +102,20 @@ RESULT_LIMIT: int = _int_env("MCP_TRAVERSAL_RESULT_LIMIT", 200)
 #: Per-query Statement_Timeout (seconds) passed to the Neptune adapter on
 #: traversal queries.
 TIMEOUT_S: float = _float_env("MCP_TRAVERSAL_TIMEOUT_S", 30.0)
+
+#: Node_Degree at (or above) which a traversal stops issuing a single
+#: multi-type variable-length pattern and switches to the application-side
+#: BFS_Walker (Per_Type_BFS). Deliberately well below
+#: :data:`FAN_OUT_THRESHOLD` (the hub / Degraded_Result cut-off) so that
+#: moderately-connected nodes get the decomposed walk rather than a
+#: combinatorial expansion (R3.2, R3.4, R6.3).
+BFS_ACTIVATION_THRESHOLD: int = _int_env("MCP_BFS_ACTIVATION_THRESHOLD", 30)
+
+#: Fan_Out_Limit — maximum number of neighbor nodes the BFS_Walker collects
+#: per relationship type per hop (the ``LIMIT`` on each single-hop
+#: expansion query), so no individual expansion returns an unbounded
+#: result set (R2.3, R6.1).
+BFS_FAN_OUT_LIMIT: int = _int_env("MCP_BFS_FAN_OUT_LIMIT", 100)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -175,11 +194,54 @@ async def anchor_degree(
 
     Runs a count-only, single-hop query — never a variable-length
     pattern — so counting a hub node's edges cannot itself become an
-    expensive path materialization::
+    expensive path materialization. The count is preceded by an
+    index-seekable UNION_ALL_Decomposition of the Anchor_Predicate, so
+    the probe is two cheap queries rather than one full scan::
+
+        MATCH (a) WHERE a.name = $name <scope_pred> RETURN id(a) AS nid
+        UNION ALL
+        MATCH (a) WHERE a.path = $name <scope_pred> RETURN id(a) AS nid
 
         MATCH (a)-[r:<rel_types>]-(x)
-        WHERE (a.name = $name OR a.path = $name) <scope_pred>
+        WHERE id(a) IN $ids <scope_pred>
         RETURN count(r) AS deg
+
+    Why resolve-then-count, not two counting branches
+    -------------------------------------------------
+    The probe used to carry the Anchor_Predicate
+    ``(a.name = $name OR a.path = $name)`` inline. A disjunction over two
+    different properties of an unlabelled node is not index-satisfiable,
+    so Neptune evaluated it against every node: the 2026-08-28 benchmark
+    measured ~11.25s per call and 78.8s of the run's 110s total graph
+    time here — the single dominant remaining cost, and the one blocking
+    R1.5.
+
+    The obvious rewrite — ``UNION ALL`` of two ``count(r)`` branches — is
+    fast but *wrong*: ``UNION ALL`` does not deduplicate, so a node whose
+    ``name`` and ``path`` are both ``$name`` (common for shell scripts
+    referenced either way) is counted by both branches and the probe
+    reports **twice** its real degree. Summing the branches is therefore
+    not an option, and neither is taking the maximum (which would
+    under-report a genuine two-node match, where the ``OR`` form counted
+    both nodes' edges).
+
+    Resolving ids first sidesteps the arithmetic entirely: the id set is
+    deduplicated by :func:`~src.tools._bfs_walker.resolve_anchor_ids`
+    before any edge is counted, so ``count(r)`` runs exactly once over
+    the same node set the ``OR`` form matched — set-correct by
+    construction (R1.3), not by a correction term. It is also the shape
+    :func:`~src.tools._bfs_walker._expand_one_hop` already uses
+    (``WHERE id(a) IN $ids``), so the probe and the walk it gates now
+    seek the graph the same way.
+
+    The import of ``resolve_anchor_ids`` is function-local because
+    :mod:`src.tools._bfs_walker` imports this module's tunables at module
+    level; a module-level import here would close that cycle. A local
+    import is preferred over relocating the helper because
+    ``resolve_anchor_ids`` is part of the walker's documented surface
+    (it is in its ``__all__`` and is imported from there by the tools and
+    tests), and because it would otherwise drag ``asyncio``/``re`` into a
+    module every tool imports.
 
     Parameters
     ----------
@@ -203,23 +265,60 @@ async def anchor_degree(
     -------
     int | None
         The measured degree on success (``0`` when the node has no
-        matching edges or the probe returns no ``deg`` value — a
-        non-hub, so the expansion proceeds unchanged). ``None`` only when
-        the probe raises or times out: callers treat ``None`` as a hub
-        and fall back to the Degraded_Result (R1.5 fail-safe).
+        matching edges, when the anchor does not resolve at all, or when
+        the probe returns no ``deg`` value — a non-hub, so the expansion
+        proceeds unchanged). ``None`` only when the probe raises or times
+        out — in either of its two queries — so callers treat ``None`` as
+        a hub and fall back to the Degraded_Result (R1.5 fail-safe).
+
+        The unresolvable-anchor case is ``0`` because that is what the
+        pre-decomposition probe returned: an aggregation with no grouping
+        key yields one row even when the ``MATCH`` matched nothing, so
+        ``count(r)`` came back ``0``. The count query is issued even for
+        an empty id set to keep that path identical rather than
+        short-circuiting to a value that only looks the same.
 
     The direction-agnostic ``-[r]-`` probe counts both incident
     directions (conservative; see design Open Question 3).
     """
+    # Local import: _bfs_walker imports this module's tunables, so a
+    # module-level import here would be a cycle (see docstring).
+    from src.tools._bfs_walker import resolve_anchor_ids
+
+    # ``resolve_anchor_ids`` folds a failure into an empty id list, which
+    # for the walker is the right default but here would silently become
+    # "degree 0" -- a non-hub -- and let the expansion this probe exists
+    # to gate proceed. The sink recovers the distinction so a failed
+    # resolution keeps the R1.5 fail-safe and reports ``None``.
+    resolve_errors: list[str] = []
+    anchor_ids = await resolve_anchor_ids(
+        graph_db,
+        name,
+        scope_pred=scope_pred,
+        tenant=tenant,
+        timeout_s=TIMEOUT_S,
+        var="a",
+        error_sink=resolve_errors,
+    )
+    if resolve_errors:
+        log.info(
+            "[traversal-bounds] degree probe anchor resolution %s for "
+            "anchor=%s rels=%s -- treating as hub",
+            resolve_errors[0],
+            name,
+            rel_types,
+        )
+        return None
+
     cypher = (
         f"MATCH (a)-[r:{rel_types}]-(x) "
-        "WHERE (a.name = $name OR a.path = $name)"
+        "WHERE id(a) IN $ids"
         f"{scope_pred} "
         "RETURN count(r) AS deg"
     )
     try:
         rows = await graph_db.query(
-            cypher, {"name": name}, tenant=tenant, timeout=TIMEOUT_S
+            cypher, {"ids": anchor_ids}, tenant=tenant, timeout=TIMEOUT_S
         )
     except Exception as exc:  # noqa: BLE001 - fail safe toward hub (R1.5)
         log.info(
@@ -251,6 +350,49 @@ def is_hub(degree: int | None, threshold: int = FAN_OUT_THRESHOLD) -> bool:
     return degree is None or degree > threshold
 
 
+def _use_bfs(degree: int | None, requested_depth: int) -> bool:
+    """Return ``True`` when the BFS_Walker should replace the single query.
+
+    The strategy selector for Requirement 3, called *after* :func:`is_hub`
+    has already sent true hubs to the Degraded_Result. Three conditions
+    select the decomposed Per_Type_BFS walk over a single multi-type
+    variable-length pattern:
+
+    * ``degree is None`` — the degree probe failed or timed out, so the
+      anchor's fan-out is unknown; take the bounded walk (R3.2 fail-safe,
+      mirroring :func:`is_hub`).
+    * ``degree >= BFS_ACTIVATION_THRESHOLD`` — moderately connected, where
+      the combinatorial path enumeration is a timeout risk (R3.2).
+    * ``requested_depth > 3`` — at depth 4+ a multi-type expansion
+      enumerates too many candidate paths even from a low-degree anchor
+      (R3.2).
+
+    Otherwise the anchor is low-degree *and* shallow, so the existing
+    single-query pattern (which is fast for small neighborhoods) is kept
+    unchanged (R3.1, R5.1, Property 5).
+
+    Parameters
+    ----------
+    degree
+        The measured Node_Degree from :func:`anchor_degree`, or ``None``
+        when the probe failed.
+    requested_depth
+        The Effective_Depth the traversal will expand to (post-clamp, as
+        returned by :func:`effective_depth`).
+
+    Returns
+    -------
+    bool
+        ``True`` to use the BFS_Walker, ``False`` to keep the existing
+        single-query variable-length pattern.
+    """
+    if degree is None:
+        return True
+    if degree >= BFS_ACTIVATION_THRESHOLD:
+        return True
+    return requested_depth > 3
+
+
 __all__ = [
     "FAN_OUT_THRESHOLD",
     "FULL_CHAIN_DEPTH",
@@ -258,9 +400,12 @@ __all__ = [
     "DATA_FLOW_DEPTH",
     "RESULT_LIMIT",
     "TIMEOUT_S",
+    "BFS_ACTIVATION_THRESHOLD",
+    "BFS_FAN_OUT_LIMIT",
     "effective_depth",
     "degraded_notice",
     "truncation_marker",
     "anchor_degree",
     "is_hub",
+    "_use_bfs",
 ]

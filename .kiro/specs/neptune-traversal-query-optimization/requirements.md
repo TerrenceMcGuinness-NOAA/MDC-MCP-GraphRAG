@@ -61,6 +61,17 @@ signature changes.
   Neptune_Adapter as a backstop against runaway queries.
 - **Benchmark_Coverage**: The percentage of benchmark test cases that return a
   successful (non-timeout, non-error) result.
+- **Corpus_Anchor_Accuracy**: Whether a benchmark case's expected anchor name
+  actually names a node in the graph (and the intended one) — e.g.
+  `exglobal_forecast.sh` rather than `exglobal_forecast`.
+- **Graph_Data_Granularity**: Which entity kinds and relationship types the
+  ingesters materialise (e.g. script→script edges but not script→function),
+  independent of how a query traverses them.
+- **Zero_Node_Response**: A tool response that resolves no graph nodes and renders
+  only its header plus hint text.
+- **Scorer_Coverage_Artefact**: The benchmark scorer's substring match over the
+  entire response body, which lets an echoed anchor name or hint text mark a
+  Zero_Node_Response as covered.
 
 ## Requirements
 
@@ -205,23 +216,102 @@ instance changes.
    behavior is safe on the current `gw` and `gw_v17` baselines where hub nodes
    (JGLOBAL_FORECAST, setuprad) exist.
 
-### Requirement 7: Benchmark Coverage Improvement
+### Requirement 7: Benchmark Timeout and Latency Improvement
 
 **User Story:** As a platform operator, I want the query optimizations to
-measurably reduce benchmark failures, so that overall coverage meets the 95%+
-target.
+measurably eliminate graph-query timeouts and cut tail latency, so that deep
+traversals complete inside the time bound.
+
+Amended 2026-08-31. Criteria 7.1 and 7.5 remain binding on this feature — both are
+met with large margins. Criteria 7.2, 7.3, and 7.4 (the category and overall
+Benchmark_Coverage targets) are **deferred out of scope**; see
+*Deferred: Coverage Targets* below for why a query-layer change cannot move them
+and *Observed Results (2026-08-31)* for the measurements. Their original numbers
+are preserved verbatim as the deferred targets so a follow-up corpus/ingest spec
+inherits them unchanged.
 
 #### Acceptance Criteria
 
 1. WHEN the full benchmark suite (68 cases) is run after this optimization lands,
-   THE graph-query timeout count SHALL be 3 or fewer (reduced from the current 9).
-2. WHEN the `cross_language` category is run after this optimization, THE category
-   coverage SHALL be 100% (up from current 90%).
-3. WHEN the `code_structure` category is run after this optimization, THE category
-   coverage SHALL be 70% or higher (up from current 50%).
-4. THE overall benchmark coverage SHALL reach 95% or higher (up from current 90%).
-5. THE graph P95 latency SHALL be 10,000ms or lower (reduced from the current
-   17,190ms).
+   THE graph-query timeout count SHALL be 3 or fewer (reduced from the 2026-08-28
+   baseline of 9).
+2. *(DEFERRED — out of scope for this feature.)* WHEN the `cross_language`
+   category is run, THE category coverage SHALL be 100% (up from the baseline
+   90%). Gated on Corpus_Anchor_Accuracy and the Scorer_Coverage_Artefact.
+3. *(DEFERRED — out of scope for this feature.)* WHEN the `code_structure`
+   category is run, THE category coverage SHALL be 70% or higher (up from the
+   baseline 50%). Gated on Corpus_Anchor_Accuracy and Graph_Data_Granularity.
+4. *(DEFERRED — out of scope for this feature.)* THE overall benchmark coverage
+   SHALL reach 95% or higher (up from the baseline 90%). Gated on 7.2 and 7.3.
+5. THE graph P95 latency SHALL be 10,000ms or lower (reduced from the 2026-08-28
+   baseline of 17,190ms).
+
+#### Deferred: Coverage Targets (7.2, 7.3, 7.4)
+
+The 2026-08-31 run verified each uncovered case against live Neptune. Every
+remaining miss is a property of the corpus, the graph data, or the scorer — not of
+the query shape this feature changes. Under Requirement 5.2 (no output or API
+change) and Requirement 5.4 (no re-ingestion), none is reachable from the query
+layer:
+
+- **Corpus_Anchor_Accuracy — anchors that do not exist.**
+  `JGDAS_ATMOS_ANALYSIS` (`cl_006`) and `JGLOBAL_ARCHIVE` (`cl_010`) are absent
+  from the `gw` graph under every label; only `JGDAS_ATMOS_ANALYSIS_WDQMS`,
+  `JGLOBAL_ARCHIVE_TARS`, and `JGLOBAL_ARCHIVE_VRFY` exist. No traversal can
+  reach edges from a node that is not there; the fix is a corpus correction.
+- **Corpus_Anchor_Accuracy — anchors that resolve to the wrong node.**
+  `exglobal_forecast` (`cl_004`, `cs_001`) resolves to a `PythonModule` with 0
+  inbound edges; the edges live on `exglobal_forecast.sh` (`ShellScript`, out
+  104, in 2). `bash_utils` (`cs_006`) has the same split against `bash_utils.sh`.
+  The Anchor_Predicate behaves correctly — it is anchored on the wrong name.
+- **Graph_Data_Granularity — relationship type not traversed.** `cs_004`
+  (`Analysis`) and `cs_008` (`GFS`) expect `INHERITS` edges, but
+  `find_callers_callees` traverses `CALLS` only. Widening its edge set changes
+  the tool's output semantics, which Requirement 5.2 forbids under this spec.
+- **Graph_Data_Granularity — entity kind not modelled.** `cs_009` expects shell
+  *functions* (`prep_step`, `post_step`, `err_chk`). The shell ingester models
+  script→script and script→env relationships, not script→function. Closing this
+  requires an ingester change and re-ingestion, which Requirement 5.4 forbids.
+- **Scorer_Coverage_Artefact — zero-node responses scored as covered.** The
+  scorer substring-matches the whole response body, including the echoed anchor
+  name and the tool's own hint text ("Try a J-Job name (e.g., JGLOBAL_FORECAST),
+  script name (e.g., exglobal_forecast.sh), or Fortran program (e.g., gsi)").
+  Five `cross_language` cases (`cl_002`, `cl_006`, `cl_007`, `cl_009`, `cl_010`)
+  score covered on Zero_Node_Responses, and `cl_006` earns precision 1.00 partly
+  by matching `gsi` out of the hint. The same artefact inflated the 2026-08-28
+  baseline's reported 90%, so the baseline and the deferred targets are both
+  stated against an over-count.
+
+#### Observed Results (2026-08-31)
+
+Full 68-case run, corpus v1.1.0 on both sides. Record:
+`/tmp/bench_t11_2/results/2026-08-31T18-01-12.json`; baseline:
+`/tmp/benchmark_results/2026-08-28T21-05-19.json`.
+
+| Metric | Baseline (2026-08-28) | Observed (2026-08-31) |
+| :--- | :--- | :--- |
+| Graph-query timeouts | 9 | **0** |
+| Graph P95 latency | 17,190ms | **1,482ms** |
+| Graph max latency | 30,027ms | 11,198ms |
+| Total graph time | 599,137ms | 154,280ms |
+| Overall latency P95 | 58,853ms | 18,400ms |
+| Graph queries issued | 237 | 379 (0 failures) |
+| Precision@k | 0.7128 | 0.7308 |
+| Recall@k | 0.7100 | 0.7281 |
+| Tenant-scoped P95 (`gw_v17`, 8/8) | 59,236ms | 5,840ms |
+
+Per-requirement verdicts:
+
+- **7.1 — MET.** 0 timeouts against a bound of 3 or fewer.
+- **7.5 — MET.** Graph P95 1,482ms against a bound of 10,000ms.
+- **7.2 — NOT MET, deferred.** `cross_language` 90.0% as the harness scores it;
+  40.0% once Zero_Node_Responses are discounted.
+- **7.3 — NOT MET, deferred.** `code_structure` 50.0%, unchanged from baseline.
+- **7.4 — NOT MET, deferred.** Overall 90.0% as scored, at most 81.7% honest.
+
+No regressions: the covered/uncovered case set is byte-identical to the baseline;
+`semantic_search`, `architecture`, `ee2_compliance`, and `operational` all remain
+at 100%; all 8 tenant-scoped cases pass.
 
 ### Requirement 8: Observability of BFS Execution
 

@@ -21,6 +21,10 @@ from fastmcp import FastMCP
 
 from src.graphrag import BRIDGE_DECAY_OVERRIDE, GGSRTraversal
 from src.tools import code_analysis
+from src.tools._traversal_bounds import (
+    BFS_ACTIVATION_THRESHOLD,
+    FAN_OUT_THRESHOLD,
+)
 from tests.conftest import MockGraphDB, MockUnifiedDataAccess, MockVectorDB
 
 pytestmark = pytest.mark.unit
@@ -648,22 +652,35 @@ async def test_find_callers_callees_emits_cross_language_section_when_flag_true(
         "SOURCES|INVOKES|EXECUTES*1..",
         [{"callee": "exgfs.sh", "depth": 1}],
     )
-    # Cross-language cypher uses the expanded edge set.
+    # The cross-language section requests 5 hops, which exceeds the BFS
+    # activation depth of 3, so the strategy selector always routes it to
+    # the BFS_Walker (R3.2) — there is no single-query variable-length
+    # pattern to seed here. The walker resolves the anchor, then expands
+    # one relationship type per query, so the canned rows are keyed on the
+    # per-type expansion patterns instead of the six-type edge union.
+    # Rendering is shared by both strategies; BFS-path coverage of the
+    # callers/callees sections lands in task 5.5.
+    data.graph_db.add_response("RETURN id(n) AS nid", [{"nid": "anchor-1"}])
     data.graph_db.add_response(
-        "SOURCES|INVOKES|EXECUTES|CALLS|USES|DEFINES",
+        "MATCH (a)-[:EXECUTES]->(b)",
         [
             {
+                "nid": "gsi-1",
                 "name": "gsi",
+                "path": None,
                 "labels": ["FortranProgram"],
-                "hop": 2,
-                "relType": "EXECUTES",
-            },
+            }
+        ],
+    )
+    data.graph_db.add_response(
+        "MATCH (a)-[:DEFINES]->(b)",
+        [
             {
+                "nid": "pygfs-1",
                 "name": "pygfs.task.gfs_forecast",
+                "path": None,
                 "labels": ["PythonModule"],
-                "hop": 3,
-                "relType": "DEFINES",
-            },
+            }
         ],
     )
     # Seed-node lookup for cross_language_nodes helper.
@@ -696,6 +713,126 @@ async def test_find_callers_callees_omits_cross_language_by_default() -> None:
         mcp, "find_callers_callees", {"function_name": "foo"}
     )
     assert "Cross-Language Callees" not in text
+
+
+async def test_find_callers_callees_response_carries_bfs_header() -> None:
+    """R8.4 at the tool boundary: the walk that produced the response is
+    labelled, on line 2, after the title.
+
+    The cross-language section requests 5 hops, which exceeds the BFS
+    activation depth of 3, so switching it on routes this response through
+    the BFS_Walker (R3.2) — and the indicator is the only thing in the
+    response that says so. Asserted alongside the negative case below,
+    because R8.4 is a *pair* of claims: present when a walk ran, absent
+    when it did not.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["ShellScript"])
+    _seed_callers(data.graph_db, [])
+    _seed_call_chain(
+        data.graph_db,
+        "SOURCES|INVOKES|EXECUTES*1..",
+        [{"callee": "exgfs.sh", "depth": 1}],
+    )
+    data.graph_db.add_response("RETURN id(n) AS nid", [{"nid": "anchor-1"}])
+    data.graph_db.add_response(
+        "MATCH (a)-[:EXECUTES]->(b)",
+        [
+            {
+                "nid": "gsi-1",
+                "name": "gsi",
+                "path": None,
+                "labels": ["FortranProgram"],
+            }
+        ],
+    )
+    data.graph_db.add_response(
+        "RETURN n.name AS name, labels(n) AS labels LIMIT 1",
+        [{"name": "exglobal_forecast.sh", "labels": ["ShellScript"]}],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "find_callers_callees",
+        {"function_name": "exglobal_forecast.sh", "cross_language": True},
+    )
+    # The indicator sits immediately after the markdown title, which is
+    # itself preceded by the tenant attribution block, so the title is
+    # located rather than assumed to be line 0.
+    lines = text.splitlines()
+    title = next(i for i, ln in enumerate(lines) if ln.startswith("# "))
+    assert lines[title + 1].startswith("[optimized: BFS walker, ")
+    assert lines[title + 1].endswith("]")
+    assert lines[title + 2] == ""
+    # Anti-vacuity: the walk really did contribute the rendered content.
+    assert "`gsi`" in text
+
+
+async def test_find_callers_callees_single_query_has_no_bfs_header() -> None:
+    """The other half of R8.4: with ``cross_language`` off and a
+    low-degree anchor no walk runs, so the response carries no indicator
+    and is byte-identical to its pre-8.2 shape (R5.1)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_callers(data.graph_db, [{"name": "caller_one"}])
+    _seed_call_chain(
+        data.graph_db, "CALLS*1..", [{"callee": "callee_one"}]
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "find_callers_callees", {"function_name": "foo"}
+    )
+    assert "[optimized: BFS walker" not in text
+    lines = text.splitlines()
+    title = next(i for i, ln in enumerate(lines) if ln.startswith("# "))
+    assert lines[title] == "# Function Analysis: foo"
+    assert lines[title + 1] == ""
+
+
+async def test_trace_full_execution_chain_response_carries_bfs_header(
+) -> None:
+    """R8.4 at the tool boundary for the full chain.
+
+    This tool has no single-query arm to distinguish from: its
+    Cross_Language_Edge_Set is walked at depth 5, which exceeds the BFS
+    activation depth unconditionally (R3.2), so every response it renders
+    is walker-produced and carries the indicator.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    data.graph_db.add_response(
+        "RETURN n.name AS name, labels(n) AS labels LIMIT 1",
+        [{"name": "exglobal_forecast.sh", "labels": ["ShellScript"]}],
+    )
+    data.graph_db.add_response("RETURN id(n) AS nid", [{"nid": "anchor-1"}])
+    data.graph_db.add_response(
+        "MATCH (a)-[:EXECUTES]->(b)",
+        [
+            {
+                "nid": "gsi-1",
+                "name": "gsi",
+                "path": None,
+                "labels": ["FortranProgram"],
+            }
+        ],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "trace_full_execution_chain",
+        {"start": "exglobal_forecast.sh"},
+    )
+    lines = text.splitlines()
+    title = lines.index("# Full Execution Chain: exglobal_forecast.sh")
+    assert lines[title + 1].startswith("[optimized: BFS walker, ")
+    assert lines[title + 1].endswith("]")
+    assert lines[title + 2] == ""
+    assert "`gsi`" in text
 
 
 async def test_cross_language_rescore_applies_bridge_decay() -> None:
@@ -778,10 +915,14 @@ async def test_trace_full_execution_chain_renders_forward_tree() -> None:
         ],
     )
     mcp = _make_server(data=data)
+    # ``max_depth=3`` keeps this on the single-query variable-length
+    # path: the default (5) exceeds the BFS activation depth of 3, so it
+    # would route to the BFS_Walker instead (R3.2). Rendering is shared
+    # by both strategies; BFS-path coverage lands in task 5.5.
     text = await _call_tool(
         mcp,
         "trace_full_execution_chain",
-        {"start": "JGLOBAL_FORECAST"},
+        {"start": "JGLOBAL_FORECAST", "max_depth": 3},
     )
     assert "# Full Execution Chain: JGLOBAL_FORECAST" in text
     assert "### Forward Direction" in text
@@ -825,10 +966,16 @@ async def test_trace_full_execution_chain_languages_filter() -> None:
         ],
     )
     mcp = _make_server(data=data)
+    # ``max_depth=3`` pins the single-query path (see the rendering test
+    # above); the ``languages`` filter runs after either strategy.
     text = await _call_tool(
         mcp,
         "trace_full_execution_chain",
-        {"start": "JGLOBAL_FORECAST", "languages": ["fortran"]},
+        {
+            "start": "JGLOBAL_FORECAST",
+            "languages": ["fortran"],
+            "max_depth": 3,
+        },
     )
     assert "`gsi`" in text
     # Shell / Python nodes should be filtered out entirely.
@@ -836,12 +983,19 @@ async def test_trace_full_execution_chain_languages_filter() -> None:
     assert "pygfs.task.gfs_forecast" not in text
 
 
-async def test_trace_full_execution_chain_clamps_max_depth_to_full_chain_ceiling() -> None:
+async def test_trace_full_execution_chain_clamps_max_depth_to_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Asking for 99 hops is silently clamped to FULL_CHAIN_DEPTH (5).
 
     R2.2 reduces the cross-language full-chain ceiling from the historical
-    10 to a conservative 5; the emitted pattern must be ``*1..5`` and
-    never the old ``*1..10`` / ``*1..99``.
+    10 to a conservative 5, and the historical ``*1..10`` / ``*1..99``
+    pattern must never be emitted.
+
+    A 99-hop request exceeds the BFS activation depth of 3, so the
+    strategy selector routes it to the BFS_Walker rather than a
+    variable-length pattern; the clamp is therefore asserted on the depth
+    budget handed to the walker (R3.2).
     """
     from src.tools._traversal_bounds import FULL_CHAIN_DEPTH
 
@@ -851,7 +1005,7 @@ async def test_trace_full_execution_chain_clamps_max_depth_to_full_chain_ceiling
         "RETURN n.name AS name, labels(n) AS labels LIMIT 1",
         [{"name": "X", "labels": ["ShellScript"]}],
     )
-    # Track which depth the variable-length pattern was rendered with.
+    # Track any variable-length pattern that reaches the graph.
     captured: list[str] = []
     original_query = data.graph_db.query
 
@@ -862,15 +1016,24 @@ async def test_trace_full_execution_chain_clamps_max_depth_to_full_chain_ceiling
 
     data.graph_db.query = _recording_query  # type: ignore[method-assign]
 
+    # Capture the depth budget the walker was given.
+    walk_depths: list[int] = []
+    original_walk = code_analysis.bfs_walk
+
+    async def _recording_walk(graph_db: Any, **kwargs: Any):
+        walk_depths.append(kwargs["max_depth"])
+        return await original_walk(graph_db, **kwargs)
+
+    monkeypatch.setattr(code_analysis, "bfs_walk", _recording_walk)
+
     mcp = _make_server(data=data)
     await _call_tool(
         mcp,
         "trace_full_execution_chain",
         {"start": "X", "max_depth": 99},
     )
-    expected = f"*1..{FULL_CHAIN_DEPTH}"
-    # Confirm the rendered cypher used the capped depth, not 99 or 10.
-    assert any(expected in c for c in captured)
+    # The clamp applied: the walker got the ceiling, not 99 or 10.
+    assert walk_depths == [FULL_CHAIN_DEPTH]
     assert not any("*1..10" in c for c in captured)
     assert not any("*1..99" in c for c in captured)
 
@@ -1401,3 +1564,1018 @@ async def test_degree_probe_is_single_hop_never_variable_length() -> None:
     ]
     assert probe
     assert "*" not in probe[0]
+
+
+# ══ Task 2.5 — UNION ALL Decomposition of the _one_hop_neighbors anchor ═
+# Validates R1.1 (UNION ALL replaces the OR anchor predicate), R1.2 (the
+# decomposition is applied to this anchor), R1.3 (set-equivalent,
+# deduplicated output), R1.4 (scope predicate + Statement_Timeout carried).
+
+
+def _anchor_graph(rows: list[dict[str, Any]] | None = None) -> MockGraphDB:
+    """Fresh mock with the one-hop neighbor query seeded with ``rows``."""
+    graph = MockGraphDB()
+    graph.canned_rows = []
+    _seed_one_hop(graph, list(rows or []))
+    return graph
+
+
+def _sole_cypher(graph: MockGraphDB) -> str:
+    cyphers = [c[1][0] for c in graph.call_log if c[0] == "query"]
+    assert len(cyphers) == 1, f"expected exactly one query, got {len(cyphers)}"
+    return cyphers[0]
+
+
+def _v17_catalog() -> Any:
+    """Two-tenant catalog so a non-default label prefix is available."""
+    from src.config.tenants import CatalogDefaults, Tenant, TenantCatalog
+
+    gw = Tenant(
+        tenant_id="gw",
+        repo_ref="NOAA-EMC/global-workflow",
+        branch="develop",
+        index_prefix="",
+        label_prefix="",
+        workflow_subdir="global-workflow",
+        lifecycle="production",
+    )
+    gw_v17 = Tenant(
+        tenant_id="gw_v17",
+        repo_ref="NOAA-EMC/global-workflow",
+        branch="dev/gfs.v17",
+        index_prefix="gw_v17_",
+        label_prefix="GW_V17_",
+        workflow_subdir="global-workflow-v17",
+        lifecycle="staging",
+    )
+    return TenantCatalog(
+        schema_version=1,
+        defaults=CatalogDefaults(tenant_id="gw"),
+        tenants=(gw, gw_v17),
+    )
+
+
+async def test_one_hop_neighbors_emits_union_all_not_or() -> None:
+    """The anchor is matched by ``a.name`` on one branch and ``a.path`` on
+    another, joined by ``UNION ALL`` — never the index-defeating
+    disjunction (R1.1)."""
+    graph = _anchor_graph([{"name": "n1", "file": "n.py"}])
+    await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    cypher = _sole_cypher(graph)
+    assert cypher.count("UNION ALL") == 1
+    assert "WHERE a.name = $name" in cypher
+    assert "WHERE a.path = $name" in cypher
+    assert " OR " not in cypher
+    assert "a.name = $name OR a.path = $name" not in cypher
+
+
+async def test_one_hop_repeats_pattern_and_limit_per_branch() -> None:
+    """``LIMIT`` applies within each ``UNION ALL`` branch, so both branches
+    carry the match pattern and the server-side row cap (R1.2)."""
+    from src.tools._traversal_bounds import RESULT_LIMIT
+
+    graph = _anchor_graph([])
+    await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS|USES")
+    cypher = _sole_cypher(graph)
+    assert cypher.count("MATCH (a)-[r:CALLS|USES]->(x)") == 2
+    assert cypher.count(f"LIMIT {RESULT_LIMIT}") == 2
+    assert cypher.count("RETURN DISTINCT x.name AS name") == 2
+
+
+async def test_one_hop_neighbors_reverse_direction_on_both_branches() -> None:
+    """Direction is part of the shared pattern, so it is identical on both
+    branches."""
+    graph = _anchor_graph([])
+    await code_analysis._one_hop_neighbors(
+        graph, "setuprad", "CALLS", direction="reverse"
+    )
+    cypher = _sole_cypher(graph)
+    assert cypher.count("MATCH (x)-[r:CALLS]->(a)") == 2
+    assert "MATCH (a)-[r:CALLS]->(x)" not in cypher
+
+
+async def test_one_hop_neighbors_branches_are_symmetric() -> None:
+    """The two branches differ only in the anchored property — a compact
+    way of asserting every other clause (pattern, scope, return, limit) is
+    present on both (R1.4)."""
+    graph = _anchor_graph([])
+    await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    head, sep, tail = _sole_cypher(graph).partition(" UNION ALL ")
+    assert sep
+    assert head == tail.replace("a.path = $name", "a.name = $name")
+
+
+async def test_one_hop_neighbors_scopes_both_branches_for_v17_tenant() -> None:
+    """A non-default tenant's Label_Scope_Predicate appears on both
+    branches (R1.4, R4.4).
+
+    Task 7.2 added a *second* predicate per branch — on the expanded
+    neighbor ``x``, not just the anchor ``a`` (R4.2) — so the prefix now
+    appears four times, twice per branch. Asserting per-variable counts
+    instead of a bare total keeps the original "once per branch" intent
+    legible and pins which variable each predicate scopes.
+    """
+    from src.tenancy.resolver import tenant_scope
+
+    graph = _anchor_graph([])
+    async with tenant_scope("gw_v17", _v17_catalog()):
+        await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    cypher = _sole_cypher(graph)
+    assert cypher.count("labels(a)") == 2, "anchor scoped once per branch"
+    assert cypher.count("labels(x)") == 2, "neighbor scoped once per branch"
+    assert cypher.count("GW_V17_") == 4
+    head, _, tail = cypher.partition("UNION ALL")
+    for branch in (head, tail):
+        assert "labels(a)" in branch and "labels(x)" in branch
+
+
+async def test_one_hop_neighbors_dedupes_overlapping_branch_rows() -> None:
+    """``UNION ALL`` does not dedupe, so an anchor matched by both ``name``
+    and ``path`` contributes its neighbors twice; they are folded on
+    ``(name, file)`` here, which is set-equivalent to the ``DISTINCT`` the
+    ``OR`` form gave (R1.3)."""
+    graph = _anchor_graph(
+        [
+            # name branch
+            {"name": "alpha", "file": "a.py"},
+            {"name": "beta", "file": "b.py"},
+            # path branch — fully overlapping
+            {"name": "alpha", "file": "a.py"},
+            {"name": "beta", "file": "b.py"},
+        ]
+    )
+    rows = await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    assert [(r["name"], r["file"]) for r in rows] == [
+        ("alpha", "a.py"),
+        ("beta", "b.py"),
+    ]
+
+
+async def test_one_hop_neighbors_keeps_same_name_in_different_file() -> None:
+    """The dedup key is ``(name, file)``, so a same-named symbol in another
+    file is not a duplicate."""
+    graph = _anchor_graph(
+        [
+            {"name": "alpha", "file": "a.py"},
+            {"name": "alpha", "file": "other.py"},
+        ]
+    )
+    rows = await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    assert len(rows) == 2
+
+
+async def test_one_hop_neighbors_recaps_merged_rows_at_result_limit() -> None:
+    """Both branches can each return up to RESULT_LIMIT rows, so the cap is
+    re-applied across the merged set (R1.3)."""
+    from src.tools._traversal_bounds import RESULT_LIMIT
+
+    graph = _anchor_graph(
+        [
+            {"name": f"n{i:04d}", "file": f"f{i}.py"}
+            for i in range(RESULT_LIMIT * 2 + 5)
+        ]
+    )
+    rows = await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    assert len(rows) == RESULT_LIMIT
+
+
+async def test_one_hop_neighbors_drops_unnamed_rows() -> None:
+    graph = _anchor_graph(
+        [
+            {"name": "keep", "file": "k.py"},
+            {"name": "", "file": "e.py"},
+            {"name": None, "file": "n.py"},
+            {"file": "missing.py"},
+        ]
+    )
+    rows = await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    assert [r["name"] for r in rows] == ["keep"]
+
+
+async def test_one_hop_neighbors_passes_tenant_and_timeout() -> None:
+    """The Statement_Timeout and tenant object are carried on the
+    decomposed query exactly as before (R1.4)."""
+    from src.tenancy.resolver import tenant_scope
+    from src.tools._traversal_bounds import TIMEOUT_S
+
+    graph = _anchor_graph([])
+    async with tenant_scope("gw_v17", _v17_catalog()) as ctx:
+        await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+    call = [c for c in graph.call_log if c[0] == "query"][0]
+    assert call[2] == {"name": "setuprad"}
+    assert call[3]["timeout"] == TIMEOUT_S
+    assert call[3]["tenant"] is ctx.tenant
+
+
+async def test_one_hop_neighbors_timeout_returns_empty_not_raise() -> None:
+    """A statement-timeout still degrades to ``[]`` so the Degraded_Result
+    render never raises (R4.4) — unchanged by the decomposition."""
+    from src.data.neptune_adapter import NeptuneAdapterError
+
+    graph = _anchor_graph([{"name": "n1", "file": "n.py"}])
+    graph.add_raise(
+        "UNION ALL",
+        NeptuneAdapterError("query exceeded 30.0s statement timeout"),
+    )
+    assert await code_analysis._one_hop_neighbors(
+        graph, "setuprad", "CALLS"
+    ) == []
+
+
+async def test_one_hop_neighbors_non_timeout_error_still_raises() -> None:
+    """Only timeouts are swallowed; a real fault surfaces to the caller."""
+    graph = _anchor_graph([])
+    graph.add_raise("UNION ALL", RuntimeError("boom"))
+    with pytest.raises(RuntimeError, match="boom"):
+        await code_analysis._one_hop_neighbors(graph, "setuprad", "CALLS")
+
+
+async def test_degraded_result_anchor_query_uses_union_all() -> None:
+    """End-to-end through a Hub_Node Degraded_Result: the one-hop anchor
+    query the tool emits is decomposed, and duplicated branch rows render
+    once (R1.1, R1.3)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, 512)
+    _seed_one_hop(
+        data.graph_db,
+        [
+            {"name": "callee_a", "file": "a.py"},
+            {"name": "callee_a", "file": "a.py"},
+        ],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "find_callers_callees", {"function_name": "hub_fn"}
+    )
+    assert not text.startswith("[ERROR]")
+    one_hop = [
+        q
+        for q in _graph_cyphers(data)
+        if "RETURN DISTINCT x.name AS name" in q
+    ]
+    assert one_hop
+    for q in one_hop:
+        assert "UNION ALL" in q
+        assert "a.name = $name OR" not in q
+    assert text.count("callee_a") == 1
+
+
+# ══ Task 2.7 — UNION ALL Decomposition of the _cross_language_seed_row ══
+# The hop-0 Anchor_Node lookup shared by both cross-language traversal
+# strategies. Validates R1.1 (UNION ALL replaces the OR anchor
+# predicate), R1.2 (applied to this anchor), R1.3 (set-equivalent, one
+# seed row even when both branches match), R1.4 (scope predicate on both
+# branches + Statement_Timeout carried).
+
+
+_SEED_FRAGMENT = "RETURN n.name AS name, labels(n) AS labels LIMIT 1"
+
+
+def _seed_row_graph(rows: list[dict[str, Any]] | None = None) -> MockGraphDB:
+    """Fresh mock with the cross-language seed lookup seeded."""
+    graph = MockGraphDB()
+    graph.canned_rows = []
+    graph.add_response(
+        _SEED_FRAGMENT,
+        [{"name": "exglobal_forecast.sh", "labels": ["ShellScript"]}]
+        if rows is None
+        else list(rows),
+    )
+    return graph
+
+
+async def test_cross_language_seed_row_emits_union_all_not_or() -> None:
+    """The seed anchor is matched by ``n.name`` on one branch and
+    ``n.path`` on another, joined by ``UNION ALL`` — never the
+    index-defeating disjunction (R1.1)."""
+    graph = _seed_row_graph()
+    await code_analysis._cross_language_seed_row(
+        graph, "exglobal_forecast.sh", "forward"
+    )
+    cyphers = [c[1][0] for c in graph.call_log if c[0] == "query"]
+    assert len(cyphers) == 1
+    cypher = cyphers[0]
+    assert cypher.count("UNION ALL") == 1
+    assert "MATCH (n) WHERE n.name = $name" in cypher
+    assert "MATCH (n) WHERE n.path = $name" in cypher
+    assert " OR " not in cypher
+    assert "n.name = $name OR n.path = $name" not in cypher
+
+
+async def test_cross_language_seed_row_limits_each_branch() -> None:
+    """``LIMIT 1`` sits inside each branch, so neither branch can return
+    an unbounded row set (the pre-decomposition bound, per branch)."""
+    graph = _seed_row_graph()
+    await code_analysis._cross_language_seed_row(graph, "anchor", "forward")
+    cypher = [c[1][0] for c in graph.call_log if c[0] == "query"][0]
+    head, sep, tail = cypher.partition("UNION ALL")
+    assert sep
+    assert "LIMIT 1" in head
+    assert "LIMIT 1" in tail
+    assert cypher.count("LIMIT 1") == 2
+
+
+async def test_cross_language_seed_row_branches_are_identical_but_property(
+) -> None:
+    """The two branches differ only in the anchored property, so the
+    decomposition is set-equivalent to the ``OR`` form (R1.3)."""
+    graph = _seed_row_graph()
+    await code_analysis._cross_language_seed_row(graph, "anchor", "forward")
+    cypher = [c[1][0] for c in graph.call_log if c[0] == "query"][0]
+    head, _, tail = cypher.partition("UNION ALL")
+    assert head.strip() == tail.replace("n.path =", "n.name =").strip()
+
+
+async def test_cross_language_seed_row_dual_match_yields_one_seed() -> None:
+    """A node whose ``name`` AND ``path`` both equal the anchor is
+    returned by *both* branches, because ``UNION ALL`` does not dedupe.
+    Exactly one hop-0 seed row must reach the caller — a doubled seed
+    would render the anchor twice at the head of the chain (R1.3)."""
+    graph = _seed_row_graph(
+        [
+            {"name": "exglobal_forecast.sh", "labels": ["ShellScript"]},
+            {"name": "exglobal_forecast.sh", "labels": ["ShellScript"]},
+        ]
+    )
+    rows = await code_analysis._cross_language_seed_row(
+        graph, "exglobal_forecast.sh", "forward"
+    )
+    assert len(rows) == 1
+    assert rows[0]["name"] == "exglobal_forecast.sh"
+    assert rows[0]["hop"] == 0
+    assert rows[0]["language"] == "shell"
+
+
+async def test_cross_language_seed_row_prefers_the_name_branch() -> None:
+    """With a match on each branch the ``name`` branch's row wins, which
+    makes the seed deterministic where the ``OR`` form left the choice to
+    the planner."""
+    graph = _seed_row_graph(
+        [
+            {"name": "by_name", "labels": ["ShellScript"]},
+            {"name": "by_path", "labels": ["FortranProgram"]},
+        ]
+    )
+    rows = await code_analysis._cross_language_seed_row(
+        graph, "anchor", "reverse"
+    )
+    assert len(rows) == 1
+    assert rows[0]["name"] == "by_name"
+    assert rows[0]["direction"] == "reverse"
+
+
+async def test_cross_language_seed_row_no_match_returns_empty() -> None:
+    """An unresolvable anchor still yields ``[]`` (unchanged contract)."""
+    graph = _seed_row_graph([])
+    assert await code_analysis._cross_language_seed_row(
+        graph, "nowhere", "forward"
+    ) == []
+
+
+async def test_cross_language_seed_row_carries_timeout_and_params() -> None:
+    """The Statement_Timeout is carried on the decomposed query and the
+    anchor stays a bound parameter (R1.4)."""
+    from src.tools._traversal_bounds import TIMEOUT_S
+
+    graph = _seed_row_graph()
+    await code_analysis._cross_language_seed_row(graph, "anchor", "forward")
+    call = [c for c in graph.call_log if c[0] == "query"][0]
+    assert call[2] == {"name": "anchor"}
+    assert call[3]["timeout"] == TIMEOUT_S
+
+
+async def test_cross_language_seed_row_scopes_both_branches_for_tenant(
+) -> None:
+    """A non-default tenant's Label_Scope_Predicate appears on *both*
+    branches, so the seed lookup is scoped exactly as before (R1.4)."""
+    from src.tenancy.resolver import tenant_scope
+
+    catalog = _v17_catalog()
+    graph = _seed_row_graph()
+    async with tenant_scope("gw_v17", catalog):
+        await code_analysis._cross_language_seed_row(
+            graph, "anchor", "forward"
+        )
+    cypher = [c[1][0] for c in graph.call_log if c[0] == "query"][0]
+    assert cypher.count("GW_V17_") == 2
+    # ``labels(n)`` also appears in each branch's projection, so count the
+    # predicate's own comprehension rather than the bare call.
+    assert cypher.count("size([__lbl IN labels(n)") == 2
+    head, _, tail = cypher.partition("UNION ALL")
+    assert "GW_V17_" in head
+    assert "GW_V17_" in tail
+
+
+async def test_cross_language_seed_row_propagates_query_errors() -> None:
+    """Errors are not absorbed here: the BFS fallback distinguishes a
+    timed-out seed lookup from an empty one, so it must still raise."""
+    graph = _seed_row_graph()
+    graph.add_raise(_SEED_FRAGMENT, RuntimeError("boom"))
+    with pytest.raises(RuntimeError, match="boom"):
+        await code_analysis._cross_language_seed_row(
+            graph, "anchor", "forward"
+        )
+
+
+async def test_trace_full_execution_chain_seed_lookup_is_decomposed(
+) -> None:
+    """End-to-end: the seed lookup the tool emits is decomposed, and a
+    dual-match anchor renders once at hop 0 (R1.1, R1.2, R1.3)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    data.graph_db.add_response(
+        _SEED_FRAGMENT,
+        [
+            {"name": "JGLOBAL_FORECAST", "labels": ["ShellScript"]},
+            {"name": "JGLOBAL_FORECAST", "labels": ["ShellScript"]},
+        ],
+    )
+    data.graph_db.add_response(
+        "SOURCES|INVOKES|EXECUTES|CALLS|USES|DEFINES",
+        [
+            {
+                "name": "exglobal_forecast.sh",
+                "labels": ["ShellScript"],
+                "hop": 1,
+                "relType": "SOURCES",
+            }
+        ],
+    )
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "trace_full_execution_chain",
+        {"start": "JGLOBAL_FORECAST", "max_depth": 3},
+    )
+    assert not text.startswith("[ERROR]")
+    seed = [q for q in _graph_cyphers(data) if _SEED_FRAGMENT in q]
+    assert seed
+    for q in seed:
+        assert "UNION ALL" in q
+        assert "n.name = $name OR" not in q
+    # One seed entry, not two, despite both branches matching.
+    assert text.count("[Shell] `JGLOBAL_FORECAST`") == 1
+
+# ══ Task 5.5 — tool-level strategy routing matrix ══════════════════════
+# The pure selector `_use_bfs` is already covered exhaustively (Property 5
+# in tests/properties/test_bfs_walker_props.py over the full int range,
+# plus the truth-table grid in tests/unit/test_traversal_bounds.py), and
+# the fallback chain end-to-end (Property 7). What neither reaches is the
+# *routing* decision at the tool boundary: that a degree in the BFS band
+# actually reaches `bfs_walk`, and that a hub degree still degrades,
+# per-tool. That is what this section asserts.
+#
+# Routing is observed through the EMITTED QUERIES rather than by
+# monkeypatching `bfs_walk`, because the query shapes are what reach
+# Neptune and they are unambiguous here:
+#
+#   walker expansion  ``... WHERE id(a) IN $ids ... RETURN DISTINCT
+#                     id(b) AS nid ...``      (`_expand_one_hop`)
+#   single query      ``[:A|B|C*1..N]``       (variable-length pattern)
+#   Degraded_Result   ``RETURN DISTINCT x.name AS name, coalesce(...)``
+#                     plus the "Highly connected node" notice
+#
+# Validates R3.1 (low degree + shallow keeps the single query), R3.2
+# (degree >= BFS_ACTIVATION_THRESHOLD, or depth > 3, selects the walk),
+# R3.3 / R5.5 (single-query timeout -> BFS attempt -> Degraded_Result),
+# R5.1 (the single-query path is unchanged where it is kept).
+
+
+#: Degrees that land in each arm of the strategy selector. Derived from
+#: the live tunables rather than hardcoded, so an env override
+#: (MCP_BFS_ACTIVATION_THRESHOLD / MCP_TRAVERSAL_FANOUT_THRESHOLD) moves
+#: these tests with the implementation (R6.1, R6.2).
+_DEG_SINGLE = BFS_ACTIVATION_THRESHOLD - 1
+_DEG_BFS = BFS_ACTIVATION_THRESHOLD
+#: The last degree that is still NOT a hub: `is_hub` is a strict
+#: ``degree > threshold``, so FAN_OUT_THRESHOLD itself walks.
+_DEG_BFS_TOP = FAN_OUT_THRESHOLD
+_DEG_HUB = FAN_OUT_THRESHOLD + 1
+
+#: Projection unique to `_bfs_walker._expand_one_hop`.
+_WALK_EXPANSION = "RETURN DISTINCT id(b) AS nid"
+#: The walker's own anchor resolution (``var="n"``). The degree probe
+#: resolves with ``var="a"``, so this fragment cannot be confused with it.
+_WALK_ANCHOR = "RETURN id(n) AS nid"
+
+
+def _walk_expansions(data: MockUnifiedDataAccess) -> list[str]:
+    """Cyphers that only `_expand_one_hop` emits (i.e. the walk ran)."""
+    return [q for q in _graph_cyphers(data) if _WALK_EXPANSION in q]
+
+
+def _varlen_queries(data: MockUnifiedDataAccess) -> list[str]:
+    """Cyphers carrying a variable-length pattern (the single query)."""
+    return [q for q in _graph_cyphers(data) if "*1.." in q]
+
+
+def _seed_walk_anchor(graph: MockGraphDB, nid: str = "anchor-1") -> None:
+    """Seed the walker's UNION ALL anchor resolution with one id."""
+    graph.add_response(_WALK_ANCHOR, [{"nid": nid}])
+
+
+def _seed_expansion(
+    graph: MockGraphDB,
+    edge_type: str,
+    rows: list[dict[str, Any]],
+    direction: str = "forward",
+) -> None:
+    """Seed one per-type single-hop walker expansion with ``rows``."""
+    if direction == "reverse":
+        pattern = f"MATCH (b)-[:{edge_type}]->(a)"
+    else:
+        pattern = f"MATCH (a)-[:{edge_type}]->(b)"
+    graph.add_response(pattern, rows)
+
+
+def _node_row(nid: str, name: str, label: str) -> dict[str, Any]:
+    """A walker expansion row in `_expand_one_hop`'s projection shape."""
+    return {"nid": nid, "name": name, "path": None, "labels": [label]}
+
+
+# ── find_callers_callees (one walk per direction, plus cross_language) ──
+
+
+async def test_find_callers_callees_below_threshold_uses_single_query(
+) -> None:
+    """degree < BFS_ACTIVATION_THRESHOLD and depth 1 -> the historical
+    single-query pair, and no walk is attempted (R3.1, R5.1).
+
+    Both sections of this tool are direct-relationship sections, so
+    `_CALLERS_CALLEES_DEPTH` is 1 and the depth arm of the selector can
+    never fire here — the measured degree alone decides.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    _seed_callers(data.graph_db, [{"name": "caller_one", "file": "c.py"}])
+    _seed_call_chain(
+        data.graph_db, "CALLS*1..", [{"callee": "callee_one", "depth": 1}]
+    )
+    # Seeded but unreachable: if the walk ran anyway, these rows would
+    # surface and the assertions below would catch it.
+    _seed_walk_anchor(data.graph_db)
+    _seed_expansion(
+        data.graph_db, "CALLS", [_node_row("x1", "walked_node", "Function")]
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "find_callers_callees", {"function_name": "foo"}
+    )
+    assert _walk_expansions(data) == []
+    assert _varlen_queries(data), "expected the single-query expansion"
+    assert any("(caller)-[:CALLS]->(f)" in q for q in _graph_cyphers(data))
+    assert "[optimized: BFS walker" not in text
+    assert "`caller_one`" in text
+    assert "`callee_one`" in text
+    assert "walked_node" not in text
+
+
+async def test_find_callers_callees_at_threshold_routes_to_walker() -> None:
+    """degree == BFS_ACTIVATION_THRESHOLD -> the walk runs, and the
+    single-query variable-length pattern is not emitted at all (R3.2).
+
+    The exact boundary is pinned rather than a comfortable mid-band value,
+    because ``>=`` versus ``>`` in the selector is the one thing a
+    mid-band degree cannot distinguish.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_BFS)
+    _seed_walk_anchor(data.graph_db)
+    _seed_expansion(
+        data.graph_db,
+        "CALLS",
+        [_node_row("callee-1", "walked_callee", "Function")],
+        "forward",
+    )
+    _seed_expansion(
+        data.graph_db,
+        "CALLS",
+        [_node_row("caller-1", "walked_caller", "Function")],
+        "reverse",
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "find_callers_callees", {"function_name": "foo"}
+    )
+    assert _walk_expansions(data), "expected the BFS walker to expand"
+    assert _varlen_queries(data) == []
+    # Anti-vacuity: the walk's rows are what the response renders.
+    assert "`walked_caller`" in text
+    assert "`walked_callee`" in text
+    assert "[optimized: BFS walker" in text
+
+
+async def test_find_callers_callees_walks_once_per_direction_per_type(
+) -> None:
+    """The two sections are two walks — one per direction — over the same
+    edge set, so a shell anchor's three-type set yields exactly six
+    single-hop expansions and no interleaved pattern (R2.2, R3.2)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["ShellScript"])
+    _seed_degree(data.graph_db, _DEG_BFS)
+    _seed_walk_anchor(data.graph_db)
+
+    mcp = _make_server(data=data)
+    await _call_tool(
+        mcp,
+        "find_callers_callees",
+        {"function_name": "exglobal_forecast.sh"},
+    )
+    emitted = set()
+    for q in _walk_expansions(data):
+        for edge in ("SOURCES", "INVOKES", "EXECUTES"):
+            if f"MATCH (a)-[:{edge}]->(b)" in q:
+                emitted.add((edge, "forward"))
+            if f"MATCH (b)-[:{edge}]->(a)" in q:
+                emitted.add((edge, "reverse"))
+    assert emitted == {
+        (edge, direction)
+        for edge in ("SOURCES", "INVOKES", "EXECUTES")
+        for direction in ("forward", "reverse")
+    }
+    # Never the three types inside one variable-length pattern.
+    assert _varlen_queries(data) == []
+
+
+async def test_find_callers_callees_fanout_threshold_still_walks() -> None:
+    """degree == FAN_OUT_THRESHOLD is the last non-hub degree, so it walks
+    rather than degrading — `is_hub` is a strict ``>`` (R1.2, R3.2)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_BFS_TOP)
+    _seed_walk_anchor(data.graph_db)
+    _seed_expansion(
+        data.graph_db,
+        "CALLS",
+        [_node_row("callee-1", "walked_callee", "Function")],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "find_callers_callees", {"function_name": "borderline"}
+    )
+    assert _walk_expansions(data)
+    assert "Highly connected node" not in text
+    assert "`walked_callee`" in text
+
+
+async def test_find_callers_callees_hub_degrades_without_any_walk() -> None:
+    """A hub degree short-circuits to the Degraded_Result *before* the
+    strategy selector, so no walk is attempted (R3.1 ordering, R5.1).
+
+    The guard order is hub -> BFS -> single-query: a node with more than
+    FAN_OUT_THRESHOLD edges gets no walk, because the walker's per-type
+    Fan_Out_Limit is FAN_OUT_THRESHOLD too and would still be expensive.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_HUB)
+    _seed_one_hop(data.graph_db, [{"name": "neighbor_a", "file": "n.py"}])
+    _seed_walk_anchor(data.graph_db)
+    _seed_expansion(
+        data.graph_db, "CALLS", [_node_row("x1", "walked_node", "Function")]
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "find_callers_callees", {"function_name": "hub_fn"}
+    )
+    assert "Highly connected node" in text
+    assert str(_DEG_HUB) in text
+    assert "`neighbor_a`" in text
+    assert _walk_expansions(data) == []
+    assert _varlen_queries(data) == []
+    assert "[optimized: BFS walker" not in text
+    assert "walked_node" not in text
+
+
+async def test_find_callers_callees_cross_language_walks_below_threshold(
+) -> None:
+    """The ``cross_language`` section is a depth-5 expansion, so its own
+    routing is depth-driven: it walks even when the anchor's degree keeps
+    the callers/callees sections on the single query (R3.2).
+
+    The two strategies therefore coexist inside one response. ``DEFINES``
+    is in the Cross_Language_Edge_Set but not in a function anchor's
+    call-chain edge set (``CALLS``), so a ``DEFINES`` expansion can only
+    have come from the cross-language walk.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    _seed_callers(data.graph_db, [])
+    _seed_call_chain(data.graph_db, "CALLS*1..", [])
+    _seed_walk_anchor(data.graph_db)
+    data.graph_db.add_response(
+        _SEED_FRAGMENT, [{"name": "foo", "labels": ["Function"]}]
+    )
+    _seed_expansion(
+        data.graph_db,
+        "DEFINES",
+        [_node_row("py-1", "pygfs.task.gfs_forecast", "PythonModule")],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "find_callers_callees",
+        {"function_name": "foo", "cross_language": True},
+    )
+    assert any("[:DEFINES]->(b)" in q for q in _walk_expansions(data))
+    # The callers/callees sections kept their single queries.
+    assert any("CALLS*1.." in q for q in _varlen_queries(data))
+    assert "## Cross-Language Callees" in text
+    assert "`pygfs.task.gfs_forecast`" in text
+
+
+# ── trace_full_execution_chain (depth 5 -> always walker by default) ────
+
+
+@pytest.mark.parametrize(
+    "degree", [_DEG_SINGLE, _DEG_BFS, _DEG_BFS_TOP], ids=[
+        "below-activation", "at-activation", "at-fanout-ceiling",
+    ]
+)
+async def test_trace_full_chain_default_depth_always_walks(
+    degree: int,
+) -> None:
+    """At the tool's default ``max_depth`` of 5 the depth arm of the
+    selector fires unconditionally (5 > 3), so *every* non-hub degree is
+    walker-produced — there is no single-query arm to compare against at
+    this depth (R3.2).
+
+    Parametrized across the whole non-hub range precisely to show the
+    measured degree cannot change the outcome here.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, degree)
+    _seed_walk_anchor(data.graph_db)
+    data.graph_db.add_response(
+        _SEED_FRAGMENT,
+        [{"name": "exglobal_forecast.sh", "labels": ["ShellScript"]}],
+    )
+    _seed_expansion(
+        data.graph_db,
+        "EXECUTES",
+        [_node_row("gsi-1", "gsi", "FortranProgram")],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "trace_full_execution_chain", {"start": "exglobal_forecast.sh"}
+    )
+    assert _walk_expansions(data)
+    assert _varlen_queries(data) == []
+    assert "`gsi`" in text
+    assert "[optimized: BFS walker" in text
+
+
+async def test_trace_full_chain_shallow_low_degree_keeps_single_query(
+) -> None:
+    """The one place this tool does keep the single query: an explicit
+    ``max_depth`` of 3 with a below-threshold degree satisfies *both*
+    negative arms of the selector (R3.1, R5.1)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    _seed_walk_anchor(data.graph_db)
+    data.graph_db.add_response(
+        _SEED_FRAGMENT,
+        [{"name": "JGLOBAL_FORECAST", "labels": ["ShellScript"]}],
+    )
+    data.graph_db.add_response(
+        "SOURCES|INVOKES|EXECUTES|CALLS|USES|DEFINES",
+        [
+            {
+                "name": "exglobal_forecast.sh",
+                "labels": ["ShellScript"],
+                "hop": 1,
+                "relType": "SOURCES",
+            }
+        ],
+    )
+    _seed_expansion(
+        data.graph_db,
+        "SOURCES",
+        [_node_row("w-1", "walked_node", "ShellScript")],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "trace_full_execution_chain",
+        {"start": "JGLOBAL_FORECAST", "max_depth": 3},
+    )
+    assert _walk_expansions(data) == []
+    assert _varlen_queries(data)
+    assert "`exglobal_forecast.sh`" in text
+    assert "walked_node" not in text
+    assert "[optimized: BFS walker" not in text
+
+
+async def test_trace_full_chain_depth_four_walks_despite_low_degree(
+) -> None:
+    """One hop deeper flips the strategy with the degree held constant:
+    ``max_depth=4`` exceeds the activation depth, so the walk is selected
+    regardless of how low the measured degree is (R3.2).
+
+    Paired with the ``max_depth=3`` case above, this isolates the depth
+    arm — the two tests differ only in the requested depth.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    _seed_walk_anchor(data.graph_db)
+    data.graph_db.add_response(
+        _SEED_FRAGMENT,
+        [{"name": "JGLOBAL_FORECAST", "labels": ["ShellScript"]}],
+    )
+    data.graph_db.add_response(
+        "SOURCES|INVOKES|EXECUTES|CALLS|USES|DEFINES",
+        [
+            {
+                "name": "single_query_node",
+                "labels": ["ShellScript"],
+                "hop": 1,
+                "relType": "SOURCES",
+            }
+        ],
+    )
+    _seed_expansion(
+        data.graph_db,
+        "SOURCES",
+        [_node_row("w-1", "walked_node", "ShellScript")],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "trace_full_execution_chain",
+        {"start": "JGLOBAL_FORECAST", "max_depth": 4},
+    )
+    assert _walk_expansions(data)
+    assert _varlen_queries(data) == []
+    assert "`walked_node`" in text
+    assert "single_query_node" not in text
+
+
+async def test_trace_full_chain_hub_degrades_without_any_walk() -> None:
+    """A hub anchor degrades before the selector runs, so neither the
+    walk nor the variable-length pattern is emitted — unchanged from
+    ``bounded-graph-traversal`` [8.36.0] (R5.1)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_HUB)
+    _seed_one_hop(data.graph_db, [{"name": "exgfs.sh", "file": "x.sh"}])
+    _seed_walk_anchor(data.graph_db)
+    _seed_expansion(
+        data.graph_db,
+        "EXECUTES",
+        [_node_row("gsi-1", "walked_node", "FortranProgram")],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp, "trace_full_execution_chain", {"start": "JGLOBAL_FORECAST"}
+    )
+    assert "Highly connected node" in text
+    assert str(_DEG_HUB) in text
+    assert _walk_expansions(data) == []
+    assert _varlen_queries(data) == []
+    assert "walked_node" not in text
+
+
+# ── trace_execution_path (walker reachable only via the fallback) ───────
+
+
+async def test_trace_execution_path_bfs_band_degree_keeps_single_query(
+) -> None:
+    """This tool has no strategy selector: a degree squarely inside the
+    BFS band still issues the single variable-length pattern (R5.1).
+
+    Task 5.4 wired only the *timeout fallback* here, deliberately — the
+    walk is the retry, not the first choice. Asserted so a future change
+    that adds a selector to this site has to update the test that records
+    the current contract.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_BFS)
+    _seed_call_chain(
+        data.graph_db, "CALLS*1..", [{"callee": "alpha", "depth": 1}]
+    )
+    _seed_walk_anchor(data.graph_db)
+    _seed_expansion(
+        data.graph_db, "CALLS", [_node_row("x1", "walked_node", "Function")]
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "trace_execution_path",
+        {"function_name": "foo", "include_weights": False},
+    )
+    assert _walk_expansions(data) == []
+    assert any("CALLS*1.." in q for q in _varlen_queries(data))
+    assert "`alpha`" in text
+    assert "walked_node" not in text
+    assert "[optimized: BFS walker" not in text
+
+
+async def test_trace_execution_path_timeout_falls_back_to_walker() -> None:
+    """Link 2 of the fallback chain, at the tool boundary: the single
+    query times out, the walk is attempted, and its rows answer the
+    request (R3.3, R5.5).
+
+    Property 7 covers the chain's terminal shapes over injected timeouts;
+    what is asserted here is that the middle link really is a *walk* — the
+    per-type single-hop expansion query reaches the graph — and that the
+    response is labelled as salvaged rather than presented as complete.
+    """
+    from src.data.neptune_adapter import NeptuneAdapterError
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    data.graph_db.add_raise(
+        "CALLS*1..",
+        NeptuneAdapterError("query exceeded 30.0s statement timeout"),
+    )
+    _seed_walk_anchor(data.graph_db)
+    _seed_expansion(
+        data.graph_db,
+        "CALLS",
+        [_node_row("s-1", "salvaged_callee", "Function")],
+    )
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "trace_execution_path",
+        {"function_name": "foo", "include_weights": False},
+    )
+    assert not text.startswith("[ERROR]")
+    # The single query was attempted first, then the walk retried it.
+    assert any("CALLS*1.." in q for q in _graph_cyphers(data))
+    assert _walk_expansions(data)
+    assert "`salvaged_callee`" in text
+    assert "[optimized: BFS walker" in text
+    # Not presented as an exhaustive answer.
+    assert "statement timeout" in text
+    # The Degraded_Result's one-hop probe was never needed.
+    assert not any(
+        "RETURN DISTINCT x.name AS name" in q for q in _graph_cyphers(data)
+    )
+
+
+async def test_trace_execution_path_timeout_then_empty_walk_degrades(
+) -> None:
+    """Link 3 of the fallback chain: the walk is attempted and salvages
+    nothing, so the tool falls through to the one-hop Degraded_Result
+    rather than raising or rendering an empty chain (R3.3, R5.5)."""
+    from src.data.neptune_adapter import NeptuneAdapterError
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_entity_type(data.graph_db, ["Function"])
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    data.graph_db.add_raise(
+        "CALLS*1..",
+        NeptuneAdapterError("query exceeded 30.0s statement timeout"),
+    )
+    _seed_walk_anchor(data.graph_db)
+    # The walk resolves its anchor but the hop finds nothing.
+    _seed_expansion(data.graph_db, "CALLS", [])
+    _seed_one_hop(data.graph_db, [{"name": "neighbor_a", "file": "n.py"}])
+
+    mcp = _make_server(data=data)
+    text = await _call_tool(
+        mcp,
+        "trace_execution_path",
+        {"function_name": "foo", "include_weights": False},
+    )
+    assert not text.startswith("[ERROR]")
+    # The walk really was attempted before degrading.
+    assert any(_WALK_ANCHOR in q for q in _graph_cyphers(data))
+    assert _walk_expansions(data)
+    # ... and the Degraded_Result is what the caller got.
+    assert "statement timeout" in text
+    assert "Direct Neighbors" in text
+    assert "`neighbor_a`" in text
+    assert "[optimized: BFS walker" not in text
