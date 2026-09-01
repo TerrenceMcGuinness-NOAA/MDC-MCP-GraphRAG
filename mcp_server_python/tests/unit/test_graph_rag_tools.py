@@ -84,8 +84,14 @@ def _seed_node_lookup(graph: MockGraphDB, rows: list[dict[str, Any]]) -> None:
 
 
 def _seed_fuzzy_lookup(graph: MockGraphDB, rows: list[dict[str, Any]]) -> None:
+    # Phase 83: the fuzzy fallback predicate is backend-aware — the Neptune
+    # (aws) form is ``toLower(toString(n.name)) CONTAINS toLower($name)`` and
+    # the Neo4j (cots) form is
+    # ``n.name IS :: STRING AND toLower(n.name) CONTAINS toLower($name)``.
+    # Key the mock on the substring common to both so the seed matches
+    # regardless of the ambient DB_BACKEND.
     graph.add_response(
-        "toLower(n.name) CONTAINS toLower($name)",
+        "CONTAINS toLower($name)",
         rows,
     )
 

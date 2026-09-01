@@ -85,6 +85,7 @@ from src.manifest import (
     SourceType,
 )
 from src.tenancy.resolver import get_current_tenant_or_none
+from src.graphrag.ggsr_traversal import _name_contains_predicate
 from src.tools._common import (
     _is_missing_index_exc,
     _missing_index_skip,
@@ -811,9 +812,13 @@ async def _tool_explain_with_context(
     graph_rows: list[dict[str, Any]] = []
     graph_db = getattr(data, "graph_db", None)
     if graph_db is not None:
+        # Backend-aware name predicate (Phase 83): the ``IS :: STRING``
+        # guard on the Neo4j path prevents ``CypherTypeError`` on the
+        # mixed-type ``name`` property; the Neptune path keeps
+        # ``toString()`` unchanged.
         graph_cypher = (
             "MATCH (n) "
-            "WHERE toLower(toString(n.name)) CONTAINS toLower($topic) "
+            f"WHERE {_name_contains_predicate('n', 'topic')} "
             "RETURN n.name AS name, labels(n) AS labels, "
             "n.path AS path LIMIT $limit"
         )

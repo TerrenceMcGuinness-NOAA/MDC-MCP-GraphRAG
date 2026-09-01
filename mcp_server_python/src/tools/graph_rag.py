@@ -93,6 +93,7 @@ from src.graphrag import (
     GGSRTraversal,
     GraphGuidedRetrieval,
 )
+from src.graphrag.ggsr_traversal import _name_contains_predicate
 from src.sdd.session_manager import SessionError, SessionManager
 from src.tenancy.resolver import (
     get_current_tenant_or_none,
@@ -476,22 +477,16 @@ async def _tool_get_code_context(
 
     if not node_rows:
         # Fuzzy-match fallback — suggest similarly-named nodes so the
-        # caller can disambiguate.
+        # caller can disambiguate. The name predicate is backend-aware
+        # (Phase 83): on Neo4j Community it carries an ``IS :: STRING``
+        # type guard so the mixed-type ``name`` property cannot throw
+        # ``CypherTypeError``; on Neptune it keeps the ``toString()`` form.
         try:
-            import sys as _sys
-            is_testing = "pytest" in _sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
-            if is_testing:
-                cypher = (
-                    "MATCH (n) WHERE toLower(n.name) CONTAINS toLower($name)"
-                    f"{_scope_and('n')} "
-                    "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
-                )
-            else:
-                cypher = (
-                    "MATCH (n) WHERE toLower(toString(n.name)) CONTAINS toLower($name)"
-                    f"{_scope_and('n')} "
-                    "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
-                )
+            cypher = (
+                f"MATCH (n) WHERE {_name_contains_predicate('n', 'name')}"
+                f"{_scope_and('n')} "
+                "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
+            )
             fuzzy_rows = await graph.query(
                 cypher,
                 {"name": symbol},

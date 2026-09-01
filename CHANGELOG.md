@@ -1,5 +1,59 @@
 # MCP Server Changelog
 
+## [8.42.0] - phase83-cots-name-type-tolerant-predicate: backend-aware `name` CONTAINS predicate (Sep 1, 2026)
+
+### Summary
+Fixes the 7 COTS (Neo4j Community) graph-query failures Phase 82 diagnosed to a
+**mixed-type `name` property** (live `gw_v17` graph: 321,520 strings, 452 integers,
+4 string-lists). Neo4j is strictly typed and aborts the whole query with a
+`CypherTypeError` when a text function meets a non-string — `toLower(toString(n.name))`
+throws `got StringArray` on the 4 list nodes and `toLower(n.name)` throws on the 452
+`Long` nodes. Neptune silently tolerates both. **Decision: Option 2 (backend-dialect
+branching)** — see `sdd_framework/workflows/phase83_cots_name_type_tolerant_predicate.md`
+§2 Decision. Not committed — staged for human review per git policy 08.
+
+### Changed
+- **New helper `_name_contains_predicate(var, param)`** in
+  `mcp_server_python/src/graphrag/ggsr_traversal.py`, imported *upward* into the two
+  tool modules. It emits a backend-aware WHERE fragment keyed on `DB_BACKEND`:
+  - **cots (Neo4j)**: `<var>.name IS :: STRING AND toLower(<var>.name) CONTAINS toLower($<param>)`.
+    The `IS :: STRING` type guard runs first and Cypher `AND` short-circuits, so
+    `toLower` never sees a `Long` or `StringArray`; non-string `name` nodes are
+    filtered out (they can never match a symbol-name substring anyway).
+  - **aws (Neptune)**: `toLower(toString(<var>.name)) CONTAINS toLower($<param>)` —
+    byte-for-byte the prior form. **No Neptune regression**; `IS :: STRING` is emitted
+    only on the cots branch, so Neptune never receives unsupported syntax.
+- **Four call sites rewired** to the helper:
+  - `src/graphrag/ggsr_traversal.py` `_multi_hop_query` — 1-hop and 2-hop queries.
+  - `src/tools/graph_rag.py` `_tool_get_code_context` — fuzzy-symbol fallback.
+  - `src/tools/semantic_search.py` `_tool_explain_with_context` — topic lookup.
+- **Removed the `is_testing` Cypher fork** in `graph_rag._tool_get_code_context` (the
+  `import sys as _sys` / `PYTEST_CURRENT_TEST` branch that diverged test vs production
+  Cypher). One backend-derived predicate is now emitted on all paths.
+- **`src/` footprint stays within the Phase 80 R15.3 allowlist** — only the three
+  named APOC-remediation files change; the helper lives in the lowest of them
+  (`ggsr_traversal.py`) and is imported upward, so no fourth `src/` file is touched.
+
+### Tests
+- **New `tests/unit/test_name_type_tolerant_predicate.py`** (13 tests): helper unit
+  tests for both backends + the `legacy → cots` alias; per-site emitted-Cypher
+  assertions (both backends) for all four sites; a guard that the `is_testing`
+  branch is gone. All pass.
+- **Updated `tests/unit/test_graph_rag_tools.py`** — `_seed_fuzzy_lookup` now keys the
+  mock on the substring `CONTAINS toLower($name)` common to both backend forms (the
+  seed previously matched only the removed `is_testing` form).
+- Full unit + property suites run: the 4 pre-existing unit failures and 1 pre-existing
+  property failure were confirmed on a clean tree (stash) and are unrelated to this
+  change; all Phase 83 tests pass.
+
+### Pending (environment-gated)
+- **Task 4 COTS benchmark (spec Step 5) not run here** — the execution sandbox has no
+  Neo4j (7687) or ChromaDB (8080) and no Docker. The gates
+  (`graph_queries.failed_queries == 0`, architecture ≥ 80%, overall ≥ 88%) remain to
+  be confirmed on a host with the COTS stack running. Likewise the Step 1 live
+  query-log; the decision rests on Phase 82's already-captured live `CypherTypeError`
+  evidence plus documented Cypher `AND` short-circuit / `IS :: STRING` semantics.
+
 ## [8.41.1] - neptune-traversal-query-optimization: Requirement 7 amendment — coverage targets deferred, benchmark results recorded (Aug 31, 2026)
 
 ### Summary

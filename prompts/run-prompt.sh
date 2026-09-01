@@ -17,7 +17,7 @@
 #
 set -uo pipefail
 
-REPO="/mcp_rag_eib/eib-mcp-rag-server"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOGS="${REPO}/logs/prompt-runs"
 
 # ── defaults ───────────────────────────────────────────────────────────

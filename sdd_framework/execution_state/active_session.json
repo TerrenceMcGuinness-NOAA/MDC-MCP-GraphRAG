@@ -1,23 +1,57 @@
 {
-  "sessionId": "session_2026-09-01_anet1u",
-  "phase": "phase82_cots_cypher_dialect_parity",
-  "startedAt": "2026-09-01T19:57:10.144Z",
-  "lastActivityAt": "2026-09-01T20:25:17.086Z",
-  "status": "blocked",
+  "sessionId": "session_2026-09-01_p83nmt",
+  "phase": "phase83_cots_name_type_tolerant_predicate",
+  "startedAt": "2026-09-01T21:48:00.000Z",
+  "lastActivityAt": "2026-09-01T21:49:00.000Z",
+  "status": "in_progress",
   "currentStep": 6,
-  "totalSteps": 7,
-  "completedSteps": [],
-  "skippedSteps": [],
-  "blockers": [
+  "totalSteps": 6,
+  "completedSteps": [
+    {
+      "step": 1,
+      "name": "Decision: tested patterns, chose Option 2",
+      "tag": "research",
+      "completedAt": "2026-09-01T21:48:10.000Z",
+      "notes": "Chose Option 2 (backend-dialect branching). Phase 82 live evidence (toString throws on StringArray; toLower throws on Long) eliminated Option 1b. Live re-probe not possible (no Neo4j/ChromaDB in sandbox). Documented in spec §2 Decision."
+    },
+    {
+      "step": 2,
+      "name": "Implement predicate at 4 sites",
+      "tag": "implement",
+      "completedAt": "2026-09-01T21:48:20.000Z",
+      "notes": "_name_contains_predicate in ggsr_traversal.py, imported upward into graph_rag.py + semantic_search.py; 4 sites wired. src/ stays within Phase 80 R15.3 3-file allowlist."
+    },
+    {
+      "step": 3,
+      "name": "Remove is_testing branch divergence",
+      "tag": "implement",
+      "completedAt": "2026-09-01T21:48:30.000Z",
+      "notes": "Removed the fuzzy-fallback is_testing Cypher fork in graph_rag._tool_get_code_context."
+    },
+    {
+      "step": 4,
+      "name": "Regression tests added and passing",
+      "tag": "validate",
+      "completedAt": "2026-09-01T21:48:40.000Z",
+      "notes": "13 new tests pass. Full unit+property suites: 0 Phase-83 regressions (4 unit + 1 property failures confirmed pre-existing via clean-tree stash)."
+    },
     {
       "step": 6,
-      "raisedAt": "2026-09-01T20:25:17.086Z",
-      "summary": "Phase 82 premise is wrong; prescribed fix does not meet gates. Removing toString() did NOT reduce COTS graph failures (7 before, 7 after; architecture cov 40% before/after; overall 80% before/after). Live diagnosis of the Neo4j COTS gw_v17 data: n.name is mixed-type -- 321,520 string, 452 integer, 4 list. toLower(n.name) throws CypherTypeError on the 452 integer-named nodes ('Expected a string value for toLower, but got: Long'); toLower(toString(n.name)) throws on the 4 list-named nodes ('toString(): got StringArray'). Neptune tolerates the mismatch (no-op) but Neo4j Community throws and aborts the whole query. Neither toLower(n.name) nor toLower(toString(n.name)) is correct for this data. Reverted all Steps 1-4 edits (3 src files + 2 test edits + new test file removed) to avoid leaving a regression (integer-name failures affect 452 nodes vs 4 list-name nodes pre-fix). Needs a type-tolerant predicate valid on BOTH Neptune and Neo4j (Neptune has no APOC, no IS::TYPE, no valueType()), OR backend-dialect branching, OR ingest-side normalization of the ~456 non-string name values. Awaiting user direction."
+      "name": "CHANGELOG and docs updated",
+      "tag": "document",
+      "completedAt": "2026-09-01T21:49:00.000Z",
+      "notes": "CHANGELOG [8.42.0]; spec Decision + Complete(code+tests); changes staged, no commit."
     }
   ],
   "skippedSteps": [],
-  "blockers": [],
-  "notes": "Fix toString() Cypher dialect incompatibility causing 7 graph query failures on Neo4j Community. 4 code sites across 3 files, all using toLower(toString(n.name)) pattern that fails on COTS backend.",
+  "blockers": [
+    {
+      "step": 5,
+      "raisedAt": "2026-09-01T21:48:50.000Z",
+      "summary": "COTS benchmark validation (Task 4 / Step 5) could not run: the execution sandbox has no Neo4j (bolt://localhost:7687) or ChromaDB (127.0.0.1:8080) and no Docker. The Phase 83 code + regression tests are complete and pass on the mock-backed unit suite, but the live gates (graph_queries.failed_queries==0, architecture>=80%, overall>=88%) must be confirmed on a host with the COTS stack running before the phase can be declared fully complete."
+    }
+  ],
+  "notes": "Phase 83: backend-aware type-tolerant name CONTAINS predicate. Decision=Option 2 (dialect branching). Code + tests complete and verified via mock unit suite; live COTS benchmark gate pending an environment with Neo4j + ChromaDB.",
   "modifications": [],
   "examined": [],
   "checkpoints": []
