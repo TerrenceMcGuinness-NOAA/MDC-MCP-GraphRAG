@@ -1,0 +1,24 @@
+{
+  "sessionId": "session_2026-09-01_anet1u",
+  "phase": "phase82_cots_cypher_dialect_parity",
+  "startedAt": "2026-09-01T19:57:10.144Z",
+  "lastActivityAt": "2026-09-01T20:25:17.086Z",
+  "status": "blocked",
+  "currentStep": 6,
+  "totalSteps": 7,
+  "completedSteps": [],
+  "skippedSteps": [],
+  "blockers": [
+    {
+      "step": 6,
+      "raisedAt": "2026-09-01T20:25:17.086Z",
+      "summary": "Phase 82 premise is wrong; prescribed fix does not meet gates. Removing toString() did NOT reduce COTS graph failures (7 before, 7 after; architecture cov 40% before/after; overall 80% before/after). Live diagnosis of the Neo4j COTS gw_v17 data: n.name is mixed-type -- 321,520 string, 452 integer, 4 list. toLower(n.name) throws CypherTypeError on the 452 integer-named nodes ('Expected a string value for toLower, but got: Long'); toLower(toString(n.name)) throws on the 4 list-named nodes ('toString(): got StringArray'). Neptune tolerates the mismatch (no-op) but Neo4j Community throws and aborts the whole query. Neither toLower(n.name) nor toLower(toString(n.name)) is correct for this data. Reverted all Steps 1-4 edits (3 src files + 2 test edits + new test file removed) to avoid leaving a regression (integer-name failures affect 452 nodes vs 4 list-name nodes pre-fix). Needs a type-tolerant predicate valid on BOTH Neptune and Neo4j (Neptune has no APOC, no IS::TYPE, no valueType()), OR backend-dialect branching, OR ingest-side normalization of the ~456 non-string name values. Awaiting user direction."
+    }
+  ],
+  "skippedSteps": [],
+  "blockers": [],
+  "notes": "Fix toString() Cypher dialect incompatibility causing 7 graph query failures on Neo4j Community. 4 code sites across 3 files, all using toLower(toString(n.name)) pattern that fails on COTS backend.",
+  "modifications": [],
+  "examined": [],
+  "checkpoints": []
+}
