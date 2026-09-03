@@ -93,6 +93,7 @@ from src.graphrag import (
     GGSRTraversal,
     GraphGuidedRetrieval,
 )
+from src.graphrag.ggsr_traversal import _name_contains_predicate
 from src.sdd.session_manager import SessionError, SessionManager
 from src.tenancy.resolver import (
     get_current_tenant_or_none,
@@ -102,11 +103,25 @@ from src.tools._common import (
     _is_missing_index_exc,
     _missing_index_skip,
     _tenant_id_or_none,
+    _zero_hit_scope_note,
+)
+from src.tools._bfs_walker import (
+    BFSResult,
+    bfs_fallback_failed,
+    bfs_walk,
+    insert_bfs_header,
 )
 from src.tools._traversal_bounds import (
+    BFS_FAN_OUT_LIMIT,
     DATA_FLOW_DEPTH,
+    FAN_OUT_THRESHOLD,
+    RESULT_LIMIT,
     TIMEOUT_S,
+    _use_bfs,
+    anchor_degree,
+    degraded_notice,
     effective_depth,
+    is_hub,
 )
 
 log = logging.getLogger(__name__)
@@ -462,22 +477,16 @@ async def _tool_get_code_context(
 
     if not node_rows:
         # Fuzzy-match fallback — suggest similarly-named nodes so the
-        # caller can disambiguate.
+        # caller can disambiguate. The name predicate is backend-aware
+        # (Phase 83): on Neo4j Community it carries an ``IS :: STRING``
+        # type guard so the mixed-type ``name`` property cannot throw
+        # ``CypherTypeError``; on Neptune it keeps the ``toString()`` form.
         try:
-            import sys as _sys
-            is_testing = "pytest" in _sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
-            if is_testing:
-                cypher = (
-                    "MATCH (n) WHERE toLower(n.name) CONTAINS toLower($name)"
-                    f"{_scope_and('n')} "
-                    "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
-                )
-            else:
-                cypher = (
-                    "MATCH (n) WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($name)"
-                    f"{_scope_and('n')} "
-                    "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
-                )
+            cypher = (
+                f"MATCH (n) WHERE {_name_contains_predicate('n', 'name')}"
+                f"{_scope_and('n')} "
+                "RETURN n.name AS name, labels(n) AS labels LIMIT 5"
+            )
             fuzzy_rows = await graph.query(
                 cypher,
                 {"name": symbol},
@@ -518,6 +527,7 @@ async def _tool_get_code_context(
                 max_results=15,
                 hops=depth,
                 collection=CODE_COLLECTION,
+                tenant=_tenant(),
             )
         except Exception as exc:  # pragma: no cover - defensive
             log.warning("GraphGuidedRetrieval failed for %r: %s", symbol, exc)
@@ -729,9 +739,21 @@ async def _tool_search_architecture(
     filtered = enriched[:max_results]
 
     if not filtered:
+        note = await _zero_hit_scope_note(
+            getattr(data, "vector_db", None),
+            tenant=_tenant(),
+            collections=COMMUNITY_COLLECTION,
+        )
         if is_testing:
-            return f'No architectural context found for: "{query}"\n'
-        return "No high-confidence architectural matches; try a more specific symbol or filename.\n"
+            body = f'No architectural context found for: "{query}"\n'
+        else:
+            body = (
+                "No high-confidence architectural matches; try a more "
+                "specific symbol or filename.\n"
+            )
+        if note:
+            body = body.rstrip("\n") + "\n" + "\n".join(note) + "\n"
+        return body
 
     lines: list[str] = [f'# Architecture Search: "{query}"', ""]
     lines.append(
@@ -1097,6 +1119,269 @@ def _generate_recommendations(
 # ── trace_data_flow ────────────────────────────────────────────────────
 
 
+#: Maximum number of outgoing relationships rendered by
+#: ``trace_data_flow``. Applied after the two UNION_ALL_Decomposition
+#: branches are merged, so it is the same bound the pre-decomposition
+#: ``ORDER BY ... LIMIT 25`` clause carried.
+_OUTGOING_LIMIT: int = 25
+
+#: Edge set the outgoing fan-out expands over (one hop).
+_OUTGOING_RELS: str = "CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES"
+
+#: Depth the outgoing fan-out expands to. It is a *one-hop* section by
+#: definition (``## Outgoing Relationships`` lists direct neighbors only),
+#: so this is the ``requested_depth`` handed to
+#: :func:`~src.tools._traversal_bounds._use_bfs` — the depth > 3 arm of the
+#: strategy selector therefore never fires here, and only the anchor's
+#: measured degree selects the walk. The deep, variable-length part of
+#: this tool is the shortestPath section, which task 5.2 leaves on its
+#: (already UNION_ALL_Decomposed) single query.
+_OUTGOING_DEPTH: int = 1
+
+#: Relationship types the BFS_Walker expands, one query per type per hop.
+#: The same edge set as :data:`_OUTGOING_RELS`, split because a walker
+#: hop takes one type at a time (a pipe-joined string is refused by
+#: ``_expand_one_hop``'s identifier check).
+_OUTGOING_EDGE_TYPES: tuple[str, ...] = tuple(_OUTGOING_RELS.split("|"))
+
+
+def _outgoing_union_cypher(
+    scope_pred: str, target_scope_pred: str = ""
+) -> str:
+    """Outgoing one-hop fan-out cypher, UNION_ALL_Decomposed (R1.1, R1.2).
+
+    Emits two index-seekable branches — one anchoring on ``source.name``,
+    one on ``source.path`` — joined by ``UNION ALL``, instead of a single
+    ``source.name = $name OR source.path = $name`` disjunction. A
+    disjunction across two properties of an unlabelled node cannot be
+    satisfied from an index, so Neptune evaluates it against every node
+    before expanding relationships; split into single-property
+    equalities, each branch is an indexable lookup. The same rewrite took
+    :func:`src.tools.semantic_search._enrich_with_graph_counts` from
+    28.57s to 0.06s against live Neptune on 2026-08-27 (R1.5).
+
+    ``scope_pred`` (the ``_scope_and("source")`` fragment) is applied to
+    *both* branches so tenant isolation is unchanged (R1.4, R4.4).
+
+    ``target_scope_pred`` (the ``_scope_and("target")`` fragment) scopes
+    the *expanded* node as well, so a neighbor belonging to another
+    tenant is rejected server-side instead of being collected and
+    rendered (R4.2, R4.4). The same ``_scope_and`` helper builds both
+    fragments, which is what keeps the anchor and the terminal node on
+    one tenant-isolation mechanism. It is safe on the default ``gw``
+    tenant too: ``tenant_label_predicate`` returns the *exclusion* form
+    there (``size([... STARTS WITH '<other tenant>' ...]) = 0``), which
+    admits every unprefixed baseline node while keeping another tenant's
+    prefixed nodes out — it is not an inclusion filter that would empty
+    the result. It defaults to ``""`` so a caller that only has an
+    anchor fragment emits the pre-7.2 cypher verbatim.
+
+    Ordering and truncation are deliberately *not* in the cypher: they
+    have to happen after the branches are merged, which
+    :func:`_merge_outgoing_rows` does (R1.3).
+    """
+
+    def branch(prop: str) -> str:
+        return (
+            f"MATCH (source)-[r:{_OUTGOING_RELS}]->(target) "
+            f"WHERE source.{prop} = $name"
+            f"{scope_pred}{target_scope_pred} "
+            "RETURN target.name AS name, labels(target)[0] AS type, "
+            "type(r) AS relType"
+        )
+
+    return f"{branch('name')} UNION ALL {branch('path')}"
+
+
+def _merge_outgoing_rows(
+    rows: list[dict[str, Any]] | None,
+    limit: int = _OUTGOING_LIMIT,
+) -> list[dict[str, Any]]:
+    """Dedupe, sort and truncate the merged UNION ALL result (R1.3).
+
+    ``UNION ALL`` does not dedupe, so a target reachable from both the
+    ``name`` branch and the ``path`` branch arrives twice; rows are folded
+    on ``(name, type, relType)`` — the same tuple the response renders —
+    then ordered by ``(relType, name)`` and cut to ``limit``, reproducing
+    the ``ORDER BY type(r), target.name LIMIT 25`` the single-query form
+    carried. Rows without a ``name`` are dropped, as before.
+    """
+    merged: dict[tuple[Any, Any, Any], dict[str, Any]] = {}
+    for row in rows or []:
+        if not isinstance(row, dict) or not row.get("name"):
+            continue
+        key = (row.get("name"), row.get("type"), row.get("relType"))
+        merged.setdefault(key, row)
+    ordered = sorted(
+        merged.values(),
+        key=lambda r: (str(r.get("relType") or ""), str(r.get("name") or "")),
+    )
+    return ordered[:limit]
+
+
+async def _outgoing_walk(
+    graph: Any,
+    from_symbol: str,
+    degree: int | None = None,
+) -> BFSResult:
+    """Issue the outgoing fan-out as a BFS_Walker walk (R2.1, R3.2, R3.3).
+
+    Extracted so the strategy selector's BFS branch and the timeout
+    fallback arm issue the *same* walk -- same edge set, same bounds, same
+    tenant scoping -- rather than two configurations that could drift.
+
+    ``_scope_and("n")`` is the fragment the walker expects: it anchors on
+    ``MATCH (n)`` and :func:`~src.tools._bfs_walker._retarget_scope_pred`
+    points the predicate at each expansion's target node when
+    ``label_scope_expanded`` is set (R4.1, R4.4).
+
+    ``degree`` is the anchor's measured Node_Degree, forwarded only so the
+    walker's R8.1 activation log names the value that selected the walk.
+    Both call sites measure it over this section's own edge set
+    (:data:`_OUTGOING_RELS`), so the logged degree describes the
+    expansion that actually ran.
+    """
+    scope_n = _scope_and("n")
+    return await bfs_walk(
+        graph,
+        start_name=from_symbol,
+        direction="forward",
+        edge_types=_OUTGOING_EDGE_TYPES,
+        max_depth=_OUTGOING_DEPTH,
+        fan_out_limit=BFS_FAN_OUT_LIMIT,
+        result_limit=RESULT_LIMIT,
+        timeout_s=TIMEOUT_S,
+        scope_pred=scope_n,
+        tenant=_tenant(),
+        label_scope_expanded=bool(scope_n),
+        tool="trace_data_flow",
+        degree=degree,
+    )
+
+
+def _bfs_outgoing_rows(
+    result: BFSResult,
+    limit: int = _OUTGOING_LIMIT,
+) -> list[dict[str, Any]]:
+    """Fold a BFS_Walker result into the outgoing-fan-out row shape (R3.2).
+
+    The walker returns ``{nid, name, path, labels, hop, relType,
+    direction}`` per node; the ``## Outgoing Relationships`` table renders
+    ``(name, type, relType)``. ``type`` is ``labels[0]``, which is exactly
+    what the single-query form projects (``labels(target)[0] AS type``),
+    so the two strategies render the same columns for the same edge.
+
+    Folding then goes through :func:`_merge_outgoing_rows` rather than a
+    local dedupe so the ordering (``relType``, then ``name``) and the
+    ``LIMIT 25`` cut are the *same code* on both strategy branches — a
+    caller cannot tell from the rendered table which strategy ran (R5.1).
+    The walker already deduplicates by node id via its visited-set, but a
+    node reached by two different relationship types is two distinct rows
+    here, which matches the single-query behavior.
+    """
+    rows: list[dict[str, Any]] = []
+    for node in result.nodes:
+        labels = node.get("labels") or []
+        rows.append(
+            {
+                "name": node.get("name"),
+                "type": labels[0] if labels else None,
+                "relType": node.get("relType"),
+            }
+        )
+    return _merge_outgoing_rows(rows, limit)
+
+
+#: Maximum number of shortest paths rendered by ``trace_data_flow``.
+#: Carried as a per-branch ``LIMIT`` (openCypher applies ``LIMIT`` within
+#: each ``UNION ALL`` branch, not to the union) and re-applied after the
+#: branches are merged, so the rendered count matches the bound the
+#: pre-decomposition single ``LIMIT 3`` clause carried.
+_PATH_LIMIT: int = 3
+
+#: Edge set the shortest-path search traverses. Currently identical to
+#: the one-hop fan-out set; aliased rather than shared so the two query
+#: shapes can diverge without a silent coupling.
+_PATH_RELS: str = _OUTGOING_RELS
+
+
+def _path_union_cypher(
+    depth: int, scope_pred: str, dest_scope_pred: str = ""
+) -> str:
+    """shortestPath cypher, seed anchor UNION_ALL_Decomposed (R1.1, R1.2).
+
+    The seed-node lookup is emitted as two index-seekable branches — one
+    anchoring the path's ``source`` on ``name``, one on ``path`` — joined
+    by ``UNION ALL``, rather than one disjunction over both properties of
+    an unlabelled node. Neptune cannot satisfy such a disjunction from an
+    index, so it scans every node *before* the shortestPath expansion
+    starts; each single-property equality branch is an indexable lookup
+    (R1.1, R1.5). This matches the anchor shape the one-hop fan-out uses
+    (:func:`_outgoing_union_cypher`), so ``from_symbol`` resolves the same
+    way in both sections of the response.
+
+    ``depth`` is the already-clamped Effective_Depth, and ``scope_pred``
+    (the ``_scope_and("source")`` fragment) is applied to *both* branches
+    so the Label_Scope_Predicate is unchanged (R1.4, R4.4). The
+    Statement_Timeout stays on the ``graph.query`` call, as before.
+
+    ``dest_scope_pred`` (the ``_scope_and("dest")`` fragment) scopes the
+    path's *terminal* node too (R4.2, R4.4). ``dest.name = $to`` alone
+    does not identify a tenant: the same symbol name exists as a
+    ``GW_V17_``-prefixed node and an unprefixed baseline node, so without
+    the predicate a ``gw`` path could terminate on a ``gw_v17`` node that
+    merely shares the name. Built by the same ``_scope_and`` helper as
+    the anchor fragment, and safe on the default ``gw`` tenant because
+    ``tenant_label_predicate`` returns the *exclusion* form there (other
+    tenants' prefixes absent), which admits every unprefixed baseline
+    node. Defaults to ``""`` so a caller passing only an anchor fragment
+    emits the pre-7.2 cypher verbatim.
+
+    Deduplication happens after the merge — see :func:`_merge_path_rows`
+    (R1.3).
+    """
+
+    def branch(prop: str) -> str:
+        return (
+            "MATCH path = shortestPath("
+            f"(source)-[:{_PATH_RELS}*1..{depth}]->(dest)) "
+            f"WHERE source.{prop} = $from AND dest.name = $to"
+            f"{scope_pred}{dest_scope_pred} "
+            "RETURN [n IN nodes(path) | n.name] AS nodeNames, "
+            "[r IN relationships(path) | type(r)] AS relTypes, "
+            f"length(path) AS hops LIMIT {_PATH_LIMIT}"
+        )
+
+    return f"{branch('name')} UNION ALL {branch('path')}"
+
+
+def _merge_path_rows(
+    rows: list[dict[str, Any]] | None,
+    limit: int = _PATH_LIMIT,
+) -> list[dict[str, Any]]:
+    """Dedupe and truncate the merged UNION ALL path result (R1.3).
+
+    ``UNION ALL`` does not dedupe, so a path found from both the ``name``
+    branch and the ``path`` branch arrives twice; rows are folded on the
+    ``(nodeNames, relTypes)`` pair that identifies the path (lists are
+    converted to tuples so they can key the map) and cut to ``limit``.
+    Arrival order is preserved because the single-query form carried no
+    ``ORDER BY`` — only ``LIMIT 3``.
+    """
+    merged: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        key = (
+            tuple(row.get("nodeNames") or ()),
+            tuple(row.get("relTypes") or ()),
+        )
+        merged.setdefault(key, row)
+        if len(merged) >= limit:
+            break
+    return list(merged.values())[:limit]
+
+
 async def _tool_trace_data_flow(
     data: Any,
     *,
@@ -1115,34 +1400,100 @@ async def _tool_trace_data_flow(
         lines[-1] = f"# Data Flow Trace: `{from_symbol}` → `{to_symbol}`"
     lines.append("")
 
-    # 1. Outgoing relationships (one-hop fan-out).
+    # 1. Outgoing relationships (one-hop fan-out). A pre-flight degree
+    #    probe (R1.1) selects the strategy for this section; it is
+    #    count-only and single-hop, so probing a hub is itself cheap.
+    #    The probe's edge set is the fan-out's own edge set, so the
+    #    measured degree reflects the expansion actually about to run.
+    degree = await anchor_degree(
+        graph, from_symbol, _OUTGOING_RELS, _tenant(), _scope_and("a")
+    )
+
+    # Strategy selection, in the design's guard order (design.md
+    # "Layered Guard Stack" / "Fallback Chain"), which is deliberately
+    # NOT "BFS first": ``is_hub`` is consulted first so a true hub goes
+    # straight to the Degraded_Result and never attempts the walk. Per
+    # the design, "no BFS attempt for nodes with 100+ edges -- the BFS
+    # fan-out limit at 100/type would still be expensive". The walk is
+    # therefore reserved for the moderately-connected band between
+    # BFS_ACTIVATION_THRESHOLD and FAN_OUT_THRESHOLD, where the
+    # combinatorial risk is real but the decomposed cost is not
+    # (R3.1, R3.2).
+    hub = is_hub(degree)
+    use_bfs = not hub and _use_bfs(degree, _OUTGOING_DEPTH)
+
     timed_out = False
-    try:
-        outgoing_rows = await graph.query(
-            "MATCH (source)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES]"
-            "->(target) "
-            "WHERE source.name = $name"
-            f"{_scope_and('source')} "
-            "RETURN target.name AS name, labels(target)[0] AS type, "
-            "type(r) AS relType "
-            "ORDER BY type(r), target.name LIMIT 25",
-            {"name": from_symbol},
-            tenant=_tenant(),
-            timeout=TIMEOUT_S,
-        )
-    except Exception as exc:
-        if _is_timeout_error(exc):
+    bfs_truncated = False
+    # Walks that produced part of this response, for the R8.4 indicator.
+    # Collected rather than rendered here because the header is inserted
+    # after the title once the response body is complete, and either the
+    # selector branch or the timeout-fallback arm can be the walk's
+    # source.
+    bfs_walks: list[BFSResult] = []
+    outgoing: list[dict[str, Any]]
+    if use_bfs:
+        # BFS_Walker: one single-type, single-hop, LIMIT-bounded query per
+        # relationship type instead of one six-type pattern (R2.1, R2.2).
+        walk = await _outgoing_walk(graph, from_symbol, degree)
+        bfs_walks.append(walk)
+        outgoing = _bfs_outgoing_rows(walk)
+        bfs_truncated = walk.truncated
+    else:
+        # Existing single-query path, unchanged for low-degree anchors
+        # (R3.1, R5.1) and for hubs (whose fan-out section is already the
+        # one-hop Degraded_Result shape). UNION_ALL_Decomposed so each
+        # anchor branch is an indexable lookup (R1.1, R1.2). The expanded
+        # ``target`` carries the Label_Scope_Predicate as well as the
+        # anchor, so this branch scopes the terminal node exactly as the
+        # BFS branch above does via ``label_scope_expanded`` (R4.2, R4.4).
+        try:
+            outgoing_rows = await graph.query(
+                _outgoing_union_cypher(
+                    _scope_and("source"), _scope_and("target")
+                ),
+                {"name": from_symbol},
+                tenant=_tenant(),
+                timeout=TIMEOUT_S,
+            )
+        except Exception as exc:
+            if not _is_timeout_error(exc):
+                log.warning("trace_data_flow outgoing query failed: %s", exc)
+                return _error_text(f"trace_data_flow failed: {exc}")
+            # Fallback chain (R3.3, R5.5): retry the fan-out as a bounded
+            # walk before accepting an empty section. ``timed_out`` is set
+            # either way -- the single query really did exceed the
+            # Statement_Timeout, and its notice ("results below may be
+            # partial") describes the salvaged rows just as accurately as
+            # it describes none, so the caller is never told a bounded
+            # answer was a complete one.
             log.info(
-                "[traversal-bounds] trace_data_flow degraded "
-                "from_symbol=%s guard=timeout",
+                "[traversal-bounds] trace_data_flow fallback "
+                "from_symbol=%s guard=timeout strategy=bfs",
                 from_symbol,
             )
-            outgoing_rows = []
             timed_out = True
+            walk = await _outgoing_walk(graph, from_symbol, degree)
+            bfs_walks.append(walk)
+            if bfs_fallback_failed(walk.nodes):
+                log.info(
+                    "[traversal-bounds] trace_data_flow degraded "
+                    "from_symbol=%s guard=timeout",
+                    from_symbol,
+                )
+                outgoing = []
+            else:
+                outgoing = _bfs_outgoing_rows(walk)
         else:
-            log.warning("trace_data_flow outgoing query failed: %s", exc)
-            return _error_text(f"trace_data_flow failed: {exc}")
-    outgoing = [r for r in outgoing_rows or [] if r.get("name")]
+            outgoing = _merge_outgoing_rows(outgoing_rows)
+
+    if hub:
+        # The fan-out section is one-hop by construction, so the
+        # Degraded_Result here is the notice itself: it tells the caller
+        # the anchor is a hub and that no decomposed walk was attempted
+        # (R4.2, R4.3). The shortestPath section below still runs -- its
+        # depth bound and statement timeout are its own guards.
+        lines.append(degraded_notice(from_symbol, degree, FAN_OUT_THRESHOLD))
+        lines.append("")
     if timed_out:
         lines.append(
             f"[INFO] Outgoing-relationship query for `{from_symbol}` exceeded "
@@ -1150,27 +1501,37 @@ async def _tool_trace_data_flow(
             "below may be partial."
         )
         lines.append("")
+    if bfs_truncated:
+        # A truncated walk is a partial view of the neighborhood, never an
+        # exhausted one -- say so rather than letting the table read as
+        # complete (R2.3, R2.7).
+        lines.append(
+            f"[INFO] The outgoing fan-out for `{from_symbol}` hit a "
+            "traversal bound (per-hop fan-out limit, result cap, or "
+            "statement timeout); the relationships below are a partial "
+            "view."
+        )
+        lines.append("")
 
-    # 2. Optional shortest-path query when a destination is given.
+    # 2. Optional shortest-path query when a destination is given. The
+    #    seed anchor is UNION_ALL_Decomposed so each branch is an
+    #    indexable lookup (R1.1, R1.2), and the path's terminal ``dest``
+    #    node carries the Label_Scope_Predicate alongside the anchor so a
+    #    same-named node from another tenant cannot terminate the path
+    #    (R4.2, R4.4).
     path_section: list[str] = []
     if to_symbol:
         depth, _clamped = effective_depth(max_depth, DATA_FLOW_DEPTH)
-        path_cypher = (
-            "MATCH path = shortestPath("
-            "(source)-[:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES*1.."
-            f"{depth}]->(dest)) "
-            "WHERE source.name = $from AND dest.name = $to"
-            f"{_scope_and('source')} "
-            "RETURN [n IN nodes(path) | n.name] AS nodeNames, "
-            "[r IN relationships(path) | type(r)] AS relTypes, "
-            "length(path) AS hops LIMIT 3"
+        path_cypher = _path_union_cypher(
+            depth, _scope_and("source"), _scope_and("dest")
         )
         try:
-            path_rows = await graph.query(
+            path_raw = await graph.query(
                 path_cypher, {"from": from_symbol, "to": to_symbol},
                 tenant=_tenant(),
                 timeout=TIMEOUT_S,
-            ) or []
+            )
+            path_rows = _merge_path_rows(path_raw)
         except Exception as exc:  # pragma: no cover - defensive
             if _is_timeout_error(exc):
                 log.info(
@@ -1227,6 +1588,13 @@ async def _tool_trace_data_flow(
             f"No data flow found from `{from_symbol}`. Check the "
             "symbol name and try again."
         )
+
+    # R8.4: tell the caller the decomposed strategy produced the fan-out
+    # section above. A no-op when no walk ran, so the single-query
+    # response is unchanged. The shortestPath section is not a walk, so
+    # only the fan-out's walks are counted -- the indicator describes the
+    # strategy, not the whole response's cost.
+    insert_bfs_header(lines, *bfs_walks)
 
     return "\n".join(lines).rstrip() + "\n"
 

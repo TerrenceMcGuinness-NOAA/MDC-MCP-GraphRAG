@@ -47,6 +47,26 @@ CONTAINER_STATE_DIR="${MCP_CONTAINER_STATE_DIR:-${HOST_STATE_DIR}}"
 RESULTS_DIR="${MCP_BENCHMARK_RESULTS_DIR:-${NODE_DIR}/test/benchmark/results}"
 ARCHIVE_DIR="${MCP_BENCHMARK_ARCHIVE_DIR:-${HOST_STATE_DIR}/benchmark-archive}"
 KEEP_RUNS="${MCP_BENCHMARK_KEEP_RUNS:-90}"
+# THRESHOLD RECONCILIATION (default-tenant-freeze-retirement, SDD Phase 80):
+# 10 is the Governing_Threshold the Retirement_Record names as the single
+# number that decides pass/fail for a proposed change to Default_Tenant
+# output. It is RELATIVE, evaluated against the median of the trailing
+# MCP_BENCHMARK_MEDIAN_WINDOW (7) `quality_metrics.jsonl` lines, not an
+# absolute point drop -- see the regression-check block below
+# (`cur_v < med * (1 - pct / 100.0)`), whose strict `<` means a drop of
+# exactly 10.00 percent PASSES. This value was already 10 before Phase 80;
+# no functional change was needed here, only this note.
+#
+# Two other thresholds exist and are declared elsewhere, and Phase 80's
+# reconciliation is which one governs a change to this wrapper's own gate
+# (this one) versus which ones are left alone. `ground_truth.json`
+# `metrics_config` declares `regression_threshold_pct: 5` and
+# `critical_threshold_pct: 15`, both evaluated against the single PREVIOUS
+# run (not a trailing median) and consumed entirely inside the Node harness
+# (`run_benchmark.js::detectRegressions`) for its own in-process warn/error
+# levels and exit code. Those two numbers are UNCHANGED by this feature and
+# remain in force for the Node harness; this feature does not reach inside
+# it to alter them.
 REGRESSION_PCT="${MCP_BENCHMARK_REGRESSION_PCT:-10}"
 MEDIAN_WINDOW="${MCP_BENCHMARK_MEDIAN_WINDOW:-7}"
 QUALITY_FILE="quality_metrics.jsonl"

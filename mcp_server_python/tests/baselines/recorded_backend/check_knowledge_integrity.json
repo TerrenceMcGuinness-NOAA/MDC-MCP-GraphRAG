@@ -1,0 +1,38 @@
+{
+  "scenario_id": "check_knowledge_integrity",
+  "module": "semantic_search",
+  "tool": "check_knowledge_integrity",
+  "tenant_scoped": true,
+  "args": {
+    "sample_size": 25
+  },
+  "env": {
+    "DB_BACKEND": "aws",
+    "MCP_EMBEDDING_PROFILE": "titan1024"
+  },
+  "vector": {
+    "sample_metadata": [
+      {"file_path": "ush/forecast.sh", "source_path": "ush/forecast.sh"},
+      {"file_path": "jobs/JGLOBAL_FORECAST", "source_path": "jobs/JGLOBAL_FORECAST"},
+      {"file_path": "sorc/gsi.fd/src/setuprad.f90", "source_path": "sorc/gsi.fd/src/setuprad.f90"}
+    ]
+  },
+  "graph": {
+    "health": {
+      "status": "healthy",
+      "connected": true,
+      "nodes": 80996,
+      "relationships": 1278330
+    },
+    "file_total": 8000,
+    "file_sample": [
+      {"name": "forecast.sh", "path": "ush/forecast.sh"},
+      {"name": "JGLOBAL_FORECAST", "path": "jobs/JGLOBAL_FORECAST"}
+    ],
+    "coverage_counts": {
+      "FortranSubroutine": 29605,
+      "PythonModule": 1200,
+      "ShellScript": 315
+    }
+  }
+}

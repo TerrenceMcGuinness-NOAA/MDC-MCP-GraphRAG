@@ -1,6 +1,7 @@
 # reingest_stages.yaml — stage catalog for the COTS full re-ingest Ralph loop.
 #
 # Spec: .kiro/specs/cots-reingest-ralph-loop/ (Task 1.1).
+#       .kiro/specs/mpnet768-tenant-reingest-aug2026/ (Task 2).
 # Consumed by: reingest_state.py (State_Manager) to build the Work_Matrix
 #   (Tenant_Catalog x per_tenant_stages + global_stages).
 #
@@ -12,6 +13,14 @@
 # Field reference
 # ---------------
 #   name                Stage token (1:1 with an ingester or probe).
+#   scope               shared | tenant | hybrid_external | hybrid_local
+#                       Determines whether the stage emits one global unit
+#                       (shared/hybrid_external) or per-tenant units
+#                       (tenant/hybrid_local). Phase 81 addition.
+#   shared_once         bool (default false). When true AND scope is shared or
+#                       hybrid_external, the Work_Matrix emits exactly one unit
+#                       (tenant_id="__global__"). Belt-and-braces for the
+#                       Shared_Once_Rule.
 #   order               Sort key for State_Manager `next` selection (lower
 #                       runs first). worktree/reset sort earliest.
 #   kind                prep | destructive | vector | dual | graph | validate
@@ -23,6 +32,10 @@
 #   depends_on          Same-tenant stage names that MUST be terminal
 #                       (done/skipped) before this unit is actionable
 #                       (Requirement 8.6). Enforced by `reingest_state.py next`.
+#   depends_on_all_tenants  bool (default false). When true, the depends_on
+#                       stages must be terminal for EVERY tenant (not just the
+#                       current unit's tenant). Used by neo4j_rebuild_indexes
+#                       to gate on all per-tenant graph stages. Phase 81.
 #   destructive         true => requires CONFIRM_DESTRUCTIVE=yes (Requirement 11.4).
 #   optional            true => failure/absence does not block run completion
 #                       (Requirement 13.1 — community_summaries).
@@ -37,18 +50,19 @@
 #                       the tenant tree) `check` is null and the iteration
 #                       evaluates the description.
 
-schema_version: 1
+schema_version: 2
 
 # Default per-unit retry cap; overridable via `reingest_state.py init --attempt-cap`.
 attempt_cap_default: 3
 
 # ---------------------------------------------------------------------------
 # Per-tenant stages (Tenant_Catalog x these). Ordered; depends_on is scoped to
-# the SAME tenant.
+# the SAME tenant unless depends_on_all_tenants is true.
 # ---------------------------------------------------------------------------
 per_tenant_stages:
   - name: worktree
     scope: tenant
+    shared_once: false
     order: 10
     kind: prep
     script: setup_pw_workflow_mount.sh
@@ -60,6 +74,7 @@ per_tenant_stages:
 
   - name: reset
     scope: tenant
+    shared_once: false
     order: 20
     kind: destructive
     script: reset_tenant_cots.py
@@ -69,12 +84,48 @@ per_tenant_stages:
     probe: none
     source_precondition: null
 
-  - name: documentation
+  # ─── hybrid domain: workflow_docs — external portion (shared-once) ────
+  - name: workflow_docs_external
     scope: shared
+    shared_once: true
+    order: 25
+    kind: vector
+    script: ingest_documentation_v9.py
+    args: ["--sources", "rocoto,cmeps,nceplibs-sfcio,esmf-ref-pdf,esmc-ref-pdf,nuopc-ref-pdf,esmpy-pdf,nuopc-layer-reference"]
+    depends_on: []
+    destructive: false
+    optional: false
+    probe: vector
+    source_precondition:
+      description: "external documentation URLs reachable (rocoto, cmeps, nceplibs-sfcio, PDFs)"
+      check: null
+
+  # ─── hybrid domain: workflow_docs — PDF freshness sub-stage ───────────
+  - name: pdf_sources
+    scope: shared
+    shared_once: true
+    order: 26
+    kind: vector
+    script: ingest_documentation_v9.py
+    args: ["--sources", "esmf-ref-pdf,esmc-ref-pdf,nuopc-ref-pdf,esmpy-pdf,nuopc-layer-reference",
+           "--writeback-last-modified"]
+    depends_on: [workflow_docs_external]
+    destructive: false
+    optional: false
+    probe: vector
+    source_precondition:
+      description: "PDF source URLs reachable for Last-Modified writeback"
+      check: null
+
+  # ─── hybrid domain: workflow_docs — local portion (per-tenant) ────────
+  - name: workflow_docs_local
+    scope: hybrid_local
+    shared_once: false
     order: 30
     kind: vector
-    script: ingest_documentation_v8.py
-    depends_on: []   # shared stage — no tenant coupling (R2.5)
+    script: ingest_documentation_v9.py
+    args: ["--sources", "global-workflow-rst"]
+    depends_on: [worktree]
     destructive: false
     optional: false
     probe: vector
@@ -84,11 +135,14 @@ per_tenant_stages:
         path: docs
         min_files: 1
 
-  - name: code
+  # ─── per-tenant vector: code_with_context_local ───────────────────────
+  - name: code_with_context_local
     scope: tenant
+    shared_once: false
     order: 40
     kind: vector
-    script: ingest_code_v8.py
+    script: ingest_code_v9.py
+    args: ["--sources", "fortran-code-context,shell-code-context,python-code-context,rocoto-config,expdir-configs"]
     depends_on: [reset]
     destructive: false
     optional: false
@@ -101,6 +155,7 @@ per_tenant_stages:
 
   - name: jjobs
     scope: tenant
+    shared_once: false
     order: 50
     kind: vector
     script: ingest_jjobs_v8.py
@@ -116,6 +171,7 @@ per_tenant_stages:
 
   - name: config
     scope: tenant
+    shared_once: false
     order: 60
     kind: dual
     script: ingest_config_files_v8.py
@@ -131,6 +187,7 @@ per_tenant_stages:
 
   - name: shell_graph
     scope: tenant
+    shared_once: false
     order: 70
     kind: graph
     script: ingest_shell_graph_v8.py
@@ -146,6 +203,7 @@ per_tenant_stages:
 
   - name: fortran_graph
     scope: tenant
+    shared_once: false
     order: 80
     kind: graph
     script: ingest_fortran_graph_v8.py
@@ -161,6 +219,7 @@ per_tenant_stages:
 
   - name: expdir
     scope: tenant
+    shared_once: false
     order: 90
     kind: graph
     script: ingest_expdir_configs_v8.py
@@ -174,6 +233,7 @@ per_tenant_stages:
 
   - name: rocoto
     scope: tenant
+    shared_once: false
     order: 100
     kind: graph
     script: ingest_rocoto_xml_v8.py
@@ -187,6 +247,7 @@ per_tenant_stages:
 
   - name: bridge
     scope: tenant
+    shared_once: false
     order: 110
     kind: graph
     script: create_shell_fortran_bridge.py
@@ -198,11 +259,12 @@ per_tenant_stages:
 
   - name: validate
     scope: tenant
+    shared_once: false
     order: 200
     kind: validate
     script: null
     depends_on:
-      - code
+      - code_with_context_local
       - jjobs
       - config
       - shell_graph
@@ -210,6 +272,7 @@ per_tenant_stages:
       - expdir
       - rocoto
       - bridge
+      - workflow_docs_local
     destructive: false
     optional: false
     probe: integrity
@@ -219,17 +282,31 @@ per_tenant_stages:
 # Global stages (run once, NOT per-tenant). tenant_id == "__global__".
 # ---------------------------------------------------------------------------
 global_stages:
+  # ─── Neo4j index drop (first, before any graph writes) ───────────────
+  - name: neo4j_drop_indexes
+    scope: shared
+    shared_once: true
+    order: 5
+    kind: prep
+    script: neo4j_index_rebuild.py
+    args: ["drop", "--i-mean-it", "Target_Version=v9-0-0",
+           "--snapshot", ".reingest_state/v9-0-0/neo4j_pre_drop.json"]
+    depends_on: []
+    destructive: true
+    optional: false
+    probe: none
+    source_precondition:
+      description: "Neo4j accessible and contains indexes to drop"
+      check: null
+
+  # ─── shared-once vector stages ───────────────────────────────────────
   - name: ee2_standards
     scope: shared
+    shared_once: true
     order: 300
     kind: vector
-    # No v8 Python EE2 ingester exists yet; the Node-era precedent is
-    # mcp_server_node/scripts/ingest_ee2_v7.py. Branch-agnostic NCO/EE2
-    # standards from supported_repos/nws-hpc-standards, ingested once into the
-    # shared (NOT tenant-prefixed) collection. Confirm the runnable script at
-    # kickoff; skip if unavailable on COTS.
     script: ingest_ee2_v7.py
-    depends_on: []
+    depends_on: [neo4j_drop_indexes]
     destructive: false
     optional: false
     probe: vector
@@ -239,6 +316,7 @@ global_stages:
 
   - name: community_summaries
     scope: shared
+    shared_once: true
     order: 310
     kind: graph
     # Gap J: Neo4j GDS Leiden + Node-only pipeline (mcp_server_node/). Optional
@@ -246,10 +324,41 @@ global_stages:
     # GDS is unavailable on the COTS Neo4j Community instance or the Python port
     # does not exist. See .kiro/steering/12-multi-tenant-gap-tracker.md Gap J.
     script: null
-    depends_on: []
+    depends_on: [neo4j_drop_indexes]
     destructive: false
     optional: true
     probe: none
     source_precondition:
       description: "Neo4j GDS plugin present on COTS + a runnable community-detection pipeline; otherwise skip (Gap J)"
+      check: null
+
+  - name: ci_test_cases
+    scope: shared
+    shared_once: true
+    order: 320
+    kind: vector
+    script: ingest_ci_test_cases_v9.py
+    depends_on: [neo4j_drop_indexes]
+    destructive: false
+    optional: false
+    probe: vector
+    source_precondition:
+      description: "CI test case definitions present"
+      check: null
+
+  # ─── Neo4j index rebuild (after all per-tenant graph stages) ─────────
+  - name: neo4j_rebuild_indexes
+    scope: shared
+    shared_once: true
+    order: 400
+    kind: prep
+    script: neo4j_index_rebuild.py
+    args: ["create", "--target-version", "v9-0-0"]
+    depends_on: [fortran_graph, shell_graph, bridge, rocoto, expdir]
+    depends_on_all_tenants: true
+    destructive: false
+    optional: false
+    probe: none
+    source_precondition:
+      description: "All per-tenant graph stages terminal for every tenant"
       check: null

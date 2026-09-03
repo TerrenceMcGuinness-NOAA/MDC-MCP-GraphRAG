@@ -21,6 +21,7 @@ No live AWS calls. The graph fixture is :class:`MockGraphDB`.
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 from typing import Any
 
@@ -144,6 +145,164 @@ async def test_anchor_degree_handles_string_deg_value() -> None:
     assert deg == 42
 
 
+# ── anchor_degree UNION_ALL_Decomposition (Task 2.6) ───────────────────
+# The probe's own Anchor_Predicate was the dominant remaining graph cost
+# (R1.5). It is now two queries: an index-seekable UNION ALL resolution
+# of the anchor's ids, then a count over those ids.
+
+
+_RESOLVE_FRAGMENT = "RETURN id(a) AS nid"
+
+
+def _seed_probe(
+    graph: MockGraphDB,
+    *,
+    nids: list[dict[str, Any]] | None = None,
+    deg: Any = 7,
+) -> None:
+    """Seed both stages of the two-query degree probe."""
+    graph.canned_rows = []
+    # ``nids=[]`` is the no-match case, distinct from "seed the default".
+    rows = [{"nid": "a-1"}] if nids is None else list(nids)
+    graph.add_response(_RESOLVE_FRAGMENT, rows)
+    graph.add_response("count(r) AS deg", [{"deg": deg}])
+
+
+def _probe_queries(graph: MockGraphDB) -> list[Any]:
+    return [c for c in graph.call_log if c[0] == "query"]
+
+
+async def test_anchor_degree_resolves_anchor_with_union_all_not_or() -> None:
+    """The anchor is resolved by two single-property equality branches
+    joined by ``UNION ALL``, never an index-defeating ``OR`` (R1.1)."""
+    graph = MockGraphDB()
+    _seed_probe(graph)
+    await tb.anchor_degree(graph, "foo", "CALLS", tenant=None)
+    cyphers = [c[1][0] for c in _probe_queries(graph)]
+    assert len(cyphers) == 2, "expected resolve-then-count"
+    resolve, count = cyphers
+    assert resolve.count("UNION ALL") == 1
+    assert "MATCH (a) WHERE a.name = $name" in resolve
+    assert "MATCH (a) WHERE a.path = $name" in resolve
+    assert " OR " not in resolve
+    # No OR survives anywhere in the probe.
+    assert "a.name = $name OR a.path = $name" not in count
+    assert " OR " not in count
+
+
+async def test_anchor_degree_counts_edges_by_resolved_ids() -> None:
+    """The count seeks the resolved ids rather than re-matching on
+    ``name``/``path`` -- the same shape ``_expand_one_hop`` uses."""
+    graph = MockGraphDB()
+    _seed_probe(graph, nids=[{"nid": "a-1"}, {"nid": "a-2"}], deg=9)
+    deg = await tb.anchor_degree(graph, "foo", "CALLS", tenant=None)
+    assert deg == 9
+    count_call = _probe_queries(graph)[-1]
+    cypher = count_call[1][0]
+    assert "WHERE id(a) IN $ids" in cypher
+    assert "count(r) AS deg" in cypher
+    assert "$name" not in cypher
+    assert sorted(count_call[2]["ids"]) == ["a-1", "a-2"]
+
+
+async def test_anchor_degree_does_not_double_count_dual_match_anchor(
+) -> None:
+    """A node whose ``name`` AND ``path`` both equal ``$name`` is returned
+    by both ``UNION ALL`` branches. Its id must be counted once, so the
+    reported degree is the node's real degree -- not twice it.
+
+    This is why the probe resolves ids and then counts, instead of
+    ``UNION ALL``-ing two ``count(r)`` branches: ``UNION ALL`` does not
+    deduplicate, so summing the branches would report ``2 * deg`` and
+    could push a non-hub over the Fan_Out_Threshold (R1.3)."""
+    graph = MockGraphDB()
+    # Same nid from both branches -- the dual-match case.
+    _seed_probe(
+        graph, nids=[{"nid": "dual-1"}, {"nid": "dual-1"}], deg=60
+    )
+    deg = await tb.anchor_degree(graph, "exglobal_forecast.sh", "CALLS",
+                                 tenant=None)
+    count_call = _probe_queries(graph)[-1]
+    assert count_call[2]["ids"] == ["dual-1"], "id was not deduplicated"
+    # One count over one id: the real degree, not 120.
+    assert deg == 60
+    assert tb.is_hub(deg) is False  # 60 <= 100; doubling would flip this
+
+
+async def test_anchor_degree_scope_pred_and_timeout_on_both_stages(
+) -> None:
+    """The Label_Scope_Predicate is carried on *both* resolution branches
+    and on the count, and every query carries the tenant and the
+    Statement_Timeout (R1.4)."""
+    sentinel = object()
+    scope = (
+        " AND size([__lbl IN labels(a) WHERE __lbl STARTS WITH 'GW_V17_'])"
+        " > 0"
+    )
+    graph = MockGraphDB()
+    _seed_probe(graph)
+    await tb.anchor_degree(
+        graph, "foo", "CALLS", tenant=sentinel, scope_pred=scope
+    )
+    calls = _probe_queries(graph)
+    assert len(calls) == 2
+    resolve, count = calls
+    assert resolve[1][0].count(scope) == 2  # one per branch
+    head, _, tail = resolve[1][0].partition("UNION ALL")
+    assert scope in head and scope in tail
+    assert scope in count[1][0]
+    for c in calls:
+        assert c[3]["tenant"] is sentinel
+        assert c[3]["timeout"] == tb.TIMEOUT_S
+
+
+async def test_anchor_degree_unresolvable_anchor_is_zero_non_hub() -> None:
+    """An anchor that resolves to nothing keeps returning ``0`` -- the
+    pre-decomposition probe's value, since a grouping-key-less
+    ``count(r)`` yields one ``0`` row even on no match. Preserved because
+    the degree-probe fail-safe feeds the hub gate."""
+    graph = MockGraphDB()
+    _seed_probe(graph, nids=[], deg=0)
+    deg = await tb.anchor_degree(graph, "nosuchsymbol", "CALLS", tenant=None)
+    assert deg == 0
+    assert tb.is_hub(deg) is False
+    # The count is still issued (with an empty id list), so the shape of
+    # this path is unchanged rather than short-circuited to a lookalike.
+    assert len(_probe_queries(graph)) == 2
+    assert _probe_queries(graph)[-1][2]["ids"] == []
+
+
+@pytest.mark.parametrize(
+    "exc", [RuntimeError("boom"), asyncio.TimeoutError()]
+)
+async def test_anchor_degree_resolution_failure_is_none_hub(
+    exc: BaseException,
+) -> None:
+    """A failure in the *resolution* stage is unmeasurable degree, not
+    degree 0: it returns ``None`` so callers treat the anchor as a hub
+    (R1.5 fail-safe). Without this, the resolution's graceful empty list
+    would silently become a non-hub."""
+    graph = MockGraphDB()
+    _seed_probe(graph)
+    graph.add_raise(_RESOLVE_FRAGMENT, exc)
+    deg = await tb.anchor_degree(graph, "foo", "CALLS", tenant=None)
+    assert deg is None
+    assert tb.is_hub(deg) is True
+    # The count is never attempted without ids.
+    cyphers = [c[1][0] for c in _probe_queries(graph)]
+    assert not any("count(r) AS deg" in q for q in cyphers)
+
+
+async def test_anchor_degree_count_failure_is_none_hub() -> None:
+    """A failure in the *count* stage is equally unmeasurable (R1.5)."""
+    graph = MockGraphDB()
+    _seed_probe(graph)
+    graph.add_raise("count(r) AS deg", RuntimeError("count boom"))
+    deg = await tb.anchor_degree(graph, "foo", "CALLS", tenant=None)
+    assert deg is None
+    assert tb.is_hub(deg) is True
+
+
 # ── is_hub ─────────────────────────────────────────────────────────────
 
 
@@ -232,3 +391,126 @@ def test_invalid_env_values_fall_back_to_defaults(
         monkeypatch.undo()
         importlib.reload(tb)
     assert tb.CALL_CHAIN_DEPTH == 4
+
+
+# ── BFS constants (R3.4, R6.1, R6.2, R6.3) ─────────────────────────────
+
+
+def test_bfs_constant_defaults() -> None:
+    """Conservative defaults: activation 30, fan-out 100 (R3.2, R6.1)."""
+    assert tb.BFS_ACTIVATION_THRESHOLD == 30
+    assert tb.BFS_FAN_OUT_LIMIT == 100
+
+
+def test_bfs_activation_threshold_below_hub_threshold() -> None:
+    """BFS kicks in well before the hub / Degraded_Result cut-off (R3.4)."""
+    assert tb.BFS_ACTIVATION_THRESHOLD < tb.FAN_OUT_THRESHOLD
+
+
+def test_bfs_symbols_exported() -> None:
+    for sym in ("BFS_ACTIVATION_THRESHOLD", "BFS_FAN_OUT_LIMIT", "_use_bfs"):
+        assert sym in tb.__all__
+
+
+def test_bfs_env_overrides_change_constants_on_reload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MCP_BFS_ACTIVATION_THRESHOLD", "12")
+    monkeypatch.setenv("MCP_BFS_FAN_OUT_LIMIT", "250")
+    try:
+        importlib.reload(tb)
+        assert tb.BFS_ACTIVATION_THRESHOLD == 12
+        assert tb.BFS_FAN_OUT_LIMIT == 250
+    finally:
+        monkeypatch.undo()
+        importlib.reload(tb)
+    # Restored to conservative defaults after reload with env cleared.
+    assert tb.BFS_ACTIVATION_THRESHOLD == 30
+    assert tb.BFS_FAN_OUT_LIMIT == 100
+
+
+@pytest.mark.parametrize("bad", ["not-a-number", "-5", "0", ""])
+def test_invalid_bfs_env_values_fall_back_to_defaults(
+    monkeypatch: pytest.MonkeyPatch, bad: str
+) -> None:
+    monkeypatch.setenv("MCP_BFS_ACTIVATION_THRESHOLD", bad)
+    monkeypatch.setenv("MCP_BFS_FAN_OUT_LIMIT", bad)
+    try:
+        importlib.reload(tb)
+        assert tb.BFS_ACTIVATION_THRESHOLD == 30
+        assert tb.BFS_FAN_OUT_LIMIT == 100
+    finally:
+        monkeypatch.undo()
+        importlib.reload(tb)
+
+
+def test_bfs_activation_threshold_override_is_honoured_by_use_bfs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``_use_bfs`` reads the (overridable) module constant (R6.2, R6.3)."""
+    monkeypatch.setenv("MCP_BFS_ACTIVATION_THRESHOLD", "5")
+    try:
+        importlib.reload(tb)
+        assert tb._use_bfs(5, 1) is True   # at the lowered threshold
+        assert tb._use_bfs(4, 1) is False  # below it
+    finally:
+        monkeypatch.undo()
+        importlib.reload(tb)
+    # Default threshold restored: 5 is now below it.
+    assert tb._use_bfs(5, 1) is False
+
+
+# ── _use_bfs strategy selector (R3.1, R3.2, Property 5) ────────────────
+
+
+@pytest.mark.parametrize("degree", [0, 1, 5, 29])
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_use_bfs_false_for_low_degree_and_shallow_depth(
+    degree: int, depth: int
+) -> None:
+    """Low degree AND depth <= 3 keeps the existing single query (R3.1)."""
+    assert tb._use_bfs(degree, depth) is False
+
+
+@pytest.mark.parametrize("degree", [30, 31, 99, 100, 5_000])
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_use_bfs_true_at_or_above_activation_threshold(
+    degree: int, depth: int
+) -> None:
+    """Degree >= BFS_ACTIVATION_THRESHOLD selects the BFS_Walker (R3.2)."""
+    assert tb._use_bfs(degree, depth) is True
+
+
+@pytest.mark.parametrize("degree", [0, 1, 29, 30, 500])
+@pytest.mark.parametrize("depth", [4, 5, 10])
+def test_use_bfs_true_when_depth_exceeds_three(
+    degree: int, depth: int
+) -> None:
+    """Depth > 3 selects the BFS_Walker regardless of degree (R3.2)."""
+    assert tb._use_bfs(degree, depth) is True
+
+
+@pytest.mark.parametrize("depth", [1, 2, 3, 4, 10])
+def test_use_bfs_true_when_degree_is_none_fail_safe(depth: int) -> None:
+    """Probe failure (degree None) takes the bounded walk (R3.2 fail-safe)."""
+    assert tb._use_bfs(None, depth) is True
+
+
+def test_use_bfs_boundary_at_threshold_and_depth() -> None:
+    """Exact boundaries: 29/3 -> single query, 30/3 and 29/4 -> BFS."""
+    assert tb._use_bfs(tb.BFS_ACTIVATION_THRESHOLD - 1, 3) is False
+    assert tb._use_bfs(tb.BFS_ACTIVATION_THRESHOLD, 3) is True
+    assert tb._use_bfs(tb.BFS_ACTIVATION_THRESHOLD - 1, 4) is True
+
+
+def test_use_bfs_is_disjoint_from_single_query_condition() -> None:
+    """``_use_bfs`` is False only when degree < threshold AND depth <= 3
+    (Property 5 sanity check over a small grid)."""
+    for degree in (None, 0, 15, 29, 30, 42, 300):
+        for depth in (1, 3, 4, 8):
+            expected = (
+                degree is None
+                or degree >= tb.BFS_ACTIVATION_THRESHOLD
+                or depth > 3
+            )
+            assert tb._use_bfs(degree, depth) is expected

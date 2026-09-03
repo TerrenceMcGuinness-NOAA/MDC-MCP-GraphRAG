@@ -34,6 +34,82 @@ from src.data.protocols import GraphDBProtocol
 log = logging.getLogger(__name__)
 
 
+# ── name predicate (Phase 83) ───────────────────────────────────────────────
+
+
+def _name_contains_predicate(var: str, param: str) -> str:
+    """Return a type-tolerant ``name CONTAINS`` WHERE fragment (Phase 83).
+
+    Shared by the GGSR traversal queries here and, by direct import, the
+    fuzzy-symbol fallback in ``src.tools.graph_rag`` and the topic lookup
+    in ``src.tools.semantic_search``. It lives in this module (the lowest
+    of the three call sites in the import graph) so a single implementation
+    can be imported *upward* into the two tool modules without a cycle.
+
+    The graph's ``name`` property is heterogeneous: on the live COTS
+    ``gw_v17`` data it holds 321,520 strings, 452 integers (Long), and 4
+    string-lists (StringArray). The two engines disagree on how a text
+    predicate should treat the non-string values:
+
+    * **Amazon Neptune (openCypher)** silently coerces any type —
+      ``toLower(toString(n.name))`` never throws.
+    * **Neo4j Community 5.x** is strictly typed —
+      ``toLower(toString(n.name))`` throws ``toString(): got StringArray``
+      on the 4 list-named nodes and ``toLower(n.name)`` throws
+      ``Expected a string value for toLower, but got: Long`` on the 452
+      integer-named nodes. Either error **aborts the whole query**, which
+      is what produced Phase 82's 7 graph-query failures.
+
+    Neptune has no APOC, no ``IS :: TYPE`` predicate and no
+    ``valueType()``, so a single unified predicate cannot cleanly guard
+    the type on both engines (``toString()`` on a list throws on Neo4j —
+    verified live in Phase 82). Phase 83 therefore branches on
+    ``DB_BACKEND``:
+
+    * **COTS (Neo4j)** — ``{var}.name IS :: STRING AND
+      toLower({var}.name) CONTAINS toLower(${param})``. The ``IS ::
+      STRING`` type guard is evaluated first and ``AND`` short-circuits,
+      so ``toLower`` never sees a Long or a StringArray. Non-string
+      ``name`` values are skipped — they can never match a substring
+      search of a symbol name anyway, so nothing meaningful is lost.
+    * **AWS (Neptune)** — ``toLower(toString({var}.name)) CONTAINS
+      toLower(${param})``, byte-for-byte the pre-Phase-83 form, so the
+      Neptune path is unchanged (no regression).
+
+    ``IS :: STRING`` is Neo4j-specific and is **only** emitted on the
+    COTS path; the Neptune path never carries it, so Neptune never sees
+    unsupported syntax.
+
+    Parameters
+    ----------
+    var
+        The Cypher node variable to test (e.g. ``"n"``, ``"hop1"``).
+    param
+        The bare parameter name whose value is the search substring; the
+        emitted fragment references it as ``$<param>`` (e.g. ``"baseName"``
+        → ``$baseName``).
+
+    Returns
+    -------
+    str
+        A WHERE-clause fragment (no leading ``WHERE``/``AND``) suitable
+        for interpolation into a larger query.
+    """
+    # Imported lazily so this module stays dependency-light at load time
+    # (``load_config`` only reads env vars — no adapter / SDK import).
+    from src.config.environment import load_config
+
+    cfg = load_config()
+    if cfg.is_cots():
+        # Neo4j: type-guard first; AND short-circuits before toLower runs.
+        return (
+            f"{var}.name IS :: STRING "
+            f"AND toLower({var}.name) CONTAINS toLower(${param})"
+        )
+    # Neptune: toString() coerces every type silently (unchanged form).
+    return f"toLower(toString({var}.name)) CONTAINS toLower(${param})"
+
+
 # ── constants ─────────────────────────────────────────────────────────────
 
 # Relationship weight matrix — must match Node.js RELATIONSHIP_WEIGHTS in
@@ -336,6 +412,22 @@ class GGSRTraversal:
         The cypher here is a Neptune-compatible port of the Node.js
         ``oneHopNeighborhood`` / ``twoHopNeighborhood`` queries: no
         regex operators, ``toLower($baseName) CONTAINS`` for matching.
+
+        The name predicate is emitted by
+        :func:`src.tools._common._name_contains_predicate` (Phase 83),
+        which is backend-aware. On Neptune it keeps the built-in
+        ``toLower(toString(n.name)) CONTAINS toLower($baseName)`` form.
+        On Neo4j Community it emits ``n.name IS :: STRING AND
+        toLower(n.name) CONTAINS toLower($baseName)`` — a type guard
+        whose ``AND`` short-circuits before ``toLower`` runs, so the
+        mixed-type ``name`` property (452 integer / 4 list values on the
+        live COTS data) can no longer throw ``CypherTypeError`` and abort
+        the query. The prior single-form ``toLower(toString(n.name))``
+        threw ``toString(): got StringArray`` on Neo4j's list-named
+        nodes; the still-earlier ``apoc.text.join([x IN
+        apoc.convert.toList(n.name) | toString(x)], ' ')`` form depended
+        on the APOC server plugin, which Amazon Neptune has no mechanism
+        to load (``400 Unknown function: 'toList'``).
         """
         limit = max(1, int(limit))
         base_name = entity
@@ -343,6 +435,8 @@ class GGSRTraversal:
         from src.tenancy.resolver import get_current_tenant_or_none, tenant_label_predicate
         ctx = get_current_tenant_or_none()
         tenant_obj = ctx.tenant if ctx else None
+
+        name_pred = _name_contains_predicate("n", "baseName")
 
         pred_n = tenant_label_predicate("n")
         scope_n = f" AND {pred_n}" if pred_n else ""
@@ -353,7 +447,7 @@ class GGSRTraversal:
         if hops == 1:
             cypher = (
                 "MATCH (n)-[r]-(hop1) "
-                "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($baseName) "
+                f"WHERE {name_pred} "
                 f"{scope_n}{scope_hop1} "
                 "RETURN n.name AS source, "
                 "type(r) AS relationship, "
@@ -371,7 +465,7 @@ class GGSRTraversal:
         scope_hop2 = f" AND {pred_hop2}" if pred_hop2 else ""
         cypher = (
             "MATCH (n)-[r1]-(hop1) "
-            "WHERE toLower(apoc.text.join([x IN apoc.convert.toList(n.name) | toString(x)], ' ')) CONTAINS toLower($baseName) "
+            f"WHERE {name_pred} "
             f"{scope_n}{scope_hop1} "
             "OPTIONAL MATCH (hop1)-[r2]-(hop2) "
             f"WHERE hop2 <> n{scope_hop2} "

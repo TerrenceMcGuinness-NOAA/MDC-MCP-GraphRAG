@@ -63,7 +63,8 @@ find_tunnel_id() {
     | grep "eib-mcp-gateway" \
     | awk '{print $1}' \
     | sed 's/\.use$//' \
-    | head -1
+    | head -1 \
+    || true
 }
 
 # ── get public URL from devtunnel show (empty if not hosted) ──────────────────

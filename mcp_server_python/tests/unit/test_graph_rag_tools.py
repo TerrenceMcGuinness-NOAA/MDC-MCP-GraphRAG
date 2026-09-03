@@ -25,6 +25,10 @@ from fastmcp import FastMCP
 
 from src.sdd.session_manager import SessionManager
 from src.tools import graph_rag
+from src.tools._traversal_bounds import (
+    BFS_ACTIVATION_THRESHOLD,
+    FAN_OUT_THRESHOLD,
+)
 from tests.conftest import (
     MockGraphDB,
     MockUnifiedDataAccess,
@@ -80,8 +84,14 @@ def _seed_node_lookup(graph: MockGraphDB, rows: list[dict[str, Any]]) -> None:
 
 
 def _seed_fuzzy_lookup(graph: MockGraphDB, rows: list[dict[str, Any]]) -> None:
+    # Phase 83: the fuzzy fallback predicate is backend-aware — the Neptune
+    # (aws) form is ``toLower(toString(n.name)) CONTAINS toLower($name)`` and
+    # the Neo4j (cots) form is
+    # ``n.name IS :: STRING AND toLower(n.name) CONTAINS toLower($name)``.
+    # Key the mock on the substring common to both so the seed matches
+    # regardless of the ambient DB_BACKEND.
     graph.add_response(
-        "toLower(n.name) CONTAINS toLower($name)",
+        "CONTAINS toLower($name)",
         rows,
     )
 
@@ -950,6 +960,66 @@ async def test_trace_data_flow_renders_outgoing_edges(tmp_path: Path) -> None:
     assert "`child_b`" in text
 
 
+async def test_trace_data_flow_response_carries_bfs_header(
+    tmp_path: Path,
+) -> None:
+    """R8.4 at the tool boundary: a degree inside the BFS band routes the
+    outgoing fan-out through the walker, and the indicator says so on the
+    line after the title.
+
+    The degree is seeded at 50 — at or above BFS_ACTIVATION_THRESHOLD (30)
+    so the walk is selected, and at or below FAN_OUT_THRESHOLD (100) so
+    the anchor is not read as a hub, which would return the
+    Degraded_Result without attempting any walk (R3.1, R3.2).
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    data.graph_db.add_response("count(r) AS deg", [{"deg": 50}])
+    data.graph_db.add_response("RETURN id(n) AS nid", [{"nid": "anchor-1"}])
+    data.graph_db.add_response(
+        "MATCH (a)-[:CALLS]->(b)",
+        [
+            {
+                "nid": "child-1",
+                "name": "child_a",
+                "path": None,
+                "labels": ["Function"],
+            }
+        ],
+    )
+
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "forecast"}
+    )
+    lines = text.splitlines()
+    title = lines.index("# Data Flow Trace: `forecast`")
+    assert lines[title + 1].startswith("[optimized: BFS walker, ")
+    assert lines[title + 1].endswith("]")
+    assert lines[title + 2] == ""
+    # Anti-vacuity: the walk produced the rendered fan-out.
+    assert "`child_a`" in text
+
+
+async def test_trace_data_flow_single_query_has_no_bfs_header(
+    tmp_path: Path,
+) -> None:
+    """The other half of R8.4: a low-degree anchor keeps the single query,
+    so the response carries no indicator (R5.1)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_outgoing(
+        data.graph_db,
+        [{"name": "child_a", "type": "Function", "relType": "CALLS"}],
+    )
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "forecast"}
+    )
+    assert "[optimized: BFS walker" not in text
+    assert "`child_a`" in text
+
+
 async def test_trace_data_flow_renders_shortest_path_when_to_symbol_set(
     tmp_path: Path,
 ) -> None:
@@ -1640,3 +1710,555 @@ async def test_bug_exploration_find_similar_code_missing_index(
     )
     assert "[INFO]" in text and "[ERROR]" not in text
     assert "gw_v17" in text and "code-with-context-v8-0-0" in text
+
+
+# ══ Task 2.5 — UNION ALL Decomposition in trace_data_flow ══════════════
+# Validates R1.1 (UNION ALL replaces the OR anchor predicate), R1.2 (both
+# the one-hop fan-out and the shortestPath seed are decomposed), R1.3
+# (set-equivalent, deduplicated output), R1.4 (Label_Scope_Predicate and
+# Statement_Timeout carried unchanged on both branches).
+
+
+#: A representative non-default-tenant scope fragment. The cypher
+#: builders take the ``_scope_and(...)`` output verbatim, so a literal
+#: keeps these tests independent of the tenant catalog.
+_SCOPE_FRAGMENT = (
+    " AND size([__lbl IN labels(source) "
+    "WHERE __lbl STARTS WITH 'GW_V17_']) > 0"
+)
+
+
+# ── _outgoing_union_cypher (one-hop fan-out anchor) ────────────────────
+
+
+def test_outgoing_union_cypher_emits_two_branches_not_or() -> None:
+    """The anchor is two index-seekable equality branches joined by
+    ``UNION ALL``, never a disjunction over ``name``/``path`` (R1.1)."""
+    cypher = graph_rag._outgoing_union_cypher("")
+    assert cypher.count("UNION ALL") == 1
+    assert "WHERE source.name = $name" in cypher
+    assert "WHERE source.path = $name" in cypher
+    assert " OR " not in cypher
+    assert "source.name = $name OR source.path = $name" not in cypher
+
+
+def test_outgoing_union_cypher_expands_edge_set_on_both_branches() -> None:
+    """Both branches traverse the same one-hop edge set, so the merged
+    result is set-equivalent to the single-query form (R1.3)."""
+    cypher = graph_rag._outgoing_union_cypher("")
+    pattern = f"MATCH (source)-[r:{graph_rag._OUTGOING_RELS}]->(target)"
+    assert cypher.count(pattern) == 2
+    head, _, tail = cypher.partition("UNION ALL")
+    assert pattern in head and pattern in tail
+
+
+def test_outgoing_union_cypher_applies_scope_pred_to_both_branches() -> None:
+    """The Label_Scope_Predicate is carried on both branches (R1.4)."""
+    cypher = graph_rag._outgoing_union_cypher(_SCOPE_FRAGMENT)
+    assert cypher.count(_SCOPE_FRAGMENT) == 2
+    head, _, tail = cypher.partition("UNION ALL")
+    assert _SCOPE_FRAGMENT in head
+    assert _SCOPE_FRAGMENT in tail
+
+
+def test_outgoing_union_cypher_omits_scope_pred_when_empty() -> None:
+    cypher = graph_rag._outgoing_union_cypher("")
+    assert "labels(source)" not in cypher
+    assert cypher.count("WHERE") == 2  # exactly one per branch
+
+
+def test_outgoing_union_cypher_leaves_ordering_to_the_merge() -> None:
+    """Ordering/truncation cannot live in the cypher — openCypher applies
+    them per branch, not to the union — so they happen in
+    ``_merge_outgoing_rows`` instead (R1.3)."""
+    cypher = graph_rag._outgoing_union_cypher("")
+    assert "ORDER BY" not in cypher
+    assert "LIMIT" not in cypher
+
+
+# ── _merge_outgoing_rows (post-union dedup / order / cap) ──────────────
+
+
+def test_merge_outgoing_rows_dedupes_overlapping_branch_rows() -> None:
+    """A target reachable from both the ``name`` and the ``path`` branch
+    arrives twice; the merge folds it back to one row (R1.3)."""
+    rows = [
+        # name branch
+        {"name": "child_a", "type": "Function", "relType": "CALLS"},
+        {"name": "child_b", "type": "Function", "relType": "USES"},
+        # path branch — child_a matched on both anchor properties
+        {"name": "child_a", "type": "Function", "relType": "CALLS"},
+        {"name": "child_c", "type": "Script", "relType": "SOURCES"},
+    ]
+    merged = graph_rag._merge_outgoing_rows(rows)
+    keys = [(r["name"], r["type"], r["relType"]) for r in merged]
+    assert len(keys) == len(set(keys)), f"duplicate rows survived: {keys}"
+    assert {k[0] for k in keys} == {"child_a", "child_b", "child_c"}
+
+
+def test_merge_outgoing_keeps_same_name_under_other_rel_type() -> None:
+    """Dedup keys on ``(name, type, relType)``, so the same target reached
+    by two different relationship types is *not* a duplicate."""
+    rows = [
+        {"name": "child_a", "type": "Function", "relType": "CALLS"},
+        {"name": "child_a", "type": "Function", "relType": "USES"},
+    ]
+    merged = graph_rag._merge_outgoing_rows(rows)
+    assert len(merged) == 2
+
+
+def test_merge_outgoing_rows_orders_by_rel_type_then_name() -> None:
+    """Reproduces the ``ORDER BY type(r), target.name`` the single-query
+    form carried."""
+    rows = [
+        {"name": "zeta", "type": "Function", "relType": "USES"},
+        {"name": "beta", "type": "Function", "relType": "CALLS"},
+        {"name": "alpha", "type": "Function", "relType": "USES"},
+    ]
+    merged = graph_rag._merge_outgoing_rows(rows)
+    assert [(r["relType"], r["name"]) for r in merged] == [
+        ("CALLS", "beta"),
+        ("USES", "alpha"),
+        ("USES", "zeta"),
+    ]
+
+
+def test_merge_outgoing_rows_truncates_to_limit() -> None:
+    """The merged set is cut to ``_OUTGOING_LIMIT`` — the same bound the
+    pre-decomposition ``LIMIT 25`` carried."""
+    rows = [
+        {"name": f"n{i:03d}", "type": "Function", "relType": "CALLS"}
+        for i in range(60)
+    ]
+    merged = graph_rag._merge_outgoing_rows(rows)
+    assert len(merged) == graph_rag._OUTGOING_LIMIT
+
+
+def test_merge_outgoing_rows_drops_unnamed_and_non_dict_rows() -> None:
+    merged = graph_rag._merge_outgoing_rows(
+        [
+            {"name": "keep", "type": "Function", "relType": "CALLS"},
+            {"name": "", "type": "Function", "relType": "CALLS"},
+            {"type": "Function", "relType": "CALLS"},
+        ]
+    )
+    assert [r["name"] for r in merged] == ["keep"]
+
+
+def test_merge_outgoing_rows_handles_none() -> None:
+    assert graph_rag._merge_outgoing_rows(None) == []
+
+
+# ── _path_union_cypher (shortestPath seed anchor) ──────────────────────
+
+
+def test_path_union_cypher_emits_two_branches_not_or() -> None:
+    """The shortestPath seed anchor is UNION_ALL_Decomposed too (R1.2)."""
+    cypher = graph_rag._path_union_cypher(5, "")
+    assert cypher.count("UNION ALL") == 1
+    assert "WHERE source.name = $from AND dest.name = $to" in cypher
+    assert "WHERE source.path = $from AND dest.name = $to" in cypher
+    assert " OR " not in cypher
+
+
+def test_path_union_cypher_embeds_depth_and_limit_on_both_branches() -> None:
+    """``LIMIT`` applies within each ``UNION ALL`` branch, so both branches
+    carry the depth bound and the row cap."""
+    cypher = graph_rag._path_union_cypher(4, "")
+    assert cypher.count("*1..4") == 2
+    assert cypher.count(f"LIMIT {graph_rag._PATH_LIMIT}") == 2
+
+
+def test_path_union_cypher_applies_scope_pred_to_both_branches() -> None:
+    cypher = graph_rag._path_union_cypher(5, _SCOPE_FRAGMENT)
+    assert cypher.count(_SCOPE_FRAGMENT) == 2
+    head, _, tail = cypher.partition("UNION ALL")
+    assert _SCOPE_FRAGMENT in head
+    assert _SCOPE_FRAGMENT in tail
+
+
+# ── _merge_path_rows (post-union dedup / cap) ──────────────────────────
+
+
+def test_merge_path_rows_dedupes_paths_found_by_both_branches() -> None:
+    """A path found from both anchor branches arrives twice; folded on
+    ``(nodeNames, relTypes)`` (R1.3)."""
+    row = {"nodeNames": ["a", "b"], "relTypes": ["CALLS"], "hops": 1}
+    merged = graph_rag._merge_path_rows([dict(row), dict(row)])
+    assert len(merged) == 1
+    assert merged[0]["nodeNames"] == ["a", "b"]
+
+
+def test_merge_path_rows_keeps_distinct_paths() -> None:
+    merged = graph_rag._merge_path_rows(
+        [
+            {"nodeNames": ["a", "b"], "relTypes": ["CALLS"], "hops": 1},
+            {"nodeNames": ["a", "c"], "relTypes": ["USES"], "hops": 1},
+        ]
+    )
+    assert len(merged) == 2
+
+
+def test_merge_path_rows_truncates_to_limit() -> None:
+    rows = [
+        {"nodeNames": ["a", f"b{i}"], "relTypes": ["CALLS"], "hops": 1}
+        for i in range(10)
+    ]
+    merged = graph_rag._merge_path_rows(rows)
+    assert len(merged) == graph_rag._PATH_LIMIT
+
+
+def test_merge_path_rows_handles_none_and_non_dict() -> None:
+    assert graph_rag._merge_path_rows(None) == []
+    rows = [None, "x"]
+    assert graph_rag._merge_path_rows(rows) == []  # type: ignore[arg-type]
+
+
+# ── tool-level: emitted cypher + deduplicated render ──────────────────
+
+
+async def test_trace_data_flow_emits_union_all_on_both_queries(
+    tmp_path: Path,
+) -> None:
+    """Both queries ``trace_data_flow`` issues use UNION_ALL_Decomposition
+    and neither carries the index-defeating OR anchor (R1.1, R1.2)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_outgoing(data.graph_db, [])
+    _seed_shortest_path(data.graph_db, [])
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "a", "to_symbol": "z"}
+    )
+    cyphers = [c[1][0] for c in _graph_query_calls(data)]
+    outgoing = [q for q in cyphers if "(source)-[r:" in q]
+    path = [q for q in cyphers if "shortestPath" in q]
+    assert outgoing and path
+    for q in outgoing + path:
+        assert "UNION ALL" in q
+        assert "source.name = $name OR" not in q
+        assert "source.name = $from OR" not in q
+
+
+async def test_trace_data_flow_union_branches_carry_scope_and_timeout(
+    tmp_path: Path,
+) -> None:
+    """Each branch of each decomposed query carries the tenant scope
+    predicate, and the call carries the Statement_Timeout (R1.4)."""
+    from src.tools._traversal_bounds import TIMEOUT_S
+
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_outgoing(data.graph_db, [])
+    _seed_shortest_path(data.graph_db, [])
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "a", "to_symbol": "z"}
+    )
+    calls = _graph_query_calls(data)
+    decomposed = [
+        c
+        for c in calls
+        if "UNION ALL" in c[1][0] and "WHERE source." in c[1][0]
+    ]
+    assert len(decomposed) == 2, "expected fan-out + shortestPath decomposed"
+    for c in decomposed:
+        cypher = c[1][0]
+        assert c[3]["tenant"] is not None
+        assert c[3]["timeout"] == TIMEOUT_S
+        head, _, tail = cypher.partition("UNION ALL")
+        assert "WHERE source." in head and "WHERE source." in tail
+        # The active tenant here is the default ``gw``, whose scope
+        # predicate excludes other tenants' prefixed labels. Whatever the
+        # predicate is, it must be present on BOTH branches (R1.4) — the
+        # branches are identical apart from the anchored property, so
+        # swapping ``path`` back to ``name`` makes them equal.
+        assert "labels(source)" in cypher, (
+            "expected a Label_Scope_Predicate on the default gw tenant"
+        )
+        assert cypher.count("labels(source)") == 2
+        assert head.strip() == tail.replace(
+            "source.path =", "source.name ="
+        ).strip()
+
+    # Task 2.6: the pre-flight degree probe resolves its own anchor with
+    # the same decomposition, on its own ``a`` variable, and carries the
+    # same scope predicate and timeout on both branches.
+    probe_anchor = [
+        c
+        for c in calls
+        if "UNION ALL" in c[1][0] and "RETURN id(a) AS nid" in c[1][0]
+    ]
+    assert len(probe_anchor) == 1, "expected the degree probe decomposed"
+    cypher = probe_anchor[0][1][0]
+    assert probe_anchor[0][3]["tenant"] is not None
+    assert probe_anchor[0][3]["timeout"] == TIMEOUT_S
+    assert "a.name = $name OR" not in cypher
+    assert cypher.count("labels(a)") == 2
+    head, _, tail = cypher.partition("UNION ALL")
+    assert head.strip() == tail.replace("a.path =", "a.name =").strip()
+
+
+async def test_trace_data_flow_dedupes_overlapping_outgoing_rows(
+    tmp_path: Path,
+) -> None:
+    """Overlapping rows from the two branches render once, so the count in
+    the section header matches the deduplicated set (R1.3)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_outgoing(
+        data.graph_db,
+        [
+            # name branch
+            {"name": "child_a", "type": "Function", "relType": "CALLS"},
+            {"name": "child_b", "type": "Function", "relType": "USES"},
+            # path branch — fully overlapping
+            {"name": "child_a", "type": "Function", "relType": "CALLS"},
+            {"name": "child_b", "type": "Function", "relType": "USES"},
+        ],
+    )
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "forecast"}
+    )
+    assert "## Outgoing Relationships (2)" in text
+    assert text.count("| `child_a` |") == 1
+    assert text.count("| `child_b` |") == 1
+
+
+async def test_trace_data_flow_dedupes_overlapping_path_rows(
+    tmp_path: Path,
+) -> None:
+    """The same shortest path found by both anchor branches renders once."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_outgoing(data.graph_db, [])
+    row = {"nodeNames": ["a", "b", "c"], "relTypes": ["CALLS", "CALLS"],
+           "hops": 2}
+    _seed_shortest_path(data.graph_db, [dict(row), dict(row)])
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "a", "to_symbol": "c"}
+    )
+    assert text.count("**2 hops**") == 1
+
+
+# ══ Task 5.5 — tool-level strategy routing for trace_data_flow ═════════
+# `_use_bfs` itself is covered exhaustively elsewhere (Property 5 in
+# tests/properties/test_bfs_walker_props.py, plus the truth-table grid in
+# tests/unit/test_traversal_bounds.py). What is asserted here is the
+# *routing* decision at this tool's boundary: which query shape actually
+# reaches the graph for each band of the anchor's measured degree.
+#
+# Routing is read off the emitted queries rather than by monkeypatching
+# `bfs_walk`, because the shapes are unambiguous for this tool:
+#
+#   walker expansion  ``... WHERE id(a) IN $ids ... RETURN DISTINCT
+#                     id(b) AS nid ...``   (`_bfs_walker._expand_one_hop`)
+#   single query      ``MATCH (source)-[r:CALLS|USES|...]->(target)``
+#                     (the UNION_ALL_Decomposed one-hop fan-out)
+#
+# Validates R3.1 (below the activation threshold the single query is
+# kept), R3.2 (at/above it the walk is selected), R5.1 (the single-query
+# path is unchanged where kept), R5.5 (hub handling unchanged).
+
+
+#: Degrees landing in each arm of the selector, derived from the live
+#: tunables so an env override moves the tests with the implementation.
+_DEG_SINGLE = BFS_ACTIVATION_THRESHOLD - 1
+_DEG_BFS = BFS_ACTIVATION_THRESHOLD
+#: `is_hub` is a strict ``degree > threshold``, so FAN_OUT_THRESHOLD
+#: itself is still a non-hub and walks.
+_DEG_BFS_TOP = FAN_OUT_THRESHOLD
+_DEG_HUB = FAN_OUT_THRESHOLD + 1
+
+#: Projection unique to `_bfs_walker._expand_one_hop`.
+_WALK_EXPANSION = "RETURN DISTINCT id(b) AS nid"
+#: The walker's own anchor resolution (``var="n"``). The degree probe
+#: resolves with ``var="a"``, so this cannot be confused with it.
+_WALK_ANCHOR = "RETURN id(n) AS nid"
+#: The single-query one-hop fan-out's pattern.
+_SINGLE_FANOUT = "(source)-[r:CALLS|USES|IMPORTS|EXECUTES|INVOKES|SOURCES]"
+
+
+def _cyphers(data: MockUnifiedDataAccess) -> list[str]:
+    return [c[1][0] for c in _graph_query_calls(data)]
+
+
+def _walk_expansions(data: MockUnifiedDataAccess) -> list[str]:
+    return [q for q in _cyphers(data) if _WALK_EXPANSION in q]
+
+
+def _fanout_queries(data: MockUnifiedDataAccess) -> list[str]:
+    return [q for q in _cyphers(data) if _SINGLE_FANOUT in q]
+
+
+def _seed_degree(graph: MockGraphDB, deg: int) -> None:
+    """Seed the pre-flight single-hop degree probe (`count(r) AS deg`)."""
+    graph.add_response("count(r) AS deg", [{"deg": deg}])
+
+
+def _seed_walk(graph: MockGraphDB, name: str = "walked_child") -> None:
+    """Seed the walker's anchor resolution plus one CALLS expansion."""
+    graph.add_response(_WALK_ANCHOR, [{"nid": "anchor-1"}])
+    graph.add_response(
+        "MATCH (a)-[:CALLS]->(b)",
+        [
+            {
+                "nid": "child-1",
+                "name": name,
+                "path": None,
+                "labels": ["Function"],
+            }
+        ],
+    )
+
+
+async def test_trace_data_flow_below_threshold_uses_single_query(
+    tmp_path: Path,
+) -> None:
+    """degree < BFS_ACTIVATION_THRESHOLD -> the UNION_ALL_Decomposed
+    single query, and no walk is attempted (R3.1, R5.1).
+
+    The fan-out is a one-hop section by construction (`_OUTGOING_DEPTH`
+    is 1), so the depth arm of the selector can never fire here and the
+    measured degree alone decides.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    _seed_outgoing(
+        data.graph_db,
+        [{"name": "child_a", "type": "Function", "relType": "CALLS"}],
+    )
+    # Seeded but unreachable: had the walk run, this row would surface.
+    _seed_walk(data.graph_db)
+
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "forecast"}
+    )
+    assert _walk_expansions(data) == []
+    assert _fanout_queries(data), "expected the single-query fan-out"
+    assert "`child_a`" in text
+    assert "walked_child" not in text
+    assert "[optimized: BFS walker" not in text
+
+
+async def test_trace_data_flow_at_threshold_routes_to_walker(
+    tmp_path: Path,
+) -> None:
+    """degree == BFS_ACTIVATION_THRESHOLD -> the walk runs and the
+    single-query fan-out is not emitted at all (R3.2).
+
+    The exact boundary is pinned rather than a mid-band value, because
+    ``>=`` versus ``>`` in the selector is the one distinction a
+    comfortable mid-band degree cannot make.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_BFS)
+    _seed_outgoing(
+        data.graph_db,
+        [{"name": "single_query_child", "type": "Function",
+          "relType": "CALLS"}],
+    )
+    _seed_walk(data.graph_db)
+
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "forecast"}
+    )
+    assert _walk_expansions(data), "expected the BFS walker to expand"
+    assert _fanout_queries(data) == []
+    assert "`walked_child`" in text
+    assert "single_query_child" not in text
+    assert "[optimized: BFS walker" in text
+
+
+async def test_trace_data_flow_fanout_threshold_still_walks(
+    tmp_path: Path,
+) -> None:
+    """degree == FAN_OUT_THRESHOLD is the last non-hub degree, so it walks
+    rather than degrading (R1.2, R3.2)."""
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_BFS_TOP)
+    _seed_walk(data.graph_db)
+
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "borderline"}
+    )
+    assert _walk_expansions(data)
+    assert "Highly connected node" not in text
+    assert "`walked_child`" in text
+
+
+async def test_trace_data_flow_hub_degrades_without_any_walk(
+    tmp_path: Path,
+) -> None:
+    """A hub anchor is caught by `is_hub` before the selector, so no walk
+    is attempted and the notice is the Degraded_Result (R5.1, R5.5).
+
+    This tool's fan-out is one-hop either way, so unlike the
+    ``code_analysis`` tools it does not swap in a separate one-hop probe:
+    the single query still runs and the response carries the
+    "Highly connected node" notice above it. What must not happen is a
+    walk — the guard order is hub -> BFS -> single-query.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_HUB)
+    _seed_outgoing(
+        data.graph_db,
+        [{"name": "child_a", "type": "Function", "relType": "CALLS"}],
+    )
+    _seed_walk(data.graph_db)
+
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp, "trace_data_flow", {"from_symbol": "hubsym"}
+    )
+    assert "Highly connected node" in text
+    assert str(_DEG_HUB) in text
+    assert _walk_expansions(data) == []
+    assert _fanout_queries(data)
+    assert "walked_child" not in text
+    assert "[optimized: BFS walker" not in text
+
+
+async def test_trace_data_flow_max_depth_does_not_select_the_walk(
+    tmp_path: Path,
+) -> None:
+    """``max_depth`` belongs to the shortestPath section, not the fan-out:
+    a 99-hop request with a below-threshold degree still keeps the
+    single-query fan-out (R3.1).
+
+    This pins the `_OUTGOING_DEPTH = 1` constant's consequence — the
+    depth arm of the selector is unreachable from this tool's parameters,
+    so a caller cannot force the walk by asking for a deeper path.
+    """
+    data = MockUnifiedDataAccess()
+    _seed_empty_graph(data.graph_db)
+    _seed_degree(data.graph_db, _DEG_SINGLE)
+    _seed_outgoing(
+        data.graph_db,
+        [{"name": "child_a", "type": "Function", "relType": "CALLS"}],
+    )
+    _seed_shortest_path(
+        data.graph_db,
+        [{"nodeNames": ["a", "z"], "relTypes": ["CALLS"], "hops": 1}],
+    )
+    _seed_walk(data.graph_db)
+
+    mcp = _make_server(data=data, session=_make_session(tmp_path))
+    text = await _call_tool(
+        mcp,
+        "trace_data_flow",
+        {"from_symbol": "a", "to_symbol": "z", "max_depth": 99},
+    )
+    assert _walk_expansions(data) == []
+    assert _fanout_queries(data)
+    assert "**1 hops**" in text
+    assert "[optimized: BFS walker" not in text

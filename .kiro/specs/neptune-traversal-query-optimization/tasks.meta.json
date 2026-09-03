@@ -1,0 +1,739 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add `BFS_ACTIVATION_THRESHOLD` and `BFS_FAN_OUT_LIMIT` constants": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787960996078
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961066964
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961576818
+      }
+    ],
+    "1.2 Write unit tests for BFS constants and `_use_bfs` strategy selector": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787960998411
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961582489
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961825250
+      }
+    ],
+    "2.1 Create `resolve_anchor_ids` helper in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961000121
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961587544
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961832187
+      }
+    ],
+    "2.2 Apply UNION ALL to `trace_data_flow` outgoing query in `graph_rag.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961001798
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961840858
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962127687
+      }
+    ],
+    "2.3 Apply UNION ALL to `trace_data_flow` shortestPath anchor in `graph_rag.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961003543
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962145208
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962356452
+      }
+    ],
+    "2.4 Apply UNION ALL to `_one_hop_neighbors` anchor in `code_analysis.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961005253
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961846262
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962133022
+      }
+    ],
+    "2.5 Write unit tests for UNION ALL decomposition": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961007003
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962361558
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962901204
+      }
+    ],
+    "3. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961008602
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962925444
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787963138427
+      }
+    ],
+    "4.1 Implement `BFSResult` dataclass in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961010367
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961851444
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962139364
+      }
+    ],
+    "4.2 Implement `_expand_one_hop` helper in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961012151
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962367491
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962908666
+      }
+    ],
+    "4.3 Implement `bfs_walk` main function in `_bfs_walker.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961013928
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787963144637
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787965287899
+      }
+    ],
+    "4.4 Write unit tests for `bfs_walk` and `_expand_one_hop`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961015853
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787965297393
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787965999099
+      }
+    ],
+    "5.1 Integrate BFS Walker into `_cross_language_nodes` in `code_analysis.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961017682
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787965302387
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787966006627
+      }
+    ],
+    "5.2 Integrate BFS Walker into `trace_data_flow` in `graph_rag.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961019467
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787965307583
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787966013129
+      }
+    ],
+    "5.3 Integrate BFS Walker into `find_callers_callees` in `code_analysis.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961021267
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787966020629
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787966739553
+      }
+    ],
+    "5.4 Add timeout fallback chain (single-query → BFS → Degraded_Result)": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961022934
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787967603079
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787968787715
+      }
+    ],
+    "5.5 Write unit tests for strategy integration": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961024737
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787973556374
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788210158826
+      }
+    ],
+    "6. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961026527
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181061007
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788204269672
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788205600607
+      }
+    ],
+    "7.1 Add scope predicate to BFS Walker expansion queries": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961028349
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787966746589
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787967138272
+      }
+    ],
+    "7.2 Add scope predicate to terminal node in single-query patterns": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961030088
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787967143392
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787967597452
+      }
+    ],
+    "7.3 Write unit tests for label-scope on expanded nodes": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961031794
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787973561859
+      }
+    ],
+    "8.1 Add BFS activation and completion logging": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961033529
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787968794125
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787972641949
+      }
+    ],
+    "8.2 Add `[optimized: BFS walker, N hops, M nodes]` response header": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961035482
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787968799503
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787973549899
+      }
+    ],
+    "8.3 Write unit tests for observability": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961037272
+      },
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787973567419
+      }
+    ],
+    "9. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961038899
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181061509
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788205610835
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788209286673
+      }
+    ],
+    "10.1 Write property test for UNION ALL set equivalence": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961040695
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181061926
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181079051
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181465076
+      }
+    ],
+    "10.2 Write property test for BFS subset guarantee": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961042509
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181062333
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181471634
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788182458127
+      }
+    ],
+    "10.3 Write property test for visited-set cycle prevention": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961044348
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181062724
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788182462269
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788182875685
+      }
+    ],
+    "10.4 Write property test for early termination": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961046249
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181063083
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788182881271
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788183259272
+      }
+    ],
+    "10.5 Write property test for strategy selection consistency": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961048048
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181063470
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788183263326
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788183485861
+      }
+    ],
+    "10.6 Write property test for label scope on expanded nodes": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961049733
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181063887
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788183489687
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788184140684
+      }
+    ],
+    "10.7 Write property test for timeout fallback chain": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961051358
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181064330
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788184144679
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788186946157
+      }
+    ],
+    "10.8 Write property test for fan-out limit bounds": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961053059
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181064752
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788186951439
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788187466539
+      }
+    ],
+    "11.1 Run failing benchmark cases and verify resolution": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961054842
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181065319
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788187472010
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788198381004
+      }
+    ],
+    "11.2 Run full 68-case benchmark and verify coverage targets": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961056798
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181065683
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788198384508
+      }
+    ],
+    "12. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961058422
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788181066090
+      },
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788209292238
+      }
+    ],
+    "1. Add BFS constants and configuration to `_traversal_bounds.py`": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787961827128
+      }
+    ],
+    "2. Implement UNION ALL Decomposition for anchor resolution": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787962903334
+      }
+    ],
+    "4. Implement BFS Walker algorithm": [
+      {
+        "executionId": "d6253787-9174-4439-818a-6897252afd15",
+        "chatSessionId": "sess_eeea8f88-5bab-4f63-aae4-a44e98171e23",
+        "timestamp": 1787966001234
+      }
+    ],
+    "10. Write property-based tests": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788187467301
+      }
+    ],
+    "2.6 Apply UNION ALL to the `anchor_degree` probe in `_traversal_bounds.py`": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788198373431
+      }
+    ],
+    "2.7 Apply UNION ALL to `_cross_language_seed_row` in `code_analysis.py`": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788198377300
+      }
+    ],
+    "11.2 Run full 68-case benchmark and verify timeout + latency bounds": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788204259812
+      }
+    ],
+    "11. Run benchmark validation against live Neptune": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788204260372
+      }
+    ],
+    "7. Apply Label-Scope Predicate on expanded nodes": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788209302627
+      }
+    ],
+    "8. Add observability logging for BFS activation": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788209307609
+      }
+    ],
+    "5. Integrate strategy selector into traversal tools": [
+      {
+        "executionId": "7fc643cc-c663-4b84-a11a-7bd8c164682e",
+        "chatSessionId": "sess_fa0de440-cb8c-499f-992f-8ec94688c2f9",
+        "timestamp": 1788210159420
+      }
+    ]
+  }
+}

@@ -33,13 +33,17 @@ Same `update-agent-runtime` call with
 
 ### Deploy payload note
 
-The full lossless payload (captured from the live v21 config) includes
-`--metadata-configuration '{"requireMMDSV2":true}'` and
-`requireServiceS3Endpoint:true` inside the network config — both are
-easy to drop and both must be carried on every `update-agent-runtime`.
-6 env vars, 2 subnets (`subnet-0e13af6b3a9a6416f`,
-`subnet-04447750c61bd7e06`), sg `sg-096489a0876cc78c1`, EFS access
-point `fsap-03e641f056b341f29` at `/mnt/workflow`.
+**CRITICAL**: The `update-agent-runtime` API does NOT carry forward env vars,
+EFS mounts, or metadata from the previous version. Every call must include the
+full payload or the runtime boots in degraded mode (no Neptune, no OpenSearch,
+no EFS workflow mount). The deploy template in "How to rebuild / redeploy"
+below includes all required flags. The key flags that are easy to forget:
+- `--environment-variables` (6 vars: DB_BACKEND, NEPTUNE_ENDPOINT, OPENSEARCH_ENDPOINT, AWS_REGION, MCP_STATELESS_HTTP, MCP_WORKFLOW_ROOT)
+- `--filesystem-configurations` (EFS access point `fsap-03e641f056b341f29` at `/mnt/workflow`)
+- `--metadata-configuration` (`requireMMDSV2:true`)
+
+Other constants: 2 subnets (`subnet-0e13af6b3a9a6416f`,
+`subnet-04447750c61bd7e06`), sg `sg-096489a0876cc78c1`.
 
 ## 2026-05-21 — MPAS RAG bug: path-prefix scoping for non-RTD Sphinx sites
 
@@ -405,7 +409,10 @@ aws bedrock-agentcore-control update-agent-runtime \
     --role-arn arn:aws:iam::903050880929:role/mdc-mcp-rag-ecs-task-role \
     --network-configuration '{"networkMode":"VPC","networkModeConfig":{"subnets":["subnet-0e13af6b3a9a6416f","subnet-04447750c61bd7e06"],"securityGroups":["sg-096489a0876cc78c1"]}}' \
     --protocol-configuration '{"serverProtocol":"MCP"}' \
-    --lifecycle-configuration '{"idleRuntimeSessionTimeout":900,"maxLifetime":28800}'
+    --lifecycle-configuration '{"idleRuntimeSessionTimeout":900,"maxLifetime":28800}' \
+    --metadata-configuration '{"requireMMDSV2":true}' \
+    --environment-variables '{"DB_BACKEND":"aws","NEPTUNE_ENDPOINT":"https://mdc-mcp-graprag-neptune-1.cluster-ccdaimu4c86s.us-east-1.neptune.amazonaws.com:8182","OPENSEARCH_ENDPOINT":"https://vpc-mdc-mcp-rag-search-5o72hixfx3rryikwb7l5px5sgq.us-east-1.es.amazonaws.com","AWS_REGION":"us-east-1","MCP_STATELESS_HTTP":"true","MCP_WORKFLOW_ROOT":"/mnt/workflow"}' \
+    --filesystem-configurations '[{"efsAccessPoint":{"accessPointArn":"arn:aws:elasticfilesystem:us-east-1:903050880929:access-point/fsap-03e641f056b341f29","mountPath":"/mnt/workflow"}}]'
 ```
 
 Use a new tag (e.g. `python-utility-v2`, `python-semantic-v1`) when the

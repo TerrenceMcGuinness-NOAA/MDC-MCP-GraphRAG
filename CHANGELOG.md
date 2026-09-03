@@ -77,6 +77,1106 @@ git policy 08).
   including `.vscode/mcp.json.temp`. Fixing it would newly ignore a directory with tracked
   files, so it is flagged rather than changed.
 
+## [8.42.0] - phase83-cots-name-type-tolerant-predicate: backend-aware `name` CONTAINS predicate (Sep 1, 2026)
+
+### Summary
+Fixes the 7 COTS (Neo4j Community) graph-query failures Phase 82 diagnosed to a
+**mixed-type `name` property** (live `gw_v17` graph: 321,520 strings, 452 integers,
+4 string-lists). Neo4j is strictly typed and aborts the whole query with a
+`CypherTypeError` when a text function meets a non-string — `toLower(toString(n.name))`
+throws `got StringArray` on the 4 list nodes and `toLower(n.name)` throws on the 452
+`Long` nodes. Neptune silently tolerates both. **Decision: Option 2 (backend-dialect
+branching)** — see `sdd_framework/workflows/phase83_cots_name_type_tolerant_predicate.md`
+§2 Decision. Not committed — staged for human review per git policy 08.
+
+### Changed
+- **New helper `_name_contains_predicate(var, param)`** in
+  `mcp_server_python/src/graphrag/ggsr_traversal.py`, imported *upward* into the two
+  tool modules. It emits a backend-aware WHERE fragment keyed on `DB_BACKEND`:
+  - **cots (Neo4j)**: `<var>.name IS :: STRING AND toLower(<var>.name) CONTAINS toLower($<param>)`.
+    The `IS :: STRING` type guard runs first and Cypher `AND` short-circuits, so
+    `toLower` never sees a `Long` or `StringArray`; non-string `name` nodes are
+    filtered out (they can never match a symbol-name substring anyway).
+  - **aws (Neptune)**: `toLower(toString(<var>.name)) CONTAINS toLower($<param>)` —
+    byte-for-byte the prior form. **No Neptune regression**; `IS :: STRING` is emitted
+    only on the cots branch, so Neptune never receives unsupported syntax.
+- **Four call sites rewired** to the helper:
+  - `src/graphrag/ggsr_traversal.py` `_multi_hop_query` — 1-hop and 2-hop queries.
+  - `src/tools/graph_rag.py` `_tool_get_code_context` — fuzzy-symbol fallback.
+  - `src/tools/semantic_search.py` `_tool_explain_with_context` — topic lookup.
+- **Removed the `is_testing` Cypher fork** in `graph_rag._tool_get_code_context` (the
+  `import sys as _sys` / `PYTEST_CURRENT_TEST` branch that diverged test vs production
+  Cypher). One backend-derived predicate is now emitted on all paths.
+- **`src/` footprint stays within the Phase 80 R15.3 allowlist** — only the three
+  named APOC-remediation files change; the helper lives in the lowest of them
+  (`ggsr_traversal.py`) and is imported upward, so no fourth `src/` file is touched.
+
+### Tests
+- **New `tests/unit/test_name_type_tolerant_predicate.py`** (13 tests): helper unit
+  tests for both backends + the `legacy → cots` alias; per-site emitted-Cypher
+  assertions (both backends) for all four sites; a guard that the `is_testing`
+  branch is gone. All pass.
+- **Updated `tests/unit/test_graph_rag_tools.py`** — `_seed_fuzzy_lookup` now keys the
+  mock on the substring `CONTAINS toLower($name)` common to both backend forms (the
+  seed previously matched only the removed `is_testing` form).
+- Full unit + property suites run: the 4 pre-existing unit failures and 1 pre-existing
+  property failure were confirmed on a clean tree (stash) and are unrelated to this
+  change; all Phase 83 tests pass.
+
+### Pending (environment-gated)
+- **Task 4 COTS benchmark (spec Step 5) not run here** — the execution sandbox has no
+  Neo4j (7687) or ChromaDB (8080) and no Docker. The gates
+  (`graph_queries.failed_queries == 0`, architecture ≥ 80%, overall ≥ 88%) remain to
+  be confirmed on a host with the COTS stack running. Likewise the Step 1 live
+  query-log; the decision rests on Phase 82's already-captured live `CypherTypeError`
+  evidence plus documented Cypher `AND` short-circuit / `IS :: STRING` semantics.
+
+## [8.41.1] - neptune-traversal-query-optimization: Requirement 7 amendment — coverage targets deferred, benchmark results recorded (Aug 31, 2026)
+
+### Summary
+Documentation only; nothing under `mcp_server_python/src/` changed. The task 11.2
+full 68-case run (corpus v1.1.0 both sides) met Requirement 7's timeout and
+latency criteria with large margins and moved neither coverage number. Each
+uncovered case was verified against live Neptune and every remaining miss is a
+property of the corpus, the graph data, or the scorer — not of the query shape
+this feature changes. Requirement 7 is amended to keep 7.1 and 7.5 binding and to
+mark 7.2 / 7.3 / 7.4 explicitly deferred out of scope, with their original numbers
+preserved as the deferred targets and the verified causes recorded so a follow-up
+corpus/ingest spec inherits them. Not committed — staged for human review per git
+policy 08.
+
+### Changed
+- **`requirements.md` Requirement 7 retitled** "Benchmark Timeout and Latency
+  Improvement" (was "Benchmark Coverage Improvement") with an amendment note
+  dated 2026-08-31.
+  - **7.1 (timeouts <= 3) and 7.5 (graph P95 <= 10,000ms) stay binding.** Both
+    met: **0 timeouts** (baseline 9) and **1,482ms** graph P95 (baseline
+    17,190ms).
+  - **7.2 / 7.3 / 7.4 marked `*(DEFERRED - out of scope for this feature.)*`
+    in place, not deleted.** Numbering is unchanged so existing
+    `_Requirements:` cross-references stay valid, and the original targets
+    (cross_language 100%, code_structure >= 70%, overall >= 95%) are carried
+    verbatim as the deferred targets.
+  - **New `Deferred: Coverage Targets` subsection** naming the five verified
+    causes, each unreachable from the query layer under R5.2 (no output/API
+    change) and R5.4 (no re-ingestion): anchors absent from the graph
+    (`JGDAS_ATMOS_ANALYSIS`, `JGLOBAL_ARCHIVE` — only the `_WDQMS` / `_TARS` /
+    `_VRFY` variants exist); anchors resolving to the wrong node
+    (`exglobal_forecast` → a 0-inbound-edge `PythonModule`, the edges being on
+    `exglobal_forecast.sh`; likewise `bash_utils` / `bash_utils.sh`);
+    `INHERITS` edges that `find_callers_callees` does not traverse (`cs_004`,
+    `cs_008`) where widening the edge set would change output semantics; shell
+    *functions* the ingester does not model (`cs_009`); and the scorer artefact
+    below.
+  - **Scorer artefact recorded.** The scorer substring-matches the whole
+    response body including the echoed anchor name and the tool's own hint text,
+    so five `cross_language` cases (`cl_002`, `cl_006`, `cl_007`, `cl_009`,
+    `cl_010`) score covered on zero-node responses and `cl_006` earns
+    precision 1.00 partly by matching `gsi` out of the hint. This inflated the
+    2026-08-28 baseline's 90% as well, so baseline and deferred targets are
+    both stated against an over-count.
+  - **New `Observed Results (2026-08-31)` subsection** — before/after table
+    (graph max 30,027 -> 11,198ms; total graph time 599,137 -> 154,280ms;
+    overall latency P95 58,853 -> 18,400ms; graph queries 237 -> 379 with 0
+    failures; precision@k 0.7128 -> 0.7308; recall@k 0.7100 -> 0.7281;
+    tenant-scoped `gw_v17` P95 59,236 -> 5,840ms, 8/8) plus per-requirement
+    verdicts and the honest-versus-harness coverage split (`cross_language`
+    90.0% harness / 40.0% discounted; `code_structure` 50.0%; overall 90.0%
+    harness / at most 81.7% honest). Records:
+    `/tmp/bench_t11_2/results/2026-08-31T18-01-12.json`, baseline
+    `/tmp/benchmark_results/2026-08-28T21-05-19.json`.
+  - **Zero regressions** noted: covered/uncovered case set byte-identical to
+    baseline; `semantic_search`, `architecture`, `ee2_compliance`, `operational`
+    all 100%.
+- **Glossary gained four terms** used by the amendment, following the existing
+  `Underscore_Name` convention: `Corpus_Anchor_Accuracy`,
+  `Graph_Data_Granularity`, `Zero_Node_Response`, `Scorer_Coverage_Artefact`.
+- **`tasks.md` task 11.2 retitled and rewritten** to match: verify the timeout
+  count and graph P95, record coverage as *observed* rather than asserting the
+  three gates, and confirm the no-regression set. Its trace line narrows from
+  `7.1, 7.2, 7.3, 7.4, 7.5` to `7.1, 7.5`. Task 11.1 is left as landed.
+
+## [8.41.0] - neptune-traversal-query-optimization: UNION ALL on the two remaining OR anchors (tasks 2.6-2.7) (Aug 28, 2026)
+
+### Summary
+Follow-on to tasks 2.2-2.4. The task 11.1 live benchmark showed two OR-predicate
+anchor sites the earlier UNION ALL work did not cover, together accounting for
+~78% of graph time in the `cross_language` cases and blocking Requirement 1.5:
+the pre-flight degree probe (`anchor_degree`, ~11.25s per call, 78.8s of the
+run's 110s total graph time) and the cross-language hop-0 seed lookup
+(`_cross_language_seed_row`, 7.3s across 7 calls). Both are now index-seekable.
+Query-layer only: no tool API change, no ingestion / schema / tenant-logic change
+(R5.2, R5.3), and the degree probe's fail-safe semantics are preserved exactly.
+
+### Changed
+- **`anchor_degree` is now resolve-then-count** (`src/tools/_traversal_bounds.py`).
+  The probe used to carry `(a.name = $name OR a.path = $name)` inline — a
+  disjunction over two properties of an unlabelled node, which Neptune cannot
+  satisfy from an index. It now resolves the Anchor_Node's ids via
+  `resolve_anchor_ids` (UNION ALL of two single-property equalities) and counts
+  edges with `WHERE id(a) IN $ids`, the same seek shape `_expand_one_hop`
+  already uses.
+  - **Why not two `count(r)` branches.** `UNION ALL` does not deduplicate, so a
+    node whose `name` and `path` both equal `$name` (common for shell scripts
+    referenced either way) is counted by *both* branches and a summed probe
+    reports twice the real degree — enough to push a non-hub over the
+    Fan_Out_Threshold. Taking the maximum instead would under-report a genuine
+    two-node match. Resolving ids first makes the count set-correct by
+    construction (R1.3) rather than by a correction term.
+  - **Fail-safe preserved verbatim**: `0` when the anchor has no matching edges,
+    when it does not resolve at all, or when the probe returns no `deg` value;
+    `None` only when either query raises or times out (callers read `None` as a
+    hub, R1.5). The count query is issued even for an empty id set so the
+    unresolvable-anchor path stays identical rather than short-circuiting to a
+    lookalike value.
+- **`_cross_language_seed_row` decomposed** (`src/tools/code_analysis.py`). Two
+  `LIMIT 1` branches joined by `UNION ALL`, first row wins. Deduplication is
+  therefore trivial (a dual-match node appears in both branches, is read once),
+  and reading the `name` branch first makes the seed row deterministic where the
+  `OR` form left the choice to the planner. Errors still propagate — the BFS
+  fallback distinguishes a timed-out seed lookup from an empty one.
+- **`resolve_anchor_ids` gained two keyword-only parameters**
+  (`src/tools/_bfs_walker.py`), both defaulted so existing callers are unchanged:
+  - `var` (default `"n"`) — the node variable bound in both branches and in the
+    projection. `anchor_degree` passes `var="a"` so its callers'
+    `_scope_and("a")` fragment drops in without retargeting, and so a probe's
+    resolution (`RETURN id(a) AS nid`) stays distinguishable from a walk's
+    (`RETURN id(n) AS nid`) in a call log. Validated as a bare identifier before
+    interpolation; anything else falls back to `"n"`.
+  - `error_sink` — receives `"timeout"` / `"error"` when the query is lost,
+    following the `timeout_sink` convention of `_expand_one_hop`. It is the one
+    signal the return value cannot carry: a failed resolution and one that
+    matched nothing are both `[]`, which is right for the walker but would
+    silently become "degree 0" for the probe.
+- The `_traversal_bounds` → `_bfs_walker` import is **function-local inside
+  `anchor_degree`**. `_bfs_walker` imports this module's tunables at module
+  level, so a module-level import would close a cycle; keeping it local also
+  preserves `_traversal_bounds`' import-light contract (every tool module imports
+  it) instead of dragging `asyncio` / `re` into that graph. Relocating
+  `resolve_anchor_ids` was rejected — it is part of the walker's documented
+  surface (`__all__`), imported from there by tools and tests.
+
+### Tests
+- `tests/unit/test_traversal_bounds.py` — the probe's two-stage shape, `UNION ALL`
+  not `OR`, count by resolved ids, scope predicate on both resolution branches
+  *and* the count, tenant + timeout on both queries, unresolvable anchor → `0`
+  non-hub, and failure in *either* stage → `None` hub. Includes the
+  **double-count regression test**: a node returned by both branches is counted
+  once, so a degree of 60 is reported as 60 and stays a non-hub rather than
+  reading as 120.
+- `tests/unit/test_code_analysis_tools.py` — the seed lookup's `UNION ALL` shape,
+  per-branch `LIMIT 1`, branch symmetry, tenant scoping on both branches, timeout
+  pass-through, error propagation, and a **dual-match test** asserting one hop-0
+  seed row (a doubled seed would render the anchor twice at the head of the
+  chain), plus an end-to-end `trace_full_execution_chain` assertion.
+- `tests/unit/test_bfs_walker.py` — `var` renaming and its identifier validation,
+  `error_sink` on timeout / error, and the sink left untouched on a successful
+  resolution whether or not it matched.
+- `tests/unit/test_graph_rag_tools.py` — the `trace_data_flow` decomposition
+  assertions now scope to the `source`-anchored queries and additionally assert
+  the degree probe's own resolution is decomposed and scoped.
+- `tests/properties/test_bfs_walker_props.py` — Property 7's tool harness gained a
+  `degree_anchor` stage kind, so the probe's resolution is separately failable;
+  losing it produces the same unmeasurable-degree hub outcome as losing the
+  count, and the count is then never attempted.
+- Verified: **421 passing** across the four affected unit suites plus the two
+  traversal property suites; **2,155 passing** over `tests/unit` +
+  `tests/properties` with 5 pre-existing unrelated failures (`test_tenancy` P6
+  workflow-root containment, `test_environment` module count,
+  `test_error_analysis` taxonomy key, `test_workflow_info_tools` root naming, and
+  the `rag-data-plane-gap-closure` R15.3 working-tree guard, which fires on any
+  uncommitted `src/` change outside its APOC allowlist and was already failing
+  from this spec's in-flight tasks).
+
+## [8.40.1] - neptune-traversal-query-optimization: UNION ALL decomposition + BFS_Walker (tasks 1-10) (Aug 29, 2026)
+
+### Summary
+The bulk of the feature, recorded retroactively: it landed *before* `[8.41.0]`
+(which is the follow-on for the two OR anchors the task 11.1 benchmark then
+surfaced) and is numbered as its predecessor. Two complementary query-shape
+changes address the two root causes behind 9 graph-query timeouts in the
+`cross_language` and `code_structure` benchmark categories. **Root Cause A** — a
+multi-type variable-length pattern (`[:A|B|C*1..N]`) makes Neptune enumerate every
+type-interleaved path before applying the row limit, so cost grows
+combinatorially in the depth budget; it is replaced by an application-side
+breadth-first walk of `|edge_types| * depth` cheap single-hop seeks.
+**Root Cause B** — an anchor predicate disjoining two properties of an unlabelled
+node (`n.name = $name OR n.path = $name`) cannot be satisfied from an index, so
+every node is scanned; it is replaced by two single-property equality branches
+joined by `UNION ALL`. Query-layer only: no tool API change, no schema change, no
+re-ingestion, no tenant-logic change (R5.2, R5.3, R5.4), and every pre-existing
+guard (`is_hub` -> Degraded_Result, statement timeout, depth clamp) keeps
+precedence. Not committed — staged for human review per git policy 08.
+
+### Added
+- **`src/tools/_bfs_walker.py`** (new) — the BFS_Walker and the UNION ALL anchor
+  helper, exporting `BFSResult`, `bfs_walk`, `resolve_anchor_ids`,
+  `bfs_fallback_failed`, `bfs_optimized_header` and `insert_bfs_header`.
+  - `resolve_anchor_ids` — the UNION_ALL_Decomposition primitive: two
+    index-seekable `MATCH` branches (`name`, then `path`), the Label_Scope_
+    Predicate and Statement_Timeout carried on **both**, ids folded through a
+    `set` because `UNION ALL` does not deduplicate (R1.1, R1.3, R1.4).
+  - `_expand_one_hop` — one relationship type, one hop, an `id(a) IN $ids` seek
+    and a `LIMIT`: the simplest shape Neptune can plan, and the walker's error
+    boundary. A hop that fails or times out contributes no nodes instead of
+    aborting the walk, which is what keeps the result a subset of what the
+    original pattern would reach (R2.2, R2.3, R2.6, R2.7).
+  - `bfs_walk` — bounded four independent ways (depth, per-hop breadth via
+    `fan_out_limit`, total rows via `result_limit`, and overall wall clock via a
+    single `asyncio.wait_for`), with a visited-set carried across hops for cycle
+    prevention and early termination when a hop yields nothing new (R2.1, R2.4,
+    R2.5). Timeout mid-walk yields partial nodes plus `truncated=True`, never a
+    raise.
+  - `BFSResult` — frozen dataclass carrying `nodes` / `hops_expanded` /
+    `queries_issued` / `wall_clock_ms` / `truncated`. The Anchor_Node is
+    deliberately excluded: `hop` is 1-based and every caller already knows and
+    renders its own anchor, so re-fetching it would spend a query to recover a
+    value the request supplied.
+- **`BFS_ACTIVATION_THRESHOLD` / `BFS_FAN_OUT_LIMIT` / `_use_bfs`** in
+  `src/tools/_traversal_bounds.py` — env-overridable via
+  `MCP_BFS_ACTIVATION_THRESHOLD` (default 30) and `MCP_BFS_FAN_OUT_LIMIT`
+  (default 100), read through the module's existing `_int_env` so a
+  non-positive or unparseable value falls back to the conservative default rather
+  than disabling the bound (R6.1, R6.2, R6.3). `_use_bfs(degree,
+  requested_depth)` selects the walk when the degree reaches the threshold, when
+  the requested depth exceeds 3, or when the degree is unknown (fail-safe).
+- **`[optimized: BFS walker, N hops, M nodes, Xms]` response indicator** —
+  `bfs_optimized_header` formats it, `insert_bfs_header` places it on line 2
+  (after the markdown title, so a response still opens on its heading and
+  consumers keying off the leading `# ` keep working). Several walks behind one
+  response collapse into a single line: max hops, summed nodes, summed
+  milliseconds. Empty string when no walk ran, so the single-query path renders
+  byte-identically to its pre-feature output (R8.4, R5.1).
+- **Activation / completion logging** inside the walker, at `info`:
+  `[bfs-walker] ACTIVATED tool=... anchor=... degree=... threshold=...
+  direction=... max_depth=...` and `[bfs-walker] COMPLETED tool=... anchor=...
+  nodes=... queries=... hops=... wall_ms=...`. Emitted from the walker rather
+  than from each strategy selector so every activation is logged once in one
+  format — including the fallback-chain activations no selector decided. The
+  completion line is **unconditional**, zero-node walks included: that is the
+  walk which spent queries and wall clock for no rows, i.e. the cheapest evidence
+  the activation threshold is set too low. Neither line interpolates the tenant
+  object, the scope-predicate fragment, or any node payload (R8.1, R8.2, R8.3).
+
+### Changed
+- **Four OR anchor predicates decomposed to `UNION ALL`** (tasks 2.2-2.4):
+  `trace_data_flow`'s one-hop outgoing fan-out (`_outgoing_union_cypher`) and its
+  shortestPath seed (`_path_union_cypher`) in `src/tools/graph_rag.py`, and
+  `_one_hop_neighbors` in `src/tools/code_analysis.py`. Each keeps its scope
+  predicate and timeout on every branch and dedupes application-side after the
+  merge — `UNION ALL` returns a node matching on both `name` and `path` twice, so
+  without the fold the row would render twice.
+- **Strategy selection wired into four Traversal_Tools** (task 5), in the
+  design's guard order, which is deliberately *not* "BFS first": `is_hub` is
+  consulted before `_use_bfs`, so a true hub (100+ edges) goes straight to the
+  existing Degraded_Result and never attempts a walk whose 100-per-type fan-out
+  would still be expensive. The walk is reserved for the moderately-connected
+  band between `BFS_ACTIVATION_THRESHOLD` and `FAN_OUT_THRESHOLD`.
+  - `trace_data_flow` (`graph_rag.py`) — degree-selected on its one-hop fan-out;
+    the shortestPath section stays on its (UNION-ALL'd) single query.
+  - `find_callers_callees` (`code_analysis.py`) — one walk per direction, plus a
+    third for the `cross_language` section.
+  - `trace_full_execution_chain` (`code_analysis.py`, via
+    `_cross_language_nodes`) — its depth-5 Cross_Language_Edge_Set exceeds the
+    activation depth unconditionally, so this path is always walker-produced.
+  - `trace_execution_path` (`code_analysis.py`) — reaches the walker only through
+    the timeout fallback below; its selector-side path is unchanged.
+- **Fallback chain `single-query -> BFS -> Degraded_Result`** (task 5.4). Each
+  tool's single-query arm catches the statement timeout and retries the expansion
+  as a bounded walk before accepting a degraded answer; `bfs_fallback_failed`
+  decides. A walk that salvaged **nothing** falls through, `truncated` or not:
+  `resolve_anchor_ids` absorbs an anchor timeout into an empty id list, so "the
+  walk also timed out" and "the walk legitimately found nothing" are not
+  distinguishable in the return value — and the single query that got here *did*
+  time out, so the tool has no basis for asserting the neighborhood is empty.
+  Falling through preserves the `bounded-graph-traversal` [8.36.0] contract that a
+  timeout renders a timeout notice rather than a rendered "no callees found"
+  (R3.3, R5.5). A walk that salvaged *any* node is accepted and rendered under a
+  partial-view notice.
+- **Label_Scope_Predicate extended to expanded nodes** (task 7). `_expand_one_hop`
+  scopes the *target* node `b`, so a node belonging to another tenant is rejected
+  server-side before it enters the frontier rather than after (R4.1); the
+  single-query variable-length patterns likewise scope their terminal node
+  (`_outgoing_union_cypher`'s `target`, `_path_union_cypher`'s `dest`,
+  `_call_chain`'s `callee`, `_cross_language_nodes`' terminal `n`) (R4.2).
+  Consistency is structural, not duplicated: `_retarget_scope_pred` rewrites the
+  caller's own `_scope_and(...)` output by substituting its `labels(<var>)` call,
+  so the target fragment is byte-identical to `_scope_and("b")` (R4.4). Matching
+  on `labels(...)` rather than on a literal variable name matters because the
+  callers do not agree on an anchor variable (`n`, `a`, `source`, `start`) — a
+  name-specific rewrite would silently no-op on the others and emit a predicate
+  over a variable the pattern never binds, which `_expand_one_hop` would then
+  absorb as an empty hop.
+  - **Note on R4.3's wording.** The requirement says the predicate is omitted for
+    the default `gw` tenant. That does not describe what `tenant_label_predicate`
+    does, and the implementation follows the real behaviour: for `gw` in a
+    multi-tenant catalog the helper returns the *exclusion* form
+    (`size([... STARTS WITH '<other prefix>' ...]) = 0`), which admits every
+    unprefixed baseline node and rejects only another tenant's prefixed nodes, so
+    applying it to the expansion target cannot exclude `gw`'s own nodes — and
+    omitting it would let a `GW_V17_`-prefixed neighbour of a baseline anchor into
+    a `gw` walk. The fragment is genuinely empty only when no scoping is
+    expressible at all (no active tenant context, or no tenant in the catalog
+    declaring a prefix), and that is the case in which no predicate is emitted.
+
+### Tests
+- `tests/unit/test_traversal_bounds.py` — the two new constants' env-var override
+  parsing and the `_use_bfs` truth table (below threshold and depth <= 3 -> single
+  query; at or above threshold -> walk; depth > 3 regardless of degree -> walk;
+  unknown degree -> walk).
+- `tests/unit/test_bfs_walker.py` (new) — `resolve_anchor_ids`' `UNION ALL` shape,
+  set-equivalence and per-branch scoping/timeout; `bfs_walk` / `_expand_one_hop`
+  multi-hop discovery, linear query count, cycle prevention, early termination,
+  fan-out and result caps, direction handling, wall-clock truncation; the
+  Label_Scope_Predicate on expanded nodes including the R4.3 correction above;
+  and the observability log lines plus the R8.4 indicator.
+- `tests/unit/test_graph_rag_tools.py` / `test_code_analysis_tools.py` — the
+  decomposed anchors at each of the four sites, terminal-node scoping on the
+  single-query patterns, and the indicator present on a walker-produced response
+  and absent on a single-query one.
+- `tests/unit/test_graph_rag_tools.py` / `test_code_analysis_tools.py`, task 5.5
+  sections (20 tests) — the **tool-level strategy routing matrix** for the four
+  strategy-selecting sites. Where Property 5 covers the pure `_use_bfs` selector
+  and Property 7 the fallback chain's terminal shapes, these assert which query
+  shape actually reaches the graph per degree band, read off the emitted cypher
+  (the walker's per-type `id(a) IN $ids` / `RETURN DISTINCT id(b) AS nid` seek
+  versus the single query's `*1..N` pattern versus the one-hop Degraded_Result)
+  rather than by monkeypatching `bfs_walk`. Bands are derived from
+  `BFS_ACTIVATION_THRESHOLD` / `FAN_OUT_THRESHOLD` so an env override moves the
+  tests with the implementation; `FAN_OUT_THRESHOLD` itself is asserted to still
+  walk, since `is_hub` is a strict `>`. Covers: `trace_data_flow` (degree-only
+  routing, `max_depth` proven not to reach the one-hop selector, hub notice with
+  no walk attempted); `find_callers_callees` (one walk per direction — six
+  single-hop expansions for a three-type shell edge set — plus the depth-5
+  `cross_language` section walking while the callers/callees sections keep their
+  single queries in the same response); `trace_full_execution_chain` (walker at
+  every non-hub degree at the default depth 5, the `max_depth` 3 -> 4 pair
+  isolating the depth arm, hub degrading before any walk);
+  `trace_execution_path` (a BFS-band degree still keeping the single query, since
+  this site has no selector, then the fallback chain's links 2 and 3 per-tool —
+  timeout -> walk salvages and is labelled, timeout -> empty walk -> one-hop
+  Degraded_Result).
+- `tests/properties/test_bfs_walker_props.py` (new) — the design's eight
+  Hypothesis properties: UNION ALL set equivalence (R1.3), BFS subset guarantee
+  (R2.7), visited-set cycle prevention (R2.4), early termination (R2.5), strategy
+  selection consistency (R3.1, R5.1), label scope on expanded nodes (R4.1, R4.2),
+  timeout fallback chain always yielding a renderable Degraded_Result rather than
+  an unhandled exception (R3.3, R5.5), and per-hop fan-out bounds (R2.3).
+## [Unreleased] — Phase 81: mpnet768 full tenant-aware re-ingest (Aug 28, 2026)
+
+### Summary
+Phase 81 extends the `cots-reingest-ralph-loop` machinery with shared-once
+discipline, hybrid fan-out for mixed-scope domains, Neo4j index drop-and-rebuild,
+nine missing manifest sources, per-tenant Phase-79 read-path validation probes, and
+manifest writeback — enabling a full, resumable, v9-0-0 mpnet768 re-ingest across all
+five tenants on the COTS backend without touching the serving v8 generation.
+
+### Added
+- **`mcp_server_python/scripts/neo4j_index_rebuild.py`** — enumerate, drop, snapshot,
+  create, and restore Neo4j indexes and constraints. Parametrises labels by tenant
+  prefix from `tenants.yaml`. Requires `--i-mean-it Target_Version=v9-0-0`
+  confirmation token for destructive operations (Req 8.1). Supports `--dry-run`.
+- **`mcp_server_python/scripts/reingest_validation.py`** — codified Validation_Probe
+  CLI. Runs four MCP tool calls per tenant (search_documentation,
+  search_ee2_standards, search_architecture, get_code_context) via JSON-RPC against
+  the local gateway. Supports `--tenant` and `--global` modes. Writes payloads to
+  `.reingest_state/<ver>/validation/<tenant>.json`.
+- **`scripts/reingest_cutover.sh`** — human-gated cutover script. Checks
+  preconditions (is-complete, validation probes pass, rollback image present), backs
+  up manifest, rewrites collection fields to v9-0-0 names, restarts gateway, runs
+  post-cutover probes, writes cutover report with 7-day retention window. Supports
+  `--dry-run`.
+- **Nine missing sources** added to `reingest_stages.yaml`: `fortran-code-context`,
+  `shell-code-context`, `python-code-context`, `rocoto-config`, `expdir-configs`
+  (tenant-scope code_parse), `rocoto`, `cmeps`, `nceplibs-sfcio` (shared url_crawl),
+  and `global-workflow-rst` (hybrid on_disk_submodule).
+- **Shared-once stages** in the catalog: `ee2_standards`, `community_summaries`,
+  `ci_test_cases`, `workflow_docs_external`, `pdf_sources`, `neo4j_drop_indexes`,
+  `neo4j_rebuild_indexes` — each emits exactly one Work_Matrix unit regardless of
+  tenant count.
+- **Hybrid fan-out sub-stages**: `workflow_docs` split into `workflow_docs_external`
+  (shared, unprefixed) + `workflow_docs_local` (per-tenant, prefixed);
+  `code_with_context` split into `code_with_context_local` (per-tenant).
+- **`depends_on_all_tenants`** cross-tenant gating: `neo4j_rebuild_indexes` waits for
+  all five tenants' graph stages before becoming actionable.
+- **Manifest writeback** on `done` transitions: writes `ingest_status` block
+  (collection_version, actual_docs, ingested_at, sha, backend, embedding_profile)
+  back to `unified_manifest.json`.
+- **Verification_Record template** at
+  `docs/reports/2026-XX-XX-mpnet768-tenant-reingest-verification.md` — 46 acceptance
+  criteria rows, 28 verified via tests, 18 pending live-run evidence.
+- **Unit tests**: `test_reingest_state_scope_field.py` (21),
+  `test_reingest_stages_shared_once.py` (6),
+  `test_reingest_stages_hybrid_fan_out.py` (14),
+  `test_reingest_stages_dependency_closure.py` (11),
+  `test_neo4j_index_rebuild.py` (26), `test_reingest_validation.py` (33),
+  `test_ralph_prompt_snapshot.py` (31), `test_manifest_writeback.py` (29).
+- **Integration test**: `test_reingest_dry_run_walk.py` — full 67-unit Work_Matrix
+  walk verifying shared-once/tenant counts, dependency ordering, and scope fields.
+
+### Changed
+- **`reingest_stages.yaml`** bumped to schema_version 2: explicit `scope` and
+  `shared_once` fields on all stages, hybrid domains split into sub-stages.
+- **`reingest_state.py`** schema_version 1 → 2: additive fields (`scope`,
+  `shared_once`, `tenancy_precheck`, `validation_path`, `depends_on_all_tenants`),
+  migration function, scope-drift detection, `depends_on_all_tenants` gating in
+  `actionable()`, manifest writeback on `done`/`fail` transitions.
+- **`ralph_reingest_prompt.md`** extended with Shared_Once_Rule preamble,
+  Hybrid_Fan_Out preamble, step 3 tenancy precheck, step 5 Validation_Probe
+  invocation, step 4 neo4j and shared-once handling, dry-run threading.
+- **`ralph_reingest_loop.sh`** extended with `--dry-run`, `--target-version`, and
+  `--spec` CLI arguments; exports `REINGEST_DRY_RUN` env var.
+
+### Fixed
+- (No bug fixes in this phase — all changes are additive.)
+
+### Notes
+- **No v8 collections touched.** Requirement 1.2 protects the serving generation
+  through the entire run — cutover is a separate human-invoked step.
+- **No embedding model change.** mpnet768 (768-dim, local `all-mpnet-base-v2`)
+  throughout.
+- **No AWS/Neptune/OpenSearch touch.** COTS-only (ChromaDB + Neo4j on Rocky 9 host).
+- **Task 9.2 pending live run.** 18 verification rows require the Ralph loop to reach
+  `is-complete` — filled by the operator post-run.
+- Spec: `.kiro/specs/mpnet768-tenant-reingest-aug2026/`
+
+## [Unreleased] - default-tenant-freeze-retirement: both freezes retired (SDD Phase 80) (Aug 19, 2026)
+
+### Summary
+Phase 80 retires the Default_Tenant byte-equivalence freeze that Phase 79 leaned on,
+and replaces it with checks that permit intended change while still catching the
+regressions the freeze was protecting against. The three reporting paths are now gated
+by **structural comparison** — same collection set, same per-collection count, same
+per-check verdict, with wording and layout free to change. The four query tools are
+gated by a **paired** check: the addressed set of physical collections must be
+unchanged and every hit must carry provenance, alongside the nightly benchmark
+comparison. The capture machinery is retained as an instrument rather than a standing
+rule. Ran as an 11-step sequential harness; suite **1916 passing, 4 pre-existing
+failures, zero skips**; nothing under `mcp_server_python/src/` changed. Staged for
+human review (no push ahead of the operator, git policy 08).
+
+### Added
+- **Python benchmark harness** (`mcp_server_python/scripts/run_benchmark.py`, 1,417
+  lines). Scoring core, corpus loader, tool-map builder, per-case scoring and
+  aggregation, CLI with exit codes. Score formulas verified equal to the Node
+  harness's by Property 7 over **1,260 per-case rows and 147 aggregate scopes**. A
+  `_js_round` half-up helper reconciles Python's banker's rounding with
+  `Math.round` — `round(0.5) == 0` in Python versus `1` in JS.
+- **Eight tenant-scoped benchmark cases** for `gw_v17` in a **sibling
+  `tenant_categories` container** in `mcp_server_node/test/benchmark/ground_truth.json`
+  (v1.1.0). Deliberately not added to `categories`: doing so would shift the Node
+  per-category count 10 → 11, move the shared median, and feed `tenant_id` to
+  tenant-blind handlers. The `categories` digest `b4a87889ef2b4ab0` is unchanged.
+- **Structural comparison** (`tests/baselines/structural.py`) — `Verdict`,
+  `StructuralView`, `parse_structural`, `compare_structural`.
+- **Addressed-set and provenance check** (`tests/baselines/addressing.py`) —
+  `addressed_set` routes through `resolve_read_targets` and imports collection
+  constants from the tool modules rather than restating strings;
+  `check_hit_provenance` returns findings for a caller to assert.
+- **Retirement_Record** at
+  `docs/reports/2026-08-19-default-tenant-freeze-retirement.md` — 383 lines,
+  ASCII-only. Threshold reconciliation, score-comparability findings, gate
+  continuity, the Consumer_Audit, follow-up sequencing, baseline provenance,
+  rollback, and a deliberately empty calibration section.
+- **Test modules**: benchmark scoring / Node parity / fixture meta / hermeticity /
+  harness / wrapper integration / corpus, structural equivalence, addressed sets,
+  capture-mechanism retention, no-runtime-change, and freeze-retirement records.
+
+### Changed — spec amendments landed atomically with their replacements
+- **Phase 79 R6 criterion 3 superseded** (reporting freeze) in the same commit as the
+  structural comparison (`9d638d3`), carrying the three Requirement 9 conditions as
+  its own text.
+- **Phase 79 R6 criterion 2 superseded** (query-result freeze) in the same commit as
+  both replacements (`b623644`), naming them as **jointly necessary** and stating
+  outright that passing the benchmark while failing the structural check is failing
+  the gate — so two checks cannot be read as two chances to pass.
+- **Phase 79 R10.5 restored** to its union-scoped form and **design.md Property 8**
+  restored to "any Tenant", both of which the freeze had forced to narrow.
+- `tests/baselines/README.md` records the capture machinery as an instrument, not a
+  gate, retaining the Phase 79 Reference_Revision.
+
+### Fixed
+- **A masking hole in the structural comparison, found during review.** Collapsing
+  status lines to a single `"Status"` key was last-write-wins, so a vector-only
+  failure could be masked by a later passing line. Now resolved by severity
+  precedence, FAIL > SKIP > PASS.
+- **`assert_hit_provenance` renamed to `check_hit_provenance`.** It returns findings
+  rather than raising, and the `assert_` prefix invites a bare call whose result is
+  discarded — a trap the author fell into while writing the caller.
+- **The write-path freeze walk scoped to its actual subject.** Requirement 12.2
+  governs "ingestion scripts and helper modules those scripts import"; the walk was
+  also covering `run_benchmark.py` and `run_benchmark_nightly.sh`, which are neither,
+  and would have asserted a freeze R12.2 never imposed.
+
+### Notes
+- **Three thresholds over two comparison bases, kept distinct.** The Governing
+  Threshold is **10 percent relative against a trailing 7-run median with a strict
+  `<`**. The corpus values (`regression_threshold_pct` 5, `critical_threshold_pct` 15,
+  both against the *previous single run*) **remain in force for the Node harness's own
+  check and exit code**. 5 was rejected because it makes single-flip tripwires of four
+  of six categories against a log in which 4 of 21 runs are backend outages; 15
+  because it behaves identically at coverage 1.0 while loosening `overall` from six
+  flips to nine.
+- **The Gated_Metric triple has rank two.** `mrr` equals `coverage` by construction in
+  both harnesses, so the check evaluates `{coverage, precision_at_k}`. A reviewer
+  counting three independent signals would overestimate the gate.
+- **A deliberate reduction, recorded rather than left to be found.** Neither
+  replacement gates the rendered bytes of query-tool output, so a formatting-only
+  change — relabelled field, changed separator, reordered hit metadata — now passes
+  both halves. The physical collection a read addressed is not recoverable from the
+  rendered text at all, which is why the structural half is an
+  addressed-set-plus-provenance relation rather than a text comparison. The
+  Consumer_Audit bounds this by enumerating the six in-repo files that parse that
+  output; out-of-repo consumers cannot be enumerated from this repository and that is
+  recorded as a bounded finding, not a completed audit.
+- **Score comparability was not demonstrated.** The formulas agree; comparability
+  itself depends on store content and there is no live backend here. The
+  Median_Window therefore restarts from zero via a one-time operator archive, and
+  **the gate is blind for the first two Python runs and reports `status: ok` on the
+  second** while the per-metric guard still evaluates nothing. It arms on the third.
+- **Two independent scope tables, and nothing verifies they agree.** Reads use
+  `_BUILTIN_SCOPES` in `src/data/collection_scope.py`; writes use a hardcoded `scope`
+  literal per ingester via `resolve_collection_name`. They agree today for all five
+  logical collections, and a prefixed *shared* index is unrepresentable by
+  construction, so no embeddings are stranded. But `check_scope_consistency()` exists
+  and no ingester calls it. Related: the hybrid docs member
+  `gw_v17_mdc-workflow-docs-titan1024` is **read-reachable but write-orphaned** —
+  Phase 68 (`5d2abf4`) switched docs writes to unprefixed, so re-running the docs
+  ingester cannot refresh it. Phase 79's read router did not create this; it made the
+  stranded data readable, which is what surfaced it.
+- **Four pre-existing failures are out of scope and are not to be fixed here**
+  (R15.4): `test_environment.py::test_known_modules_covers_nine_tool_modules`,
+  `test_error_analysis.py::test_extract_ci_error_signal_tool`,
+  `test_workflow_info_tools.py::test_resolve_workflow_root_default_when_envs_empty`,
+  `test_tenancy.py::TestP6WorkflowRootContainment::test_workflow_root_is_contained`.
+  R15.4 reads "failures only among" these, which is a **subset** relation — a
+  three-failure run is compliant. P6 is Hypothesis-driven and reproduces here only
+  because its counterexample is cached in the local example database.
+- **Remaining work is operator-only:** the median-window archive before the first
+  Python log line; the calibration run that fills the Retirement_Record's empty
+  section (distinguishing `ar_t01`'s expected zero, pending Gap J, from a
+  miscalibration); the gated `update-agent-runtime` deploy carrying `requireMMDSV2`
+  and `requireServiceS3Endpoint` on a new ECR tag; and Phase 79's three
+  live-invocation rows, still BLOCKED with a hermetic test named for each.
+- **Rollback** for either atomic unit is `git revert` of that one commit, which
+  restores the corresponding byte-equivalence criterion and its tests together. The
+  Phase 79 configuration-level rollback (`MCP_COLLECTION_SCOPE_JSON` classifying all
+  five collections as `tenant` with an empty hybrid list) remains available with no
+  code change and no redeploy.
+- **Merge with history intact.** The evidence for the two atomic units — that each
+  supersession landed together with its replacement — is recoverable from the commit
+  graph. A squash-merge collapses Phase 80 into one commit and that evidence is lost;
+  the test degrades to its working-tree contract by design, so nothing breaks, but the
+  sequencing claim becomes unverifiable.
+
+## [Unreleased] - shared-scope-query-routing: harness complete (steps 11-12) (Aug 19, 2026)
+
+### Summary
+Task 12's remainder and Task 14. **The step harness is now complete** — all 14 tasks
+are implemented, struck, or recorded as operator-gated. Suite 1784 passing, zero
+skips, same 4 pre-existing failures. What remains is entirely operator work: the
+gated runtime deploy and the three live-invocation entries. Staged for human review
+(no push, git policy 08).
+
+### Added
+- **P7, write-read round trip (Task 12.2).** 150 examples over every manifest
+  source, every catalog tenant, and every profile including `profile=None` with
+  `MCP_EMBEDDING_PROFILE` unset. **This establishes that no re-ingestion is
+  required** — every collection the write path created is reachable by the read path
+  for the tenant that owns it. P7 is also precisely the property that would have
+  caught the step 6 profile-default defect, which was found by hand because P7 did
+  not exist yet.
+- **No-writes sweep (Task 12.3).** Every path this spec introduced, against an
+  adapter double that raises on `upsert_document`, `get_or_create_collection`, any
+  index creation, and any delete. Includes an absent set member, which is the case
+  that matters: it must be reported unprovisioned, never created to make a read
+  succeed. `get_or_create_collection` puts that failure one keystroke away.
+- **Verification_Record** at
+  `docs/reports/2026-08-19-shared-scope-query-routing-verification.md` — 410 lines,
+  ASCII-only. All three live invocations marked BLOCKED with their criteria UNMET,
+  and it states outright that no live result was fabricated or inferred. Carries the
+  R13.8 field schema unfilled so the operator has a form to complete, the R13.9
+  substitution analysis distinguishing what the substitutes demonstrate (routing
+  algebra on the COTS adapter) from what they do not (that COTS is reachable and
+  populated), the spec amendments, the deviations, and the follow-ups.
+
+### Fixed
+- **Pinned-line brittleness fully removed.** Step 11 replaced `lines[475]`/
+  `lines[893]` with content markers as instructed, but the instruction said "only
+  the two positional lookups change", so `lines[179]`/`lines[204]` for the correct
+  R3.3/R3.7 merge citations survived — re-arming on `opensearch_adapter.py` the
+  exact trap the repair existed to remove, and which had already cost step 10 a
+  byte-for-byte line-preservation constraint plus an avoided `import math`. Both now
+  resolve by content.
+- **A property that could never assert.**
+  `test_p7_shared_sources_reach_every_tenant` used `pytest.skip()` inside `@given`,
+  which aborts the whole test on the first non-matching example — so a tenant-scoped
+  draw ended the run having asserted nothing and reported SKIPPED. Now `assume()`.
+  No coverage was lost while broken (the main P7 test already covered shared sources
+  under every tenant), but a permanently-skipped property reads as a gap to anyone
+  auditing later.
+
+### Notes
+- **Marker ambiguity caught by the one-match helper, worth recording.** The obvious
+  anchor "shared content precedes branch-local content" appears twice in
+  `opensearch_adapter.py` — in the step-4 bullet wrapping onto the citation line, and
+  in the score-bucketing comment step 8 added. The helper rejected it rather than
+  silently taking the first hit. Anchored on `"R3.3, R3.7"` instead, unique to the
+  line the original index pinned.
+- **Remaining work is operator-only:** the gated `update-agent-runtime` deploy
+  carrying the full payload (`requireMMDSV2`, `requireServiceS3Endpoint`) on a new
+  ECR tag so the prior image stays a rollback target, then filling the three live
+  rows from a post-deploy session.
+- **Config-level mitigation needs no code change or redeploy:** setting
+  `MCP_COLLECTION_SCOPE_JSON` to a document classifying all five collections as
+  `tenant` with an empty `hybrid_domains` reproduces pre-change routing exactly.
+
+## [Unreleased] - shared-scope-query-routing: reporting convergence (step 10) (Aug 19, 2026)
+
+### Summary
+Tasks 10 and 11. The three reporting paths — status, health, integrity — now agree
+with the query path via `tenant_collection_set()`. Suite 1767 passing;
+byte-equivalence still 28/28. Staged for human review (no push, git policy 08).
+
+### Fixed
+- **Status block rebuilt on the router (10.1).** Names come from
+  `tenant_collection_set`, `health_check` serves only as a count source for those
+  names. That inversion structurally excludes bookkeeping indices like
+  `mdc-content-sha-registry` from a prefixed tenant's listing.
+- **The predicate that caused the blind spot is gone (10.2).**
+  `_index_in_tenant_scope`'s prefix test could not distinguish a shared collection
+  from another tenant's, so it structurally could not express "the unprefixed shared
+  collection belongs to `gw_v17` too". Deleted along with
+  `_filter_indices_by_tenant`; their tests re-expressed against the router.
+- **`_vector_health` index count scoped (10.3)** — the manifestation the
+  requirements never named. `indexCount` is now the cardinality of
+  `tenant_collection_set`, degraded only when the absent collection is the
+  unprefixed member of a `shared` logical collection, so a tenant that has not
+  ingested its own code stays healthy.
+- **Integrity sampler scoped for prefixed tenants (11.1).** It called
+  `sample_metadata(collection=None)` — no scoping at all, so findings described an
+  unscoped mixture of every tenant's data.
+
+### Changed — spec amendments after implementation
+- **`design.md` Property 8 narrowed** to tenants with a non-empty `index_prefix`.
+  R6.3 byte-equivalence and 11.1's per-member draw-count reporting cannot both hold
+  for the Default_Tenant. Resolved toward preservation per the standing rule.
+- **`requirements.md` R10.5 amended** for the same conflict. **Consequence recorded
+  rather than left implicit: `gw` integrity findings remain unscoped.**
+- **`tasks.md` 11.2 struck** — no target. `fortran-coverage-gap-path-fix` had
+  already replaced `_check_coverage_gap`'s vector document count with an
+  on-disk-source vs graph-node comparison.
+
+### Notes
+- **`resolve_tenant_index` retained, and the instruction to delete it was wrong.**
+  The step 10 prompt called it dead code and gated removal on a grep. The grep found
+  `tests/properties/test_tenancy.py:608` —
+  `assert resolve_tenant_index(collection, tenant) == collection` — which is
+  `omd-tenants-1-foundation`'s Property 3 itself, plus P1 at 584-585. Uncalled by
+  production, but the subject of another spec's property. The gate is what caught
+  this.
+- **The `gw` status total still over-counts** `mdc-content-sha-registry`, preserved
+  deliberately for byte-equivalence.
+- 10.4 needed no production change; the `SkipProbe` pass/skip/fail wiring already
+  existed, so only tests were added.
+- **Four follow-ups now deferred, and three share one cause:** score fusion across
+  the merge layers, the `gw` registry over-count, and Default_Tenant sampler
+  scoping are all blocked by the same byte-equivalence freeze.
+  `DEFAULT_SEMANTIC_COLLECTION`'s profile pinning is independent. The freeze was
+  correct here — it is what made a refactor this size safe — but it now concentrates
+  debt in one place, and three specs would each re-litigate it. One spec should
+  retire it under a quality-benchmark gate.
+- `prompts/.../step11-task12-write-read-boundary.md` and
+  `step12-task14-verification-record.md` — the last two harness steps, registered.
+
+## [Unreleased] - shared-scope-query-routing: GGSR tenancy + citations (step 9) (Aug 19, 2026)
+
+### Summary
+Task 8's two independently shippable corrections, both closing what the Task 7.3
+substitution left behind. Staged for human review (no push, git policy 08).
+
+### Fixed
+- **GraphGuidedRetrieval bypassed tenancy outright (Task 8.1).**
+  `_safe_semantic_enrich` called `_vector_db.query()` with no `tenant=`. The adapter
+  defaults `tenant=None`, which the Read_Router reads as the unprefixed default, so
+  every GGSR-enriched read resolved as `gw` regardless of the active tenant. Step 8
+  could not have caught this — the omission is on the caller side, and the router
+  was correctly honouring the `None` it was handed. `tenant` is now a parameter on
+  `get_code_context` and `_safe_semantic_enrich`, forwarded to `query()`, and
+  threaded from `graph_rag._tool_get_code_context` as `tenant=_tenant()`. Default
+  `None` preserved throughout.
+- **Three mis-cited preservation invariants (Task 8.2).**
+  `semantic_search.py:476` (`Property 4 / R3.5`), `semantic_search.py:894`
+  (`Property 4`), and `opensearch_adapter.py:274` (`passthrough (R3.3)`) all
+  describe empty-prefix passthrough, which is **Property 3** of
+  `.kiro/specs/omd-tenants-1-foundation/design.md` (line 1171). Property 4 (line
+  1181) is Resolution determinism — a different claim. The mis-citation had
+  propagated across three sites.
+
+### Notes
+- **`DEFAULT_SEMANTIC_COLLECTION = "mdc-code-context-mpnet768"` left untouched, by
+  scope.** It is a physical, profile-pinned name that bypasses profile resolution —
+  a real layering violation, but latent because `graph_rag.get_code_context` passes
+  `collection=CODE_COLLECTION` so it never reaches the adapter. What is now proven
+  is the failure mode if it ever does: not being a key of
+  `PRODUCTION_INDICES_BY_PROFILE`, it takes the router's R1.5 fallback cleanly with
+  no exception. That test keeps the violation latent rather than live if a caller
+  stops passing `collection=`.
+- **Over-correction avoided on the citations.** Two different `R3.3`s are in play:
+  `opensearch_adapter.py` lines 180 and 205 cite *this* spec's R3.3/R3.7 for the
+  multi-member merge and are correct, since R3.3-R3.8 govern multi-member sets
+  only. Both verified untouched; only line 274 mis-cited. The new test pins the
+  correct citations so a future sweep cannot clobber them, and scans both files for
+  *any* `Property 4` reference rather than only the three known lines.
+- **`resolve_tenant_index` deliberately not deleted** despite being orphaned by
+  step 8. Docstring corrected because R6.4 asks and the method is still reachable
+  public API. Removal belongs to Task 10.1, which rebuilds
+  `_render_vector_status_block` — the function expected to call it that derives its
+  own prefix instead — at which point it is provably unreachable.
+- 13 new tests. Suite 1756 passing, 0 collection errors, same 4 pre-existing
+  failures.
+
+## [Unreleased] - shared-scope-query-routing: THE FIX — shared scope reachable (step 8) (Aug 19, 2026)
+
+### Summary
+Task 7.3-7.8, atomic. **This is where the Phase 79 bug stops existing.** Both
+Vector_Adapters now route `query()` through `resolve_read_targets`, so the
+Read_Router is the only component applying an `index_prefix` on the read path.
+Shared collections are reachable under prefixed tenants, the Hybrid_Domain fans
+out to both members and merges, `gw` output is byte-equivalent, and the
+`branch_isolation` probe asserts shared-visibility-is-correct instead of forbidding
+it. Staged for human review (no push, git policy 08).
+
+### Fixed
+- **Non-default tenants can reach shared knowledge (Task 7.3).** Previously both
+  adapters prefixed every collection unconditionally, so a `gw_v17` read of shared
+  documentation addressed `gw_v17_mdc-workflow-docs-titan1024`, which does not
+  exist; `multi_collection_query` swallowed the 404 and the tool returned zero
+  results with no indication why. `gw_v17`, `gw_sfs`, `gw_jedi_gfs`, and
+  `gw_gefs_v12` were blind to ~22.5K shared docs, 34 EE2 standards, and 2,113
+  community summaries. All four now resolve shared collections unprefixed.
+- **The Isolation_Probe asserted the opposite of the invariant (Task 7.6).**
+  Assertion 4 classified leakage with a `"/develop/"` `metadata.source` substring
+  match — forbidden by R8.4 — and treated develop-sourced content under `gw_v17`
+  as a violation, which is precisely the behaviour this spec establishes as
+  correct. Origin now derives from the attached `physical_collection`. Adds R8.2,
+  R8.3, R8.6. The two graph-side assertions are byte-identical, pinned by a test.
+
+### Added
+- Inner fan-out and merge per the design's seven steps: concurrent reads with
+  identical arguments asking each member for `k` (not `k/n`); triage where absence
+  contributes zero hits and only a fully absent set raises once;
+  `physical_collection` provenance per hit; ordering by
+  `(-score, member_index, str(id))`; SHA-256 dedup over whitespace-normalized
+  content keeping the shared copy; cap at `k`; one diagnostic plus per-member
+  condition records.
+- R7.7 zero-hit annotation via a shared `_zero_hit_scope_note` helper across the
+  four tool modules, gated on a non-empty `index_prefix`.
+- P10 in `tests/properties/test_scope_merge.py`, plus call-site contract and
+  zero-hit-note suites and a rewritten probe suite. Suite 1743 passing.
+- `prompts/.../step9-task08-readpath-corrections.md` — Task 8, registered in
+  `run-step.sh`.
+
+### Notes
+- **Single-member sets take a pure identity path** — stamp provenance, no re-sort,
+  no dedup — because R3.3-R3.8 are scoped to multi-member sets. That is what keeps
+  `gw` byte-equivalent, and it holds by construction rather than via an
+  `if tenant is default` branch.
+- **Cross-member scores are deliberately left incomparable.** BM25 depends on
+  index-local corpus statistics and the `[0,1]` clamp flattens everything above
+  1.0. Normalization or RRF would be the principled fix, but either would have to
+  apply to the outer cross-collection merge to be coherent, which moves `gw`
+  ordering and violates R6.2. Resulting semantics, documented in code:
+  score-bucketed order with shared content preceding branch-local within a bucket.
+  Follow-up spec: `hybrid-domain-score-fusion`.
+- **7.8 held.** `test_default_tenant_byte_equivalence.py` passes 28/28 and no
+  baseline or mask was touched. The one-shot Task 6 capture was not spent
+  defensively.
+- **`resolve_tenant_index` is now orphaned** on both adapters — called from nowhere
+  in `src/`. `_render_vector_status_block` was expected to call it but derives its
+  own prefix independently, which is the query-path/status-path divergence Tasks 10
+  and 11 close. Both definitions should be deleted once the status path routes
+  through `tenant_collection_set`; left in place deliberately, as two dead public
+  methods a future caller could reach for.
+- Two adjacent test files were updated rather than left as attributable
+  regressions: the probe stub fed two vector responses where the realigned probe
+  makes three, and an adapter test asserted the searched index came from a
+  monkeypatched resolver the router no longer consults. Both encoded pre-change
+  contracts that 7.3 and 7.6 change by design.
+
+## [Unreleased] - shared-scope-query-routing: Collection_Condition probe (step 7) (Aug 19, 2026)
+
+### Summary
+Task 7.1 + 7.2. Additive — `query()` routing is deliberately untouched, so no
+read addresses a different collection than before and every non-default tenant is
+still blind to shared content. Task 7.3 (step 8) performs the substitution.
+Staged for human review (no push, git policy 08).
+
+### Added
+- **`collection_condition()` on both adapters (Task 7.2).** Three-way
+  classification taking the free answers first: `UNPROVISIONED` from the
+  `CollectionNotProvisionedError` Task 4 normalized, `PROVISIONED_POPULATED`
+  implied whenever a member returned a hit. Only the zero-hits-and-no-raise case
+  is probed — the sole state where empty and populated are indistinguishable from
+  the read — backed by the existing non-raising `count_documents`.
+  `UNPROVISIONED` is never cached at any TTL: a collection can be provisioned at
+  any moment, and a stale absence would make a freshly populated tenant look
+  permanently empty. Positive conditions cache 300 s via
+  `MCP_COLLECTION_CONDITION_TTL_S`. Kill switch
+  `MCP_COLLECTION_CONDITION_PROBE=0`. Never raises, never mutates (R12.5).
+- 32 tests in `tests/unit/test_collection_condition.py` plus 5 extending the mock
+  tests, swept over both backends via the existing `adapters()` fixture. Suite
+  1719 passing.
+- `prompts/.../step8-task07_3-07_8-atomic-routing.md` — Task 7.3-7.8 at
+  opus/xhigh, registered in `run-step.sh`.
+
+### Changed
+- **`VectorDBProtocol.query` declares `tenant: Any = None` (Task 7.1)**,
+  documenting a latent drift rather than creating a parameter: both adapters
+  already accepted it and every tool already passed `_tenant()`.
+  `physical_collection` added to `VECTOR_RESULT_KEYS`; `collection_condition`
+  declared as a protocol member. `multi_collection_query`, `sample_metadata`,
+  `count_documents`, and `health_check` unchanged.
+- `physical_collection` is a **new** key. `collection` is deliberately not
+  repurposed — `semantic_search.py:528` renders it, so re-pointing it would move
+  default-tenant bytes and violate R6.2.
+
+### Notes
+- **The default-tenant probe cost is accepted, not hidden.** R6.8 requires the
+  condition logged even for `gw`, so the probe fires there on zero-hit reads.
+  Response bytes are unchanged (a log line is not rendered output) and backend
+  calls rise by at most one O(1) metadata count per collection per TTL window. No
+  `gw` special case was added to dodge it, because that would make the two tenant
+  paths diverge exactly where step 8 must reason about both.
+- E501 count across the five modified files went **31 -> 30**. No line authored by
+  the step exceeds 79 characters; the remaining findings are pre-existing in the
+  adapters.
+- **Sequencing gap, by design:** widening `VECTOR_RESULT_KEYS` makes the
+  protocol's "guaranteed to contain" wording aspirational until 7.3 stamps
+  `physical_collection` onto real hits. 7.1 declares the shape, 7.3 populates it.
+  Nothing fails today, so the gap is invisible until step 8.
+
+## [Unreleased] - shared-scope-query-routing: Read_Router (step 6) (Aug 19, 2026)
+
+### Summary
+Task 2 of `.kiro/specs/shared-scope-query-routing/` — the resolver that maps
+(Logical_Collection, Tenant, Embedding_Profile) to physical collection names.
+**Nothing calls it yet**; Task 7.3 wires the adapters in, so query behaviour is
+still unchanged and non-default tenants are still blind to shared collections.
+Staged for human review (no push, git policy 08).
+
+### Added
+- **`src/data/read_router.py` — the Read_Router (Task 2).**
+  `resolve_read_targets(collection, tenant=None, *, profile=None)` and
+  `tenant_collection_set(...)`, plus `ResolvedTarget`,
+  `ResolvedCollectionSet`, `TenantCollectionSet`, `CollectionCondition`
+  (`StrEnum`), and `RoutingDiagnostic`. Resolves the physical name via
+  `resolve_index` **first** and prefixes its result, never the logical
+  identifier — the ordering `opensearch-tenant-resolution-fix` established.
+  `targets` is an ordered tuple because R3.1 needs the unprefixed member first
+  and R3.7's tie-break reads position. Takes `Tenant` explicitly and never reads
+  the tenancy ContextVar, which is what makes P9 purity and the Hypothesis suite
+  possible. Handles the R1.5 tenant-fallback, R2.8 unmapped-profile, and R7.5
+  routing-misconfiguration paths, each with one log-channel diagnostic.
+  `RoutingDiagnostic.render()` enforces R7.6 itself: ASCII encode check,
+  1000-char cap with truncation marker, and a field whitelist that structurally
+  cannot carry query text or document content.
+- 45 tests across `tests/unit/test_read_router.py`,
+  `tests/properties/test_scope_routing.py` (P1 at 200 examples, P2, P3, P5, P6,
+  P9), and `tests/properties/test_scope_fixture_meta.py`. Suite 1682 passing.
+- `prompts/.../step7-task07_1_7_2-condition-probe.md` — Task 7.1+7.2, registered
+  in `run-step.sh`.
+
+### Fixed
+- **Read/write profile-default disagreement, found in review of step 6.** The
+  router initially pinned `_DEFAULT_PROFILE = "titan1024"`, reasoning that
+  because the router is backend-blind (P3) it cannot consult `DB_BACKEND` for a
+  per-backend default, so one deterministic literal was the only option. The
+  premise is right and the conclusion is wrong: `titan1024` is not a neutral
+  literal, it is `resolve_index`'s default precisely because that function is an
+  *OpenSearch* name translator. Adopting it made the router silently AWS-biased.
+  Measured with `MCP_EMBEDDING_PROFILE` unset, the write side resolved `mpnet768`
+  while the read side resolved `titan1024`, so a COTS read addressed
+  `mdc-code-context-titan1024` for content written to
+  `mdc-code-context-mpnet768` — Property 7 (write-read round trip) failing on the
+  no-env path.
+
+  `_resolve_profile` now delegates to
+  `collection_namer.active_embedding_profile()`, which already owns the identical
+  `explicit -> MCP_EMBEDDING_PROFILE -> default` chain the router had duplicated,
+  and `_DEFAULT_PROFILE` defers to `DEFAULT_EMBEDDING_PROFILE`. One precedence
+  rule shared by read and write, so they cannot drift. `collection_namer` imports
+  only `os` and `typing`, so P9 purity is unaffected, and it is a read of
+  `src/data/`, so R12.2 holds.
+
+  P2 was never the constraint that forced `titan1024`: it is stated over an
+  explicit profile `p`, and the router always passes its resolved profile to
+  `resolve_index` explicitly. The test that encoded the bad reasoning
+  (`test_profile_default_matches_resolve_index_default`, asserting
+  `rcs.profile == "titan1024"` against `resolve_index(c)` with no profile) is now
+  `test_profile_default_matches_write_side_default`, comparing against
+  `resolve_index(c, rcs.profile)`, plus a second test generalising the round-trip
+  guard across all five domains.
+
+  Latent rather than live: both deployed form factors set the variable
+  (`scripts/run_mcp_stdio.sh` exports `mpnet768` on COTS, the AgentCore runtime
+  carries `titan1024`), so this governed only embedded and test callers — which
+  is exactly where a silent cross-backend mismatch goes unnoticed. Task 12.2's
+  P7 would have caught it; P7 is not landed yet.
+
+### Notes
+- Verified resolution shapes, `MCP_EMBEDDING_PROFILE=titan1024`, tenant `gw_v17`:
+  hybrid docs -> `('mdc-workflow-docs-titan1024',
+  'gw_v17_mdc-workflow-docs-titan1024')` (two members, unprefixed first);
+  shared EE2 -> `('mdc-ee2-standards-titan1024',)`; tenant code ->
+  `('gw_v17_mdc-code-context-titan1024',)`. The prefix-order bug shape
+  (`gw_v17_code-with-context-v8-0-0`) does not occur.
+- **P1's literal phrasing is degenerate for the Default_Tenant** and the step
+  reported it rather than papering over it. "A member carries `T.index_prefix`
+  iff scope is tenant" cannot hold for an empty prefix, since every string
+  vacuously carries one. Implemented as
+  `prefixed = (scope == "tenant" and bool(index_prefix))`, with P2 governing the
+  collapse case. requirements.md should be amended to match; not done here to
+  keep this commit to code.
+
+## [Unreleased] - shared-scope-query-routing: cross-backend normalization + write-path freeze (steps 4-5) (Aug 19, 2026)
+
+### Summary
+Steps 4 and 5 of `.kiro/specs/shared-scope-query-routing/`. Step 4 makes a
+missing collection render identically on both backends; step 5 freezes the write
+path so the read-path refactor can later be proven not to have touched it.
+**Still no query-routing change** — `resolve_tenant_index()` remains
+unconditional in both adapters, so every non-default tenant is still blind to
+shared collections. `read_router.py` (Task 2) and the adapter rewire (Task 7) are
+next. Staged for human review (no push, git policy 08).
+
+### Added
+- **`src/data/vector_errors.py` — one missing-collection signal (Task 4.1).**
+  `VectorReadError` base plus `CollectionNotProvisionedError` carrying
+  `physical`, and optionally `logical` and `tenant_id`, so the tool layer renders
+  a Skip_Block without re-deriving either (R4.3). Imports neither adapter, so
+  both may import it without a cycle.
+- **`tests/unit/test_write_path_frozen.py` plus
+  `tests/assets/write_path_digests.json` (Task 12.1).** Two assertions: SHA-256
+  of every file under `mcp_server_python/scripts/` against a recorded manifest,
+  and `resolve_collection_name` stability across the R12.1 combination space
+  (5 domains x 2 scopes x 5 tenants x 2 versions x 3 profiles).
+- 3 new test files; 1636 passing suite-wide.
+
+### Changed
+- **Both adapters classify collection absence before the catch-all wrap
+  (Task 4.2).** `ChromaDBAdapter.query` previously wrapped everything in
+  `ValueError("ChromaDB query failed on index=...")`, erasing the distinction
+  between "collection absent" and "query blew up" — which is why the tool
+  layer's OpenSearch-token-matching classifier never fired on COTS: one logical
+  condition, two incompatible signals, a classifier that understood only one.
+  Both adapters now raise `CollectionNotProvisionedError` on absence and leave
+  every other failure's message shape untouched (R4.6).
+- **`_is_missing_index_exc` widened, not replaced (Task 4.3).** It now also
+  accepts `CollectionNotProvisionedError`. The four existing call sites
+  (`semantic_search._tool_search_documentation`,
+  `graph_rag._tool_search_architecture`, `graph_rag._tool_find_similar_code`,
+  `operational._tool_get_operational_guidance`) keep working unchanged, which is
+  an R6.2 byte-equivalence concern rather than a nicety. `_missing_index_skip`
+  text deliberately untouched: R4.4 asks for proof of cross-backend identity, and
+  editing the renderer would make that test tautological.
+- `prompts/shared-scope-query-routing/` — added the step 6 prompt (Task 2,
+  Read_Router) at opus/xhigh and registered it in `run-step.sh`.
+
+### Notes
+- **ChromaDB version drift is real, and the guarded import is load-bearing.**
+  `pyproject.toml` pins `chromadb==1.3.4`; the interpreter has **1.5.8**.
+  Verified against 1.5.8, `chromadb.errors` exports `NotFoundError` but has no
+  `InvalidCollectionException`. Detection therefore uses a guarded import plus a
+  case-insensitive substring fallback, mirroring the two-form approach already
+  used for `opensearchpy`.
+- **A fourth standing test failure, filed and out of scope.**
+  `tests/properties/test_tenancy.py::TestP6WorkflowRootContainment::test_workflow_root_is_contained`
+  is a bug in the test's assertion, not in the validator. Hypothesis reached
+  `workflow_subdir="a.."`, which `_SUBDIR_RE` legitimately accepts, and the test
+  asserts `".." not in str(workflow_root)` — a substring check where a
+  path-component check is meant. `/mnt/workflow/a..` has parts
+  `('/', 'mnt', 'workflow', 'a..')` and resolves to itself, so nothing escapes
+  and `'..' in path.parts` is False. The correct assertion is
+  `".." not in workflow_root.parts`. It sits in the tenancy surface, not scope
+  routing; the step preamble now records it so later steps do not misread it as
+  their own regression.
+- `scripts/ingestion_reports/*.json` and `scripts/.ingest_watermark.json` are
+  excluded from the digest manifest as generated runtime output, documented in
+  the test docstring. Two untracked `gw_v17_*.json` reports currently sitting in
+  that directory are why the exclusion was necessary rather than theoretical.
+
+## [Unreleased] - shared-scope-query-routing: foundations (steps 0-3) (Aug 19, 2026)
+
+### Summary
+First four steps of `.kiro/specs/shared-scope-query-routing/` — the read-path
+scope-routing refactor that lets non-default tenants reach shared collections.
+`resolve_tenant_index()` prefixes every collection regardless of scope, so
+`gw_v17`, `gw_sfs`, `gw_jedi_gfs`, and `gw_gefs_v12` are blind to ~22.5K shared
+docs, 34 EE2 standards, and 2,113 community summaries. These steps land the
+foundations; **no query routing has changed yet.** Staged for human review
+(no push, git policy 08).
+
+### Added
+- **`src/data/collection_scope.py` — Scope_Authority (Task 1).** Single owner of
+  "is this collection shared or tenant-scoped", plus Hybrid_Domain membership.
+  Stdlib-only imports so both read and write paths may consume it without a
+  cycle (R12.6). Hybrid invariant asserted at import time. Override chain
+  `MCP_COLLECTION_SCOPE_JSON` then `MCP_COLLECTION_SCOPE_PATH` then built-in
+  tables, replacing wholesale rather than merging; violations raise
+  `ScopeConfigError`. `check_scope_consistency()` reads the manifest with
+  `json.load` directly, deliberately NOT via `src.manifest.loader.load_manifest`
+  whose silent empty-registry fallback is the failure mode the check exists to
+  catch.
+- **Content-carrying tenant catalog transport (Task 3).**
+  `load_catalog_from_transport()` in `src/config/tenants.py` with precedence
+  `MCP_TENANT_CATALOG_YAML` (inline content) then `MCP_TENANT_CATALOG_PATH`
+  (path) then bundled `tenants.yaml`. R5.3/R5.7 presupposed this transport; it
+  did not exist. New `CatalogConfigError`, modeled on `ScopeConfigError`.
+- **`tests/baselines/` — one-shot pre-change capture harness (Task 6).** Replays
+  recorded adapter responses through stub facades; fully hermetic. 7 frozen
+  scenarios covering the four R13.3 tool modules plus the three R6.3 reporters.
+  Parent revision `4eb4229` recorded in the README. Mask machinery with an
+  earned-mask check that rejects hand-added and over-broad masks.
+- **`tests/properties/conftest.py` — shared generators + `adapters()` fixture**
+  parameterised over ChromaDB and OpenSearch (Task 2.4).
+- 6 new test files: 1613 passed suite-wide.
+- `prompts/shared-scope-query-routing/` — sequential step prompts and
+  `run-step.sh` driver; `.kiro/agents/spec-impl.json` (6 trusted tools, no
+  `aws`, no `subagent`, no MCP).
+
+### Changed
+- `src/tenancy/runtime.py::get_catalog()` now resolves via
+  `load_catalog_from_transport`. **`load_catalog(path)` signature and behaviour
+  unchanged** — the frozen `scripts/` ingesters import it (R12.2).
+- `.kiro/specs/shared-scope-query-routing/tasks.md` — corrected three
+  dependency-ordering defects in the wave schedule: Task 2.4 moved to wave 0
+  (consumers 3.2/4.4 were scheduled ahead of it), 4.2 moved to wave 3 (it
+  mutated a rendering path while Task 6 captured baselines), 10.5 moved behind
+  the 11.1 it depends on.
+
+### Notes
+- **All seven baseline masks are empty.** Every scenario is deterministic under
+  hermetic stubs, so the comparison is exact rather than masked. The design cited
+  integrity-report timestamps as the volatile case; no such field exists with a
+  stubbed backend. Not fabricated — reported.
+- **Pre-existing, unrelated:** `strip_tenant_header` in
+  `tests/parity/parity_runner.py` matches only the one-line `*Tenant:*` header
+  and misses the current two-line `*Tenant:*` / `*Branch:*` form, so the
+  existing parity suite likely compares bodies still carrying `*Branch:*`.
+- 3 pre-existing suite failures (`test_environment`, `test_error_analysis`,
+  `test_workflow_info_tools`) are environment-dependent and untouched here.
+- **Not yet landed:** `src/data/read_router.py` (Task 2), adapter routing and the
+  intra-set merge (Task 7.3), cross-backend error normalization (Task 4). Query
+  behaviour for every tenant is unchanged by this commit.
+
+### Verification
+- Full suite: `python3.12 -m pytest tests/unit tests/properties -q` -> 1613
+  passed, 3 pre-existing failures, 0 collection errors.
+- pycodestyle clean on all new files.
+- No file under `mcp_server_python/scripts/` modified (R12.2).
+- Nothing creates, deletes, or writes a Physical_Collection (R12.5).
+
 ## [Unreleased] - AWS User-Provisioning Drift Remediation (Aug 12, 2026)
 
 ### Summary

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "created": "2026-03-06",
   "description": "RAG Quality Assurance ground truth corpus — 60 curated queries across 6 categories",
   "metrics_config": {
@@ -619,6 +619,137 @@
         "expected_min_results": 1,
         "category": "cross_language",
         "notes": "Archive bidirectional execution chain"
+      }
+    ]
+  },
+  "tenant_categories": {
+    "code_structure": [
+      {
+        "id": "cs_t01",
+        "question": "What is the code structure of setuprad.F90 under the gw_v17 tenant?",
+        "tool": "analyze_code_structure",
+        "tool_args": {
+          "file_path": "sorc/gsi.fd/src/gsi/setuprad.f90",
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": ["setuprad", "GW_V17_File", "FortranSubroutine"],
+        "expected_min_results": 3,
+        "category": "code_structure",
+        "notes": "Tenant graph label prefix resolves: gw_v17 setuprad node carries the GW_V17_File / GW_V17_FortranSubroutine label prefix (gap tracker Gap E verification), not the bare gw labels."
+      }
+    ],
+    "semantic_search": [
+      {
+        "id": "ss_t01",
+        "question": "How is the FV3 dynamical core documented under the gw_v17 tenant?",
+        "tool": "search_documentation",
+        "tool_args": {
+          "collection": "global-workflow-docs-v8-0-0",
+          "query": "FV3 dynamical core configuration UFS Weather Model",
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": ["FV3", "dynamical core", "cubed-sphere", "namelist"],
+        "expected_min_results": 4,
+        "category": "semantic_search",
+        "notes": "The two-collection docs case: global-workflow-docs-v8-0-0 is a Hybrid_Domain, so a gw_v17 read fans out to both the shared mdc-workflow-docs-titan1024 index and the tenant gw_v17_mdc-workflow-docs-titan1024 index and the router merges the two. Expected values drawn from ss_001's shared-content baseline, not independently verified live (no live backend in this environment)."
+      }
+    ],
+    "architecture": [
+      {
+        "id": "ar_t01",
+        "question": "What is the data assimilation subsystem architecture under the gw_v17 tenant?",
+        "tool": "search_architecture",
+        "tool_args": {
+          "query": "data assimilation subsystem architecture components",
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": ["assimilation", "analysis", "observation", "increment"],
+        "expected_min_results": 4,
+        "category": "architecture",
+        "notes": "DELIBERATE TRIPWIRE, expected to score 0 while Gap J is open: gw_v17_mdc-community-summaries-titan1024 holds zero documents (community-summaries pipeline never ported to Neptune/Python/tenant-aware, see gap tracker Gap J), so search_architecture returns an [INFO] Skip_Block for this tenant. This is not a miscalibration -- it is the corpus's standing tracker for Gap J and is expected to flip to non-zero only once that pipeline runs for gw_v17. Kept out of the categories object (R2.9) precisely so this designed zero cannot depress a Default_Tenant score."
+      }
+    ],
+    "ee2_compliance": [
+      {
+        "id": "ee_t01",
+        "question": "What environment variables are mandatory in a J-job, read under the gw_v17 tenant?",
+        "tool": "search_ee2_standards",
+        "tool_args": {
+          "query": "mandatory environment variables J-job",
+          "category": "environment_variables",
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": ["COMROOT", "DATAROOT", "cyc", "PDY"],
+        "expected_min_results": 4,
+        "category": "ee2_compliance",
+        "notes": "The strongest of the eight tenant-scoped cases. EE2 standards are shared scope: a correct read reaches the unprefixed mdc-ee2-standards-titan1024 index and returns the same hits the gw tenant gets, because the gw_v17_-prefixed EE2 index exists and is empty. Scores near 1.0 when shared-scope routing works and 0 if it ever regresses to prefix-everything -- precisely the defect shared-scope-query-routing (Phase 79) existed to fix, now with a standing benchmark gate. Expected terms drawn from ee_001's shared-content baseline."
+      }
+    ],
+    "operational": [
+      {
+        "id": "op_t01",
+        "question": "What does JGLOBAL_FORECAST do under the gw_v17 tenant?",
+        "tool": "get_job_details",
+        "tool_args": {
+          "job_name": "JGLOBAL_FORECAST",
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": ["forecast", "JGLOBAL", "input", "output"],
+        "expected_min_results": 4,
+        "category": "operational",
+        "notes": "Tenant J-job routing: confirms get_job_details resolves JGLOBAL_FORECAST against the gw_v17-prefixed jjobs collection (gw_v17_mdc-jjobs-titan1024, 92 documents per the gap tracker's Gap I final state) rather than the shared gw jjobs content. Expected terms drawn from op_001's baseline, not independently verified live."
+      },
+      {
+        "id": "kb_t01",
+        "question": "What does get_knowledge_base_status report for the gw_v17 tenant?",
+        "tool": "get_knowledge_base_status",
+        "tool_args": {
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": [
+          "- gw_v17_mdc-code-context-titan1024",
+          "- gw_v17_mdc-jjobs-titan1024",
+          "- mdc-workflow-docs-titan1024",
+          "- mdc-ee2-standards-titan1024",
+          "- gw_v17_mdc-workflow-docs-titan1024"
+        ],
+        "expected_min_results": 5,
+        "category": "operational",
+        "notes": "Status report lists the right collections for gw_v17's Resolved_Collection_Set (tenant_collection_set(gw_v17) has six members; mdc-community-summaries-titan1024 is dropped from this list as redundant with mdc-ee2-standards-titan1024 for the shared-reachability claim, keeping the cap at five so precision_at_k equals recall_at_k at full resolution -- design Decision 2 / finding 5). Every entry is anchored on the rendered '- ' list-item marker per finding 6: mdc-workflow-docs-titan1024 is a bare substring of gw_v17_mdc-workflow-docs-titan1024, so an unanchored expectation would be satisfied by a render listing only the prefixed member, which is exactly the shared-scope regression this case exists to catch. Computed offline from tenant_collection_set(gw_v17) and the _render_scoped_vector_status source, not independently verified live."
+      },
+      {
+        "id": "ki_t01",
+        "question": "What does check_knowledge_integrity report for the gw_v17 tenant?",
+        "tool": "check_knowledge_integrity",
+        "tool_args": {
+          "sample_size": 50,
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": [
+          "Path Consistency",
+          "Sampled Collections",
+          "Orphaned Graph Nodes",
+          "Stale Embeddings"
+        ],
+        "expected_min_results": 4,
+        "category": "operational",
+        "notes": "Integrity report runs its checks for a prefixed tenant. Path Consistency, Orphaned Graph Nodes, and Stale Embeddings are fixed check names present for every tenant; Sampled Collections is emitted only when the active tenant carries a non-empty index_prefix (gated in _tool_check_knowledge_integrity on `if prefix and ...`), so for gw_v17 it is present and is the strongest discriminator of the four -- for the default gw tenant this case's expectation would not be satisfiable, which is by design. The per-language 'Coverage Gap (<Language>)' rows are not hard-coded here because their names are built dynamically per _COVERAGE_LANGUAGES. Computed offline from the check-construction source, not independently verified live."
+      }
+    ],
+    "cross_language": [
+      {
+        "id": "cl_t01",
+        "question": "Trace the execution chain from JGLOBAL_FORECAST under the gw_v17 tenant",
+        "tool": "trace_full_execution_chain",
+        "tool_args": {
+          "start": "JGLOBAL_FORECAST",
+          "direction": "forward",
+          "tenant_id": "gw_v17"
+        },
+        "expected_results": ["exglobal_forecast", "forecast_predet", "forecast_det", "ufs_model"],
+        "expected_min_results": 4,
+        "category": "cross_language",
+        "notes": "Cross-language traversal under a tenant prefix: J-job -> ex-script -> ush -> Fortran chain resolved against gw_v17-prefixed graph labels. Expected terms drawn from cl_001's baseline, not independently verified live -- v17 shell-graph relationship ingestion (Gap B) is recorded as resolved with populated data in the gap tracker, but this exact chain has not been observed against a live backend from this environment."
       }
     ]
   }

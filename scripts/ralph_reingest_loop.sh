@@ -39,6 +39,7 @@ MAX_ITERATIONS="${MAX_ITERATIONS:-500}"
 ITER_TIMEOUT="${ITER_TIMEOUT:-3600}"           # seconds per iteration
 SLEEP_BETWEEN="${SLEEP_BETWEEN:-5}"            # base sleep between iterations
 CONFIRM_DESTRUCTIVE="${CONFIRM_DESTRUCTIVE:-no}"
+REINGEST_DRY_RUN="${REINGEST_DRY_RUN:-0}"
 KIRO_AGENT="${KIRO_AGENT:-kiro_default}"
 KIRO_MODEL="${KIRO_MODEL:-}"
 KIRO_BIN="${KIRO_BIN:-kiro-cli}"
@@ -73,7 +74,7 @@ setup_env() {
   export MCP_WORKFLOW_MOUNT="${MCP_WORKFLOW_MOUNT:-${REPO_ROOT}/.pw_workflow_mount}"
   export MCP_TENANT_CATALOG_PATH="${MCP_TENANT_CATALOG_PATH:-${REPO_ROOT}/mcp_server_python/src/config/tenants.yaml}"
   # Threaded into every ingester + the state manager.
-  export REINGEST_COLLECTION_VERSION CONFIRM_DESTRUCTIVE
+  export REINGEST_COLLECTION_VERSION CONFIRM_DESTRUCTIVE REINGEST_DRY_RUN
 }
 
 sm() { python3 "${SM}" --collection-version "${REINGEST_COLLECTION_VERSION}" "$@"; }
@@ -143,4 +144,27 @@ main() {
   log "########## COTS RE-INGEST RALPH LOOP END (${i} iterations) ##########"
 }
 
-main "$@"
+# ── Argument parsing ───────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      REINGEST_DRY_RUN=1
+      shift
+      ;;
+    --target-version)
+      REINGEST_COLLECTION_VERSION="$2"
+      shift 2
+      ;;
+    --spec)
+      # Informational — recorded in logs but does not change behaviour.
+      log "[INFO] spec: $2"
+      shift 2
+      ;;
+    *)
+      log "[ERROR] unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
+
+main

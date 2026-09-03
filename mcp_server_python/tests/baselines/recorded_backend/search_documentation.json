@@ -1,0 +1,41 @@
+{
+  "scenario_id": "search_documentation",
+  "module": "semantic_search",
+  "tool": "search_documentation",
+  "tenant_scoped": true,
+  "args": {
+    "query": "global forecast job dependencies",
+    "collection": null,
+    "max_results": 5,
+    "include_graph": false,
+    "similarity_threshold": 0.1
+  },
+  "env": {
+    "DB_BACKEND": "aws",
+    "MCP_EMBEDDING_PROFILE": "titan1024"
+  },
+  "vector": {
+    "multi_collection_query": [
+      {
+        "id": "doc-100",
+        "content": "JGLOBAL_FORECAST launches the GFS atmospheric forecast job.",
+        "metadata": {
+          "source_file": "jobs/JGLOBAL_FORECAST",
+          "source": "jobs/JGLOBAL_FORECAST",
+          "collection": "mdc-workflow-docs-titan1024"
+        },
+        "score": 0.91
+      },
+      {
+        "id": "doc-101",
+        "content": "exglobal_forecast.py wraps the forecast executable and stages inputs.",
+        "metadata": {
+          "source_file": "ush/exglobal_forecast.py",
+          "source": "ush/exglobal_forecast.py",
+          "collection": "mdc-code-context-titan1024"
+        },
+        "score": 0.77
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "scenario_id": "get_knowledge_base_status",
+  "module": "semantic_search",
+  "tool": "get_knowledge_base_status",
+  "tenant_scoped": true,
+  "args": {
+    "include_graph": true,
+    "include_vector": true,
+    "all_tenants": false
+  },
+  "env": {
+    "DB_BACKEND": "aws",
+    "MCP_EMBEDDING_PROFILE": "titan1024"
+  },
+  "vector": {
+    "health_check": {
+      "status": "healthy",
+      "connected": true,
+      "indices_detail": {
+        "mdc-workflow-docs-titan1024": 35980,
+        "mdc-ee2-standards-titan1024": 34,
+        "mdc-community-summaries-titan1024": 2113,
+        "mdc-code-context-titan1024": 90135,
+        "mdc-jjobs-titan1024": 751
+      },
+      "total_documents": 129013,
+      "latency_ms": 7
+    }
+  },
+  "graph": {
+    "health": {
+      "status": "healthy",
+      "connected": true,
+      "nodes": 0,
+      "relationships": 0
+    },
+    "label_counts": {
+      "File": 8000,
+      "FortranSubroutine": 29605,
+      "FortranModule": 4200,
+      "PythonModule": 1200,
+      "ShellScript": 315
+    },
+    "rel_counts": {
+      "CALLS": 1020000,
+      "USES": 229000,
+      "SOURCES": 928,
+      "INVOKES": 1767,
+      "EXPORTS": 6064
+    }
+  }
+}

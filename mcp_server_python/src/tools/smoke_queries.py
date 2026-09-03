@@ -393,15 +393,29 @@ async def _smoke_code_awareness(data: Any, _mcp: Any) -> bool:
 
 
 async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
-    """R4.1 — assert v17 J-Job is visible only to gw_v17, develop content
-    only to gw, and bidirectional isolation holds for cross-tenant search.
+    """Restated tenant-isolation probe (shared-scope-query-routing R8).
 
-    Skipped (raises SkipProbe) if either gw or gw_v17 is absent from the
-    catalog (R4.2 — graceful skip).
+    Graph-side label isolation is UNCHANGED and byte-identical (R8.5): a
+    v17-only J-Job is reachable under gw_v17 and absent under gw.
 
-    Implements: Requirements 4.1, 4.2, 4.3, 4.4 of omd-tenants-2-v17-pilot.
+    The vector-side assertions are realigned onto the ``physical_collection``
+    provenance the adapters attach (Task 7.3), replacing the pre-change
+    ``"/develop/" in metadata.source`` substring test that R8.4 forbids. A
+    hit originates from a tenant iff its attached physical name carries that
+    tenant's non-empty index_prefix, and is shared iff it carries no
+    tenant's non-empty prefix. The invariant, restated (R8.1): a
+    non-empty-prefix hit is absent from every OTHER tenant's results; a
+    no-prefix (shared) hit is present for EVERY tenant, prefixed tenants
+    included. Shared content reaching gw_v17 is now the required outcome,
+    the inverse of the pre-change assertion 4.
+
+    Skipped (SkipProbe) if either gw or gw_v17 is absent from the catalog.
+
+    Implements: Requirements 8.1-8.8 of shared-scope-query-routing.
     """
     from src.config.tenants import load_catalog
+    from src.data.collection_scope import scope_of
+    from src.data.read_router import resolve_read_targets
 
     catalog_path = os.environ.get(
         "MCP_TENANT_CATALOG_PATH", "/app/src/config/tenants.yaml"
@@ -414,7 +428,33 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
     gw = catalog.by_id("gw")
     v17 = catalog.by_id("gw_v17")
 
-    # Assertion 1: v17-only J-Job exists under gw_v17
+    # Non-empty tenant prefixes, longest first so a nested prefix never
+    # mis-attributes a name (defensive; today's prefixes are distinct).
+    prefixes = sorted(
+        (
+            (t.tenant_id, t.index_prefix)
+            for t in catalog.tenants
+            if t.index_prefix
+        ),
+        key=lambda pair: len(pair[1]),
+        reverse=True,
+    )
+
+    def _origin(physical: str) -> str | None:
+        """Return the owning tenant_id for ``physical``, or None (shared).
+
+        Classification FOLLOWS THE NAME (R8.4); document metadata is
+        ignored entirely.
+        """
+        for tid, prefix in prefixes:
+            if physical.startswith(prefix):
+                return tid
+        return None
+
+    docs_logical = "global-workflow-docs-v8-0-0"
+    ee2_logical = "ee2-standards-v5-0-0-enhanced"
+
+    # ── graph-side label isolation (query text UNCHANGED, R8.5) ──
     # NOTE: queries MUST include a :Label so _rewrite_cypher can scope
     # them. For v17, :ShellScript becomes :GW_V17_ShellScript.
     deps_v17 = await data.graph_db.query(
@@ -428,7 +468,6 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
             "ingestion may be incomplete"
         )
 
-    # Assertion 2: same query returns nothing under gw
     # For gw (empty prefix), :ShellScript stays as :ShellScript —
     # only matches unprefixed nodes, not GW_V17_ShellScript.
     deps_gw = await data.graph_db.query(
@@ -442,41 +481,108 @@ async def _smoke_branch_isolation(data: Any, _mcp: Any) -> bool:
             "under gw — tenant isolation violated"
         )
 
-    # Assertion 3: develop-only content visible to gw
-    mpas_gw = await data.vector_db.query(
-        "global-workflow-docs-v8-0-0",
-        "MPAS Voronoi",
-        k=3,
-        tenant=gw,
+    # ── vector-side scope isolation (realigned onto physical_collection) ──
+
+    async def _hits_or_condition_fail(
+        logical: str, tenant: Any, *, query: str, k: int = 10
+    ) -> list[dict[str, Any]]:
+        """Query one logical collection, failing per R8.8 when a zero-hit
+        result is caused by an unreachable or empty member.
+
+        Distinguishes the three observed conditions -- a query error, an
+        unprovisioned member, a provisioned-and-empty member -- and names
+        the collection, its scope, and which was seen, keeping
+        unprovisioned distinct from provisioned-empty (R8.8).
+        """
+        scope = scope_of(logical) or "tenant"
+        try:
+            hits = await data.vector_db.query(
+                logical, query, k=k, tenant=tenant
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"R8.8: query against {logical!r} ({scope}) under "
+                f"{tenant.tenant_id} returned a query error: {exc}"
+            ) from exc
+        if not hits:
+            resolved = resolve_read_targets(logical, tenant)
+            for target in resolved.targets:
+                try:
+                    condition = await data.vector_db.collection_condition(
+                        target.physical
+                    )
+                except Exception:  # pragma: no cover - defensive
+                    condition = None
+                cond = getattr(condition, "value", None)
+                if cond in ("unprovisioned", "provisioned-empty"):
+                    raise RuntimeError(
+                        f"R8.8: addressed member {target.physical} "
+                        f"({target.scope}) under {tenant.tenant_id} is "
+                        f"{cond}, not provisioned-populated"
+                    )
+        return hits
+
+    def _require_provenance(
+        hits: list[dict[str, Any]], logical: str, tenant: Any
+    ) -> None:
+        for hit in hits:
+            if not hit.get("physical_collection"):
+                raise RuntimeError(
+                    f"R8.7: a hit for {logical!r} under {tenant.tenant_id} "
+                    "carries no attached physical_collection"
+                )
+
+    # R8.6: docs under gw_v17 -> at least one gw_v17-prefixed AND one shared.
+    docs_v17 = await _hits_or_condition_fail(
+        docs_logical, v17, query="global workflow"
     )
-    if not mpas_gw:
+    _require_provenance(docs_v17, docs_logical, v17)
+    origins_v17 = [_origin(hit["physical_collection"]) for hit in docs_v17]
+    if not any(origin == "gw_v17" for origin in origins_v17):
         raise RuntimeError(
-            "R4.1#3: MPAS Voronoi not found under gw — "
-            "smoke probe assumption failure"
+            "R8.6: no gw_v17-prefixed docs hit under gw_v17 — the "
+            "branch-local half of the Hybrid_Domain is unreachable"
+        )
+    if not any(origin is None for origin in origins_v17):
+        raise RuntimeError(
+            "R8.6: no shared (unprefixed) docs hit under gw_v17 — the "
+            "shared half of the Hybrid_Domain is unreachable"
         )
 
-    # Assertion 4: cross-tenant search does not leak develop content
-    # Use the bare index name — the adapter applies the tenant prefix.
-    # If the prefixed index doesn't exist (tenant has no docs collection),
-    # that's fine — no leakage is possible from a nonexistent index.
-    try:
-        mpas_v17 = await data.vector_db.query(
-            "global-workflow-docs-v8-0-0",
-            "MPAS Voronoi",
-            k=3,
-            tenant=v17,
-        )
-    except Exception:
-        # Index not found / search error → no docs = no leakage
-        mpas_v17 = []
-    leaked = [
-        h for h in (mpas_v17 or [])
-        if "/develop/" in (h.get("metadata", {}).get("source") or "")
-    ]
-    if leaked:
+    # R8.2 (gw_v17): no hit carrying ANOTHER tenant's non-empty prefix.
+    for hit in docs_v17:
+        origin = _origin(hit["physical_collection"])
+        if origin is not None and origin != "gw_v17":
+            raise RuntimeError(
+                f"R8.2: gw_v17 docs search returned {origin}-owned content "
+                f"({hit['physical_collection']}) — tenant isolation violated"
+            )
+
+    # R8.2 (Default_Tenant): docs under gw carry no tenant prefix at all.
+    docs_gw = await _hits_or_condition_fail(
+        docs_logical, gw, query="global workflow"
+    )
+    _require_provenance(docs_gw, docs_logical, gw)
+    for hit in docs_gw:
+        origin = _origin(hit["physical_collection"])
+        if origin is not None:
+            raise RuntimeError(
+                f"R8.2: gw docs search returned {origin}-prefixed content "
+                f"({hit['physical_collection']}) — the Default_Tenant must "
+                "see only unprefixed content"
+            )
+
+    # R8.3: ee2 under gw_v17 -> at least one shared (unprefixed) hit.
+    ee2_v17 = await _hits_or_condition_fail(
+        ee2_logical, v17, query="err_chk"
+    )
+    _require_provenance(ee2_v17, ee2_logical, v17)
+    if not any(
+        _origin(hit["physical_collection"]) is None for hit in ee2_v17
+    ):
         raise RuntimeError(
-            f"R4.1#4: gw_v17 search returned develop-sourced content "
-            f"({len(leaked)} hit(s)) — tenant isolation violated"
+            "R8.3: no shared (unprefixed) ee2 hit under gw_v17 — shared "
+            "standards are unreachable for the prefixed tenant"
         )
 
     return True

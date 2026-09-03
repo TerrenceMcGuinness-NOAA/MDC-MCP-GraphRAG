@@ -1,0 +1,1136 @@
+{
+  "timestamp": "2026-08-14T14:48:28.347Z",
+  "version": "1.0.0",
+  "corpus_version": "1.0.0",
+  "total_queries": 60,
+  "overall": {
+    "precision_at_k": 0.7181,
+    "recall_at_k": 0.7164,
+    "mrr": 0.9333,
+    "coverage": 0.9333,
+    "latency_p50_ms": 63,
+    "latency_p95_ms": 1205
+  },
+  "categories": {
+    "architecture": {
+      "precision_at_k": 0.665,
+      "recall_at_k": 0.665,
+      "mrr": 1,
+      "coverage": 1,
+      "latency_p50_ms": 28,
+      "latency_p95_ms": 1205
+    },
+    "code_structure": {
+      "precision_at_k": 0.4183,
+      "recall_at_k": 0.4083,
+      "mrr": 0.7,
+      "coverage": 0.7,
+      "latency_p50_ms": 99,
+      "latency_p95_ms": 5014
+    },
+    "cross_language": {
+      "precision_at_k": 0.625,
+      "recall_at_k": 0.625,
+      "mrr": 0.9,
+      "coverage": 0.9,
+      "latency_p50_ms": 150,
+      "latency_p95_ms": 854
+    },
+    "ee2_compliance": {
+      "precision_at_k": 0.89,
+      "recall_at_k": 0.89,
+      "mrr": 1,
+      "coverage": 1,
+      "latency_p50_ms": 30,
+      "latency_p95_ms": 87
+    },
+    "operational": {
+      "precision_at_k": 0.83,
+      "recall_at_k": 0.83,
+      "mrr": 1,
+      "coverage": 1,
+      "latency_p50_ms": 19,
+      "latency_p95_ms": 71
+    },
+    "semantic_search": {
+      "precision_at_k": 0.88,
+      "recall_at_k": 0.88,
+      "mrr": 1,
+      "coverage": 1,
+      "latency_p50_ms": 70,
+      "latency_p95_ms": 967
+    }
+  },
+  "queries": [
+    {
+      "id": "cs_001",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 5014,
+      "matched_results": [
+        "forecast_predet",
+        "forecast_det",
+        "forecast_postdet",
+        "parsing_ufs_configure"
+      ],
+      "expected_results": [
+        "forecast_predet",
+        "forecast_det",
+        "forecast_postdet",
+        "parsing_ufs_configure"
+      ]
+    },
+    {
+      "id": "cs_002",
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "mrr": 1,
+      "latency_ms": 1676,
+      "matched_results": [
+        "GFS",
+        "Task"
+      ],
+      "expected_results": [
+        "GFS",
+        "Task",
+        "wxflow"
+      ]
+    },
+    {
+      "id": "cs_003",
+      "precision": 0.6,
+      "recall": 0.5,
+      "mrr": 1,
+      "latency_ms": 304,
+      "matched_results": [
+        "Analysis",
+        "Jedi",
+        "initialize"
+      ],
+      "expected_results": [
+        "Analysis",
+        "AtmAnalysis",
+        "Jedi",
+        "initialize",
+        "execute",
+        "finalize"
+      ]
+    },
+    {
+      "id": "cs_004",
+      "precision": 0,
+      "recall": 0,
+      "mrr": 0,
+      "latency_ms": 1688,
+      "matched_results": [],
+      "expected_results": [
+        "atm_analysis",
+        "aero_analysis",
+        "marine_analysis",
+        "snow_analysis"
+      ]
+    },
+    {
+      "id": "cs_005",
+      "precision": 0,
+      "recall": 0,
+      "mrr": 0,
+      "latency_ms": 86,
+      "matched_results": [],
+      "expected_results": [
+        "kinds",
+        "general_specmod",
+        "general_sub2grid_mod",
+        "constants"
+      ]
+    },
+    {
+      "id": "cs_006",
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "mrr": 1,
+      "latency_ms": 455,
+      "matched_results": [
+        "source"
+      ],
+      "expected_results": [
+        "exglobal",
+        "exgfs",
+        "source"
+      ]
+    },
+    {
+      "id": "cs_007",
+      "precision": 0.5,
+      "recall": 0.5,
+      "mrr": 1,
+      "latency_ms": 70,
+      "matched_results": [
+        "Archive",
+        "glob"
+      ],
+      "expected_results": [
+        "Archive",
+        "configure_vrfy",
+        "FileHandler",
+        "glob"
+      ]
+    },
+    {
+      "id": "cs_008",
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "mrr": 1,
+      "latency_ms": 99,
+      "matched_results": [
+        "gfs_forecast"
+      ],
+      "expected_results": [
+        "UFS",
+        "gfs_forecast",
+        "ufswm"
+      ]
+    },
+    {
+      "id": "cs_009",
+      "precision": 0,
+      "recall": 0,
+      "mrr": 0,
+      "latency_ms": 96,
+      "matched_results": [],
+      "expected_results": [
+        "prep_step",
+        "post_step",
+        "err_chk"
+      ]
+    },
+    {
+      "id": "cs_010",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 37,
+      "matched_results": [
+        "UFS",
+        "configure",
+        "parsing"
+      ],
+      "expected_results": [
+        "UFS",
+        "configure",
+        "parsing",
+        "namelist"
+      ]
+    },
+    {
+      "id": "ss_001",
+      "precision": 0.5,
+      "recall": 0.5,
+      "mrr": 1,
+      "latency_ms": 967,
+      "matched_results": [
+        "FV3",
+        "dynamical core"
+      ],
+      "expected_results": [
+        "FV3",
+        "dynamical core",
+        "cubed-sphere",
+        "namelist"
+      ]
+    },
+    {
+      "id": "ss_002",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 84,
+      "matched_results": [
+        "chgres_cube",
+        "initial conditions",
+        "grid"
+      ],
+      "expected_results": [
+        "chgres_cube",
+        "initial conditions",
+        "interpolation",
+        "grid"
+      ]
+    },
+    {
+      "id": "ss_003",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 63,
+      "matched_results": [
+        "Rocoto",
+        "dependency",
+        "cycling",
+        "XML",
+        "task"
+      ],
+      "expected_results": [
+        "Rocoto",
+        "dependency",
+        "cycling",
+        "XML",
+        "task"
+      ]
+    },
+    {
+      "id": "ss_004",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 71,
+      "matched_results": [
+        "ecFlow",
+        "scheduling",
+        "suite",
+        "task",
+        "trigger"
+      ],
+      "expected_results": [
+        "ecFlow",
+        "scheduling",
+        "suite",
+        "task",
+        "trigger"
+      ]
+    },
+    {
+      "id": "ss_005",
+      "precision": 0.8,
+      "recall": 0.8,
+      "mrr": 1,
+      "latency_ms": 70,
+      "matched_results": [
+        "wxflow",
+        "Task",
+        "Python",
+        "execution"
+      ],
+      "expected_results": [
+        "wxflow",
+        "Task",
+        "Python",
+        "execution",
+        "configuration"
+      ]
+    },
+    {
+      "id": "ss_006",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 67,
+      "matched_results": [
+        "wgrib2",
+        "GRIB2",
+        "decode",
+        "encode"
+      ],
+      "expected_results": [
+        "wgrib2",
+        "GRIB2",
+        "decode",
+        "encode"
+      ]
+    },
+    {
+      "id": "ss_007",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 73,
+      "matched_results": [
+        "BUFR",
+        "observation",
+        "NCEPLIBS",
+        "subroutine"
+      ],
+      "expected_results": [
+        "BUFR",
+        "observation",
+        "NCEPLIBS",
+        "subroutine"
+      ]
+    },
+    {
+      "id": "ss_008",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 74,
+      "matched_results": [
+        "spack-stack",
+        "module",
+        "HPC",
+        "environment"
+      ],
+      "expected_results": [
+        "spack-stack",
+        "module",
+        "HPC",
+        "environment"
+      ]
+    },
+    {
+      "id": "ss_009",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 61,
+      "matched_results": [
+        "JEDI",
+        "data assimilation",
+        "observation"
+      ],
+      "expected_results": [
+        "JEDI",
+        "data assimilation",
+        "observation",
+        "variational"
+      ]
+    },
+    {
+      "id": "ss_010",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 57,
+      "matched_results": [
+        "orography",
+        "orog_gsl",
+        "surface",
+        "terrain"
+      ],
+      "expected_results": [
+        "orography",
+        "orog_gsl",
+        "surface",
+        "terrain"
+      ]
+    },
+    {
+      "id": "ar_001",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 106,
+      "matched_results": [
+        "GDAS",
+        "GFS",
+        "analysis",
+        "forecast",
+        "cycling"
+      ],
+      "expected_results": [
+        "GDAS",
+        "GFS",
+        "analysis",
+        "forecast",
+        "cycling"
+      ]
+    },
+    {
+      "id": "ar_002",
+      "precision": 0.25,
+      "recall": 0.25,
+      "mrr": 1,
+      "latency_ms": 17,
+      "matched_results": [
+        "assimilation"
+      ],
+      "expected_results": [
+        "assimilation",
+        "analysis",
+        "observation",
+        "increment"
+      ]
+    },
+    {
+      "id": "ar_003",
+      "precision": 0.25,
+      "recall": 0.25,
+      "mrr": 1,
+      "latency_ms": 1205,
+      "matched_results": [
+        "forecast"
+      ],
+      "expected_results": [
+        "forecast",
+        "UFS",
+        "FV3",
+        "atmosphere"
+      ]
+    },
+    {
+      "id": "ar_004",
+      "precision": 0.5,
+      "recall": 0.5,
+      "mrr": 1,
+      "latency_ms": 38,
+      "matched_results": [
+        "wave",
+        "coupling"
+      ],
+      "expected_results": [
+        "wave",
+        "atmosphere",
+        "coupling",
+        "WW3"
+      ]
+    },
+    {
+      "id": "ar_005",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 28,
+      "matched_results": [
+        "post",
+        "UPP",
+        "product"
+      ],
+      "expected_results": [
+        "post",
+        "UPP",
+        "product",
+        "GRIB"
+      ]
+    },
+    {
+      "id": "ar_006",
+      "precision": 0.5,
+      "recall": 0.5,
+      "mrr": 1,
+      "latency_ms": 273,
+      "matched_results": [
+        "GSI",
+        "analysis"
+      ],
+      "expected_results": [
+        "GSI",
+        "analysis",
+        "observation",
+        "variational"
+      ]
+    },
+    {
+      "id": "ar_007",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 24,
+      "matched_results": [
+        "ensemble",
+        "EnKF",
+        "member",
+        "perturbation"
+      ],
+      "expected_results": [
+        "ensemble",
+        "EnKF",
+        "member",
+        "perturbation"
+      ]
+    },
+    {
+      "id": "ar_008",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 25,
+      "matched_results": [
+        "archive",
+        "cleanup",
+        "HPSS",
+        "data"
+      ],
+      "expected_results": [
+        "archive",
+        "cleanup",
+        "HPSS",
+        "data"
+      ]
+    },
+    {
+      "id": "ar_009",
+      "precision": 0.4,
+      "recall": 0.4,
+      "mrr": 1,
+      "latency_ms": 193,
+      "matched_results": [
+        "ocean",
+        "ice"
+      ],
+      "expected_results": [
+        "ocean",
+        "ice",
+        "MOM6",
+        "CICE",
+        "coupling"
+      ]
+    },
+    {
+      "id": "ar_010",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 28,
+      "matched_results": [
+        "verification",
+        "fit2obs",
+        "statistics"
+      ],
+      "expected_results": [
+        "verification",
+        "fit2obs",
+        "statistics"
+      ]
+    },
+    {
+      "id": "ee_001",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 87,
+      "matched_results": [
+        "COMROOT",
+        "DATAROOT",
+        "cyc",
+        "PDY",
+        "NET",
+        "RUN"
+      ],
+      "expected_results": [
+        "COMROOT",
+        "DATAROOT",
+        "cyc",
+        "PDY",
+        "NET",
+        "RUN"
+      ]
+    },
+    {
+      "id": "ee_002",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 46,
+      "matched_results": [
+        "err_chk",
+        "err_exit",
+        "trap"
+      ],
+      "expected_results": [
+        "err_chk",
+        "err_exit",
+        "trap",
+        "exit code"
+      ]
+    },
+    {
+      "id": "ee_003",
+      "precision": 0.4,
+      "recall": 0.4,
+      "mrr": 1,
+      "latency_ms": 40,
+      "matched_results": [
+        "type",
+        "res"
+      ],
+      "expected_results": [
+        "model",
+        "tHHz",
+        "type",
+        "res",
+        "filetype"
+      ]
+    },
+    {
+      "id": "ee_004",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 27,
+      "matched_results": [
+        "job card",
+        "J-job",
+        "ex-script",
+        "ush"
+      ],
+      "expected_results": [
+        "job card",
+        "J-job",
+        "ex-script",
+        "ush"
+      ]
+    },
+    {
+      "id": "ee_005",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 30,
+      "matched_results": [
+        "delivery",
+        "version",
+        "release",
+        "tag"
+      ],
+      "expected_results": [
+        "delivery",
+        "version",
+        "release",
+        "tag"
+      ]
+    },
+    {
+      "id": "ee_006",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 33,
+      "matched_results": [
+        "shebang",
+        "#!/bin",
+        "bash",
+        "ksh"
+      ],
+      "expected_results": [
+        "shebang",
+        "#!/bin",
+        "bash",
+        "ksh"
+      ]
+    },
+    {
+      "id": "ee_007",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 23,
+      "matched_results": [
+        "module",
+        "load",
+        "production"
+      ],
+      "expected_results": [
+        "module",
+        "load",
+        "utility",
+        "production"
+      ]
+    },
+    {
+      "id": "ee_008",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 26,
+      "matched_results": [
+        "com",
+        "wmo",
+        "directory",
+        "structure"
+      ],
+      "expected_results": [
+        "com",
+        "wmo",
+        "directory",
+        "structure"
+      ]
+    },
+    {
+      "id": "ee_009",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 30,
+      "matched_results": [
+        "DBNet",
+        "distributed",
+        "transfer"
+      ],
+      "expected_results": [
+        "DBNet",
+        "distributed",
+        "transfer"
+      ]
+    },
+    {
+      "id": "ee_010",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 29,
+      "matched_results": [
+        "compiler",
+        "Makefile",
+        "Intel",
+        "compiled"
+      ],
+      "expected_results": [
+        "compiler",
+        "Makefile",
+        "Intel",
+        "compiled"
+      ]
+    },
+    {
+      "id": "op_001",
+      "precision": 0.8,
+      "recall": 0.8,
+      "mrr": 1,
+      "latency_ms": 28,
+      "matched_results": [
+        "forecast",
+        "JGLOBAL",
+        "input",
+        "output"
+      ],
+      "expected_results": [
+        "forecast",
+        "JGLOBAL",
+        "input",
+        "output",
+        "atmosphere"
+      ]
+    },
+    {
+      "id": "op_002",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 1,
+      "matched_results": [
+        "JGLOBAL_ATM_ANALYSIS",
+        "JGLOBAL_ATMOS",
+        "JGDAS"
+      ],
+      "expected_results": [
+        "JGLOBAL_ATM_ANALYSIS",
+        "JGLOBAL_ATMOS",
+        "JGDAS"
+      ]
+    },
+    {
+      "id": "op_003",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 71,
+      "matched_results": [
+        "Hera",
+        "module",
+        "workflow"
+      ],
+      "expected_results": [
+        "Hera",
+        "scratch",
+        "module",
+        "workflow"
+      ]
+    },
+    {
+      "id": "op_004",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 19,
+      "matched_results": [
+        "WCOSS2",
+        "production",
+        "ops"
+      ],
+      "expected_results": [
+        "WCOSS2",
+        "production",
+        "lfs",
+        "ops"
+      ]
+    },
+    {
+      "id": "op_005",
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "mrr": 1,
+      "latency_ms": 21,
+      "matched_results": [
+        "analysis"
+      ],
+      "expected_results": [
+        "analysis",
+        "atmosphere",
+        "observation"
+      ]
+    },
+    {
+      "id": "op_006",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 0,
+      "matched_results": [
+        "WAVE",
+        "JGLOBAL_WAVE",
+        "JGEFS_WAVE"
+      ],
+      "expected_results": [
+        "WAVE",
+        "JGLOBAL_WAVE",
+        "JGEFS_WAVE"
+      ]
+    },
+    {
+      "id": "op_007",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 27,
+      "matched_results": [
+        "experiment",
+        "configuration",
+        "GFS",
+        "setup"
+      ],
+      "expected_results": [
+        "experiment",
+        "configuration",
+        "GFS",
+        "setup"
+      ]
+    },
+    {
+      "id": "op_008",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 13,
+      "matched_results": [
+        "EnKF",
+        "update",
+        "ensemble",
+        "analysis"
+      ],
+      "expected_results": [
+        "EnKF",
+        "update",
+        "ensemble",
+        "analysis"
+      ]
+    },
+    {
+      "id": "op_009",
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "mrr": 1,
+      "latency_ms": 0,
+      "matched_results": [
+        "MARINE",
+        "JGLOBAL_MARINE"
+      ],
+      "expected_results": [
+        "MARINE",
+        "JGLOBAL_MARINE",
+        "ocean"
+      ]
+    },
+    {
+      "id": "op_010",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 24,
+      "matched_results": [
+        "Orion",
+        "troubleshoot",
+        "log",
+        "error"
+      ],
+      "expected_results": [
+        "Orion",
+        "troubleshoot",
+        "log",
+        "error"
+      ]
+    },
+    {
+      "id": "cl_001",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 401,
+      "matched_results": [
+        "exglobal_forecast",
+        "forecast_predet",
+        "forecast_det"
+      ],
+      "expected_results": [
+        "exglobal_forecast",
+        "forecast_predet",
+        "forecast_det",
+        "ufs_model"
+      ]
+    },
+    {
+      "id": "cl_002",
+      "precision": 0.75,
+      "recall": 0.75,
+      "mrr": 1,
+      "latency_ms": 854,
+      "matched_results": [
+        "analysis",
+        "gsi",
+        "increment"
+      ],
+      "expected_results": [
+        "analysis",
+        "gsi",
+        "observation",
+        "increment"
+      ]
+    },
+    {
+      "id": "cl_003",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 60,
+      "matched_results": [
+        "exglobal",
+        "atm_analysis",
+        "initialize"
+      ],
+      "expected_results": [
+        "exglobal",
+        "atm_analysis",
+        "initialize"
+      ]
+    },
+    {
+      "id": "cl_004",
+      "precision": 0,
+      "recall": 0,
+      "mrr": 0,
+      "latency_ms": 248,
+      "matched_results": [],
+      "expected_results": [
+        "JGLOBAL_FORECAST",
+        "job",
+        "trigger"
+      ]
+    },
+    {
+      "id": "cl_005",
+      "precision": 0.5,
+      "recall": 0.5,
+      "mrr": 1,
+      "latency_ms": 290,
+      "matched_results": [
+        "enkf",
+        "update"
+      ],
+      "expected_results": [
+        "enkf",
+        "update",
+        "ensemble",
+        "analysis"
+      ]
+    },
+    {
+      "id": "cl_006",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 55,
+      "matched_results": [
+        "JGDAS",
+        "analysis",
+        "atmos",
+        "gsi"
+      ],
+      "expected_results": [
+        "JGDAS",
+        "analysis",
+        "atmos",
+        "gsi"
+      ]
+    },
+    {
+      "id": "cl_007",
+      "precision": 0.25,
+      "recall": 0.25,
+      "mrr": 1,
+      "latency_ms": 150,
+      "matched_results": [
+        "post"
+      ],
+      "expected_results": [
+        "post",
+        "UPP",
+        "GRIB",
+        "product"
+      ]
+    },
+    {
+      "id": "cl_008",
+      "precision": 1,
+      "recall": 1,
+      "mrr": 1,
+      "latency_ms": 98,
+      "matched_results": [
+        "wave",
+        "init",
+        "WW3"
+      ],
+      "expected_results": [
+        "wave",
+        "init",
+        "WW3"
+      ]
+    },
+    {
+      "id": "cl_009",
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "mrr": 1,
+      "latency_ms": 146,
+      "matched_results": [
+        "aero",
+        "analysis"
+      ],
+      "expected_results": [
+        "aero",
+        "analysis",
+        "aerosol"
+      ]
+    },
+    {
+      "id": "cl_010",
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "mrr": 1,
+      "latency_ms": 219,
+      "matched_results": [
+        "archive"
+      ],
+      "expected_results": [
+        "archive",
+        "HPSS",
+        "cleanup"
+      ]
+    }
+  ],
+  "regression": {
+    "compared_to": "2026-08-13T02:30:55.726Z",
+    "warnings": [],
+    "errors": [
+      "code_structure Coverage 70% below minimum 80%"
+    ]
+  }
+}

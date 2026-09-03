@@ -1,0 +1,208 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add the five shared Hypothesis generators to the properties conftest": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190940770
+      }
+    ],
+    "1.2 Record the pre-change corpus `categories` digest": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190947023
+      }
+    ],
+    "1.3 Create the harness module with the corpus loader and the scoring core": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190952398
+      }
+    ],
+    "1.4 Property tests for metric bounds and the mrr/coverage identity": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190958512
+      }
+    ],
+    "1.5 Model-based formula parity against the committed metrics log": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190963732
+      }
+    ],
+    "1. Scoring core, shared generators, and the pre-change corpus digest": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190965562
+      }
+    ],
+    "1.6 Generator meta-test for the weighted corners": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190974236
+      }
+    ],
+    "2.1 Add the `tenant_categories` sibling container and bump the corpus version": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190980902
+      }
+    ],
+    "2.2 Corpus invariance, coverage, and anchoring guard assertions": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190986071
+      }
+    ],
+    "2. Corpus extension with tenant-scoped cases": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190987924
+      }
+    ],
+    "3.1 Registration_Shim, `build_tool_map`, and the real catalog": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190993228
+      }
+    ],
+    "3.2 `run_benchmark` orchestration, per-case accounting, and the record": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787190998527
+      }
+    ],
+    "3.3 CLI surface and exit statuses": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191003677
+      }
+    ],
+    "3.4 Property tests for determinism, partition, accounting, and artefact shape": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191008837
+      }
+    ],
+    "3.5 Hermeticity and closure-binding property tests": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191014327
+      }
+    ],
+    "3.6 Unit tests for the corpus, selection, and failure tables": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191020064
+      }
+    ],
+    "3. Harness closure collection, invocation, and emitted record": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191021923
+      }
+    ],
+    "4.1 Align the wrapper's regression default with the Governing_Threshold": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191027382
+      }
+    ],
+    "4.2 Wrapper integration and log-history tests": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191034313
+      }
+    ],
+    "4. Threshold reconciliation and nightly wrapper integration": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191036226
+      }
+    ],
+    "5. Checkpoint - stage 1 complete, the replacement gate exists": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191043133
+      }
+    ],
+    "6.1 Build the Structural_Equivalence evaluator": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191048384
+      }
+    ],
+    "6.2 Property tests for the relation": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191054813
+      }
+    ],
+    "6.3 ATOMIC - supersede the reporting freeze and swap in the structural check": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191060689
+      }
+    ],
+    "6.4 Record the capture mechanism's status and the re-record affordance": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191066003
+      }
+    ],
+    "6. Stage 2 - Structural_Equivalence replaces the reporting freeze": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191067945
+      }
+    ],
+    "7. Checkpoint - stage 2 complete, reporters gated structurally": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191073779
+      }
+    ],
+    "8.1 Build the addressed-set and provenance checks": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191079314
+      }
+    ],
+    "8.2 Property test for addressed-set invariance and hit provenance": [
+      {
+        "executionId": "43a94488-aaa1-467b-8c10-bb35c8ac3fcb",
+        "chatSessionId": "sess_40de0287-d2f4-4397-8340-3c191b39b1e2",
+        "timestamp": 1787191084928
+      }
+    ]
+  }
+}

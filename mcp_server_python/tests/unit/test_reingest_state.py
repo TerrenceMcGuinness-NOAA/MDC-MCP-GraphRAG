@@ -148,8 +148,8 @@ def test_matrix_build(tmp_path, catalog_file, stages_file):
     assert v17_code["branch"] == "dev/gfs.v17"
     assert v17_code["label_prefix"] == "GW_V17_"
     assert v17_code["mode"] == "full"          # staging -> full
-    # Global unit has global scope
-    assert store.by_id("__global__:ee2_standards")["scope"] == "global"
+    # Global unit has shared scope (Phase 81: "global" → "shared" terminology)
+    assert store.by_id("__global__:ee2_standards")["scope"] == "shared"
 
 
 def test_mode_derivation_experimental_diff(tmp_path, stages_file):
@@ -440,18 +440,35 @@ def test_shared_stage_emits_single_global_unit(tmp_path, catalog_file, scoped_st
     assert store.by_id("gw_v17:code") is not None
 
 
-def test_production_matrix_is_58_units(tmp_path):
-    """The real catalog x stages yields exactly 55 tenant + 3 shared = 58 (R2.2)."""
+def test_production_matrix_is_67_units(tmp_path):
+    """The real catalog x stages yields exactly 60 tenant + 7 shared = 67 (Phase 81).
+
+    Per-tenant stages (12 × 5 tenants = 60):
+      worktree, reset, workflow_docs_local, code_with_context_local, jjobs,
+      config, shell_graph, fortran_graph, expdir, rocoto, bridge, validate.
+
+    Shared-once stages (7):
+      neo4j_drop_indexes, workflow_docs_external, pdf_sources, ee2_standards,
+      community_summaries, ci_test_cases, neo4j_rebuild_indexes.
+    """
     _init(tmp_path, Path(rs._DEFAULT_CATALOG), Path(rs._DEFAULT_STAGES))
     store = _store(tmp_path)
     units = store.units()
     tenant_units = [u for u in units if u["tenant_id"] != rs.GLOBAL_TENANT]
     shared_units = [u for u in units if u["tenant_id"] == rs.GLOBAL_TENANT]
-    assert len(units) == 58
-    assert len(tenant_units) == 55
-    assert len(shared_units) == 3
+    assert len(units) == 67
+    assert len(tenant_units) == 60
+    assert len(shared_units) == 7
     shared_stages = sorted(u["stage"] for u in shared_units)
-    assert shared_stages == ["community_summaries", "documentation", "ee2_standards"]
+    assert shared_stages == [
+        "ci_test_cases",
+        "community_summaries",
+        "ee2_standards",
+        "neo4j_drop_indexes",
+        "neo4j_rebuild_indexes",
+        "pdf_sources",
+        "workflow_docs_external",
+    ]
 
 
 def test_migration_preserves_terminal_and_collapses_documentation(
