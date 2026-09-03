@@ -1,0 +1,357 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Snapshot current Runtime configuration via GetAgentRuntime": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447559993
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447578631
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447990559
+      }
+    ],
+    "1.2 Pre-flight IAM check — locate a Lambda execution role": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447560657
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447579605
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447991220
+      }
+    ],
+    "2.1 Update Runtime environment variables via full-replacement API": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447561153
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447996761
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448156610
+      }
+    ],
+    "2.2 Poll Runtime until READY and verify health": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447561627
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448160985
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448250699
+      }
+    ],
+    "3.1 Test three tool calls through the developer SigV4 proxy": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447562108
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448255956
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448354350
+      }
+    ],
+    "4. Checkpoint — Confirm framing switch is safe before creating infrastructure": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447562551
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453265456
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453284271
+      }
+    ],
+    "5.1 Commit the Echo Interceptor Lambda source code": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447563017
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448362664
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448457448
+      }
+    ],
+    "5.2 Deploy the Echo Interceptor Lambda to AWS": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447563510
+      },
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448463364
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453266011
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453320132
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453537774
+      }
+    ],
+    "5.3 Create the temporary Gateway with interceptor attached": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447563953
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453266466
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453542424
+      }
+    ],
+    "6.1 Attach the live Runtime as an agentcoreRuntime target": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447564441
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453266900
+      }
+    ],
+    "7.1 Send a `tools/list` JSON-RPC request through the Gateway via SigV4": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447564907
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453267361
+      }
+    ],
+    "7.2 Send a second request with a forged Custom-Principal header": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447565366
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453267836
+      }
+    ],
+    "8.1 Q1 / DP-7: Check whether the Echo Interceptor Lambda executed": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447566049
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453268279
+      }
+    ],
+    "8.2 Q2 / DP-1: Check whether the injected header arrived at the MCP container": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447566493
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453268717
+      }
+    ],
+    "9.1 Write the Verification Report to `docs/reports/mcp-external-access-gateway-verification.md`": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447566919
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453269283
+      }
+    ],
+    "9.2 Update the Gate Register in the parent spec": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447567369
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453269746
+      }
+    ],
+    "10. Checkpoint — Confirm report is written and decision branch is recorded": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447567806
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453270222
+      }
+    ],
+    "11.1 Delete the Gateway Target": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447568261
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453270687
+      }
+    ],
+    "11.2 Delete the Gateway": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447568706
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453271179
+      }
+    ],
+    "11.3 Delete the Echo Interceptor Lambda": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447569136
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453271877
+      }
+    ],
+    "11.4 Restore Runtime environment variables to pre-verification state": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447569535
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453272343
+      }
+    ],
+    "11.5 Post-rollback verification": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447570027
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453272777
+      }
+    ],
+    "12. Final checkpoint — Verification complete": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447570493
+      },
+      {
+        "executionId": "5747aa85-ab17-4f37-b8b8-7af5c36f2ddd",
+        "chatSessionId": "sess_8923cf57-d388-4447-9047-54dac9c74121",
+        "timestamp": 1788453273258
+      }
+    ],
+    "1. Pre-flight — Capture pre-verification baseline": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788447991750
+      }
+    ],
+    "2. Step 1 — Enable FASTMCP_JSON_RESPONSE=true on the Runtime": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448251269
+      }
+    ],
+    "3. Step 2 — Verify developer proxy works with JSON framing": [
+      {
+        "executionId": "a2c363bc-4cee-4e74-a2f3-44f944ac8af4",
+        "chatSessionId": "sess_12abf94e-0350-4b30-9eb0-3f7cee831d6c",
+        "timestamp": 1788448354868
+      }
+    ]
+  }
+}
