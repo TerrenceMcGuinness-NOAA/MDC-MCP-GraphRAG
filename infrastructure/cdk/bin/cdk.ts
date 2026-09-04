@@ -5,6 +5,7 @@ import { MdcSecurityStack } from '../lib/mdc-security-stack';
 import { MdcDataStack } from '../lib/mdc-data-stack';
 import { MdcServerStack } from '../lib/mdc-server-stack';
 import { MdcExternalAccessAlternativeStack } from '../lib/mdc-external-access-alternative-stack';
+import { MdcMcpGatewayStack } from '../lib/mdc-mcp-gateway-stack';
 
 const app = new cdk.App();
 
@@ -40,3 +41,19 @@ const externalAccessStack = new MdcExternalAccessAlternativeStack(app, 'MdcExter
   ],
 });
 externalAccessStack.addDependency(serverStack);
+
+// Path C Gateway — fronts the Runtime for CI/HPC external access.
+// Spec: .kiro/specs/mcp-external-access-alternative-gateway/
+// Depends on MdcExternalAccessAlternativeStack for Cognito pool/client IDs
+// and implicitly on MdcServerStack (which owns the Runtime, via the
+// externalAccessStack dependency chain).
+const gatewayStack = new MdcMcpGatewayStack(app, 'MdcMcpGatewayStack', {
+  env,
+  runtimeArn: 'arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN',
+  userPoolId: externalAccessStack.userPool.userPoolId,
+  ciAppClientId: externalAccessStack.ciAppClient.userPoolClientId,
+  hpcAppClientId: externalAccessStack.hpcAppClient.userPoolClientId,
+  userPoolDomainPrefix: 'mdc-mcp-external-alt',
+  allowedScopes: ['mcp/ci-readonly', 'mcp/hpc-user'],
+});
+gatewayStack.addDependency(externalAccessStack);

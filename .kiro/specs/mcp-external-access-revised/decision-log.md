@@ -171,48 +171,38 @@ server — while the Gateway exists precisely to be the single governed entry po
 
 ## 4. New open decision points created by Path C
 
+> **All decision points CLOSED as of 2026-09-05.** See the revised status table in Part 2
+> and the Path C spec's `design.md` §9 (Gate Register) for full evidence.
+
 **DP-1 — How does principal/scope context reach the MCP_Server? (highest priority)**
-With JWT terminated at the Gateway and SigV4 on the wire to the Runtime, the Runtime sees
-a SigV4 request from the *gateway execution role*. Per F-6 the claims header is not a
-documented passthrough. Options:
-  (a) Gateway request interceptor injects principal/scope headers;
-  (b) `RequestHeaderConfiguration` allowlist forwards `Authorization` and the MCP server
-      decodes claims (doc Step 7 pattern);
-  (c) move tool-level authorization **to the Gateway** (Cedar / policy-based authz) and
-      let the MCP server trust the Gateway entirely.
-Option (c) would substantially shrink or delete §8 middleware and §10's in-server
-enumeration. This choice determines how much of §8/§9/§10 survives.
+~~OPEN~~ → **CLOSED.** Option (a) chosen: Gateway REQUEST interceptor injects
+`X-Amzn-Bedrock-AgentCore-Runtime-Custom-{Principal,Scope,BrokerRequestId}`. Interceptor
+headers take precedence over client headers (unforgeability). §8 middleware reads those.
+See F-8 and Path C design AD-C2.
 
 **DP-2 — Does the bypass-prevention resource policy break the developer path?**
-The documented lockdown policy `Deny`s every principal except the gateway execution role.
-Applied verbatim, **developers lose direct SigV4 access** — the exact thing Path C was
-chosen to preserve. Either (a) do not lock the Runtime down, accepting that trusted
-developers bypass the Gateway (this is today's architecture), or (b) add developer role
-ARNs to the `ArnNotEquals` exception set. Decide explicitly; do not inherit the doc's
-example unmodified.
+~~OPEN~~ → **CLOSED.** Posture (a) chosen: no Runtime lockdown. No resource-based policy
+attached. Defense-in-depth from Gateway JWT authorizer + interceptor + MCP_Server
+Allowed_Tool_Set is sufficient. See Path C design AD-C5.
 
 **DP-3 — Gateway target semantics and tool naming.**
-The Runtime is registered as a **gateway target**. Confirm whether the Gateway re-exposes
-or prefixes the 51 MCP tool names, since §10's enumeration and all client configs depend
-on exact names.
+~~OPEN~~ → **CLOSED.** Runtime targets forward without aggregation or protocol translation;
+tool names unchanged. See F-7 and Path C design AD-C1.
 
 **DP-4 — Gateway execution role trust hardening.**
-Per the docs, restricting the Runtime to the gateway role is only as strong as controls on
-who may assume that role. Add `aws:SourceArn` / `aws:SourceAccount` conditions to the
-gateway execution role trust policy, scoped to the Gateway ARN (confused-deputy
-prevention).
+~~OPEN~~ → **CLOSED.** Gateway_Execution_Role trust policy carries `aws:SourceArn` and
+`aws:SourceAccount` conditions scoped to the Gateway ARN (confused-deputy prevention).
+See Path C design AD-C6, implemented in Task 2.3.
 
 **DP-5 — Spec disposition.**
-Path C was explicitly scoped (R11.3) to a **separate follow-on spec**,
-`.kiro/specs/mcp-external-access-alternative-gateway/`. Decide: create that spec now and
-retire `mcp-external-access-revised`, or amend the revised spec in place. Recommendation:
-new spec, reusing §3–§6 and §10 verbatim, since roughly half the revised spec's
-Runtime-authorizer content is now dead and in-place editing will leave contradictions.
+~~OPEN~~ → **CLOSED.** New spec created: `.kiro/specs/mcp-external-access-alternative-gateway/`.
+This spec (`mcp-external-access-revised`) retained as historical reference. Naming split
+resolved in the new spec.
 
 **DP-6 — Cost.**
-The Gateway is an additional per-invocation priced service; design §14 cited cost as
-deferral reason #1. That objection no longer permits a decision, but the cost still needs
-sizing against expected CI + HPC volume.
+~~OPEN~~ → **CLOSED — GO.** Under $1/month at projected volume (18K–72K external
+invocations/month). Lambda free tier covers the interceptor invocations. See Path C
+design §8a.
 
 ---
 
@@ -235,14 +225,14 @@ sizing against expected CI + HPC volume.
 
 ## 6. Recommended next actions
 
-1. Strike design §7.4 and mark AD-6 / R2.9 as superseded, so nobody implements against
-   the false coexistence claim.
-2. Resolve **DP-1** — it determines the scope of the follow-on spec.
-3. Create `.kiro/specs/mcp-external-access-alternative-gateway/` per R11.3, carrying
-   §3–§6 and §10 forward; fix the naming split in the process.
-4. Decide **DP-2** before writing any resource-based policy.
-5. Re-scope Task 0: verify JWT-in / SigV4-out through a Gateway, not 401 on the Runtime
-   URL.
+> **All actions COMPLETED.** Path C spec created and implemented via
+> `mcp-external-access-alternative-gateway` Tasks 0–7.
+
+1. ~~Strike design §7.4 and mark AD-6 / R2.9 as superseded.~~ **DONE** — superseded in Path C spec.
+2. ~~Resolve **DP-1**.~~ **DONE** — interceptor header injection (AD-C2).
+3. ~~Create `.kiro/specs/mcp-external-access-alternative-gateway/`.~~ **DONE** — spec created per DP-5.
+4. ~~Decide **DP-2** before writing any resource-based policy.~~ **DONE** — posture (a), no lockdown (AD-C5).
+5. ~~Re-scope Task 0.~~ **DONE** — Task 0 verified JWT-in / SigV4-out through a Gateway.
 
 ---
 
@@ -375,9 +365,11 @@ would silently remove the entire DP-1 claims channel and, with it, all principal
 enforcement and audit attribution.** Same failure mode as the original AD-3 defect: tokens
 validate, calls succeed, governance data is absent.
 
-**DP-7 (blocking): confirm whether the MCP server must be pinned to buffered/JSON-response
-mode for interceptors to run, and whether doing so is acceptable for tool latency and
-payload size.** This must be answered before committing to the interceptor mechanism.
+**DP-7 (~~blocking~~ → **CLOSED**): ~~confirm whether the MCP server must be pinned to
+buffered/JSON-response mode for interceptors to run, and whether doing so is acceptable for
+tool latency and payload size.~~ **RESOLVED.** Server pinned to `json_response=True`;
+interceptors confirmed firing empirically via Task 0 throwaway Gateway. Developer proxy made
+framing-tolerant (v1.2.0). See Path C design AD-C4, AD-C7.**
 
 **Related constraint:** Lambda synchronous invoke has a **6 MB combined request+response
 payload limit**, and the base64-encoded body counts against it. For a RAG server returning
@@ -424,7 +416,11 @@ beyond the default.
 
 ---
 
-## NEW DP-8 — architecture fork: Runtime target vs MCP target
+## NEW DP-8 — architecture fork: Runtime target vs MCP target (CLOSED)
+
+> **CLOSED.** Runtime target chosen (Path C design AD-C1). MCP target not needed for two
+> consumer classes. Confirmed empirically: interceptors fire, headers propagate. MCP target
+> retained as future option if per-tool Cedar policy becomes a hard requirement.
 
 This is the decision that most affects the follow-on spec, and it was not visible before
 this research.
@@ -454,28 +450,31 @@ mutually exclusive on a single gateway because of the protocol-type constraint i
 
 ## Revised decision-point status
 
+> **All decision points CLOSED as of 2026-09-05.** Final resolutions recorded during
+> Path C implementation (`mcp-external-access-alternative-gateway`). See that spec's
+> `design.md` §9 (Gate Register) for the full evidence trail.
+
 | DP | Status |
 |---|---|
-| DP-1 claims propagation | **RESOLVED** — interceptor injects `X-Amzn-Bedrock-AgentCore-Runtime-Custom-*`; §8 reads those (F-8) |
-| DP-2 bypass policy vs developer path | **OPEN** — unchanged; decide before writing the resource policy |
-| DP-3 tool naming | **RESOLVED** — no renaming; §10 survives (F-7) |
-| DP-4 gateway role trust hardening | **OPEN** — confirmed still required (F-12) |
-| DP-5 spec disposition | **OPEN** — new spec still recommended; scope is now smaller than feared, since §8/§10 largely survive |
-| DP-6 gateway cost | **OPEN** — add interceptor Lambda invocations per MCP call to the estimate |
-| **DP-7 buffered vs streaming** | **OPEN / BLOCKING** — gates the whole DP-1 mechanism (F-10) |
-| **DP-8 Runtime vs MCP target** | **OPEN** — architecture fork; recommendation is Runtime target with MCP target as fallback (DP-8 table) |
+| DP-1 claims propagation | **CLOSED.** Resolved via Gateway REQUEST interceptor injecting `X-Amzn-Bedrock-AgentCore-Runtime-Custom-{Principal,Scope,BrokerRequestId}`. Interceptor-supplied headers take precedence over client-supplied headers (unforgeability confirmed empirically). §8 middleware reads those headers; absence ⇒ `developer-sigv4`. See Path C design AD-C2. |
+| DP-2 bypass policy vs developer path | **CLOSED.** Posture (a) chosen: no Runtime resource-based policy attached. Defense-in-depth from Gateway JWT authorizer + interceptor header injection + MCP_Server Allowed_Tool_Set enforcement is sufficient. No risk of severing the developer SigV4 path. See Path C design AD-C5. |
+| DP-3 tool naming | **CLOSED.** Runtime targets forward without aggregation or protocol translation; tool names unchanged. §10 enumeration survives. See F-7 and Path C design AD-C1. |
+| DP-4 gateway role trust hardening | **CLOSED.** Gateway_Execution_Role trust policy carries `aws:SourceArn` and `aws:SourceAccount` conditions scoped to the Gateway ARN (confused-deputy prevention). See Path C design AD-C6. |
+| DP-5 spec disposition | **CLOSED.** New spec created: `.kiro/specs/mcp-external-access-alternative-gateway/`. Path B spec (`mcp-external-access-revised`) retained as historical reference; Path C is the active implementation. Naming split resolved. |
+| DP-6 gateway cost | **CLOSED — GO.** Under $1/month at projected volume (18K–72K external invocations/month). Lambda free tier covers the interceptor. See Path C design §8a. |
+| DP-7 buffered vs streaming | **CLOSED.** Interceptors fire for `agentcoreRuntime` targets with JSON framing (`FASTMCP_JSON_RESPONSE=true`). Confirmed empirically via throwaway Gateway + Echo Interceptor Lambda (Task 0 verification). Server pinned to `json_response=True` with env override (Task 3). Developer proxy made framing-tolerant (v1.2.0, AD-C7). |
+| DP-8 Runtime vs MCP target | **CLOSED.** Runtime target chosen (AD-C1). MCP target not needed for two consumer classes (CI, HPC). Confirmed empirically: interceptors fire, headers propagate. MCP target retained as future option if per-tool Cedar policy becomes a hard requirement. |
 
 ## Revised next actions
 
-1. **Answer DP-7 first.** If interceptors cannot run against our streamable-http server,
-   DP-1's resolution collapses and DP-8 likely flips to MCP target. Everything else is
-   downstream of this.
-2. Decide DP-8 once DP-7 is known.
-3. Decide DP-2 before any resource-based policy is written.
-4. Then create the follow-on spec (DP-5), carrying forward §3–§6 and §10, and — now
-   supported by F-9(a) — most of §8 with only the header names changed.
-5. Re-scope Task 0 to verify JWT-in / SigV4-out **through a Gateway**, asserting the
-   injected custom headers actually arrive at the container.
+> **All actions COMPLETED.** Path C implementation landed via
+> `mcp-external-access-alternative-gateway` Tasks 0–7.
+
+1. ~~**Answer DP-7 first.**~~ **DONE** — Task 0 empirical verification (throwaway Gateway).
+2. ~~Decide DP-8 once DP-7 is known.~~ **DONE** — Runtime target confirmed (AD-C1).
+3. ~~Decide DP-2 before any resource-based policy is written.~~ **DONE** — Posture (a), no lockdown (AD-C5).
+4. ~~Then create the follow-on spec (DP-5).~~ **DONE** — `mcp-external-access-alternative-gateway/`.
+5. ~~Re-scope Task 0 to verify JWT-in / SigV4-out through a Gateway.~~ **DONE** — Task 0.1–0.6.
 
 ## Additional sources (Part 2)
 
@@ -564,25 +563,19 @@ so single-JSON is spec-compliant, not a degradation.
 
 ## Revised DP-7 status
 
-**DP-7 is now half-resolved and no longer blocking design work.**
+**DP-7 is CLOSED.** Both halves resolved.
 
-- **Server side: RESOLVED.** We can serve plain `application/json` via
-  `FASTMCP_JSON_RESPONSE=true` (or an explicit kwarg), with no code restructuring and no
-  change to the mandatory `stateless_http=True`.
-- **AWS side: still OPEN, and only testable live.** Do buffered-mode REQUEST interceptors
-  actually fire for an MCP-protocol AgentCore Runtime target once the response is
-  `application/json`? The docs say interceptors are unsupported "in streaming mode" without
-  defining the trigger precisely — it may key on the target's response framing, on
-  gateway-level response-streaming configuration, or on both.
+- **Server side: RESOLVED.** `json_response=True` pinned in `mcp_server.py` with
+  `MCP_JSON_RESPONSE` env override (Task 3). Developer proxy made framing-tolerant in
+  v1.2.0 (AD-C7), so the server-wide JSON framing does not break the SigV4 developer path.
+- **AWS side: RESOLVED.** Empirically confirmed via Task 0 throwaway Gateway + Echo
+  Interceptor Lambda: REQUEST interceptors fire for `agentcoreRuntime` targets when the
+  server responds with `application/json`. The interceptor correctly injected
+  `Custom-Principal: probe` and stripped forged client headers.
 
-**Costs to weigh when confirming:** disabling SSE forfeits incremental
-`notifications/progress` delivery and multi-turn elicitation/sampling over the stream. For
-the CI and HPC consumer classes in this spec — discrete `tools/call` request/response — that
-is very likely acceptable. It would matter for interactive agent use.
-
-**Residual risk if the AWS-side answer is negative:** DP-8 flips to the MCP-target
-architecture, which uses the `mcp` interceptor payload (parsed JSON-RPC) rather than the
-`http` payload, and does not carry the buffered-only restriction.
+**Costs accepted:** disabling SSE forfeits incremental `notifications/progress` and
+stream-based elicitation/sampling. Acceptable for CI and HPC (discrete `tools/call`
+request/response). R3.4 emits a WARNING log if `json_response` is ever disabled.
 
 ## Additional sources (Part 3)
 
@@ -711,3 +704,36 @@ Per instruction, **nothing has been merged.** Current state:
    authorizer custom resource in-tree but unapplied), or on a fresh branch off it?
 3. Confirm the authorizer custom resource stays **unapplied** — C8's prohibition still binds
    and is now permanent, not provisional.
+
+---
+
+# Part 5 — All decision points CLOSED (2026-09-05)
+
+**Status:** All eight decision points (DP-1 through DP-8) are now **CLOSED** with final
+resolutions. Path C implementation is complete via
+`.kiro/specs/mcp-external-access-alternative-gateway/` Tasks 0–7.
+
+This part records the final closure for cross-reference. The inline annotations on each DP
+definition (§4 and Part 2 findings) and the revised status table (Part 2) have been updated
+in place. The Path C spec's `design.md` §9 (Gate Register) is the authoritative evidence
+trail for each closure.
+
+## Final DP resolution summary
+
+| DP | Resolution | Path C reference |
+|---|---|---|
+| **DP-1** Claims propagation | Gateway REQUEST interceptor injects `X-Amzn-Bedrock-AgentCore-Runtime-Custom-{Principal,Scope,BrokerRequestId}`. Interceptor headers take precedence over client headers (unforgeability). | AD-C2, Task 0.3–0.4, Task 4 |
+| **DP-2** Bypass prevention vs developer path | Posture (a): no Runtime resource-based policy. Defense-in-depth from Gateway JWT authorizer + interceptor + MCP_Server Allowed_Tool_Set. | AD-C5, Task 1.1 |
+| **DP-3** Tool naming | Runtime targets forward without aggregation; tool names unchanged. | AD-C1, F-7 |
+| **DP-4** Gateway execution role trust | `aws:SourceArn` / `aws:SourceAccount` conditions on Gateway_Execution_Role trust policy. | AD-C6, Task 2.3 |
+| **DP-5** Spec disposition | New spec `mcp-external-access-alternative-gateway` created. This spec retained as historical reference. | Task 7 |
+| **DP-6** Cost | GO. Under $1/month at projected volume (18K–72K invocations/month). | §8a, Task 1.2 |
+| **DP-7** Buffered vs streaming (interceptor firing) | Interceptors fire for `agentcoreRuntime` targets with JSON framing. Server pinned to `json_response=True`. Developer proxy made framing-tolerant (v1.2.0). | AD-C4, AD-C7, Task 0, Task 3 |
+| **DP-8** Runtime target vs MCP target | Runtime target chosen. MCP target not needed for two consumer classes. MCP target retained as future option. | AD-C1, Task 0.5 |
+
+## Standing constraints (unchanged)
+
+- **The Path B Task 5 `authorizerConfiguration` custom resource must NEVER be applied to the
+  live AgentCore Runtime.** C8's prohibition is permanent. See Path C design §9.3.
+- **Any update to the Runtime must carry the full lossless payload** — `update-agent-runtime`
+  is a full-replacement API (C9).

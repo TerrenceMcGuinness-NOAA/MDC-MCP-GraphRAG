@@ -404,9 +404,13 @@ export class MdcExternalAccessAlternativeStack extends cdk.Stack {
       value: this.tokenBroker.functionName,
       description: 'Token_Broker Lambda name (composite action default)',
     });
-    new cdk.CfnOutput(this, 'McpEndpointUrl', {
+    // NOTE: The canonical McpEndpointUrl export now lives in MdcMcpGatewayStack
+    // (Path C), pointing at the Gateway endpoint. This output is retained for
+    // reference but uses a distinct export name to avoid CloudFormation conflict.
+    new cdk.CfnOutput(this, 'McpRuntimeDirectUrl', {
       value: `https://bedrock-agentcore.${this.region}.amazonaws.com/runtimes/${encodeURIComponent(props.runtimeArn)}/invocations?qualifier=DEFAULT`,
-      description: 'AgentCore MCP endpoint URL (consumers read this — Phase-C-portable, C-IMPACT-3)',
+      description: 'AgentCore Runtime direct URL (developer SigV4 path — bypasses Gateway)',
+      exportName: 'McpRuntimeDirectUrl',
     });
 
     void props;

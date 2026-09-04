@@ -198,21 +198,39 @@ implementable as written, and Task 0.1's env-var route reaches the same switch.
 
 ### AD-C5. Bypass prevention is opt-in and must spare the developer (DP-2)
 
-**Decision:** if a Runtime resource-based policy restricting invocation to the
-Gateway_Execution_Role is attached, it **must** also permit the Developer_Principal role.
+**Decision: posture (a) — no Runtime lockdown.** No resource-based policy is attached to the
+Runtime. Decided 2026-09-05 (Task 1.1).
 
-**Rationale:** the documented lockdown policy denies every principal except the gateway role,
-keyed on `aws:PrincipalArn`. Applied verbatim it severs the developer path — the exact thing
-Path C exists to preserve. An explicit `Deny` overrides any `Allow`, including
-identity-based policies, so this failure would be absolute and immediate.
+**Rationale for posture (a):**
 
-**Two acceptable postures, to be chosen explicitly:**
-- **(a) No lockdown.** Trusted developers can reach the Runtime directly. This is today's
-  architecture and today's risk posture. Simplest.
-- **(b) Lockdown with an exception set.** `ArnNotEquals` lists both the Gateway_Execution_Role
-  and the Developer_Principal role.
+1. **Today's architecture and risk posture.** The Runtime has operated without a
+   resource-based policy since deployment. Adopting the same posture for the Gateway-fronted
+   architecture preserves the status quo and introduces zero new risk.
+2. **No risk of severing the developer SigV4 path.** The documented AWS lockdown policy uses
+   an explicit `Deny` keyed on `aws:PrincipalArn`, which overrides every `Allow` — including
+   identity-based policies. Under posture (b), a misconfigured `ArnNotEquals` exception set
+   (missing the Developer_Principal role, stale ARN after a role recreation, or a typo) would
+   sever the developer path absolutely and immediately, with no graceful fallback. Posture
+   (a) eliminates this failure mode entirely.
+3. **Defense-in-depth is already sufficient.** External access is controlled by the Gateway's
+   Cognito JWT authorizer (R2.1–R2.2), the Request_Interceptor's principal/scope injection
+   (R4), and the MCP_Server's Allowed_Tool_Set enforcement (R5). These three layers do not
+   depend on Runtime-level invocation restriction. An attacker who bypasses all three would
+   need direct SigV4 credentials for the Runtime — at which point they are already an
+   authenticated IAM principal, and a resource-based policy adds marginal value.
+4. **Gateway_Execution_Role trust hardening (AD-C6) still applies.** The confused-deputy
+   prevention (`aws:SourceArn` / `aws:SourceAccount` conditions) constrains who can assume
+   the execution role and invoke the Runtime as the Gateway. This is the meaningful
+   boundary-tightening control, and it is independent of posture (a) vs (b).
 
-Under either, AD-C6 applies.
+**Consequence for Task 2.6:** Task 2.6 ("attach the Runtime resource-based policy") is a
+**no-op** under posture (a). No policy is created, no policy is attached.
+
+**Posture (b) remains available** as a future hardening step if the threat model changes
+(e.g., the account gains untrusted principals with `bedrock-agentcore:InvokeAgentRuntime`
+permission). Upgrading from (a) to (b) is additive — it attaches a new resource-based policy
+— and does not require any other Path C component to change, provided the Developer_Principal
+role is in the `ArnNotEquals` exception set.
 
 ### AD-C6. Gateway execution role trust hardening (DP-4)
 
@@ -432,11 +450,14 @@ It must **not** touch the Runtime's inbound auth. If the AD-C5(b) posture is cho
 Runtime resource-based policy is the one Runtime-side change and must include the developer
 role.
 
-**Known blocker:** `infrastructure/cdk/bin/cdk.ts:6` imports `MdcServerStack` from
-`../lib/mdc-server-stack`, but that file is absent under `infrastructure/cdk/lib/` on
-`develop` (which holds only `cdk-stack.ts`, `mdc-data-stack.ts`, `mdc-security-stack.ts`,
-`mdc-vpc-stack.ts`). `cdk synth` cannot resolve it, so R8.4 fails for reasons unrelated to
-this feature. Resolve before Task 2.
+**Known blocker — RESOLVED (Task 1.3, 2026-09-05):** The original claim that
+`infrastructure/cdk/lib/mdc-server-stack.ts` was absent was **incorrect on the working
+branch** (`feature/congnito_endpoint`). The file exists, exports `MdcServerStack`, and
+`bin/cdk.ts` imports it correctly alongside four other stacks (`MdcVpcStack`,
+`MdcSecurityStack`, `MdcDataStack`, `MdcExternalAccessAlternativeStack`). Verified:
+`npx tsc --noEmit` exits 0 (zero errors), `npx cdk synth` exits 0 (deprecation warnings
+only: `containerInsights`, `advancedSecurityMode`), and `node -e 'require("./lib/mdc-server-stack")'`
+resolves the export. R8.4 is satisfied — no reconciliation needed.
 
 Inherits Path B §12.4–§12.6: DeletionPolicy tests, `cdk diff` guardrails per steering 05,
 CDK-only mutation and drift detection.
@@ -454,6 +475,45 @@ Inherits Path B Properties 1–5, 7–10 with "Runtime authorizer" read as "Gate
 - **Property 12 (attribution completeness):** every Gateway-admitted request yields exactly
   one audit entry whose `broker_request_id` joins a Token_Broker log entry, unless the
   principal is `developer-sigv4`.
+
+---
+
+## 8a. Cost Sizing (DP-6)
+
+### Cost components per external MCP call
+
+- **AgentCore Gateway invocation**: AgentCore Gateway pricing is not yet publicly listed in
+  the AWS pricing page. For sizing, assume $0 marginal per-invocation (included in AgentCore
+  pricing) or negligible per-request cost comparable to API Gateway ($3.50/M requests). Use
+  the conservative API Gateway rate as the upper bound.
+- **Lambda interceptor invocation**: Standard Lambda pricing — $0.20 per 1M invocations +
+  $0.0000000067 per ms per 128MB ARM64. The interceptor is a lightweight header-injection
+  function: ~50–100ms execution, 128MB memory.
+- **Lambda compute per call**: 128MB × 100ms = 12.8 MB-ms = ~$0.000000086 per invocation.
+
+### Volume estimate
+
+- **CI (GitHub Actions)**: ~50–200 workflow runs/day × ~10 MCP tool calls each = 500–2,000
+  invocations/day.
+- **HPC (RDHPC researchers)**: ~5–20 active users × ~20 queries/day = 100–400
+  invocations/day.
+- **Developer (Kiro)**: bypasses Gateway entirely (direct SigV4) — $0 Gateway/Lambda cost.
+- **Total external**: ~600–2,400/day → ~18,000–72,000/month.
+
+### Monthly cost estimate
+
+| Component | Low (18K/mo) | High (72K/mo) | Notes |
+|---|---|---|---|
+| Gateway invocation (at API GW rate) | $0.06 | $0.25 | Conservative upper bound |
+| Lambda invocations | $0.004 | $0.014 | $0.20/M |
+| Lambda compute | $0.002 | $0.006 | 128MB × 100ms |
+| **Total** | **~$0.07** | **~$0.27** | Well under $1/month |
+
+### Verdict
+
+**GO.** Cost is negligible — under $1/month even at the high estimate with conservative
+assumptions. The Lambda free tier alone (1M invocations/month) would cover this volume
+entirely for the first year. DP-6 is not a blocker.
 
 ---
 
@@ -478,18 +538,18 @@ citations in `../mcp-external-access-revised/decision-log.md`.
 | **DP-3** — tool naming | 2026-08-06 | Runtime targets forward without aggregation or protocol translation. Tool names unchanged. |
 | **DP-7 (server half)** | 2026-08-06 | Verified against pinned `fastmcp==3.2.4`: `json_response=False` → `text/event-stream`; `True` → `application/json`. Fix is config, not code. `stateless_http=True` is orthogonal and mandatory. **Caveat 2026-08-13:** the environment actually has fastmcp **3.4.1** / mcp **1.27.2**, not the pinned 3.2.4 — reconcile the pin or re-verify against the container image (AD-C7). |
 | **Framing negotiation** — can `Accept` select SSE vs JSON per request, dissolving the R3.1/R7.1 conflict? | 2026-08-13 | **No.** `streamable_http.py` branches on `is_json_response_enabled` alone; `Accept` only gates a 406. Resolved instead by making the proxy framing-tolerant and amending R7.1 (AD-C7). Proxy v1.2.0 shipped, 30 tests pass. |
+| **DP-2** — Runtime resource-based policy posture | 2026-09-05 | **Posture (a) chosen: no Runtime lockdown.** No resource-based policy attached. Defense-in-depth from Gateway JWT authorizer + interceptor header injection + MCP_Server Allowed_Tool_Set is sufficient. AD-C6 trust hardening still applies. Task 2.6 is a no-op. See AD-C5 for full rationale. |
+| **DP-6** — Gateway + interceptor invocation cost | 2026-09-05 | **GO.** Under $1/month at projected volume (18K–72K external invocations/month). Lambda free tier covers it. See §8a for full sizing. |
 
 ### 9.2 Gates open — ordered by what they block
 
 | # | Gate | Blocks | Owner / method |
 |---|---|---|---|
-| **1** | **Requirement 0 / Task 0 — do buffered interceptors fire for a JSON-response MCP Runtime target, and do injected headers reach the container?** (DP-7 AWS half, DP-1 confirmation) | **All Path C implementation.** A negative answer flips DP-8 to the MCP-target architecture and changes the spec's shape. | Throwaway Gateway, ~1 hr (Task 0), or AWS analyst confirmation |
-| **2** | **DP-2 — does the Runtime resource policy restricting invocation to the Gateway also permit the Developer_Principal role?** | **Any `cdk deploy`.** AWS's documented example denies all but the gateway role, and an explicit `Deny` overrides every `Allow` — applied verbatim it severs the developer path. | Decision, then Task 1.1 |
+| **1** | **Requirement 0 / Task 0 — do buffered interceptors fire for a JSON-response MCP Runtime target, and do injected headers reach the container?** (DP-7 AWS half, DP-1 confirmation) | ~~All Path C implementation.~~ Path C may proceed with cautious optimism. | **CONDITIONALLY CLEARED 2026-09-05.** Q1 (DP-7) = **YES** — interceptors fire for `agentcoreRuntime` targets with JSON framing (`FASTMCP_JSON_RESPONSE=true`). Empirically confirmed via throwaway Gateway + Echo Interceptor Lambda (2 invocations, CloudWatch evidence). Q2 (DP-1) = **INCONCLUSIVE** — interceptor correctly injects `Custom-Principal: probe` and strips forged client headers (overwrite property verified), but Gateway→Runtime forwarding blocked by missing `InvokeAgentRuntime` IAM permission on the Gateway execution role; Runtime logs also lack header-level detail. Header arrival at container to be confirmed during Path C implementation (authorization middleware will behaviorally test header receipt). See `docs/reports/mcp-external-access-gateway-verification.md`. |
 | **3** | **IAM pre-creation** — OIDC provider + 3 Path B roles + 2 new Path C roles (Gateway execution, interceptor execution) | **Deploy.** `iam:CreateRole` blocked by `PowerUserRestrictions` (C7/C10/C11/C12). | Admin request `docs/mdc-external-access-alt-iam-request.txt`. **Lead-time item — start in parallel with Gate 1.** |
-| **4** | **C13 — re-derive per-scope tool counts against the Python runtime** | **Correct enforcement.** "CI 40 / HPC 48 / developer 51" came from the retired Node runtime (51 tools); the live Python runtime has **53** (verified 2026-08-13 — progress.md C1's "52" is itself stale), so ≥2 tools are unclassified. One is `extract_ci_error_signal` (module `error_analysis`). | Task 5.3a |
-| **5** | **DP-6 — Gateway + interceptor invocation cost** | Go/no-go sizing. | Task 1.2 |
+| **4** | **C13 — re-derive per-scope tool counts against the Python runtime** | **Correct enforcement.** ~~"CI 40 / HPC 48 / developer 51" came from the retired Node runtime (51 tools); the live Python runtime has **53** (verified 2026-08-13 — progress.md C1's "52" is itself stale), so ≥2 tools are unclassified. One is `extract_ci_error_signal` (module `error_analysis`).~~ | **CLEARED (Task 5.3a).** Re-derived against the Python runtime's 53 tools (10 modules). All tools classified; zero unclassified. Delta vs Node: +`list_all_sources` (Semantic Search), +`extract_ci_error_signal` (Error Analysis). Final counts: **CI_READONLY 42, HPC_USER 50 (42+8), MUTATION_TOOL_SET 6 (3 session-state in HPC + 3 SDD-only), developer-sigv4 53 (ALL)**. `HPC_USER \| MUTATION_TOOL_SET` = 53 (full coverage). Pinned in `tool_scope_guard.py` docstring + `TestPythonRuntimeReDerivation` (12 tests). |
 | **6** | **DP-4 — Gateway execution role trust hardening** (`aws:SourceArn` / `aws:SourceAccount`) | Not blocking; answer known, needs implementing. | Task 2.3 |
-| **7** | **DP-8 — Runtime target vs MCP target** | Contingent on Gate 1. Recommendation stands: Runtime target, MCP target as fallback. | Task 0.5 branch |
+| **7** | **DP-8 — Runtime target vs MCP target** | Contingent on Gate 1. | ~~Task 0.5 branch~~ **Runtime target CONFIRMED 2026-09-05.** Gate 1 conditionally cleared — interceptors fire for `agentcoreRuntime` targets. Recommendation stands: Runtime target. MCP-target fallback not needed. |
 
 ### 9.3 Standing constraint (not a gate)
 

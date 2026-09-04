@@ -8,6 +8,7 @@ socket or invoking a real database adapter.
 from __future__ import annotations
 
 import asyncio
+import os
 import types
 from unittest.mock import patch
 
@@ -310,3 +311,115 @@ def test_build_server_returns_fastmcp_instance():
     mcp = mcp_server.build_server()
     assert isinstance(mcp, FastMCP)
     assert mcp.name == mcp_server.SERVER_NAME
+
+
+# ── stdio transport path ─────────────────────────────────────────────────
+
+
+def test_stdio_transport_does_not_pass_json_response():
+    """The stdio local-dev path must not forward ``json_response`` (R3.5).
+
+    ``json_response`` is a Gateway-interceptor concern for the Streamable
+    HTTP transport (R3.1 / AD-C4). The stdio path is used for native
+    local development where the MCP client spawns this process directly;
+    it has no Gateway in the loop and ``FastMCP.run(transport="stdio")``
+    does not accept ``json_response``.
+
+    This test captures the kwargs passed to ``FastMCP.run()`` when
+    ``--transport stdio`` is selected and asserts that ``json_response``
+    is absent — confirming R3.5 ("the stdio transport path SHALL be
+    unaffected by criteria 1–4").
+    """
+    captured_kwargs: dict = {}
+
+    def fake_run(**kwargs):
+        captured_kwargs.update(kwargs)
+
+    cfg = load_config(env={"MCP_ENABLED_MODULES": "utility"})
+
+    with (
+        patch.object(mcp_server, "load_config", return_value=cfg),
+        patch.object(mcp_server, "build_server") as mock_build,
+        patch.object(mcp_server, "initialize", return_value=(None, [])),
+        patch("asyncio.run"),
+    ):
+        mock_mcp = mock_build.return_value
+        mock_mcp.run = fake_run
+
+        exit_code = mcp_server.main(["--transport", "stdio"])
+
+    assert exit_code == 0
+    assert captured_kwargs.get("transport") == "stdio"
+    assert "json_response" not in captured_kwargs, (
+        "stdio transport must not pass json_response to FastMCP.run() — "
+        "it is a Streamable HTTP / Gateway concern only (R3.5)"
+    )
+    # Also confirm show_banner is disabled (suppresses ASCII banner on stdio).
+    assert captured_kwargs.get("show_banner") is False
+
+
+# ── json_response env-var resolution (R3.1, R3.2) ────────────────────────
+
+
+@pytest.mark.parametrize(
+    "env_value, expected_json_response",
+    [
+        pytest.param(None, True, id="default-no-env-var"),
+        pytest.param("true", True, id="MCP_JSON_RESPONSE=true"),
+        pytest.param("false", False, id="MCP_JSON_RESPONSE=false"),
+        pytest.param("0", False, id="MCP_JSON_RESPONSE=0"),
+        pytest.param("no", False, id="MCP_JSON_RESPONSE=no"),
+        pytest.param("off", False, id="MCP_JSON_RESPONSE=off"),
+    ],
+)
+def test_json_response_follows_env_var_and_defaults_true(
+    env_value, expected_json_response
+):
+    """The resolved ``json_response`` kwarg passed to ``mcp.run()`` SHALL
+    default to ``True`` (R3.1) and SHALL be overridable via the
+    ``MCP_JSON_RESPONSE`` env var (R3.2), mirroring the existing
+    ``MCP_STATELESS_HTTP`` pattern.
+
+    Validates: Requirements R3.1, R3.2.
+    """
+    captured_kwargs: dict = {}
+
+    def fake_run(**kwargs):
+        captured_kwargs.update(kwargs)
+
+    cfg = load_config(env={"MCP_ENABLED_MODULES": "utility"})
+
+    # Build the env dict: remove MCP_JSON_RESPONSE if testing the absent case,
+    # otherwise set it to the parametrized value.  Also ensure the transport
+    # resolves to streamable-http (the default) and not stdio.
+    env_patch: dict[str, str] = {}
+    if env_value is not None:
+        env_patch["MCP_JSON_RESPONSE"] = env_value
+
+    with (
+        patch.dict(os.environ, env_patch, clear=False),
+        patch.dict(os.environ, {}, clear=False),
+        patch.object(mcp_server, "load_config", return_value=cfg),
+        patch.object(mcp_server, "build_server") as mock_build,
+        patch.object(mcp_server, "initialize", return_value=(None, [])),
+        patch("asyncio.run"),
+    ):
+        # Ensure MCP_JSON_RESPONSE is absent when testing the default case.
+        os.environ.pop("MCP_JSON_RESPONSE", None)
+        os.environ.pop("MCP_TRANSPORT", None)
+        if env_value is not None:
+            os.environ["MCP_JSON_RESPONSE"] = env_value
+
+        mock_mcp = mock_build.return_value
+        mock_mcp.run = fake_run
+
+        exit_code = mcp_server.main([])
+
+    assert exit_code == 0
+    assert captured_kwargs.get("transport") == "streamable-http", (
+        "expected streamable-http transport for this test"
+    )
+    assert captured_kwargs.get("json_response") is expected_json_response, (
+        f"MCP_JSON_RESPONSE={env_value!r} should resolve json_response to "
+        f"{expected_json_response}, got {captured_kwargs.get('json_response')!r}"
+    )

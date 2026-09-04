@@ -391,11 +391,6 @@ def main(argv: list[str] | None = None) -> int:
         mcp.run(transport="stdio", show_banner=False)
         return 0
 
-    log.info(
-        "[OK] starting FastMCP Streamable HTTP listener on %s:%d",
-        config.host,
-        config.port,
-    )
     # Synchronous — FastMCP.run() manages its own event loop.
     # ``stateless_http=True`` is REQUIRED for AgentCore Runtime MCP protocol
     # mode (per runtime-mcp-protocol-contract):
@@ -410,11 +405,39 @@ def main(argv: list[str] | None = None) -> int:
     stateless = os.environ.get("MCP_STATELESS_HTTP", "true").strip().lower() not in (
         "false", "0", "no", "off"
     )
+    # ``json_response=True`` is REQUIRED for Gateway interceptor compatibility
+    # (per design AD-C4 / AD-C7):
+    #   * Gateway interceptors for HTTP/Runtime targets run in buffered mode
+    #     only — SSE framing (``text/event-stream``) prevents them from firing,
+    #     which would silently remove all principal/scope enforcement.
+    #   * JSON framing (``application/json``) keeps the response buffered and
+    #     the interceptor chain operational.
+    #   * The developer proxy (agentcore-kiro-proxy.py v1.2.0+) is
+    #     framing-tolerant, so this is safe for the direct SigV4 path too.
+    # Set ``MCP_JSON_RESPONSE=false`` to revert to SSE framing — but note that
+    # Gateway interceptors may not fire in that mode.
+    json_response = os.environ.get("MCP_JSON_RESPONSE", "true").strip().lower() not in (
+        "false", "0", "no", "off"
+    )
+    if not json_response:
+        log.warning(
+            "[WARN] json_response disabled — Gateway interceptors may not fire; "
+            "principal/scope enforcement will be absent for external consumers"
+        )
+    log.info(
+        "[OK] starting FastMCP Streamable HTTP listener on %s:%d "
+        "(stateless=%s, json_response=%s)",
+        config.host,
+        config.port,
+        stateless,
+        json_response,
+    )
     mcp.run(
         transport="streamable-http",
         host=config.host,
         port=config.port,
         stateless_http=stateless,
+        json_response=json_response,
     )
     return 0
 

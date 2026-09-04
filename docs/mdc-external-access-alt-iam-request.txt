@@ -1,203 +1,367 @@
-MDC EXTERNAL ACCESS (ALT) — IAM PRE-CREATE REQUEST — Account 903050880929
-=========================================================================
 
-Date:       July 27, 2026
-Requestor:  MDC MCP RAG platform team
+OMD EXTERNAL ACCESS — IAM ADMIN REQUESTS (INDEX)
+=================================================
+
+Date:       September 2026 (reconciled 2026-09-06)
 Account:    903050880929
-Region:     us-east-1
-Project:    MDC MCP RAG Server — External Access (Path B, Cognito JWT)
-Spec:       .kiro/specs/mcp-external-access-revised/
+Org:        NOAA NWS / OMD / CAT (formerly EMC / MDC)
+
+This document indexes three focused IAM request files. Each is self-
+contained so the admin can action them independently.
 
 
-REQUEST
--------
+STATUS SUMMARY (as of 2026-09-06)
+----------------------------------
 
-The `MdcExternalAccessAlternativeStack` CDK stack REFERENCES (does not
-create) one IAM OIDC identity provider and three IAM roles. The PowerUser
-group policy blocks `iam:CreateRole` and `iam:CreateOpenIDConnectProvider`
-(same class of restriction as the Neptune bulk-loader `iam:PassRole` case),
-so these must be admin-created ONCE before the stack is deployed. The CDK
-then imports them by name/ARN (`fromRoleName` / `fromOpenIdConnectProviderArn`).
+  #   Item                                            Status
+  --  ----------------------------------------------  --------
+  1   Gateway verification Lambda role                DONE (Sep 3)
+  2   lambda:InvokeFunction on task role              DONE (Sep 3)
+  3   InvokeAgentRuntime on task role (wildcard)      DONE (Sep 4)
+  4   Token Broker Lambda role (/noaa/ path)          DONE (Sep 3)
+  5   Authorizer CR Lambda role (/noaa/ path)         DONE (Sep 3)
+  6   GitHub Actions OIDC CI role                     NOT YET NEEDED
+  7   GitHub OIDC Provider                            NOT YET NEEDED
+  8   Gateway execution role (SigV4 outbound)         NOT YET CREATED
+  9   Interceptor Lambda execution role               NOT YET CREATED
+  10  Gateway CDK custom resource provider role       NOT YET CREATED
 
-Verified 2026-07-27: none of these exist yet. The only OIDC provider in the
-account is `ncis-gitlab.nesdis-hq.noaa.gov` — the GitHub Actions provider is
-ABSENT and must be created.
-
-
-1. GitHub Actions OIDC identity provider
------------------------------------------
-
-    aws iam create-open-id-connect-provider \
-      --url https://token.actions.githubusercontent.com \
-      --client-id-list sts.amazonaws.com \
-      --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 \
-      --region us-east-1
-
-  Resulting ARN (referenced by CDK and role #2's trust policy):
-    arn:aws:iam::903050880929:oidc-provider/token.actions.githubusercontent.com
-
-  Note: STS validates GitHub's OIDC tokens against IAM's trusted-CA library;
-  the thumbprint is required by the API but not used for path validation for
-  this well-known provider. Any current GitHub thumbprint is acceptable.
+  Items 1–5 are verified live via the commands below.
+  Items 6–7 will be needed when CI pipeline integration begins.
+  Items 8–10 are needed before Path C Gateway CDK deployment.
 
 
-2. Role: mdc-mcp-alt-gh-oidc-ci  (GitHub Actions -> Token_Broker)   [R3.1, R3.2]
--------------------------------------------------------------------------------
+IMMEDIATE — Gateway Verification (3 items — ALL DONE)
+------------------------------------------------------
 
-  Trust policy (federated OIDC; aud pinned; sub allowlisted — R3.1):
+  File: docs/mdc-gateway-verification-iam-request.txt
+  Spec: .kiro/specs/gateway-interceptor-verification/
+
+  1. [DONE] mdc-gateway-verification-lambda-role — Lambda exec role
+  2. [DONE] lambda-invoke-gateway-interceptors on mdc-mcp-rag-ecs-task-role
+  3. [DONE] agentcore-invoke-runtime-for-gateway on mdc-mcp-rag-ecs-task-role
+            (wildcard corrected Sep 4 — trailing * on Runtime ARN)
+
+  Result: End-to-end Gateway verification passed — 45/45 tool calls.
+
+
+MEDIUM — Cognito External Access (2 roles — DONE, not yet exercised)
+--------------------------------------------------------------------
+
+  File: docs/mdc-external-access-cognito-iam-request.txt
+  Spec: .kiro/specs/mcp-external-access-revised/
+
+  4. [DONE] mdc-mcp-alt-token-broker-role (path: /noaa/)
+            + read-ci-client-secret inline policy
+            + AWSLambdaBasicExecutionRole managed policy
+  5. [DONE] mdc-mcp-alt-authorizer-cr-role (path: /noaa/)
+            + update-agentcore-runtime inline policy
+            + AWSLambdaBasicExecutionRole managed policy
+
+  NOTE: Both roles were created under the /noaa/ IAM path.
+  ARNs include the path segment:
+    arn:aws:iam::903050880929:role/noaa/mdc-mcp-alt-token-broker-role
+    arn:aws:iam::903050880929:role/noaa/mdc-mcp-alt-authorizer-cr-role
+  CDK must use iam.Role.fromRoleArn() with the full ARN, NOT
+  iam.Role.fromRoleName() which constructs ARNs without the path.
+
+
+LOW — GitHub Actions CI/CD (1 OIDC provider + 1 role — NOT YET NEEDED)
+----------------------------------------------------------------------
+
+  File: docs/mdc-external-access-github-iam-request.txt
+  Spec: .kiro/specs/mcp-external-access-revised/
+
+  6. [ ] mdc-mcp-alt-gh-oidc-ci — GitHub Actions CI role
+  7. [ ] GitHub OIDC Provider (token.actions.githubusercontent.com)
+         Note: only the NCIS GitLab provider exists currently.
+
+  Status: Not yet blocking — needed when CI pipeline work begins.
+
+
+VERIFICATION (all completed items)
+-----------------------------------
+
+  # Item 1 — Lambda execution role
+  aws iam get-role --role-name mdc-gateway-verification-lambda-role \
+    --query 'Role.{Name:RoleName,Created:CreateDate}' --output table
+
+  # Item 2 — lambda:InvokeFunction policy
+  aws iam get-role-policy --role-name mdc-mcp-rag-ecs-task-role \
+    --policy-name lambda-invoke-gateway-interceptors
+
+  # Item 3 — InvokeAgentRuntime policy (check for wildcard *)
+  aws iam get-role-policy --role-name mdc-mcp-rag-ecs-task-role \
+    --policy-name agentcore-invoke-runtime-for-gateway
+
+  # Item 4 — Token Broker role
+  aws iam get-role --role-name mdc-mcp-alt-token-broker-role \
+    --query 'Role.{Name:RoleName,Path:Path,Created:CreateDate}' --output table
+  aws iam list-role-policies --role-name mdc-mcp-alt-token-broker-role
+
+  # Item 5 — Authorizer CR role
+  aws iam get-role --role-name mdc-mcp-alt-authorizer-cr-role \
+    --query 'Role.{Name:RoleName,Path:Path,Created:CreateDate}' --output table
+  aws iam list-role-policies --role-name mdc-mcp-alt-authorizer-cr-role
+
+  # Item 6+7 — GitHub OIDC (expected: not found)
+  aws iam get-role --role-name mdc-mcp-alt-gh-oidc-ci 2>&1 | head -1
+  aws iam list-open-id-connect-providers --output table
+
+
+COMPLETE INLINE POLICY INVENTORY — mdc-mcp-rag-ecs-task-role
+-------------------------------------------------------------
+
+  As of 2026-09-06, this role has 6 inline policies:
+
+  Policy Name                              Purpose                     Added
+  ─────────────────────────────────────    ──────────────────────────  ─────────
+  inline                                   Neptune/OpenSearch/ECR/CW   Apr 2026
+  bedrock-invoke-titan-embed-v2            Titan embeddings            May 2026
+  bedrock-invoke-claude-generative         Claude models               Aug 2026
+  efs-clientmount-workflow-ap              EFS mount for workflows     Apr 2026
+  lambda-invoke-gateway-interceptors       Gateway -> Lambda (dual)    Sep 3
+  agentcore-invoke-runtime-for-gateway     Gateway -> Runtime (*)      Sep 3-4
+
+
+PATH C GATEWAY — NEW ROLES (3 items — NOT YET CREATED)
+-------------------------------------------------------
+
+  File: (this document — roles are defined inline below)
+  Spec: .kiro/specs/mcp-external-access-alternative-gateway/
+
+  8. [ ] mdc-mcp-alt-gateway-exec-role — Gateway execution role (SigV4 outbound)
+  9. [ ] mdc-mcp-alt-interceptor-role — Interceptor Lambda execution role
+  10. [ ] mdc-mcp-alt-gateway-cr-role — CDK AwsCustomResource provider role
+
+
+======================================================================
+ITEM 8 — GATEWAY EXECUTION ROLE (NOT YET CREATED)
+======================================================================
+
+Role:   mdc-mcp-alt-gateway-exec-role
+Status: NOT YET CREATED
+Spec:   .kiro/specs/mcp-external-access-alternative-gateway/ (Task 2.3)
+
+Purpose: AgentCore Gateway assumes this role to sign SigV4 outbound
+requests to the Runtime target (design AD-C6, R1.3, R2.5).
+
+  Trust policy:
 
     {
       "Version": "2012-10-17",
       "Statement": [{
         "Effect": "Allow",
-        "Principal": {
-          "Federated": "arn:aws:iam::903050880929:oidc-provider/token.actions.githubusercontent.com"
-        },
-        "Action": "sts:AssumeRoleWithWebIdentity",
+        "Principal": { "Service": "bedrock-agentcore.amazonaws.com" },
+        "Action": "sts:AssumeRole",
         "Condition": {
           "StringEquals": {
-            "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+            "aws:SourceAccount": "903050880929"
           },
-          "StringLike": {
-            "token.actions.githubusercontent.com:sub": [
-              "repo:NOAA-EMC/global-workflow:ref:refs/heads/*",
-              "repo:NOAA-EMC/mdc-mcp-rag:ref:refs/heads/*"
-            ]
+          "ArnLike": {
+            "aws:SourceArn": "arn:aws:bedrock-agentcore:us-east-1:903050880929:gateway/*"
           }
         }
       }]
     }
 
-  NOTE: the `sub` allowlist above MUST stay in sync with
-  `allowedGithubSubPatterns` in infrastructure/cdk/bin/cdk.ts. STS rejects any
-  AssumeRoleWithWebIdentity whose `sub` matches no entry.
+  NOTE: aws:SourceArn uses a gateway/* wildcard because the Gateway ARN
+  is not known until the first cdk deploy creates the Gateway custom
+  resource (Task 2.2). After creation, tighten to the exact Gateway ARN.
+  aws:SourceAccount is always exact. These conditions prevent confused-
+  deputy attacks (AD-C6, DP-4).
 
-  Permissions policy (invoke the Token_Broker ONLY — R3.2):
+  Permissions (inline policy: invoke-runtime-target):
+
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Sid": "InvokeRuntimeTarget",
+        "Effect": "Allow",
+        "Action": "bedrock-agentcore:InvokeAgentRuntime",
+        "Resource": "arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN*"
+      }]
+    }
+
+  NOTE: Trailing * on the Resource ARN covers both the bare runtime ARN
+  and the /runtime-endpoint/DEFAULT sub-resource path that the Gateway
+  evaluates (see Item 3 correction above for precedent).
+
+  Create commands:
+
+    aws iam create-role \
+      --role-name mdc-mcp-alt-gateway-exec-role \
+      --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"bedrock-agentcore.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"903050880929"},"ArnLike":{"aws:SourceArn":"arn:aws:bedrock-agentcore:us-east-1:903050880929:gateway/*"}}}]}' \
+      --description "AgentCore Gateway execution role for MDC MCP external access (Path C)" \
+      --region us-east-1
+
+    aws iam put-role-policy \
+      --role-name mdc-mcp-alt-gateway-exec-role \
+      --policy-name invoke-runtime-target \
+      --policy-document '{"Version":"2012-10-17","Statement":[{"Sid":"InvokeRuntimeTarget","Effect":"Allow","Action":"bedrock-agentcore:InvokeAgentRuntime","Resource":"arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN*"}]}'
+
+  Verify:
+
+    aws iam get-role --role-name mdc-mcp-alt-gateway-exec-role \
+      --query 'Role.{Name:RoleName,Created:CreateDate}' --output table
+    aws iam get-role-policy \
+      --role-name mdc-mcp-alt-gateway-exec-role \
+      --policy-name invoke-runtime-target
+
+  Cleanup (when Gateway work is complete):
+
+    aws iam delete-role-policy \
+      --role-name mdc-mcp-alt-gateway-exec-role \
+      --policy-name invoke-runtime-target
+    aws iam delete-role --role-name mdc-mcp-alt-gateway-exec-role
+
+
+======================================================================
+ITEM 9 — INTERCEPTOR LAMBDA EXECUTION ROLE (NOT YET CREATED)
+======================================================================
+
+Role:   mdc-mcp-alt-interceptor-role
+Status: NOT YET CREATED
+Spec:   .kiro/specs/mcp-external-access-alternative-gateway/ (Task 2.3, Task 4)
+
+Purpose: Execution role for the Gateway REQUEST interceptor Lambda
+(Task 4). The interceptor reads request headers and injects response
+headers — it does not call any AWS services. CloudWatch Logs access is
+the only permission needed.
+
+  Trust policy:
 
     {
       "Version": "2012-10-17",
       "Statement": [{
         "Effect": "Allow",
-        "Action": "lambda:InvokeFunction",
-        "Resource": "arn:aws:lambda:us-east-1:903050880929:function:mdc-mcp-alt-token-broker"
+        "Principal": { "Service": "lambda.amazonaws.com" },
+        "Action": "sts:AssumeRole"
       }]
     }
 
-
-3. Role: mdc-mcp-alt-token-broker-role  (Token_Broker execution role)   [R3.2, R9.3]
-------------------------------------------------------------------------------------
-
-  Trust policy:
-
-    { "Version":"2012-10-17","Statement":[{
-        "Effect":"Allow",
-        "Principal":{"Service":"lambda.amazonaws.com"},
-        "Action":"sts:AssumeRole" }] }
-
   Permissions:
     - Managed: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      (CloudWatch Logs create/put for the function's own log group)
-    - Inline (read the CI app-client secret ONLY — no DynamoDB, no other secret):
+      (CloudWatch Logs create/put)
 
-      {
-        "Version":"2012-10-17",
-        "Statement":[{
-          "Effect":"Allow",
-          "Action":"secretsmanager:GetSecretValue",
-          "Resource":"arn:aws:secretsmanager:us-east-1:903050880929:secret:mdc-mcp-external-access-alt/ci-app-client-*"
-        }]
-      }
+  NOTE: No inline policies needed. The interceptor Lambda only reads
+  request headers and injects trusted-context headers. It does not
+  access Neptune, OpenSearch, Bedrock, Secrets Manager, or any other
+  AWS service.
 
-  NOTE (AD-3 / R9.10): this role has NO DynamoDB permission. There is no
-  claims-stash table and no Pre-Token-Generation trigger. Attribution is the
-  Token_Broker structured log joined to MCP Request_Metadata on the request id.
+  Create commands:
 
-
-4. Role: mdc-mcp-alt-authorizer-cr-role  (Task 5 AwsCustomResource provider)   [R2.8]
--------------------------------------------------------------------------------------
-
-  Used by the CDK custom resource that attaches the Cognito JWT authorizer to
-  the AgentCore Runtime via bedrock-agentcore-control:UpdateAgentRuntime.
-
-  Trust policy:
-
-    { "Version":"2012-10-17","Statement":[{
-        "Effect":"Allow",
-        "Principal":{"Service":"lambda.amazonaws.com"},
-        "Action":"sts:AssumeRole" }] }
-
-  Permissions:
-    - Managed: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-    - Inline (update/read the ONE runtime only):
-
-      {
-        "Version":"2012-10-17",
-        "Statement":[{
-          "Effect":"Allow",
-          "Action":[
-            "bedrock-agentcore-control:UpdateAgentRuntime",
-            "bedrock-agentcore-control:GetAgentRuntime"
-          ],
-          "Resource":"arn:aws:bedrock-agentcore:us-east-1:903050880929:runtime/mdc_mcp_rag_server_python-v5K2F8BGrN"
-        }]
-      }
-
-
-WHY THIS REQUIRES ADMIN
-------------------------
-
-The PowerUser group policy does not allow `iam:CreateRole` or
-`iam:CreateOpenIDConnectProvider`. All four objects above are therefore
-admin-created once, then imported (never mutated) by the CDK stack.
-
-
-WHAT THIS DOES NOT DO
----------------------
-
-  - Does NOT deploy the CDK stack (a separate, cdk-diff-reviewed step — R12).
-  - Does NOT attach the JWT authorizer (Task 5's custom resource does that,
-    and only after the dual-auth risk in Correction C8 is verified).
-  - Does NOT grant any role broader scope than listed above.
-  - Does NOT modify the AgentCore Runtime, Neptune, or OpenSearch.
-
-
-VERIFICATION
-------------
-
-    aws iam list-open-id-connect-providers --region us-east-1
-    aws iam get-role --role-name mdc-mcp-alt-gh-oidc-ci
-    aws iam get-role --role-name mdc-mcp-alt-token-broker-role
-    aws iam get-role --role-name mdc-mcp-alt-authorizer-cr-role
-
-
-5. One-time: populate the CI client secret value  (Correction C12)
-------------------------------------------------------------------
-
-The CDK stack creates the Secrets Manager secret
-`mdc-mcp-external-access-alt/ci-app-client` as a RETAIN shell containing the
-(non-secret) `client_id` and a `client_secret` placeholder. CDK does NOT pull
-the real client secret through CloudFormation, because doing so injects a
-`Custom::DescribeCognitoUserPoolClient` resource whose auto-created Lambda role
-needs `iam:CreateRole` (blocked for PowerUser, C7). After `cdk deploy`, inject
-the real client secret once:
-
-    CLIENT_ID=$(aws cognito-idp describe-user-pool \
-      --user-pool-id <HpcUserPoolId output> --region us-east-1 >/dev/null; \
-      aws cloudformation describe-stacks --stack-name MdcExternalAccessAlternativeStack \
-        --query "Stacks[0].Outputs[?OutputKey=='CiAppClientId'].OutputValue" --output text)
-    CLIENT_SECRET=$(aws cognito-idp describe-user-pool-client \
-      --user-pool-id <HpcUserPoolId output> --client-id "$CLIENT_ID" \
-      --query 'UserPoolClient.ClientSecret' --output text --region us-east-1)
-    aws secretsmanager put-secret-value \
-      --secret-id mdc-mcp-external-access-alt/ci-app-client \
-      --secret-string "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\"}" \
+    aws iam create-role \
+      --role-name mdc-mcp-alt-interceptor-role \
+      --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
+      --description "Interceptor Lambda execution role for MDC MCP Gateway (Path C)" \
       --region us-east-1
 
-This keeps the client secret out of CloudFormation state entirely.
+    aws iam attach-role-policy \
+      --role-name mdc-mcp-alt-interceptor-role \
+      --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  Verify:
+
+    aws iam get-role --role-name mdc-mcp-alt-interceptor-role \
+      --query 'Role.{Name:RoleName,Created:CreateDate}' --output table
+    aws iam list-attached-role-policies \
+      --role-name mdc-mcp-alt-interceptor-role
+
+  Cleanup (when Gateway work is complete):
+
+    aws iam detach-role-policy \
+      --role-name mdc-mcp-alt-interceptor-role \
+      --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+    aws iam delete-role --role-name mdc-mcp-alt-interceptor-role
+
+
+======================================================================
+ITEM 10 — GATEWAY CDK CUSTOM RESOURCE PROVIDER ROLE (NOT YET CREATED)
+======================================================================
+
+Role:   mdc-mcp-alt-gateway-cr-role
+Status: NOT YET CREATED
+Spec:   .kiro/specs/mcp-external-access-alternative-gateway/ (Task 2.2, Task 2.3)
+
+Purpose: Custom-resource provider role for the CDK AwsCustomResource
+that creates/updates/deletes the AgentCore Gateway (Task 2.2). Gateway
+ARN is not known at creation time, so the resource must be *.
+
+  Trust policy:
+
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": { "Service": "lambda.amazonaws.com" },
+        "Action": "sts:AssumeRole"
+      }]
+    }
+
+  Permissions:
+    - Managed: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      (CloudWatch Logs create/put)
+    - Inline (manage-gateway):
+
+      {
+        "Version": "2012-10-17",
+        "Statement": [{
+          "Sid": "ManageAgentCoreGateway",
+          "Effect": "Allow",
+          "Action": [
+            "bedrock-agentcore-control:CreateGateway",
+            "bedrock-agentcore-control:UpdateGateway",
+            "bedrock-agentcore-control:DeleteGateway",
+            "bedrock-agentcore-control:GetGateway"
+          ],
+          "Resource": "*"
+        }]
+      }
+
+  NOTE: Resource is * because the Gateway ARN is unknown at creation
+  time. After first deploy, this can optionally be tightened to the
+  specific Gateway ARN.
+
+  Create commands:
+
+    aws iam create-role \
+      --role-name mdc-mcp-alt-gateway-cr-role \
+      --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
+      --description "CDK custom resource role for AgentCore Gateway management (Path C)" \
+      --region us-east-1
+
+    aws iam attach-role-policy \
+      --role-name mdc-mcp-alt-gateway-cr-role \
+      --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+    aws iam put-role-policy \
+      --role-name mdc-mcp-alt-gateway-cr-role \
+      --policy-name manage-gateway \
+      --policy-document '{"Version":"2012-10-17","Statement":[{"Sid":"ManageAgentCoreGateway","Effect":"Allow","Action":["bedrock-agentcore-control:CreateGateway","bedrock-agentcore-control:UpdateGateway","bedrock-agentcore-control:DeleteGateway","bedrock-agentcore-control:GetGateway"],"Resource":"*"}]}'
+
+  Verify:
+
+    aws iam get-role --role-name mdc-mcp-alt-gateway-cr-role \
+      --query 'Role.{Name:RoleName,Created:CreateDate}' --output table
+    aws iam list-attached-role-policies \
+      --role-name mdc-mcp-alt-gateway-cr-role
+    aws iam get-role-policy \
+      --role-name mdc-mcp-alt-gateway-cr-role \
+      --policy-name manage-gateway
+
+  Cleanup (when Gateway work is complete):
+
+    aws iam delete-role-policy \
+      --role-name mdc-mcp-alt-gateway-cr-role \
+      --policy-name manage-gateway
+    aws iam detach-role-policy \
+      --role-name mdc-mcp-alt-gateway-cr-role \
+      --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+    aws iam delete-role --role-name mdc-mcp-alt-gateway-cr-role
 
 
 CONTACT
 -------
 
-MDC MCP RAG platform team — NOAA NWS / EMC MDC
-Project: MDC MCP RAG Server — External Access (Path B)
+OMD MCP-RAG Platform Team — NOAA NWS / OMD / CAT

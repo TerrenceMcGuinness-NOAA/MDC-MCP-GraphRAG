@@ -1,5 +1,119 @@
 # MCP Server Changelog
 
+## [Unreleased] - Gateway Interceptor E2E Verification + IAM Admin Actions (Sep 3–4, 2026)
+
+### Summary
+
+First successful end-to-end invocation of all 53 MCP tools through an AgentCore
+Gateway with a REQUEST interceptor Lambda. Confirmed interceptor overwrite
+property (forged headers stripped), full tool-module parity (45/45 pass),
+multi-tenant isolation through the Gateway, and three IAM permission discoveries.
+Five admin-created IAM resources landed this week unblocking the Gateway path.
+Spec: `.kiro/specs/gateway-interceptor-verification/`.
+
+### IAM Admin Actions (completed by NOAA IT Security, Sep 3–4, 2026)
+
+All items from `docs/mdc-gateway-verification-iam-request.txt` and
+`docs/mdc-external-access-cognito-iam-request.txt`. PowerUserRestrictions
+blocks `iam:CreateRole` and `iam:PutRolePolicy`; admin action required.
+
+**Gateway verification (3 items — all DONE):**
+
+- **`mdc-gateway-verification-lambda-role`** (new role, Sep 3) — minimal Lambda
+  execution role for Gateway interceptor functions. `AWSLambdaBasicExecutionRole`
+  (CloudWatch Logs only). No Neptune/OpenSearch/Bedrock/Secrets access.
+  Intentionally retained for future Gateway development cycles.
+- **`lambda-invoke-gateway-interceptors`** (inline policy on
+  `mdc-mcp-rag-ecs-task-role`, Sep 3) — `lambda:InvokeFunction` on
+  `arn:aws:lambda:us-east-1:...:function:mdc-gateway-*`. Discovered during
+  verification: the Gateway uses a **dual authorization model** (both Lambda
+  resource-based policy AND the execution role's identity-based policy must
+  permit invocation).
+- **`agentcore-invoke-runtime-for-gateway`** (inline policy on
+  `mdc-mcp-rag-ecs-task-role`, Sep 3; **wildcard corrected Sep 4**) —
+  `bedrock-agentcore:InvokeAgentRuntime` on the Runtime ARN with trailing `*`.
+  Discovery: the IAM resource evaluated includes a sub-resource path
+  (`/runtime-endpoint/DEFAULT`) beyond the bare Runtime ARN; policies without
+  the wildcard fail with HTTP 403.
+
+**Cognito external access (2 items — DONE, not yet exercised):**
+
+- **`mdc-mcp-alt-token-broker-role`** (new role, path `/noaa/`, Sep 3) —
+  Token Broker Lambda execution role. `AWSLambdaBasicExecutionRole` +
+  `read-ci-client-secret` inline policy. Created under the `/noaa/` IAM path,
+  meaning the ARN includes the path segment — CDK must use `fromRoleArn()` with
+  the full ARN, not `fromRoleName()`.
+- **`mdc-mcp-alt-authorizer-cr-role`** (new role, path `/noaa/`, Sep 3) —
+  Authorizer custom resource Lambda role. `AWSLambdaBasicExecutionRole` +
+  `update-agentcore-runtime` inline policy. Same `/noaa/` path note.
+
+**Not yet created (not yet blocking):**
+
+- `mdc-mcp-alt-gh-oidc-ci` — GitHub Actions OIDC CI role. Needed when CI
+  pipeline integration begins.
+- GitHub OIDC Provider (`token.actions.githubusercontent.com`) — only the
+  NCIS GitLab OIDC provider exists in the account currently.
+
+### Gateway Verification Results
+
+- **Q1 (DP-7): YES** — REQUEST interceptor Lambdas DO fire for
+  `agentcoreRuntime` targets on an AgentCore Gateway with JSON framing.
+- **Q2 (DP-1): YES** — confirmed via full 45/45 e2e tool invocation (the MCP
+  server received and processed all requests correctly through the Gateway).
+- **Interceptor overwrite property: CONFIRMED** — forged `Custom-Principal`
+  header (16 chars) stripped and replaced with `probe` (5 chars).
+- **End-to-end parity: 45/45 PASS** across all 11 module categories including
+  4 multi-tenant calls (gw\_v17).
+- **Gate 1: CONDITIONALLY CLEARED** → Path C implementation may proceed.
+- Verification report: `docs/reports/mcp-external-access-gateway-verification.md`
+- Wiki report: `supported_repos/MDC-MCP-GraphRAG.wiki/AgentCore-Gateway-End-to-End-Verification.md`
+
+### Added
+
+- **`infrastructure/cdk/lambda/gateway_echo_interceptor/index.py`** — minimal
+  REQUEST interceptor Lambda for Gateway verification. Logs event structure
+  (header names only, never values), strips client-supplied `Custom-*` headers,
+  injects `Custom-Principal: probe`.
+- **`docs/mdc-gateway-verification-iam-request.txt`** — consolidated admin IAM
+  request covering all three Gateway verification items. Updated with wildcard
+  ARN correction (Item 3) and marked all items DONE.
+- **`docs/reports/mcp-external-access-gateway-verification.md`** — full
+  verification report with pre/post state, CloudWatch evidence, IAM discoveries,
+  and resource inventory.
+- **`sdd_framework/workflows/phase84_full_multi_tenant_portable_export.md`** —
+  SDD entry for the next phase: fresh multi-tenant portable export and COTS
+  restore.
+- **`docs/presentations/papers/agentcore-gateway-verification/main.tex`** —
+  comprehensive 16-page LaTeX technical report with TikZ diagrams, full 45-call
+  results table, architecture overview, and IAM discovery documentation.
+
+### Changed
+
+- **`docs/mdc-external-access-alt-iam-request.txt`** — index document updated
+  to reflect all five completed admin actions and two remaining items.
+- **`.kiro/specs/mcp-external-access-alternative-gateway/design.md` §9.2** —
+  Gate 1 updated to CONDITIONALLY CLEARED (2026-09-05); Gate 7 (DP-8) updated
+  to Runtime target CONFIRMED.
+
+### Protocol Type Finding
+
+The boto3 SDK now requires `protocolType` for `create_gateway`, accepting only
+`MCP`. However, MCP-protocol Gateways support only `mcpServer` targets, not
+`agentcoreRuntime` targets. The working configuration uses the AWS CLI without
+specifying `protocolType`, which defaults to an HTTP-compatible mode accepting
+Runtime targets. Documented in the verification report and LaTeX paper.
+
+### Inline Policy Summary on `mdc-mcp-rag-ecs-task-role` (as of Sep 4, 2026)
+
+| Policy Name | Purpose | Added |
+|---|---|---|
+| `inline` | Neptune, OpenSearch, ECR, CloudWatch, X-Ray, SecretsManager, SSM | Original (Apr 2026) |
+| `bedrock-invoke-titan-embed-v2` | Bedrock Titan embedding model invocation | May 2026 |
+| `bedrock-invoke-claude-generative` | Bedrock Claude model invocation | Aug 2026 |
+| `efs-clientmount-workflow-ap` | EFS mount for workflow source trees | Apr 2026 |
+| `lambda-invoke-gateway-interceptors` | Gateway → Interceptor Lambda (dual auth) | **Sep 3, 2026** |
+| `agentcore-invoke-runtime-for-gateway` | Gateway → Runtime (wildcard ARN) | **Sep 3–4, 2026** |
+
 ## [Unreleased] - Path C Gateway Spec Recovery + Proxy Framing Tolerance (Aug 13, 2026)
 
 ### Summary
